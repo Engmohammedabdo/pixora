@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --color-primary-50: #EEF2FF;
+    --color-primary-100: #E0E7FF;
+    --color-primary-500: #6366F1;
+    --color-primary-600: #4F46E5;
+    --color-primary-900: #312E81;
+
+    --color-accent-400: #22D3EE;
+    --color-accent-500: #06B6D4;
+
+    --color-bg: #F8FAFC;
+    --color-surface: #FFFFFF;
+    --color-surface-2: #F1F5F9;
+    --color-border: #E2E8F0;
+
+    --color-text-primary: #0F172A;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94A3B8;
+
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --color-bg: #0F172A;
+    --color-surface: #1E293B;
+    --color-surface-2: #334155;
+    --color-border: #334155;
+
+    --color-text-primary: #F8FAFC;
+    --color-text-secondary: #94A3B8;
+    --color-text-muted: #64748B;
+  }
+
+  [lang='ar'] {
+    font-family: 'Tajawal', sans-serif;
+  }
+
+  [lang='ar'] h1,
+  [lang='ar'] h2,
+  [lang='ar'] h3,
+  [lang='ar'] h4 {
+    font-family: 'Cairo', sans-serif;
+  }
+
+  [lang='en'] {
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-[var(--color-border)];
+  }
+  body {
+    @apply bg-[var(--color-bg)] text-[var(--color-text-primary)];
+  }
+}
