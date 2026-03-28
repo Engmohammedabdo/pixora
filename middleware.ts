@@ -16,10 +16,17 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const intlResponse = intlMiddleware(request);
   const response = intlResponse || NextResponse.next({ request });
 
+  // Skip auth checks if Supabase is not configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return response;
+  }
+
   // Create Supabase client with cookie handling
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {

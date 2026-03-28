@@ -100,7 +100,7 @@ export default function LoginPage(): React.ReactElement {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-surface px-2 text-[var(--color-text-muted)]">
-              {t('or' as 'login')}
+              {t('or')}
             </span>
           </div>
         </div>
