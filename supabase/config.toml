@@ -1,0 +1,10 @@
+[project]
+id = "pixora-local"
+name = "Pixora"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[auth.external.google]
+enabled = true
