@@ -108,6 +108,104 @@
     "recentGenerations": "Recent Generations",
     "noGenerations": "No generations yet"
   },
+  "studio": {
+    "model": "AI Model",
+    "speed": {
+      "fast": "Fast",
+      "medium": "Medium",
+      "slow": "Slow"
+    },
+    "quality": {
+      "high": "High",
+      "highest": "Highest",
+      "creative": "Creative"
+    },
+    "generate": "Generate",
+    "generating": "Generating...",
+    "regenerate": "Regenerate",
+    "download": "Download",
+    "downloadAll": "Download All",
+    "copyCaption": "Copy",
+    "copied": "Copied!",
+    "usedFallback": "Alternative model was used",
+    "brandKitApplied": "Brand Kit applied"
+  },
+  "creator": {
+    "title": "Image Creator",
+    "description": "Create professional marketing images from text or reference",
+    "prompt": "Image Description",
+    "promptPlaceholder": "Describe the image you want to create in detail...",
+    "referenceImage": "Reference Image (optional)",
+    "style": "Image Style",
+    "styles": {
+      "photographic": "Photographic",
+      "illustrative": "Illustrative",
+      "minimalist": "Minimalist",
+      "bold": "Bold"
+    },
+    "useBrandKit": "Apply Brand Kit",
+    "variations": "Variations"
+  },
+  "photoshoot": {
+    "title": "Product Photoshoot",
+    "description": "Professional product photography in various environments",
+    "productImage": "Product Image",
+    "productImageRequired": "Product image is required",
+    "uploadProduct": "Upload product image",
+    "environment": "Photography Environment",
+    "environments": {
+      "white_studio": "White Studio",
+      "lifestyle": "Lifestyle",
+      "nature": "Nature",
+      "urban": "Urban",
+      "luxury": "Luxury",
+      "festive": "Festive"
+    },
+    "shots": "Number of Shots",
+    "notes": "Additional Notes",
+    "notesPlaceholder": "Any additional details about the shoot..."
+  },
+  "campaign": {
+    "title": "Campaign Planner",
+    "description": "Generate a complete campaign with 9 posts",
+    "productDescription": "Product or Service Description",
+    "productDescriptionPlaceholder": "Describe your product or service...",
+    "targetAudience": "Target Audience",
+    "targetAudiencePlaceholder": "Example: Women 25-35 interested in skincare",
+    "dialect": "Dialect",
+    "dialects": {
+      "saudi": "Saudi",
+      "emirati": "Emirati",
+      "egyptian": "Egyptian",
+      "gulf": "Gulf",
+      "formal": "Formal Arabic"
+    },
+    "platform": "Platform",
+    "occasion": "Occasion (optional)",
+    "occasionPlaceholder": "Example: Ramadan, Black Friday...",
+    "productImage": "Product Image (optional)",
+    "generateCampaign": "Generate Campaign",
+    "post": "Post",
+    "scenario": "Scene Description",
+    "caption": "Caption",
+    "hook": "Hook",
+    "schedule": "Schedule",
+    "hashtags": "Hashtags",
+    "generateImage": "Generate Image",
+    "generateAllImages": "Generate All Images",
+    "copyAll": "Copy All Captions",
+    "exportPdf": "Export PDF"
+  },
+  "assets": {
+    "title": "My Assets",
+    "empty": "No assets yet",
+    "emptyDescription": "Start creating content from any studio",
+    "filterByStudio": "Filter by Studio",
+    "all": "All",
+    "selectAll": "Select All",
+    "deleteSelected": "Delete Selected",
+    "downloadSelected": "Download Selected"
+  },
   "settings": {
     "title": "Settings",
     "profile": "Profile",

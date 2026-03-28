@@ -108,6 +108,104 @@
     "recentGenerations": "آخر الإنشاءات",
     "noGenerations": "لم تقم بأي إنشاء بعد"
   },
+  "studio": {
+    "model": "نموذج الذكاء الاصطناعي",
+    "speed": {
+      "fast": "سريع",
+      "medium": "متوسط",
+      "slow": "بطيء"
+    },
+    "quality": {
+      "high": "عالي",
+      "highest": "الأعلى",
+      "creative": "إبداعي"
+    },
+    "generate": "توليد",
+    "generating": "جاري التوليد...",
+    "regenerate": "إعادة التوليد",
+    "download": "تحميل",
+    "downloadAll": "تحميل الكل",
+    "copyCaption": "نسخ",
+    "copied": "تم النسخ!",
+    "usedFallback": "تم استخدام نموذج بديل",
+    "brandKitApplied": "تم تطبيق الهوية البصرية"
+  },
+  "creator": {
+    "title": "منشئ الصور",
+    "description": "أنشئ صوراً تسويقية احترافية من نص أو صورة مرجعية",
+    "prompt": "وصف الصورة",
+    "promptPlaceholder": "اكتب وصفاً تفصيلياً للصورة التي تريد إنشاءها...",
+    "referenceImage": "صورة مرجعية (اختياري)",
+    "style": "أسلوب الصورة",
+    "styles": {
+      "photographic": "تصوير فوتوغرافي",
+      "illustrative": "رسم توضيحي",
+      "minimalist": "بسيط",
+      "bold": "جريء"
+    },
+    "useBrandKit": "تطبيق الهوية البصرية",
+    "variations": "التنويعات"
+  },
+  "photoshoot": {
+    "title": "تصوير المنتجات",
+    "description": "تصوير منتج احترافي في بيئات مختلفة",
+    "productImage": "صورة المنتج",
+    "productImageRequired": "صورة المنتج مطلوبة",
+    "uploadProduct": "ارفع صورة المنتج",
+    "environment": "بيئة التصوير",
+    "environments": {
+      "white_studio": "استوديو أبيض",
+      "lifestyle": "حياة يومية",
+      "nature": "طبيعة",
+      "urban": "مدني",
+      "luxury": "فاخر",
+      "festive": "احتفالي"
+    },
+    "shots": "عدد اللقطات",
+    "notes": "ملاحظات إضافية",
+    "notesPlaceholder": "أي تفاصيل إضافية عن التصوير..."
+  },
+  "campaign": {
+    "title": "مخطط الحملات",
+    "description": "توليد حملة كاملة من 9 منشورات",
+    "productDescription": "وصف المنتج أو الخدمة",
+    "productDescriptionPlaceholder": "اكتب وصفاً عن منتجك أو خدمتك...",
+    "targetAudience": "الجمهور المستهدف",
+    "targetAudiencePlaceholder": "مثال: نساء 25-35 سنة مهتمات بالعناية بالبشرة",
+    "dialect": "اللهجة",
+    "dialects": {
+      "saudi": "سعودية",
+      "emirati": "إماراتية",
+      "egyptian": "مصرية",
+      "gulf": "خليجية عامة",
+      "formal": "فصحى"
+    },
+    "platform": "المنصة",
+    "occasion": "المناسبة (اختياري)",
+    "occasionPlaceholder": "مثال: رمضان، بلاك فرايدي...",
+    "productImage": "صورة المنتج (اختياري)",
+    "generateCampaign": "توليد الحملة",
+    "post": "منشور",
+    "scenario": "وصف المشهد",
+    "caption": "النص",
+    "hook": "العنوان الجذاب",
+    "schedule": "التوقيت",
+    "hashtags": "الهاشتاقات",
+    "generateImage": "توليد صورة",
+    "generateAllImages": "توليد كل الصور",
+    "copyAll": "نسخ كل النصوص",
+    "exportPdf": "تصدير PDF"
+  },
+  "assets": {
+    "title": "ملفاتي",
+    "empty": "لا توجد ملفات بعد",
+    "emptyDescription": "ابدأ بإنشاء محتوى من أي استوديو",
+    "filterByStudio": "فلتر حسب الاستوديو",
+    "all": "الكل",
+    "selectAll": "تحديد الكل",
+    "deleteSelected": "حذف المحدد",
+    "downloadSelected": "تحميل المحدد"
+  },
   "settings": {
     "title": "الإعدادات",
     "profile": "الملف الشخصي",
