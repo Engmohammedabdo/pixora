@@ -8,12 +8,14 @@ import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { rateLimit } from '@/lib/rate-limit';
+import type { AIModel } from '@/types/studios';
 
 const InputSchema = z.object({
   prompt: z.string().min(10).max(1000),
   model: z.enum(['gemini', 'gpt', 'flux']),
   resolution: z.enum(['1080p', '2K', '4K']),
   style: z.string().default('photographic'),
+  variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
   referenceImageUrl: z.string().url().optional(),
 });
@@ -51,12 +53,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Calculate credit cost
     const creditCost = CREDIT_COSTS.image[input.resolution];
+    const totalCost = creditCost * input.variations;
 
     // Check credits
     const creditCheck = await checkCredits({
       supabase,
       userId: user.id,
-      amount: creditCost,
+      amount: totalCost,
     });
 
     if (!creditCheck.hasEnough) {
@@ -64,7 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         {
           success: false,
           error: 'insufficient_credits',
-          required: creditCost,
+          required: totalCost,
           available: creditCheck.currentBalance,
         },
         { status: 402 }
@@ -99,7 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         studio: 'creator',
         model: input.model,
         input: { ...input, fullPrompt },
-        credits_used: creditCost,
+        credits_used: totalCost,
         status: 'processing',
       })
       .select()
@@ -112,51 +115,90 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Generate image
-    const result = await generateImage({
-      prompt: fullPrompt,
-      model: input.model,
-      resolution: input.resolution,
-      referenceImageUrl: input.referenceImageUrl,
-    });
+    // Generate image(s)
+    const uploadImage = async (url: string, index: number): Promise<string> => {
+      let finalUrl = url;
+      if (finalUrl.startsWith('data:')) {
+        try {
+          const matches = finalUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            const mimeType = matches[1];
+            const base64Data = matches[2];
+            const ext = mimeType.includes('png') ? 'png' : 'jpg';
+            const fileName = `generations/${user.id}/${generation.id}-${index}.${ext}`;
+            const buffer = Buffer.from(base64Data, 'base64');
 
-    // Upload base64 image to Supabase Storage if not a URL
-    let finalUrl = result.url || '';
-    if (finalUrl.startsWith('data:')) {
-      try {
-        const matches = finalUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches) {
-          const mimeType = matches[1];
-          const base64Data = matches[2];
-          const ext = mimeType.includes('png') ? 'png' : 'jpg';
-          const fileName = `generations/${user.id}/${generation.id}.${ext}`;
-          const buffer = Buffer.from(base64Data, 'base64');
+            const { error: uploadError } = await supabase.storage
+              .from('assets')
+              .upload(fileName, buffer, { contentType: mimeType, upsert: true });
 
-          const { error: uploadError } = await supabase.storage
-            .from('assets')
-            .upload(fileName, buffer, { contentType: mimeType, upsert: true });
-
-          if (!uploadError) {
-            const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
-            finalUrl = urlData.publicUrl;
-          } else {
-            console.error('Upload error:', uploadError.message);
-            // Keep base64 as fallback
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
+              finalUrl = urlData.publicUrl;
+            } else {
+              console.error('Upload error:', uploadError.message);
+            }
           }
+        } catch (uploadErr) {
+          console.error('Failed to upload to storage:', uploadErr);
         }
-      } catch (uploadErr) {
-        console.error('Failed to upload to storage:', uploadErr);
-        // Keep base64 as fallback
       }
+      return finalUrl;
+    };
+
+    let imageUrls: string[];
+    let hasMock = false;
+    let hasUsedFallback = false;
+    let resultModel = input.model;
+    let resultOriginalModel: string | undefined;
+
+    if (input.variations === 4) {
+      const promises = Array.from({ length: 4 }, () =>
+        generateImage({
+          prompt: fullPrompt,
+          model: input.model,
+          resolution: input.resolution,
+          referenceImageUrl: input.referenceImageUrl,
+        }).catch(() => null)
+      );
+
+      const results = await Promise.all(promises);
+      const uploadPromises = results.map((r, i) =>
+        r ? uploadImage(r.url || '', i) : Promise.resolve('')
+      );
+      const urls = await Promise.all(uploadPromises);
+
+      imageUrls = urls.filter((u) => u !== '');
+      hasMock = results.some((r) => r?.mock);
+      hasUsedFallback = results.some((r) => r?.usedFallback);
+      const firstResult = results.find((r) => r !== null);
+      if (firstResult) {
+        resultModel = firstResult.model as AIModel;
+        resultOriginalModel = firstResult.originalModel;
+      }
+    } else {
+      const result = await generateImage({
+        prompt: fullPrompt,
+        model: input.model,
+        resolution: input.resolution,
+        referenceImageUrl: input.referenceImageUrl,
+      });
+
+      const finalUrl = await uploadImage(result.url || '', 0);
+      imageUrls = [finalUrl];
+      hasMock = result.mock ?? false;
+      hasUsedFallback = result.usedFallback ?? false;
+      resultModel = result.model as AIModel;
+      resultOriginalModel = result.originalModel;
     }
 
     // Deduct credits
     const deductResult = await deductCredits({
       supabase,
       userId: user.id,
-      amount: creditCost,
+      amount: totalCost,
       studio: 'creator',
-      description: `Image generation - ${input.resolution}`,
+      description: `Image generation - ${input.resolution} x${input.variations}`,
       generationId: generation.id,
     });
 
@@ -171,30 +213,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await supabase
       .from('generations')
       .update({
-        output: { url: finalUrl, mock: result.mock },
+        output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
         status: 'completed',
       })
       .eq('id', generation.id);
 
-    // Save asset
-    await supabase.from('assets').insert({
-      user_id: user.id,
-      generation_id: generation.id,
-      type: 'image',
-      url: finalUrl,
-      format: 'png',
-    });
+    // Save assets (one per successful image)
+    const assetInserts = imageUrls
+      .filter((u) => u)
+      .map((url) => ({
+        user_id: user.id,
+        generation_id: generation.id,
+        type: 'image' as const,
+        url,
+        format: 'png',
+      }));
+
+    if (assetInserts.length > 0) {
+      await supabase.from('assets').insert(assetInserts);
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         generationId: generation.id,
-        imageUrl: finalUrl,
-        model: result.model,
-        mock: result.mock,
-        usedFallback: result.usedFallback,
-        originalModel: result.originalModel,
-        creditsUsed: creditCost,
+        imageUrls,
+        model: resultModel,
+        mock: hasMock,
+        usedFallback: hasUsedFallback,
+        originalModel: resultOriginalModel,
+        creditsUsed: totalCost,
         newBalance: deductResult.newBalance,
       },
     });

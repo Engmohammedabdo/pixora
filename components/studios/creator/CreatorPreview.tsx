@@ -8,7 +8,7 @@ import { Download, RefreshCw, AlertTriangle, Pencil, Info } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 
 interface CreatorPreviewProps {
-  imageUrl: string | null;
+  imageUrls: string[];
   isLoading: boolean;
   error: string | null;
   usedFallback: boolean;
@@ -18,7 +18,7 @@ interface CreatorPreviewProps {
 }
 
 export function CreatorPreview({
-  imageUrl,
+  imageUrls,
   isLoading,
   error,
   usedFallback,
@@ -52,7 +52,7 @@ export function CreatorPreview({
     );
   }
 
-  if (!imageUrl) {
+  if (imageUrls.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 py-12 text-[var(--color-text-muted)]">
         <div className="h-48 w-48 rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center">
@@ -63,11 +63,15 @@ export function CreatorPreview({
     );
   }
 
-  const handleDownload = (): void => {
+  const handleDownload = (url: string, index: number): void => {
     const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = `pixora-${Date.now()}.png`;
+    link.href = url;
+    link.download = `pixora-${Date.now()}-${index}.png`;
     link.click();
+  };
+
+  const handleDownloadAll = (): void => {
+    imageUrls.forEach((url, i) => handleDownload(url, i));
   };
 
   return (
@@ -84,21 +88,43 @@ export function CreatorPreview({
         <Badge variant="outline" className="text-xs">Mock Response</Badge>
       )}
 
-      {/* Image */}
-      <div className="rounded-lg overflow-hidden border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt="Generated image"
-          className="w-full h-auto"
-        />
-      </div>
+      {/* Image(s) */}
+      {imageUrls.length === 1 ? (
+        <div className="rounded-lg overflow-hidden border">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrls[0]}
+            alt="Generated image"
+            className="w-full h-auto"
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {imageUrls.map((url, i) => (
+            <div key={i} className="relative group rounded-lg overflow-hidden border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`Generated image ${i + 1}`}
+                className="w-full h-auto"
+              />
+              <button
+                type="button"
+                onClick={() => handleDownload(url, i)}
+                className="absolute top-2 end-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button onClick={handleDownload} className="gap-2">
+        <Button onClick={handleDownloadAll} className="gap-2">
           <Download className="h-4 w-4" />
-          {t('download')}
+          {imageUrls.length > 1 ? t('downloadAll') : t('download')}
         </Button>
         <Button variant="outline" onClick={onRegenerate} className="gap-2">
           <RefreshCw className="h-4 w-4" />

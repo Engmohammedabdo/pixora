@@ -38,7 +38,19 @@
     "termsAgree": "بإنشاء حساب، أوافق على شروط الاستخدام وسياسة الخصوصية",
     "emailPlaceholder": "أدخل بريدك الإلكتروني",
     "passwordPlaceholder": "أدخل كلمة المرور",
-    "namePlaceholder": "أدخل اسمك الكامل"
+    "namePlaceholder": "أدخل اسمك الكامل",
+    "resetPasswordTitle": "استعادة كلمة المرور",
+    "resetPasswordSubtitle": "أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة",
+    "sendResetLink": "إرسال رابط الاستعادة",
+    "resetLinkSent": "تم إرسال رابط الاستعادة! تحقق من بريدك الإلكتروني",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "resetPassword": "تعيين كلمة المرور",
+    "resetSuccess": "تم تغيير كلمة المرور بنجاح",
+    "passwordMismatch": "كلمات المرور غير متطابقة",
+    "magicLink": "تسجيل بدون كلمة مرور",
+    "magicLinkSent": "تحقق من بريدك الإلكتروني! أرسلنا لك رابط تسجيل الدخول",
+    "sendMagicLink": "إرسال رابط الدخول"
   },
   "nav": {
     "home": "الرئيسية",
@@ -144,7 +156,9 @@
       "bold": "جريء"
     },
     "useBrandKit": "تطبيق الهوية البصرية",
-    "variations": "التنويعات"
+    "variations": "التنويعات",
+    "singleImage": "صورة واحدة",
+    "fourVariations": "4 تنويعات"
   },
   "photoshoot": {
     "title": "تصوير المنتجات",

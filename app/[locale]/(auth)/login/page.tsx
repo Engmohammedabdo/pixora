@@ -16,6 +16,9 @@ export default function LoginPage(): React.ReactElement {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState('');
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const supabase = createBrowserClient();
 
@@ -51,6 +54,28 @@ export default function LoginPage(): React.ReactElement {
     }
   };
 
+  const handleMagicLink = async (): Promise<void> => {
+    if (!magicLinkEmail) return;
+    setError('');
+    setMagicLinkLoading(true);
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: magicLinkEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/${locale}/callback`,
+      },
+    });
+
+    if (otpError) {
+      setError(otpError.message);
+      setMagicLinkLoading(false);
+      return;
+    }
+
+    setMagicLinkSent(true);
+    setMagicLinkLoading(false);
+  };
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -84,6 +109,11 @@ export default function LoginPage(): React.ReactElement {
               required
               dir="ltr"
             />
+            <div className="text-end">
+              <Link href="/forgot-password" className="text-xs text-primary-500 hover:underline">
+                {t('forgotPassword')}
+              </Link>
+            </div>
           </div>
 
           {error && (
@@ -114,6 +144,42 @@ export default function LoginPage(): React.ReactElement {
         >
           {t('continueWithGoogle')}
         </Button>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-surface px-2 text-[var(--color-text-muted)]">
+              {t('magicLink')}
+            </span>
+          </div>
+        </div>
+
+        {magicLinkSent ? (
+          <p className="text-sm text-center text-[var(--color-text-secondary)]">
+            {t('magicLinkSent')}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <Input
+              type="email"
+              placeholder={t('emailPlaceholder')}
+              value={magicLinkEmail}
+              onChange={(e) => setMagicLinkEmail(e.target.value)}
+              dir="ltr"
+            />
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleMagicLink}
+              type="button"
+              disabled={magicLinkLoading || !magicLinkEmail}
+            >
+              {magicLinkLoading ? '...' : t('sendMagicLink')}
+            </Button>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">

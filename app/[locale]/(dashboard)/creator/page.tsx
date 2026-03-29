@@ -14,6 +14,7 @@ interface CreatorInput {
   model: AIModel;
   resolution: Resolution;
   style: string;
+  variations: 1 | 4;
   brandKitId?: string;
   referenceImageUrl?: string;
 }
@@ -21,7 +22,7 @@ interface CreatorInput {
 export default function CreatorPage(): React.ReactElement {
   const t = useTranslations('creator');
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
@@ -52,7 +53,8 @@ export default function CreatorPage(): React.ReactElement {
         return;
       }
 
-      setImageUrl(data.data.imageUrl);
+      const urls: string[] = data.data.imageUrls;
+      setImageUrls(urls);
       setMock(data.data.mock);
       setUsedFallback(data.data.usedFallback);
       setOriginalModel(data.data.originalModel);
@@ -65,7 +67,7 @@ export default function CreatorPage(): React.ReactElement {
       setHistory((prev) => [
         {
           id: data.data.generationId,
-          imageUrl: data.data.imageUrl,
+          imageUrl: urls[0] || '',
           studio: 'creator',
           createdAt: new Date().toISOString(),
           creditsUsed: data.data.creditsUsed,
@@ -87,7 +89,7 @@ export default function CreatorPage(): React.ReactElement {
 
   const handleHistorySelect = (item: HistoryItem): void => {
     if (item.imageUrl) {
-      setImageUrl(item.imageUrl);
+      setImageUrls([item.imageUrl]);
     }
   };
 
@@ -102,7 +104,7 @@ export default function CreatorPage(): React.ReactElement {
         inputPanel={<CreatorForm onSubmit={handleGenerate} isLoading={isLoading} />}
         previewPanel={
           <CreatorPreview
-            imageUrl={imageUrl}
+            imageUrls={imageUrls}
             isLoading={isLoading}
             error={error}
             usedFallback={usedFallback}

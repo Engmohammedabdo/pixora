@@ -11,11 +11,13 @@ export interface Database {
           plan_id: string;
           credits_balance: number;
           purchased_credits: number;
+          purchased_credits_expires_at: string | null;
           credits_reset_date: string | null;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
           onboarding_completed: boolean;
           onboarding_step: number;
+          team_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -28,6 +30,7 @@ export interface Database {
           plan_id?: string;
           credits_balance?: number;
           purchased_credits?: number;
+          purchased_credits_expires_at?: string | null;
           credits_reset_date?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
@@ -45,6 +48,7 @@ export interface Database {
           plan_id?: string;
           credits_balance?: number;
           purchased_credits?: number;
+          purchased_credits_expires_at?: string | null;
           credits_reset_date?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
@@ -209,6 +213,90 @@ export interface Database {
         };
         Relationships: [];
       };
+      teams: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          slug: string | null;
+          logo_url: string | null;
+          plan_id: string;
+          credits_balance: number;
+          max_members: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+          slug?: string | null;
+          logo_url?: string | null;
+          plan_id?: string;
+          credits_balance?: number;
+          max_members?: number;
+        };
+        Update: {
+          name?: string;
+          slug?: string | null;
+          logo_url?: string | null;
+          plan_id?: string;
+          credits_balance?: number;
+          max_members?: number;
+        };
+        Relationships: [];
+      };
+      team_members: {
+        Row: {
+          id: string;
+          team_id: string;
+          user_id: string;
+          role: 'owner' | 'admin' | 'member';
+          invited_by: string | null;
+          invited_email: string | null;
+          invite_token: string | null;
+          joined_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          user_id: string;
+          role?: string;
+          invited_by?: string | null;
+          invited_email?: string | null;
+          invite_token?: string | null;
+        };
+        Update: {
+          role?: string;
+          joined_at?: string;
+        };
+        Relationships: [];
+      };
+      projects: {
+        Row: {
+          id: string;
+          user_id: string;
+          team_id: string | null;
+          name: string;
+          brand_kit_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          team_id?: string | null;
+          name: string;
+          brand_kit_id?: string | null;
+        };
+        Update: {
+          name?: string;
+          team_id?: string | null;
+          brand_kit_id?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -233,3 +321,6 @@ export type BrandKit = Database['public']['Tables']['brand_kits']['Row'];
 export type Generation = Database['public']['Tables']['generations']['Row'];
 export type CreditTransaction = Database['public']['Tables']['credit_transactions']['Row'];
 export type Asset = Database['public']['Tables']['assets']['Row'];
+export type Team = Database['public']['Tables']['teams']['Row'];
+export type TeamMember = Database['public']['Tables']['team_members']['Row'];
+export type Project = Database['public']['Tables']['projects']['Row'];

@@ -19,6 +19,7 @@ interface CreatorFormProps {
     model: AIModel;
     resolution: Resolution;
     style: string;
+    variations: 1 | 4;
     brandKitId?: string;
     referenceImageUrl?: string;
   }) => void;
@@ -35,13 +36,14 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
   const [model, setModel] = useState<AIModel>('gemini');
   const [resolution, setResolution] = useState<Resolution>('1080p');
   const [style, setStyle] = useState<string>('photographic');
+  const [variations, setVariations] = useState<1 | 4>(1);
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
 
   const { brandKits, defaultKit } = useBrandKits();
   const selectedKit = useBrandKit ? defaultKit : undefined;
 
-  const creditCost = CREDIT_COSTS.image[resolution];
+  const creditCost = CREDIT_COSTS.image[resolution] * variations;
   const isValid = prompt.length >= 10;
 
   const handleSubmit = (e: React.FormEvent): void => {
@@ -52,6 +54,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
       model,
       resolution,
       style,
+      variations,
       brandKitId: selectedKit?.id,
       referenceImageUrl: referenceImage || undefined,
     });
@@ -123,6 +126,37 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
               {t(`styles.${s}`)}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Variations */}
+      <div className="space-y-2">
+        <Label>{t('variations')}</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setVariations(1)}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-sm transition-colors',
+              variations === 1
+                ? 'border-primary-500 bg-primary-50 text-primary-700'
+                : 'border-[var(--color-border)] hover:border-primary-300'
+            )}
+          >
+            {t('singleImage')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setVariations(4)}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-sm transition-colors',
+              variations === 4
+                ? 'border-primary-500 bg-primary-50 text-primary-700'
+                : 'border-[var(--color-border)] hover:border-primary-300'
+            )}
+          >
+            {t('fourVariations')}
+          </button>
         </div>
       </div>
 

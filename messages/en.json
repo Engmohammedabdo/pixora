@@ -38,7 +38,19 @@
     "termsAgree": "By creating an account, you agree to our Terms of Service and Privacy Policy",
     "emailPlaceholder": "Enter your email",
     "passwordPlaceholder": "Enter your password",
-    "namePlaceholder": "Enter your full name"
+    "namePlaceholder": "Enter your full name",
+    "resetPasswordTitle": "Reset Password",
+    "resetPasswordSubtitle": "Enter your email and we'll send you a reset link",
+    "sendResetLink": "Send Reset Link",
+    "resetLinkSent": "Reset link sent! Check your email",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "resetPassword": "Set Password",
+    "resetSuccess": "Password changed successfully",
+    "passwordMismatch": "Passwords do not match",
+    "magicLink": "Sign in without password",
+    "magicLinkSent": "Check your email! We sent you a login link",
+    "sendMagicLink": "Send Login Link"
   },
   "nav": {
     "home": "Home",
@@ -144,7 +156,9 @@
       "bold": "Bold"
     },
     "useBrandKit": "Apply Brand Kit",
-    "variations": "Variations"
+    "variations": "Variations",
+    "singleImage": "Single Image",
+    "fourVariations": "4 Variations"
   },
   "photoshoot": {
     "title": "Product Photoshoot",

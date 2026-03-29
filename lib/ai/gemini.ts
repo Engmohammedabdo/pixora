@@ -39,14 +39,32 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
     return { url: getMockImageUrl(), model: 'gemini', mock: true };
   }
 
-  // Real Gemini API call — use gemini-2.5-flash-image for image generation
+  // Build multimodal parts (text + optional reference image)
+  const requestParts: Array<Record<string, unknown>> = [{ text: options.prompt }];
+  if (options.referenceImageUrl) {
+    try {
+      const imgRes = await fetch(options.referenceImageUrl);
+      if (imgRes.ok) {
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        requestParts.push({
+          inlineData: {
+            mimeType: imgRes.headers.get('content-type') || 'image/png',
+            data: buf.toString('base64'),
+          },
+        });
+      }
+    } catch {
+      // Reference image fetch failed — proceed with text-only prompt
+    }
+  }
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: options.prompt }] }],
+        contents: [{ parts: requestParts }],
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
         },
@@ -59,12 +77,13 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   }
 
   const data = await response.json();
-  const parts = data.candidates?.[0]?.content?.parts;
+  const responseParts = data.candidates?.[0]?.content?.parts;
 
-  const imagePart = parts?.find((p: Record<string, unknown>) => p.inlineData);
-  if (imagePart?.inlineData) {
-    const base64 = imagePart.inlineData.data as string;
-    const mimeType = imagePart.inlineData.mimeType as string;
+  const imagePart = responseParts?.find((p: Record<string, unknown>) => p.inlineData);
+  const inlineData = imagePart?.inlineData as { data: string; mimeType: string } | undefined;
+  if (inlineData) {
+    const base64 = inlineData.data;
+    const mimeType = inlineData.mimeType;
     return {
       url: `data:${mimeType};base64,${base64}`,
       model: 'gemini',
