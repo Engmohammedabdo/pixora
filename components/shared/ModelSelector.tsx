@@ -34,6 +34,7 @@ export function ModelSelector({ value, onChange, className }: ModelSelectorProps
             key={model.id}
             type="button"
             onClick={() => onChange(model.id)}
+            aria-pressed={value === model.id}
             className={cn(
               'flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors',
               value === model.id

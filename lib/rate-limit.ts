@@ -1,15 +1,16 @@
-const rateMap = new Map<string, { count: number; resetAt: number }>();
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export function rateLimit(key: string, limit: number = 10, windowMs: number = 60000): boolean {
-  const now = Date.now();
-  const entry = rateMap.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    rateMap.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-
-  if (entry.count >= limit) return false;
-  entry.count++;
-  return true;
+export async function checkRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+  maxRequests: number = 20,
+  windowMs: number = 60000
+): Promise<boolean> {
+  const windowStart = new Date(Date.now() - windowMs).toISOString();
+  const { count } = await supabase
+    .from('generations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', windowStart);
+  return (count || 0) < maxRequests;
 }

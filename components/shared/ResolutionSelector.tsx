@@ -30,6 +30,7 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
             key={res.id}
             type="button"
             onClick={() => onChange(res.id)}
+            aria-pressed={value === res.id}
             className={cn(
               'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
               value === res.id

@@ -92,6 +92,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
               key={d}
               type="button"
               onClick={() => setDialect(d)}
+              aria-pressed={dialect === d}
               className={cn(
                 'rounded-lg border px-3 py-2 text-xs transition-colors',
                 dialect === d
@@ -114,6 +115,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
               key={p}
               type="button"
               onClick={() => setPlatform(p)}
+              aria-pressed={platform === p}
               className={cn(
                 'rounded-lg border px-3 py-2 text-xs capitalize transition-colors',
                 platform === p
@@ -143,6 +145,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
         <button
           type="button"
           onClick={() => setUseBrandKit(!useBrandKit)}
+          aria-pressed={useBrandKit}
           className={cn(
             'flex items-center gap-2 w-full rounded-lg border px-4 py-3 text-sm transition-colors',
             useBrandKit

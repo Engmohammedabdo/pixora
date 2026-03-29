@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
 import { buildPromptBuilderPrompt, getMockPromptResults } from '@/lib/ai/prompts/prompt-builder';
-import { rateLimit } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   description: z.string().min(5).max(500),
@@ -20,12 +20,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
-    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+    if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
     const body = await request.json();
     const input = InputSchema.parse(body);
+
+    const { data: generation } = await supabase.from('generations').insert({
+      user_id: user.id, studio: 'prompt-builder', model: 'gemini',
+      input: { description: input.description, outputType: input.outputType },
+      credits_used: 0, status: 'completed',
+    }).select().single();
 
     const prompt = buildPromptBuilderPrompt(input);
     const result = await generateText({ prompt });
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       success: true,
-      data: { prompts, mock: result.mock },
+      data: { prompts, mock: result.mock, generationId: generation?.id },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

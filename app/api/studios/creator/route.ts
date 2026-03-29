@@ -7,7 +7,7 @@ import { generateImage } from '@/lib/ai/router';
 import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
-import { rateLimit } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { maybeWatermark } from '@/lib/image/watermark';
 import type { AIModel } from '@/types/studios';
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
-    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+    if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 

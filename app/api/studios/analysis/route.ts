@@ -6,7 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateText } from '@/lib/ai/router';
 import { buildAnalysisPrompt, getMockAnalysis } from '@/lib/ai/prompts/analysis';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { rateLimit } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   businessName: z.string().min(2).max(200),
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (!user || authError) return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
 
-    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+    if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 

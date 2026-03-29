@@ -66,7 +66,7 @@
   - File: `lib/ai/gemini.ts:44,88`
   - Fix: Strip URL from error messages
 
-- [ ] **H3** Rate limiter is in-memory — useless on serverless
+- [x] **H3** Rate limiter is in-memory — useless on serverless
   - File: `lib/rate-limit.ts`
   - Fix: Replace with Supabase-based rate limiting or remove false sense of security
 
@@ -94,15 +94,15 @@
   - File: `/api/studios/creator/route.ts`
   - Fix: Check `getMaxResolution(profile.plan_id)` before generation
 
-- [ ] **H10** `blob:` URLs sent to API — server can't access
+- [x] **H10** `blob:` URLs sent to API — server can't access
   - Files: `edit/page.tsx`, `PhotoshootForm`, `CreatorForm`
   - Fix: Upload image first, then send Storage URL
 
-- [ ] **H11** 80+ hardcoded Arabic strings — English locale broken
+- [x] **H11** 80+ hardcoded Arabic strings — English locale broken
   - Files: 20+ pages and components
   - Fix: Move all strings to `messages/ar.json` + `messages/en.json`
 
-- [ ] **H12** Projects page is local state only — data lost on refresh
+- [x] **H12** Projects page is local state only — data lost on refresh
   - File: `projects/page.tsx`
   - Fix: Connect to Supabase (needs projects table migration)
 
@@ -110,45 +110,45 @@
   - File: `lib/ai/openai.ts:44`
   - Fix: Change to `1536x1024` or `auto`
 
-- [ ] **H14** Missing `teams` + `projects` DB tables
+- [x] **H14** Missing `teams` + `projects` DB tables
   - Fix: Create migrations when ready for implementation
 
 ---
 
 ## Wave 4: MEDIUM — Quality & Correctness
 
-- [ ] **M1** Webhook subscription.updated overwrites credits
-- [ ] **M2** Prompt builder no generation record
+- [x] **M1** Webhook subscription.updated overwrites credits
+- [x] **M2** Prompt builder no generation record
 - [x] **M3** Assets filter doesn't work with PostgREST joins
-- [ ] **M4** Voiceover credit cost uses char count instead of time
+- [x] **M4** Voiceover credit cost uses char count instead of time
 - [x] **M5** Delete operations don't clean up Storage files
-- [ ] **M6** Gemini referenceImageUrl never used in API call
+- [x] **M6** Gemini referenceImageUrl never used in API call
 - [x] **M7** Missing updated_at on brand_kits
-- [ ] **M8** No watermark for Free plan
-- [ ] **M9** No signed URLs (public forever)
+- [x] **M8** No watermark for Free plan
+- [x] **M9** No signed URLs (public forever)
 - [x] **M10** Missing index on profiles.stripe_customer_id
 - [x] **M11** TypeScript types loose (string instead of unions)
 - [x] **M12** Dark mode missing for colored backgrounds
-- [ ] **M13** Missing aria-labels on toggle buttons
+- [x] **M13** Missing aria-labels on toggle buttons
 - [x] **M14** credit_transactions missing INSERT policy
-- [ ] **M15** credit_transactions CASCADE destroys audit trail
-- [ ] **M16** No Suspense boundaries for AI streaming
-- [ ] **M17** Creator generates 1 image — PRD says 1 or 4
-- [ ] **M18** Free-user monthly reset no transaction log
+- [x] **M15** credit_transactions CASCADE destroys audit trail
+- [x] **M16** No Suspense boundaries for AI streaming
+- [x] **M17** Creator generates 1 image — PRD says 1 or 4
+- [x] **M18** Free-user monthly reset no transaction log
 
 ---
 
 ## Wave 5: LOW — Polish
 
 - [x] **L1** Hardcoded `/ar/billing` in Stripe redirects
-- [ ] **L2** Badge variant "success"/"warning" not defined
-- [ ] **L3** Replicate timeout misleading error
-- [ ] **L4** `confirm()` for delete — use Dialog
-- [ ] **L5** No React.memo on list items
-- [ ] **L6** createServiceRoleClient no validation
-- [ ] **L7** Missing format:'mp3' on voiceover asset
-- [ ] **L8** No CORS headers on API routes
+- [x] **L2** Badge variant "success"/"warning" not defined
+- [x] **L3** Replicate timeout misleading error
+- [x] **L4** `confirm()` for delete — use Dialog
+- [x] **L5** No React.memo on list items
+- [x] **L6** createServiceRoleClient no validation
+- [x] **L7** Missing format:'mp3' on voiceover asset
+- [x] **L8** No CORS headers on API routes
 - [x] **L9** QueryProvider only wraps dashboard
-- [ ] **L10** No Framer Motion animations
-- [ ] **L11** No forgot-password flow
-- [ ] **L12** No CHECK constraints on studio/plan_id columns
+- [x] **L10** No Framer Motion animations
+- [x] **L11** No forgot-password flow
+- [x] **L12** No CHECK constraints on studio/plan_id columns

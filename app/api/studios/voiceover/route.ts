@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkCredits } from '@/lib/credits/check';
 import { deductCredits } from '@/lib/credits/deduct';
-import { rateLimit } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   script: z.string().min(1).max(500),
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
 
-    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+    if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         output: { audioUrl, duration: estimatedDuration },
       }).eq('id', generation.id);
       await supabase.from('assets').insert({
-        user_id: user.id, generation_id: generation.id, type: 'audio', url: audioUrl,
+        user_id: user.id, generation_id: generation.id, type: 'audio', url: audioUrl, format: 'mp3',
       });
     }
 

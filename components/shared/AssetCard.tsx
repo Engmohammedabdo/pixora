@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download, Trash2 } from 'lucide-react';
@@ -16,7 +17,7 @@ interface AssetCardProps {
   onDelete: (id: string) => void;
 }
 
-export function AssetCard({
+const AssetCardInner = function AssetCard({
   id,
   url,
   type,
@@ -86,3 +87,5 @@ export function AssetCard({
     </div>
   );
 }
+
+export const AssetCard = React.memo(AssetCardInner);

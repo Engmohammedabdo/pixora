@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +15,7 @@ interface TopupCardProps {
   isBestValue?: boolean;
 }
 
-export function TopupCard({ topup, onSelect, loading, isBestValue }: TopupCardProps): React.ReactElement {
+const TopupCardInner = function TopupCard({ topup, onSelect, loading, isBestValue }: TopupCardProps): React.ReactElement {
   return (
     <Card className={cn('relative', isBestValue && 'border-accent-500')}>
       {isBestValue && (
@@ -46,3 +47,5 @@ export function TopupCard({ topup, onSelect, loading, isBestValue }: TopupCardPr
     </Card>
   );
 }
+
+export const TopupCard = React.memo(TopupCardInner);

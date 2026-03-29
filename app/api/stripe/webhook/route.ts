@@ -126,6 +126,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .from('profiles')
             .update({ plan_id: planId, credits_balance: credits })
             .eq('id', userId);
+
+          await supabase.from('credit_transactions').insert({
+            user_id: userId,
+            amount: credits,
+            type: 'subscription',
+            description: `Plan updated to ${planId} — ${credits} credits`,
+            balance_after: credits,
+          });
         }
         break;
       }

@@ -132,6 +132,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
               key={s}
               type="button"
               onClick={() => setStyle(s)}
+              aria-pressed={style === s}
               className={cn(
                 'rounded-lg border px-3 py-2 text-sm transition-colors',
                 style === s
@@ -152,6 +153,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
           <button
             type="button"
             onClick={() => setVariations(1)}
+            aria-pressed={variations === 1}
             className={cn(
               'rounded-lg border px-3 py-2 text-sm transition-colors',
               variations === 1
@@ -164,6 +166,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
           <button
             type="button"
             onClick={() => setVariations(4)}
+            aria-pressed={variations === 4}
             className={cn(
               'rounded-lg border px-3 py-2 text-sm transition-colors',
               variations === 4
@@ -187,6 +190,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
         <button
           type="button"
           onClick={() => setUseBrandKit(!useBrandKit)}
+          aria-pressed={useBrandKit}
           className={cn(
             'flex items-center gap-2 w-full rounded-lg border px-4 py-3 text-sm transition-colors',
             useBrandKit

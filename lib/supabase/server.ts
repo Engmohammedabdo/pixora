@@ -29,8 +29,10 @@ export async function createServerClient() {
 export async function createServiceRoleClient() {
   const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
 
-  return createSupabaseClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Supabase service role credentials not configured');
+  }
+  return createSupabaseClient<Database>(url, key);
 }

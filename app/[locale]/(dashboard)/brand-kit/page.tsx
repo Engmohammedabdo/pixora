@@ -21,6 +21,7 @@ export default function BrandKitPage(): React.ReactElement {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingKit, setEditingKit] = useState<BrandKit | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const handleCreate = async (data: Partial<BrandKit>): Promise<void> => {
     await createBrandKit(data);
@@ -33,9 +34,14 @@ export default function BrandKitPage(): React.ReactElement {
     setEditingKit(null);
   };
 
-  const handleDelete = async (id: string): Promise<void> => {
-    if (confirm(t('deleteConfirm'))) {
-      await deleteBrandKit(id);
+  const handleDelete = (id: string): void => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async (): Promise<void> => {
+    if (deleteId) {
+      await deleteBrandKit(deleteId);
+      setDeleteId(null);
     }
   };
 
@@ -174,6 +180,25 @@ export default function BrandKitPage(): React.ReactElement {
               loading={updating}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('delete')}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[var(--color-text-secondary)]">{t('deleteConfirm')}</p>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="ghost" onClick={() => setDeleteId(null)}>
+              {/* Cancel */}
+              إلغاء
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {t('delete')}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

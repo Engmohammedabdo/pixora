@@ -80,6 +80,10 @@ export async function generateFlux(options: GenerateFluxOptions): Promise<AIResu
     result = await pollResponse.json();
   }
 
+  if (result.status !== 'succeeded') {
+    throw new Error('Flux generation timeout (exceeded 60 seconds)');
+  }
+
   const outputUrl = Array.isArray(result.output) ? result.output[0] : result.output;
 
   if (!outputUrl) {

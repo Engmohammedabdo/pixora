@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ interface PlanCardProps {
   locale: string;
 }
 
-export function PlanCard({ plan, isCurrentPlan, onSelect, loading, locale }: PlanCardProps): React.ReactElement {
+const PlanCardInner = function PlanCard({ plan, isCurrentPlan, onSelect, loading, locale }: PlanCardProps): React.ReactElement {
   const isAr = locale === 'ar';
   const features = isAr ? plan.featuresAr : plan.features;
   const isFree = plan.id === 'free';
@@ -71,3 +72,5 @@ export function PlanCard({ plan, isCurrentPlan, onSelect, loading, locale }: Pla
     </Card>
   );
 }
+
+export const PlanCard = React.memo(PlanCardInner);
