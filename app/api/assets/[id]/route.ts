@@ -43,6 +43,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams): Pr
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
+    // Fetch asset URL before deleting
+    const { data: asset } = await supabase.from('assets').select('url').eq('id', id).eq('user_id', user.id).single();
+
     const { error } = await supabase
       .from('assets')
       .delete()
@@ -51,6 +54,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams): Pr
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    // Clean up storage file (best-effort, non-blocking)
+    if (asset?.url) {
+      try {
+        const path = new URL(asset.url).pathname.split('/storage/v1/object/public/')[1];
+        if (path) {
+          const [bucket, ...fileParts] = path.split('/');
+          await supabase.storage.from(bucket).remove([fileParts.join('/')]);
+        }
+      } catch { /* Storage cleanup is best-effort */ }
     }
 
     return NextResponse.json({ success: true });

@@ -97,10 +97,10 @@ export default function AnalysisPage(): React.ReactElement {
     const s = analysis?.swot;
     if (!s) return <></>;
     const quadrants = [
-      { title: 'نقاط القوة', items: s.strengths, color: 'bg-green-50 border-green-200' },
-      { title: 'نقاط الضعف', items: s.weaknesses, color: 'bg-red-50 border-red-200' },
-      { title: 'الفرص', items: s.opportunities, color: 'bg-blue-50 border-blue-200' },
-      { title: 'التهديدات', items: s.threats, color: 'bg-amber-50 border-amber-200' },
+      { title: 'نقاط القوة', items: s.strengths, color: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' },
+      { title: 'نقاط الضعف', items: s.weaknesses, color: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800' },
+      { title: 'الفرص', items: s.opportunities, color: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' },
+      { title: 'التهديدات', items: s.threats, color: 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' },
     ];
     return (<div className="grid grid-cols-2 gap-3">{quadrants.map((q) => (<div key={q.title} className={cn('rounded-lg border p-4', q.color)}><h4 className="font-semibold text-sm mb-2">{q.title}</h4><ul className="space-y-1">{q.items.map((item, i) => (<li key={i} className="text-xs">• {item}</li>))}</ul></div>))}</div>);
   };
@@ -119,7 +119,7 @@ export default function AnalysisPage(): React.ReactElement {
       </div>
       {activeTab === 'swot' && renderSwot()}
       {activeTab === 'personas' && (<div className="space-y-3">{analysis.personas?.map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>الدور:</strong> {p.role}</p><p><strong>الأهداف:</strong> {p.goals}</p><p><strong>التحديات:</strong> {p.pain_points}</p><p><strong>القنوات:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
-      {activeTab === 'competitors' && (<div className="space-y-3">{analysis.competitors?.map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 rounded p-2"><strong>القوة:</strong> {c.strengths}</div><div className="bg-red-50 rounded p-2"><strong>الضعف:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
+      {activeTab === 'competitors' && (<div className="space-y-3">{analysis.competitors?.map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 dark:bg-green-900/30 rounded p-2"><strong>القوة:</strong> {c.strengths}</div><div className="bg-red-50 dark:bg-red-900/30 rounded p-2"><strong>الضعف:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
       {activeTab === 'roadmap' && analysis.roadmap && (<div className="space-y-4">{(['day_30', 'day_60', 'day_90'] as const).map((period) => (<Card key={period}><CardHeader className="pb-2"><CardTitle className="text-sm">{period === 'day_30' ? '30 يوم' : period === 'day_60' ? '60 يوم' : '90 يوم'}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{analysis.roadmap?.[period]?.map((item, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500 mt-0.5">●</span>{item}</li>))}</ul></CardContent></Card>))}</div>)}
       {activeTab === 'kpis' && (<div className="grid grid-cols-2 gap-3">{analysis.kpis?.map((kpi, i) => (<Card key={i}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-primary-600">{kpi.target}</p><p className="text-xs font-medium mt-1">{kpi.metric}</p><p className="text-[10px] text-[var(--color-text-muted)]">{kpi.timeframe}</p></CardContent></Card>))}</div>)}
     </div>

@@ -93,6 +93,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const results = await Promise.all(shotPromises);
 
+    const successfulShots = results.filter(r => r !== null).length;
+    const actualCost = Math.max(1, Math.ceil((creditCost / input.shots) * successfulShots));
+
     const shots = results.map((r, i) => ({
       index: i,
       url: r?.url || null,
@@ -104,9 +107,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const deductResult = await deductCredits({
       supabase,
       userId: user.id,
-      amount: creditCost,
+      amount: actualCost,
       studio: 'photoshoot',
-      description: `Photoshoot - ${input.shots} shots - ${input.environment}`,
+      description: `Photoshoot - ${successfulShots}/${input.shots} shots - ${input.environment}`,
       generationId: generation.id,
     });
 
@@ -117,11 +120,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Update generation
+    // Update generation with actual cost
     await supabase
       .from('generations')
       .update({
         output: { shots, mock: shots.some((s) => s.mock) },
+        credits_used: actualCost,
         status: 'completed',
       })
       .eq('id', generation.id);
@@ -146,7 +150,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         generationId: generation.id,
         shots,
-        creditsUsed: creditCost,
+        creditsUsed: actualCost,
         newBalance: deductResult.newBalance,
       },
     });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { getPlan } from '@/lib/stripe/plans';
 
 const CreateBrandKitSchema = z.object({
   name: z.string().min(1).max(100),
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const input = CreateBrandKitSchema.parse(body);
+
+    // Check plan-based brand kit limit
+    const { data: profile } = await supabase.from('profiles').select('plan_id').eq('id', user.id).single();
+    const plan = getPlan(profile?.plan_id || 'free');
+    const { count } = await supabase.from('brand_kits').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+    if ((count || 0) >= plan.maxBrandKits) {
+      return NextResponse.json({ success: false, error: 'brand_kit_limit_reached', limit: plan.maxBrandKits }, { status: 403 });
+    }
 
     const { data, error } = await supabase
       .from('brand_kits')

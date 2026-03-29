@@ -74,7 +74,7 @@ export function CreatorPreview({
     <div className="space-y-4">
       {/* Notifications */}
       {usedFallback && (
-        <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+        <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           <Info className="h-4 w-4 flex-shrink-0" />
           <span>{t('usedFallback')} ({originalModel} → fallback)</span>
         </div>

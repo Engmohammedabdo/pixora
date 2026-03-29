@@ -107,7 +107,7 @@ export interface Database {
           input: Record<string, unknown>;
           output: Record<string, unknown> | null;
           credits_used: number;
-          status: string;
+          status: 'pending' | 'processing' | 'completed' | 'failed';
           error: string | null;
           created_at: string;
         };
@@ -141,7 +141,7 @@ export interface Database {
           id: string;
           user_id: string;
           amount: number;
-          type: string;
+          type: 'subscription' | 'topup' | 'usage' | 'refund' | 'reset';
           description: string | null;
           generation_id: string | null;
           stripe_payment_intent_id: string | null;
@@ -174,7 +174,7 @@ export interface Database {
           id: string;
           user_id: string;
           generation_id: string | null;
-          type: string;
+          type: 'image' | 'video' | 'audio';
           url: string;
           thumbnail_url: string | null;
           format: string | null;

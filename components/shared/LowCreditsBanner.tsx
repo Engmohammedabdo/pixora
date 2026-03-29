@@ -16,8 +16,8 @@ export function LowCreditsBanner(): React.ReactElement | null {
     <div className={cn(
       'flex items-center gap-2 px-4 py-2 text-sm',
       isEmpty
-        ? 'bg-red-50 border-b border-red-200 text-red-700'
-        : 'bg-amber-50 border-b border-amber-200 text-amber-700'
+        ? 'bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+        : 'bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
     )}>
       {isEmpty ? <XCircle className="h-4 w-4 flex-shrink-0" /> : <AlertTriangle className="h-4 w-4 flex-shrink-0" />}
       <span className="flex-1">

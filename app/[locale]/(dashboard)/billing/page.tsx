@@ -71,7 +71,7 @@ export default function BillingPage(): React.ReactElement {
     <div className="p-6 space-y-10 max-w-6xl mx-auto">
       {/* Success Banner */}
       {success && (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-300">
           <Check className="h-5 w-5" />
           <span>تمت العملية بنجاح! تم تحديث حسابك.</span>
         </div>

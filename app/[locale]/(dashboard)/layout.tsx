@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { QueryProvider } from '@/components/providers/QueryProvider';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { LowCreditsBanner } from '@/components/shared/LowCreditsBanner';
@@ -23,17 +22,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   }, [profile, setBalance]);
 
   return (
-    <QueryProvider>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-h-screen">
-          <TopBar />
-          <LowCreditsBanner />
-          <main className="flex-1 bg-[var(--color-bg)]">
-            {children}
-          </main>
-        </div>
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-h-screen">
+        <TopBar />
+        <LowCreditsBanner />
+        <main className="flex-1 bg-[var(--color-bg)]">
+          {children}
+        </main>
       </div>
-    </QueryProvider>
+    </div>
   );
 }

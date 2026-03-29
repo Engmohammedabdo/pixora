@@ -44,13 +44,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const { data: prof } = await supabase.from('profiles').select('locale').eq('id', user.id).single();
+    const locale = prof?.locale || 'ar';
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'payment',
       line_items: [{ price: topup.priceId, quantity: 1 }],
-      success_url: `${appUrl}/ar/billing?success=true&topup=${topupId}`,
-      cancel_url: `${appUrl}/ar/billing`,
+      success_url: `${appUrl}/${locale}/billing?success=true&topup=${topupId}`,
+      cancel_url: `${appUrl}/${locale}/billing`,
       metadata: {
         userId: user.id,
         topupId,

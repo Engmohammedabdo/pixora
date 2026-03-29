@@ -24,7 +24,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .range(offset, offset + limit - 1);
 
     if (studio && studio !== 'all') {
-      query = query.eq('generations.studio', studio);
+      // Get generation IDs for this studio first (PostgREST join filters don't work correctly)
+      const { data: gens } = await supabase
+        .from('generations')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('studio', studio);
+      const genIds = (gens || []).map(g => g.id);
+      if (genIds.length > 0) {
+        query = query.in('generation_id', genIds);
+      } else {
+        return NextResponse.json({ success: true, data: [], total: 0, page, limit });
+      }
     }
 
     const { data, error, count } = await query;
