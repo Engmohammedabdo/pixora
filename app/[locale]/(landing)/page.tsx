@@ -2,6 +2,7 @@ import { NavBar } from '@/components/landing/NavBar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ValuePillars } from '@/components/landing/ValuePillars';
 import { HowItWorks } from '@/components/landing/HowItWorks';
+import { InteractiveDemo } from '@/components/landing/InteractiveDemo';
 import { StudiosShowcase } from '@/components/landing/StudiosShowcase';
 import StatsSection from '@/components/landing/StatsSection';
 import PricingSection from '@/components/landing/PricingSection';
@@ -17,6 +18,7 @@ export default function LandingPage(): React.ReactElement {
       <HeroSection />
       <ValuePillars />
       <HowItWorks />
+      <InteractiveDemo />
       <StudiosShowcase />
       <StatsSection />
       <PricingSection />

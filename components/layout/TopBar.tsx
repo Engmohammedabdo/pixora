@@ -70,6 +70,11 @@ export function TopBar(): React.ReactElement {
         </Badge>
       </Link>
 
+      {/* Streak */}
+      <Badge variant="outline" className="gap-1 px-2 py-1 text-amber-500 border-amber-300 dark:border-amber-700">
+        🔥 <span className="text-xs font-medium">0</span>
+      </Badge>
+
       {/* Theme Toggle */}
       <Button
         variant="ghost"
