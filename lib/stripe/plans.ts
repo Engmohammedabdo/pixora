@@ -130,6 +130,22 @@ export const TOPUPS: Record<string, TopupConfig> = {
   },
 };
 
+export interface AnnualPlanConfig {
+  planId: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  annualMonthly: number; // effective monthly price
+  savings: number; // percentage saved
+  annualPriceId: string;
+}
+
+export const ANNUAL_PLANS: Record<string, AnnualPlanConfig> = {
+  starter: { planId: 'starter', monthlyPrice: 12, annualPrice: 118, annualMonthly: 9.83, savings: 18, annualPriceId: process.env.STRIPE_STARTER_ANNUAL_PRICE_ID || 'price_starter_annual_placeholder' },
+  pro: { planId: 'pro', monthlyPrice: 29, annualPrice: 285, annualMonthly: 23.75, savings: 18, annualPriceId: process.env.STRIPE_PRO_ANNUAL_PRICE_ID || 'price_pro_annual_placeholder' },
+  business: { planId: 'business', monthlyPrice: 59, annualPrice: 580, annualMonthly: 48.33, savings: 18, annualPriceId: process.env.STRIPE_BUSINESS_ANNUAL_PRICE_ID || 'price_business_annual_placeholder' },
+  agency: { planId: 'agency', monthlyPrice: 149, annualPrice: 1466, annualMonthly: 122.17, savings: 18, annualPriceId: process.env.STRIPE_AGENCY_ANNUAL_PRICE_ID || 'price_agency_annual_placeholder' },
+};
+
 export function getPlan(planId: string): PlanConfig {
   return PLANS[planId] || PLANS.free;
 }

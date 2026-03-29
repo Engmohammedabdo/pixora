@@ -28,6 +28,8 @@ import {
   CreditCard,
   X,
   Coins,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
@@ -68,7 +70,7 @@ export function Sidebar(): React.ReactElement {
   const t = useTranslations('nav');
   const tCredits = useTranslations('credits');
   const pathname = usePathname();
-  const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleCollapsed } = useUIStore();
   const { balance } = useCreditsStore();
   const { profile } = useUser();
   const planCredits = getPlan(profile?.plan_id || 'free').credits;
@@ -81,8 +83,10 @@ export function Sidebar(): React.ReactElement {
         key={item.href}
         href={item.href}
         onClick={() => setSidebarOpen(false)}
+        title={sidebarCollapsed ? t(item.labelKey) : undefined}
         className={cn(
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+          sidebarCollapsed && 'justify-center px-2',
           isActive
             ? 'bg-primary-50 text-primary-600 font-medium'
             : 'text-[var(--color-text-secondary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]',
@@ -90,8 +94,8 @@ export function Sidebar(): React.ReactElement {
         )}
       >
         {item.icon}
-        <span className="flex-1">{t(item.labelKey)}</span>
-        {item.soon && (
+        {!sidebarCollapsed && <span className="flex-1">{t(item.labelKey)}</span>}
+        {!sidebarCollapsed && item.soon && (
           <span className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded-full">
             {t('soon')}
           </span>
@@ -102,9 +106,11 @@ export function Sidebar(): React.ReactElement {
 
   const renderSection = (title: string, items: NavItem[]): React.ReactElement => (
     <div className="space-y-1">
-      <p className="px-3 py-1 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-        {title}
-      </p>
+      {!sidebarCollapsed && (
+        <p className="px-3 py-1 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+          {title}
+        </p>
+      )}
       {items.map(renderNavItem)}
     </div>
   );
@@ -114,7 +120,7 @@ export function Sidebar(): React.ReactElement {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-4">
         <Link href="/dashboard" className="text-xl font-bold text-primary-600 font-cairo">
-          PyraSuite
+          {sidebarCollapsed ? 'P' : 'PyraSuite'}
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -122,6 +128,13 @@ export function Sidebar(): React.ReactElement {
           aria-label="Close sidebar"
         >
           <X className="h-5 w-5" />
+        </button>
+        <button
+          onClick={toggleCollapsed}
+          className="hidden lg:flex p-1 rounded-md hover:bg-surface-2"
+          aria-label="Toggle sidebar"
+        >
+          {sidebarCollapsed ? <ChevronRight className="h-4 w-4 rtl:rotate-180" /> : <ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
         </button>
       </div>
 
@@ -141,20 +154,29 @@ export function Sidebar(): React.ReactElement {
 
       {/* Credits Widget at Bottom */}
       <div className="border-t p-4 space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
+        {sidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-1" title={tCredits('balance')}>
             <Coins className="h-4 w-4 text-primary-500" />
-            <span className="font-medium">{tCredits('balance')}</span>
+            <span className="text-xs font-bold text-primary-600">{balance}</span>
           </div>
-          <span className="font-bold text-primary-600">{balance}</span>
-        </div>
-        <Progress value={Math.min((balance / planCredits) * 100, 100)} className="h-2" />
-        <Link
-          href="/billing"
-          className="block text-center text-xs text-primary-500 hover:underline"
-        >
-          {tCredits('add')}
-        </Link>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-primary-500" />
+                <span className="font-medium">{tCredits('balance')}</span>
+              </div>
+              <span className="font-bold text-primary-600">{balance}</span>
+            </div>
+            <Progress value={Math.min((balance / planCredits) * 100, 100)} className="h-2" />
+            <Link
+              href="/billing"
+              className="block text-center text-xs text-primary-500 hover:underline"
+            >
+              {tCredits('add')}
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );
@@ -180,7 +202,7 @@ export function Sidebar(): React.ReactElement {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:border-e lg:bg-surface h-screen sticky top-0">
+      <aside className={cn('hidden lg:flex lg:flex-col lg:border-e lg:bg-surface h-screen sticky top-0 transition-all duration-200', sidebarCollapsed ? 'lg:w-16' : 'lg:w-64')}>
         {sidebarContent}
       </aside>
     </>

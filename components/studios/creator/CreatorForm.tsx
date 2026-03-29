@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
-import { Upload, X, Sparkles, Palette } from 'lucide-react';
+import { Upload, X, Sparkles, Palette, Shuffle } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
 
 interface CreatorFormProps {
@@ -25,6 +25,15 @@ interface CreatorFormProps {
   }) => void;
   isLoading: boolean;
 }
+
+const RANDOM_PROMPTS = [
+  'Professional product photo of luxury perfume on marble surface, dramatic lighting',
+  'Minimalist social media post for coffee brand, warm tones, flat lay',
+  'Bold fashion advertisement with neon colors and urban background',
+  'Elegant restaurant interior photography with soft ambient lighting',
+  'Modern tech product floating on gradient background, clean composition',
+  'Lifestyle photo of skincare products in bathroom setting, natural light',
+];
 
 const STYLES = ['photographic', 'illustrative', 'minimalist', 'bold'] as const;
 
@@ -41,6 +50,13 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
 
   const { brandKits, defaultKit } = useBrandKits();
+
+  useEffect(() => {
+    if (brandKits.length > 0 && !useBrandKit) {
+      setUseBrandKit(true);
+    }
+  }, [brandKits]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectedKit = useBrandKit ? defaultKit : undefined;
 
   const creditCost = CREDIT_COSTS.image[resolution] * variations;
@@ -209,10 +225,24 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
       {/* Submit */}
       <div className="flex items-center justify-between pt-2">
         <CreditCost cost={creditCost} />
-        <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          {isLoading ? tStudio('generating') : tStudio('generate')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
+              setPrompt(randomPrompt);
+            }}
+            title="Surprise Me"
+          >
+            <Shuffle className="h-4 w-4" />
+          </Button>
+          <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            {isLoading ? tStudio('generating') : tStudio('generate')}
+          </Button>
+        </div>
       </div>
     </form>
   );

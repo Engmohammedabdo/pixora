@@ -1,6 +1,9 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,6 +30,14 @@ export function CreatorPreview({
   onRegenerate,
 }: CreatorPreviewProps): React.ReactElement {
   const t = useTranslations('studio');
+  const [hasConfettied, setHasConfettied] = useState(false);
+
+  useEffect(() => {
+    if (imageUrls.length > 0 && !hasConfettied) {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setHasConfettied(true);
+    }
+  }, [imageUrls, hasConfettied]);
 
   if (isLoading) {
     return (
@@ -90,32 +101,45 @@ export function CreatorPreview({
 
       {/* Image(s) */}
       {imageUrls.length === 1 ? (
-        <div className="rounded-lg overflow-hidden border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrls[0]}
-            alt="Generated image"
-            className="w-full h-auto"
-          />
-        </div>
+        <motion.div
+          initial={{ filter: 'blur(20px)', opacity: 0 }}
+          animate={{ filter: 'blur(0px)', opacity: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        >
+          <div className="rounded-lg overflow-hidden border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrls[0]}
+              alt="Generated image"
+              className="w-full h-auto"
+            />
+          </div>
+        </motion.div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {imageUrls.map((url, i) => (
-            <div key={i} className="relative group rounded-lg overflow-hidden border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={url}
-                alt={`Generated image ${i + 1}`}
-                className="w-full h-auto"
-              />
-              <button
-                type="button"
-                onClick={() => handleDownload(url, i)}
-                className="absolute top-2 end-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            <motion.div
+              key={i}
+              initial={{ filter: 'blur(20px)', opacity: 0 }}
+              animate={{ filter: 'blur(0px)', opacity: 1 }}
+              transition={{ duration: 0.8, ease: 'easeOut', delay: i * 0.1 }}
+            >
+              <div className="relative group rounded-lg overflow-hidden border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Generated image ${i + 1}`}
+                  className="w-full h-auto"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDownload(url, i)}
+                  className="absolute top-2 end-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </motion.div>
           ))}
         </div>
       )}

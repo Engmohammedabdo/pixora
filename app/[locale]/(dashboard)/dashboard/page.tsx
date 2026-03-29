@@ -3,8 +3,11 @@
 import { useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { Link } from '@/i18n/routing';
+import { motion } from 'framer-motion';
+import { staggerContainer, fadeInUp } from '@/lib/animations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreditsWidget } from '@/components/layout/CreditsWidget';
+import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
 import {
   Image,
   Camera,
@@ -43,22 +46,24 @@ export default function DashboardPage(): React.ReactElement {
         {/* Quick Actions */}
         <div className="lg:col-span-2">
           <h2 className="text-lg font-semibold mb-4">{t('dashboard.quickActions')}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {quickActions.map((action) => (
-              <Link key={action.href} href={action.href}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <div className={`p-2 rounded-lg ${action.color}`}>
-                      <action.icon className="h-5 w-5" />
-                    </div>
-                    <span className="text-sm font-medium">
-                      {t(`nav.${action.labelKey}`)}
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
+              <motion.div key={action.href} variants={fadeInUp}>
+                <Link href={action.href}>
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className={`p-2 rounded-lg ${action.color}`}>
+                        <action.icon className="h-5 w-5" />
+                      </div>
+                      <span className="text-sm font-medium">
+                        {t(`nav.${action.labelKey}`)}
+                      </span>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
 
         {/* Credits Widget */}
@@ -66,15 +71,13 @@ export default function DashboardPage(): React.ReactElement {
           <h2 className="text-lg font-semibold mb-4">{t('credits.balance')}</h2>
           <CreditsWidget />
 
-          {/* Recent Generations */}
+          {/* Recent Activity */}
           <Card className="mt-4">
             <CardHeader>
               <CardTitle className="text-base">{t('dashboard.recentGenerations')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t('dashboard.noGenerations')}
-              </p>
+              <ActivityTimeline />
             </CardContent>
           </Card>
         </div>

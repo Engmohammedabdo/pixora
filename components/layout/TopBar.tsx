@@ -18,6 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Menu, Coins, Globe, LogOut, Settings, User, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { AnimatedNumber } from '@/components/shared/AnimatedNumber';
 
 export function TopBar(): React.ReactElement {
   const t = useTranslations();
@@ -65,7 +66,7 @@ export function TopBar(): React.ReactElement {
       <Link href="/billing" className="flex items-center gap-1.5">
         <Badge variant="secondary" className="gap-1 px-3 py-1">
           <Coins className="h-3.5 w-3.5 text-primary-500" />
-          <span className="font-semibold">{balance}</span>
+          <AnimatedNumber value={balance} className="font-semibold" />
         </Badge>
       </Link>
 

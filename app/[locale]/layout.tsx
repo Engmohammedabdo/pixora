@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
+import { ToastProvider } from '@/components/providers/ToastProvider';
 import '../globals.css';
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  manifest: '/manifest.json',
 };
 
 interface RootLayoutProps {
@@ -57,6 +59,7 @@ export default async function RootLayout({
           <ThemeProvider>
             <QueryProvider>
               {children}
+              <ToastProvider />
             </QueryProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
