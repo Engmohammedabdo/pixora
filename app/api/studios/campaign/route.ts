@@ -6,6 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   productDescription: z.string().min(10).max(2000),
@@ -41,6 +42,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!user || authError) {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+
+    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
     const body = await request.json();

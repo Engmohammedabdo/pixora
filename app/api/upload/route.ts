@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
@@ -41,50 +39,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const ext = file.name.split('.').pop() || 'png';
     const fileName = `${user.id}/${randomUUID()}.${ext}`;
 
-    // Check if Supabase Storage is available
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const isSupabaseConfigured = supabaseUrl && !supabaseUrl.includes('placeholder');
-
-    if (isSupabaseConfigured) {
-      // Upload to Supabase Storage
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, buffer, {
-          contentType: file.type,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        return NextResponse.json(
-          { success: false, error: uploadError.message },
-          { status: 500 }
-        );
-      }
-
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
-
-      return NextResponse.json({
-        success: true,
-        data: { url: urlData.publicUrl, fileName, bucket },
-      });
+    if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
+      return NextResponse.json(
+        { success: false, error: 'storage_not_configured' },
+        { status: 503 }
+      );
     }
 
-    // Fallback: save locally for development
-    const uploadDir = join(process.cwd(), 'public', 'uploads', user.id);
-    await mkdir(uploadDir, { recursive: true });
-
-    const localPath = join(uploadDir, `${randomUUID()}.${ext}`);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(localPath, buffer);
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    const publicUrl = localPath.replace(join(process.cwd(), 'public'), '');
+    if (uploadError) {
+      return NextResponse.json(
+        { success: false, error: uploadError.message },
+        { status: 500 }
+      );
+    }
+
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(fileName);
 
     return NextResponse.json({
       success: true,
-      data: { url: publicUrl, fileName, bucket: 'local' },
+      data: { url: urlData.publicUrl, fileName, bucket },
     });
   } catch (error) {
     console.error('Upload error:', error);

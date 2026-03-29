@@ -20,7 +20,7 @@ export async function checkCredits({
 }: CheckCreditsParams): Promise<CheckCreditsResult> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('credits_balance')
+    .select('credits_balance, purchased_credits')
     .eq('id', userId)
     .single();
 
@@ -28,9 +28,11 @@ export async function checkCredits({
     return { hasEnough: false, currentBalance: 0, required: amount };
   }
 
+  const totalBalance = (data.credits_balance || 0) + (data.purchased_credits || 0);
+
   return {
-    hasEnough: data.credits_balance >= amount,
-    currentBalance: data.credits_balance,
+    hasEnough: totalBalance >= amount,
+    currentBalance: totalBalance,
     required: amount,
   };
 }

@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { checkCredits } from '@/lib/credits/check';
 import { deductCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
+import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   imageUrl: z.string().min(1),
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+
+    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
+    }
 
     const body = await req.json();
     const input = InputSchema.parse(body);
