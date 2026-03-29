@@ -1,243 +1,426 @@
 <div align="center">
 
-# PyraSuite
+<img src="https://img.shields.io/badge/PyraSuite-AI%20Marketing-6366F1?style=for-the-badge&logoColor=white" alt="PyraSuite" />
 
-### المنصة العربية الأولى للتسويق بالذكاء الاصطناعي
+# 🚀 PyraSuite
 
-**حوّل أي فكرة لحملة تسويقية احترافية في دقائق**
+### أول منصة عربية تحوّل أي فكرة لحملة تسويقية كاملة بالذكاء الاصطناعي
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?logo=tailwindcss)](https://tailwindcss.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-Auth+DB-3FCF8E?logo=supabase)](https://supabase.com/)
-[![Stripe](https://img.shields.io/badge/Stripe-Payments-635BFF?logo=stripe)](https://stripe.com/)
+<br />
 
-**[Live Demo →](https://pyrasuite.pyramedia.cloud/)**
+**9 استوديوهات ذكية** · **3 نماذج AI** · **عربي أولاً** · **من الصفر للحملة في دقائق**
+
+<br />
+
+[![Next.js 15](https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v3-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%2B%20DB-3FCF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Stripe](https://img.shields.io/badge/Stripe-Payments-635BFF?style=flat-square&logo=stripe&logoColor=white)](https://stripe.com/)
+
+<br />
+
+[**🌐 جرّب الحين →**](https://pyrasuite.pyramedia.cloud/) &nbsp;&nbsp;|&nbsp;&nbsp; [**📖 الدليل**](#getting-started) &nbsp;&nbsp;|&nbsp;&nbsp; [**🏗️ الهيكل**](#project-structure)
+
+<br />
+
+<img src="https://img.shields.io/badge/211-ملف_TypeScript-blue?style=flat-square" />
+<img src="https://img.shields.io/badge/0-أخطاء_TS-brightgreen?style=flat-square" />
+<img src="https://img.shields.io/badge/21-API_Route-orange?style=flat-square" />
+<img src="https://img.shields.io/badge/49-Component-purple?style=flat-square" />
+<img src="https://img.shields.io/badge/13-Migration-teal?style=flat-square" />
 
 </div>
 
 ---
 
-## Overview
+<br />
 
-PyraSuite is an Arabic-first AI marketing SaaS platform with 9 specialized studios, multi-model AI support (Gemini + GPT + Flux), a transparent credit system, and Stripe-powered monetization. Built from the ground up for the Arabic market with full RTL support, dark mode, and comprehensive i18n.
+## 💡 إيش هو PyraSuite؟
 
----
+تخيّل إنك صاحب بزنس صغير أو مسوّق مستقل. عندك فكرة حملة بس ما عندك مصمم، ولا مصوّر، ولا كاتب محتوى. وميزانيتك محدودة.
 
-## Tech Stack
+**PyraSuite يحل هالمشكلة.**
 
-| Layer | Technology |
-|-------|-----------|
-| **Framework** | Next.js 15 (App Router) |
-| **Language** | TypeScript (strict mode, zero errors) |
-| **Styling** | Tailwind CSS v3 + CSS Variables + Dark Mode |
-| **UI Components** | shadcn/ui (custom-built) |
-| **Auth & Database** | Supabase (Auth + PostgreSQL + Storage + RLS) |
-| **Payments** | Stripe (Subscriptions + One-time payments + Webhooks) |
-| **AI Models** | Google Gemini, OpenAI GPT, Replicate Flux |
-| **State** | Zustand (client) + React Query (server) |
-| **i18n** | next-intl (Arabic-first, URL-based locale) |
-| **Dark Mode** | next-themes (system detection, no flash) |
-| **Validation** | Zod v4 (all API inputs) |
+تكتب فكرتك بالعربي ← تختار الاستوديو ← تضغط زر ← تطلع لك حملة كاملة: صور احترافية، خطة 90 يوم، ستوري بورد فيديو، تحليل منافسين، وحتى تعليق صوتي.
 
----
+**كل هذا بدون ما تفتح Photoshop ولا تكتب prompt إنجليزي واحد.**
 
-## 9 AI Studios
+<br />
 
-| Studio | Description | Credits |
-|--------|-------------|---------|
-| **Creator** | Generate marketing images (1 or 4 variations) | 1-4 per image |
-| **Photoshoot** | Professional product photography (1/3/6 shots) | 2-8 |
-| **Campaign Planner** | 9-post campaigns with captions + images | 12 |
-| **Marketing Plan** | 30/60/90-day plans with calendar + budget | 5 |
-| **Storyboard** | 9-scene video storyboards with camera angles | 14 |
-| **Marketing Analysis** | SWOT, personas, competitors, roadmap, KPIs | 3 |
-| **Voice Over** | AI voice with dialect/speed/tone selection | 1/30s |
-| **Edit** | AI image editing (5 types: bg replace, remove, color, text, style) | 1 |
-| **Prompt Builder** | Arabic→English prompt conversion (3 variations) | FREE |
+## 🎯 ليش PyraSuite؟
 
----
+| المشكلة | الحل |
+|:---|:---|
+| أدوات AI كلها إنجليزية | 🌍 **عربي أولاً** — واجهة كاملة RTL من البداية |
+| كل أداة لحالها | 🎨 **9 استوديوهات في مكان واحد** — من الصورة للحملة الكاملة |
+| الأسعار غامضة | 💎 **نظام كريدت شفاف** — تعرف بالضبط كم بتدفع |
+| النتائج عامة وما تمثلك | 🎭 **هوية بصرية (Brand Kit)** — ألوانك وشعارك في كل توليد |
+| موديل واحد وصلاحياته محدودة | 🤖 **3 نماذج AI** — Gemini + GPT + Flux مع fallback تلقائي |
 
-## Platform Features
+<br />
 
-- **Multi-model AI Router** — Gemini / GPT / Flux with automatic fallback + retry (3 attempts)
-- **Brand Kit** — Logo, colors, fonts — auto-applied to all generations
-- **Credit System** — Atomic deduction (race-condition safe via PostgreSQL RPC)
-- **Watermark** — Automatic for Free plan users
-- **Signed URLs** — 15-minute expiry for storage assets
-- **Arabic-first RTL** — Full right-to-left with logical CSS properties
-- **Dark Mode** — System detection + toggle, no flash
-- **PDF Export** — Campaign, Analysis, Storyboard (browser-native)
-- **ZIP Export** — Batch download via JSZip
-- **Onboarding** — 5-step guided flow with bonus credits
-- **Forgot Password + Magic Link** — Complete auth flows
-- **Resolution Enforcement** — Per plan (Free=1080p, Starter=2K, Pro+=4K)
-- **Rate Limiting** — Supabase-based (20 req/min per user)
-- **Accessibility** — aria-pressed on toggles, semantic HTML
+## 🎨 الاستوديوهات التسعة
 
----
+<table>
+<tr>
+<td width="33%" align="center">
 
-## Subscription Plans
+### 🖼️ منشئ الصور
+صور تسويقية احترافية من وصف نصي<br/>
+<sub>1-4 صور · اختر الموديل · اختر الريزولوشن</sub>
 
-| Plan | Price | Credits/mo | Resolution | Teams |
-|------|-------|-----------|------------|-------|
-| Free | $0 | 25 | 1080p | - |
-| Starter | $12/mo | 200 | 2K | - |
-| Pro | $29/mo | 600 | 4K | - |
-| Business | $59/mo | 1,500 | 4K | 5 users |
-| Agency | $149/mo | 5,000 | 4K | 20 users |
+</td>
+<td width="33%" align="center">
 
-**Top-ups:** 50 ($4.99) / 150 ($12.99) / 500 ($34.99) / 1,000 ($59.99) — valid 12 months
+### 📸 تصوير المنتجات
+تصوير منتجات بـ 6 زوايا مختلفة<br/>
+<sub>خلفيات متعددة · إضاءة احترافية · جاهز للسوشال</sub>
 
----
+</td>
+<td width="33%" align="center">
 
-## Project Structure
+### 📱 مخطط الحملات
+حملة كاملة 9 منشورات بضغطة<br/>
+<sub>صور + كابشنز + هاشتاقات · 12 كريدت</sub>
+
+</td>
+</tr>
+<tr>
+<td align="center">
+
+### 📊 الخطة التسويقية
+خطة 30/60/90 يوم مع تقويم محتوى<br/>
+<sub>ميزانية + KPIs + جدول نشر · 5 كريدت</sub>
+
+</td>
+<td align="center">
+
+### 🎬 ستوري بورد
+ستوري بورد فيديو 9 مشاهد<br/>
+<sub>زوايا كاميرا + حوار + إخراج · 14 كريدت</sub>
+
+</td>
+<td align="center">
+
+### 📈 التحليل التسويقي
+تحليل SWOT + شخصيات + منافسين<br/>
+<sub>خارطة طريق + KPIs + توصيات · 3 كريدت</sub>
+
+</td>
+</tr>
+<tr>
+<td align="center">
+
+### 🎙️ التعليق الصوتي
+صوت احترافي بلهجتك المفضلة<br/>
+<sub>سرعة + نبرة + لهجة · 1 كريدت/30 ثانية</sub>
+
+</td>
+<td align="center">
+
+### ✏️ تعديل الصور
+تعديل بالذكاء الاصطناعي<br/>
+<sub>إزالة خلفية · تلوين · نص · ستايل · 1 كريدت</sub>
+
+</td>
+<td align="center">
+
+### 💡 مساعد البرومبت
+حوّل وصفك لبرومبت احترافي<br/>
+<sub>3 نسخ مختلفة · **مجاني بالكامل** ✨</sub>
+
+</td>
+</tr>
+</table>
+
+<br />
+
+## ⚡ مميزات المنصة
+
+<table>
+<tr>
+<td width="50%">
+
+**🤖 ذكاء اصطناعي متعدد**
+- Gemini 2.5 Flash (الأسرع)
+- GPT Image (الأعلى جودة)
+- Flux 1.1 Pro (الأكثر إبداعية)
+- Fallback تلقائي + 3 محاولات
+
+**🎭 هوية بصرية (Brand Kit)**
+- شعارك + ألوانك + خطوطك
+- يتطبّقون تلقائي على كل توليد
+- عدد لا محدود من الهويات
+
+**💰 نظام كريدت ذكي**
+- خصم ذري (race-condition safe)
+- كريدت اشتراك + كريدت مشتراة (منفصلين)
+- الكريدت المشتراة ما تنتهي 12 شهر
+- Pro+ يحتفظ بـ 20% من الرصيد الشهري
+
+</td>
+<td width="50%">
+
+**🌙 واجهة حديثة**
+- Dark Mode (كشف تلقائي + toggle)
+- Glassmorphism + Framer Motion animations
+- 11 section Landing Page
+- Mobile responsive بالكامل
+
+**🔒 أمان متقدم**
+- Row Level Security على كل الجداول
+- Signed URLs (15 دقيقة انتهاء صلاحية)
+- Rate Limiting (20 req/min per user)
+- Zod validation على كل API input
+- Watermark تلقائي للخطة المجانية
+
+**📦 تصدير وتنظيم**
+- PDF Export (حملات + تحليلات + ستوري بورد)
+- ZIP Download (تحميل دفعة واحدة)
+- مشاريع (Projects) لتنظيم الشغل
+- فرق عمل (Teams) مع أدوار
+
+</td>
+</tr>
+</table>
+
+<br />
+
+## 💎 الباقات
+
+<table align="center">
+<tr>
+<th>الباقة</th>
+<th>السعر</th>
+<th>كريدت/شهر</th>
+<th>الريزولوشن</th>
+<th>الفريق</th>
+</tr>
+<tr>
+<td>🆓 <strong>مجاني</strong></td>
+<td>$0</td>
+<td align="center">25</td>
+<td align="center">1080p</td>
+<td align="center">—</td>
+</tr>
+<tr>
+<td>⭐ <strong>Starter</strong></td>
+<td>$12/شهر</td>
+<td align="center">200</td>
+<td align="center">2K</td>
+<td align="center">—</td>
+</tr>
+<tr>
+<td>🔥 <strong>Pro</strong></td>
+<td>$29/شهر</td>
+<td align="center">600</td>
+<td align="center">4K</td>
+<td align="center">—</td>
+</tr>
+<tr>
+<td>🏢 <strong>Business</strong></td>
+<td>$59/شهر</td>
+<td align="center">1,500</td>
+<td align="center">4K</td>
+<td align="center">5 أعضاء</td>
+</tr>
+<tr>
+<td>🏭 <strong>Agency</strong></td>
+<td>$149/شهر</td>
+<td align="center">5,000</td>
+<td align="center">4K</td>
+<td align="center">20 عضو</td>
+</tr>
+</table>
+
+<div align="center">
+<sub>
+<strong>محتاج كريدت إضافي؟</strong> Top-up بدون اشتراك:<br/>
+50 ($4.99) · 150 ($12.99) · 500 ($34.99) · 1,000 ($59.99) — صالحة 12 شهر
+</sub>
+</div>
+
+<br />
+
+## 🏗️ Tech Stack
+
+```
+Frontend        → Next.js 15 (App Router) + TypeScript (strict)
+Styling         → Tailwind CSS v3 + CSS Variables + Framer Motion
+UI              → shadcn/ui (11 components مخصصة)
+Auth & DB       → Supabase (Auth + PostgreSQL + Storage + RLS)
+Payments        → Stripe (Subscriptions + One-time + Webhooks)
+AI Models       → Google Gemini · OpenAI GPT · Replicate Flux
+State           → Zustand (client) + React Query (server)
+i18n            → next-intl (Arabic-first, URL-based locale)
+Dark Mode       → next-themes (system detection, zero flash)
+Validation      → Zod v4 (all API inputs)
+Deployment      → Docker + Coolify (self-hosted)
+```
+
+<br />
+
+## 📁 Project Structure
+
+<details>
+<summary><strong>🗂️ اضغط لعرض الهيكل الكامل</strong></summary>
 
 ```
 app/
 ├── [locale]/
-│   ├── (auth)/              # Login, Signup, Forgot/Reset Password, Callback
-│   ├── (dashboard)/         # 22 authenticated pages
-│   │   ├── dashboard/       # Home with quick actions + credits
-│   │   ├── creator/         # Image generation (1 or 4 variations)
-│   │   ├── photoshoot/      # Product photography
-│   │   ├── campaign/        # Campaign planner (9 posts)
-│   │   ├── plan/            # Marketing plan
-│   │   ├── storyboard/      # Video storyboard
-│   │   ├── analysis/        # Marketing analysis
-│   │   ├── voiceover/       # Voice generation
-│   │   ├── edit/            # Image editing
-│   │   ├── prompt-builder/  # Prompt helper (free)
-│   │   ├── brand-kit/       # Brand identity CRUD
-│   │   ├── assets/          # Generated files gallery
-│   │   ├── projects/        # Project organization
-│   │   ├── billing/         # Plans + top-ups + transactions
-│   │   ├── team/            # Team management
-│   │   ├── settings/        # Profile + theme + locale
-│   │   ├── onboarding/      # 5-step onboarding
-│   │   ├── privacy/         # Privacy policy
-│   │   └── terms/           # Terms of service
-│   ├── (landing)/           # Public landing page
-│   └── layout.tsx           # Root (i18n + theme + query)
-├── api/
-│   ├── studios/             # 9 studio routes
-│   ├── stripe/              # checkout, topup, webhook, portal
-│   ├── credits/             # balance, transactions
-│   ├── brand-kits/          # CRUD
-│   ├── assets/              # CRUD + export (ZIP)
-│   └── upload/              # File upload
-components/
-├── ui/                      # shadcn components (11)
-├── layout/                  # Sidebar, TopBar, CreditsWidget, StudioLayout
-├── shared/                  # ModelSelector, CreditCost, ExportMenu, etc.
-├── studios/                 # Creator, Campaign, Photoshoot forms/previews
-├── billing/                 # PlanCard, TopupCard, TransactionTable
-├── brand-kit/               # BrandKitForm, ColorPicker, LogoUpload
-└── providers/               # QueryProvider, ThemeProvider
-lib/
-├── ai/                      # Gemini, OpenAI, Replicate + Router + Prompts
-├── credits/                 # check, deduct (atomic), costs
-├── stripe/                  # client, plans (5 plans + 4 top-ups)
-├── supabase/                # client, server, types, signed-url
-├── image/                   # watermark
-├── export/                  # PDF generation
-└── utils.ts                 # cn() helper
-supabase/migrations/         # 13 SQL migrations
-messages/                    # ar.json + en.json (i18n)
+│   ├── (auth)/                    # 🔐 Authentication
+│   │   ├── login/                 # تسجيل دخول (Email + Google + Magic Link)
+│   │   ├── signup/                # إنشاء حساب
+│   │   ├── callback/              # OAuth callback
+│   │   ├── forgot-password/       # نسيت كلمة المرور
+│   │   └── reset-password/        # إعادة تعيين
+│   │
+│   ├── (landing)/                 # 🌐 Landing Page (11 sections)
+│   │   └── page.tsx               # NavBar → Hero → Studios → Pricing → CTA
+│   │
+│   ├── (dashboard)/               # 🎨 Dashboard (22 صفحة)
+│   │   ├── dashboard/             # الرئيسية + Quick Actions
+│   │   ├── creator/               # 🖼️ منشئ الصور
+│   │   ├── photoshoot/            # 📸 تصوير المنتجات
+│   │   ├── campaign/              # 📱 مخطط الحملات
+│   │   ├── plan/                  # 📊 الخطة التسويقية
+│   │   ├── storyboard/            # 🎬 ستوري بورد
+│   │   ├── analysis/              # 📈 التحليل التسويقي
+│   │   ├── voiceover/             # 🎙️ التعليق الصوتي
+│   │   ├── edit/                  # ✏️ تعديل الصور
+│   │   ├── prompt-builder/        # 💡 مساعد البرومبت
+│   │   ├── brand-kit/             # 🎭 الهوية البصرية
+│   │   ├── assets/                # 📦 معرض الملفات
+│   │   ├── projects/              # 📂 المشاريع
+│   │   ├── billing/               # 💳 الفواتير والباقات
+│   │   ├── team/                  # 👥 إدارة الفريق
+│   │   ├── settings/              # ⚙️ الإعدادات
+│   │   └── onboarding/            # 🎯 جولة ترحيبية
+│   └── layout.tsx                 # Root (i18n + theme + query)
+│
+├── api/                           # ⚡ 21 API Route
+│   ├── studios/                   # 9 استوديوهات
+│   ├── stripe/                    # checkout · topup · webhook · portal
+│   ├── credits/                   # balance · transactions
+│   ├── brand-kits/                # CRUD
+│   ├── assets/                    # CRUD + export (ZIP)
+│   └── upload/                    # رفع ملفات
+│
+components/                        # 🧩 49 Component
+├── ui/                            # shadcn (button, card, dialog...)
+├── layout/                        # Sidebar, TopBar, CreditsWidget
+├── shared/                        # ModelSelector, CreditCost, ExportMenu
+├── studios/                       # Creator, Campaign, Photoshoot forms
+├── billing/                       # PlanCard, TopupCard, Transactions
+├── brand-kit/                     # BrandKitForm, ColorPicker, LogoUpload
+├── landing/                       # 11 Landing Page sections
+└── providers/                     # QueryProvider, ThemeProvider
+│
+lib/                               # 🔧 Core Logic
+├── ai/                            # Router + Gemini + OpenAI + Replicate + Prompts
+├── credits/                       # check · deduct (atomic) · costs
+├── stripe/                        # client · plans (5 plans + 4 top-ups)
+├── supabase/                      # client · server · types · signed-url
+├── image/                         # watermark
+├── export/                        # PDF generation
+└── utils.ts                       # cn() helper
+│
+supabase/migrations/               # 🗄️ 13 SQL Migrations
+messages/                          # 🌐 ar.json + en.json
 ```
 
----
+</details>
 
-## Getting Started
+<br />
+
+## 🗄️ Database
+
+<table>
+<tr><th>الجدول</th><th>الوصف</th><th>RLS</th></tr>
+<tr><td><code>profiles</code></td><td>المستخدمين (خطة + كريدت + Stripe IDs)</td><td>✅</td></tr>
+<tr><td><code>brand_kits</code></td><td>الهوية البصرية (شعار + ألوان + خطوط)</td><td>✅</td></tr>
+<tr><td><code>generations</code></td><td>سجل التوليدات (model + prompt + cost)</td><td>✅</td></tr>
+<tr><td><code>credit_transactions</code></td><td>سجل الكريدت (audit ledger)</td><td>✅</td></tr>
+<tr><td><code>assets</code></td><td>الملفات المولّدة (صور + فيديو + صوت)</td><td>✅</td></tr>
+<tr><td><code>teams</code></td><td>الفرق</td><td>✅</td></tr>
+<tr><td><code>team_members</code></td><td>الأعضاء + الأدوار</td><td>✅</td></tr>
+<tr><td><code>projects</code></td><td>المشاريع</td><td>✅</td></tr>
+</table>
+
+> **أمان البيانات:** خصم ذري (`SELECT FOR UPDATE`) · CHECK constraints · Auto-triggers · pg_cron monthly reset · RLS على كل جدول
+
+<br />
+
+## 🚀 Getting Started
 
 ```bash
-# Clone
+# 1️⃣ Clone
 git clone https://github.com/Engmohammedabdo/pixora.git
 cd pixora
 
-# Install
+# 2️⃣ Install
 npm install
 
-# Configure
+# 3️⃣ Configure
 cp .env.local.example .env.local
-# Edit .env.local with your Supabase + Stripe + AI keys
+# عدّل .env.local — حط مفاتيح Supabase + Stripe + AI
 
-# Apply migrations (via Supabase SQL Editor or psql)
-# See supabase/migrations/ (001-013)
+# 4️⃣ Database
+# طبّق الـ migrations من supabase/migrations/ (001-013)
+# عبر Supabase SQL Editor أو psql
 
-# Run
+# 5️⃣ Run
 npm run dev
 ```
 
-The app runs in **mock mode** without AI keys — all AI calls return placeholder responses.
+> 💡 **بدون مفاتيح AI؟** المنصة تشتغل بـ **Mock Mode** — كل الاستوديوهات ترجع نتائج تجريبية
 
----
+<br />
 
-## Database Schema
+## 📊 Quality
 
-| Table | Description | RLS |
-|-------|-------------|-----|
-| `profiles` | User profiles (plan, credits, Stripe IDs) | ✅ |
-| `brand_kits` | Brand identity (logo, colors, fonts) | ✅ |
-| `generations` | AI generation records | ✅ |
-| `credit_transactions` | Credit audit ledger | ✅ |
-| `assets` | Generated files (image, video, audio) | ✅ |
-| `teams` | Team collaboration | ✅ |
-| `team_members` | Team membership + roles | ✅ |
-| `projects` | Project organization | ✅ |
+<div align="center">
 
-**Key features:** Atomic credit deduction (SELECT FOR UPDATE), CHECK constraints, auto-triggers, pg_cron monthly reset.
+| المقياس | الحالة |
+|:---|:---:|
+| TypeScript errors | **0** ✅ |
+| Build | **Passes** ✅ |
+| Code review issues | **55/55 fixed** ✅ |
+| PRD features | **11/11** ✅ |
+| i18n | **عربي + English** ✅ |
+| Dark Mode | **Full coverage** ✅ |
+| DB Migrations | **13 applied** ✅ |
+| API Routes | **21 route** ✅ |
+| Components | **49 component** ✅ |
 
----
+</div>
 
-## API Routes
+<br />
 
-### Studios (POST, authenticated, rate-limited)
-`/api/studios/{creator,photoshoot,campaign,plan,storyboard,analysis,voiceover,edit,prompt-builder}`
-
-### Stripe
-| Route | Description |
-|-------|-------------|
-| `POST /api/stripe/create-checkout` | Subscription checkout |
-| `POST /api/stripe/create-topup` | Credit top-up checkout |
-| `POST /api/stripe/portal` | Customer portal |
-| `POST /api/stripe/webhook` | Event handler (idempotent) |
-
-### Other
-`GET/POST /api/brand-kits` · `GET/POST /api/assets` · `POST /api/assets/export` · `GET /api/credits/balance` · `POST /api/upload`
-
----
-
-## Quality Metrics
-
-| Metric | Status |
-|--------|--------|
-| TypeScript errors | **0** |
-| Build status | **passes** |
-| Code review issues | **55/55 fixed** |
-| PRD features | **11/11 implemented** |
-| i18n coverage | **Arabic + English complete** |
-| Dark mode | **Full coverage** |
-| Accessibility | **aria-pressed, semantic HTML** |
-| DB Migrations | **13 applied** |
-
----
-
-## Deployment
-
-Deployed on **Coolify** with Docker at https://pyrasuite.pyramedia.cloud/
+## 🐳 Deployment
 
 ```bash
 # Build
 npm run build
 
-# Verify
-npx tsc --noEmit  # zero errors
-npm run build     # passes
+# Docker
+docker build -t pyrasuite .
+docker run -p 3000:3000 --env-file .env.local pyrasuite
 ```
+
+> Deployed on **Coolify** (self-hosted) at [pyrasuite.pyramedia.cloud](https://pyrasuite.pyramedia.cloud/)
+
+<br />
 
 ---
 
-## License
+<div align="center">
 
-Proprietary. All rights reserved. © 2026 PyraSuite by Pyramedia.
+**Built with ❤️ by [Pyramedia](https://pyramedia.info)**
+
+*AI + Marketing = PyraSuite*
+
+<sub>© 2026 PyraSuite by Pyramedia. All rights reserved.</sub>
+
+</div>
