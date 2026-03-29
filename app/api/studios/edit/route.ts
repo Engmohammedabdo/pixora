@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { checkCredits } from '@/lib/credits/check';
 import { deductCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
+import { maybeWatermark } from '@/lib/image/watermark';
 import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
@@ -40,6 +41,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
     const result = await generateImage({ prompt, model: 'gpt', resolution: '1080p', referenceImageUrl: input.imageUrl });
+
+    // Apply watermark for free plan users
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = profile?.plan_id || 'free';
+    result.url = (await maybeWatermark(result.url, planId)) || result.url;
 
     const deductResult = await deductCredits({ supabase, userId: user.id, amount: CREDIT_COST, studio: 'edit', description: `Image edit - ${input.editType}`, generationId: generation?.id });
 

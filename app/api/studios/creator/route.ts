@@ -8,6 +8,7 @@ import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { rateLimit } from '@/lib/rate-limit';
+import { maybeWatermark } from '@/lib/image/watermark';
 import type { AIModel } from '@/types/studios';
 
 const InputSchema = z.object({
@@ -191,6 +192,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       resultModel = result.model as AIModel;
       resultOriginalModel = result.originalModel;
     }
+
+    // Apply watermark for free plan users
+    const planId = profile?.plan_id || 'free';
+    imageUrls = await Promise.all(
+      imageUrls.map((url) => maybeWatermark(url, planId).then((u) => u || url))
+    );
 
     // Deduct credits
     const deductResult = await deductCredits({

@@ -28,6 +28,7 @@ interface Plan {
 
 export default function PlanPage(): React.ReactElement {
   const t = useTranslations();
+  const tPlan = useTranslations('plan');
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [goals, setGoals] = useState<string[]>([]);
@@ -60,8 +61,8 @@ export default function PlanPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>اسم العمل</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="اسم شركتك أو مشروعك" /></div>
-      <div className="space-y-2"><Label>القطاع</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="مثال: مطاعم، عيادات، SaaS..." /></div>
+      <div className="space-y-2"><Label>{tPlan('businessName')}</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="اسم شركتك أو مشروعك" /></div>
+      <div className="space-y-2"><Label>{tPlan('industry')}</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="مثال: مطاعم، عيادات، SaaS..." /></div>
       <div className="space-y-2">
         <Label>الأهداف</Label>
         <div className="flex flex-wrap gap-2">{GOALS.map((g) => (

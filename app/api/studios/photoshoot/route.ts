@@ -5,6 +5,7 @@ import { deductCredits } from '@/lib/credits/deduct';
 import { checkCredits } from '@/lib/credits/check';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
+import { maybeWatermark } from '@/lib/image/watermark';
 import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
@@ -96,12 +97,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const successfulShots = results.filter(r => r !== null).length;
     const actualCost = Math.max(1, Math.ceil((creditCost / input.shots) * successfulShots));
 
-    const shots = results.map((r, i) => ({
-      index: i,
-      url: r?.url || null,
-      model: r?.model || 'flux',
-      mock: r?.mock ?? true,
-    }));
+    // Fetch user plan for watermark check
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = profile?.plan_id || 'free';
+
+    // Apply watermark to each shot URL
+    const shots = await Promise.all(
+      results.map(async (r, i) => ({
+        index: i,
+        url: r?.url ? (await maybeWatermark(r.url, planId)) || r.url : null,
+        model: r?.model || 'flux',
+        mock: r?.mock ?? true,
+      }))
+    );
 
     // Deduct credits
     const deductResult = await deductCredits({

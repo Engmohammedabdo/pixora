@@ -21,6 +21,7 @@ const EDIT_TYPES = [
 
 export default function EditPage(): React.ReactElement {
   const t = useTranslations();
+  const tEdit = useTranslations('edit');
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [editType, setEditType] = useState('background_replace');

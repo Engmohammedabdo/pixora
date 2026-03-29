@@ -220,6 +220,130 @@
     "deleteSelected": "Delete Selected",
     "downloadSelected": "Download Selected"
   },
+  "plan": {
+    "businessName": "Business Name",
+    "industry": "Industry",
+    "goals": "Goals",
+    "brandAwareness": "Brand Awareness",
+    "leadGeneration": "Lead Generation",
+    "sales": "Sales",
+    "retention": "Customer Retention",
+    "targetMarket": "Target Market",
+    "monthlyBudget": "Monthly Budget",
+    "duration": "Duration",
+    "day": "day",
+    "tabObjectives": "Objectives",
+    "tabChannels": "Channels",
+    "tabCalendar": "Calendar",
+    "tabBudget": "Budget",
+    "emptyState": "The plan will appear here",
+    "week": "Week",
+    "totalBudget": "Total Budget",
+    "description": "Detailed monthly marketing plan"
+  },
+  "storyboard": {
+    "videoConcept": "Video Concept",
+    "duration": "Duration",
+    "style": "Style",
+    "platform": "Platform",
+    "styles": {
+      "cinematic": "Cinematic",
+      "ugc": "User Generated",
+      "animation": "Animation",
+      "documentary": "Documentary"
+    },
+    "platforms": {
+      "instagram_reel": "Instagram Reel",
+      "tiktok": "TikTok",
+      "youtube": "YouTube",
+      "tv": "TV"
+    },
+    "emptyState": "The storyboard will appear here",
+    "exportPdf": "Export PDF",
+    "description": "Professional storyboard for marketing video"
+  },
+  "voiceover": {
+    "script": "Script",
+    "voice": "Voice",
+    "voices": {
+      "male_pro": "Male - Professional",
+      "female_pro": "Female - Professional",
+      "male_youth": "Male - Youthful",
+      "female_youth": "Female - Youthful",
+      "male_formal": "Male - Formal"
+    },
+    "dialect": "Dialect",
+    "dialects": {
+      "saudi": "Saudi",
+      "emirati": "Emirati",
+      "egyptian": "Egyptian",
+      "gulf": "Gulf",
+      "formal": "Formal Arabic"
+    },
+    "speed": "Speed",
+    "speeds": {
+      "slow": "Slow",
+      "normal": "Normal",
+      "fast": "Fast"
+    },
+    "tone": "Tone",
+    "tones": {
+      "professional": "Professional",
+      "friendly": "Friendly",
+      "energetic": "Energetic",
+      "calm": "Calm"
+    },
+    "emptyState": "The voiceover will appear here",
+    "downloadMp3": "Download MP3",
+    "second": "second",
+    "description": "Generate professional voiceover"
+  },
+  "edit": {
+    "originalImage": "Original Image",
+    "uploadImage": "Upload Image",
+    "editType": "Edit Type",
+    "editTypes": {
+      "background_replace": "Replace Background",
+      "object_remove": "Remove Object",
+      "color_change": "Change Color",
+      "text_add": "Add Text",
+      "style_transfer": "Style Transfer"
+    },
+    "editDescription": "Edit Description",
+    "original": "Original",
+    "afterEdit": "After Edit",
+    "pressGenerate": "Press Generate",
+    "emptyState": "The result will appear here",
+    "description": "Edit your images with AI"
+  },
+  "analysis": {
+    "businessName": "Business Name",
+    "industry": "Industry",
+    "businessDescription": "Business Description",
+    "competitors": "Competitors",
+    "targetMarket": "Target Market",
+    "painPoints": "Pain Points",
+    "tabSwot": "SWOT",
+    "tabPersonas": "Personas",
+    "tabCompetitors": "Competitors",
+    "tabRoadmap": "Roadmap",
+    "tabKpis": "KPIs",
+    "emptyState": "The analysis will appear here",
+    "strengths": "Strengths",
+    "weaknesses": "Weaknesses",
+    "opportunities": "Opportunities",
+    "threats": "Threats",
+    "day30": "30 Days",
+    "day60": "60 Days",
+    "day90": "90 Days",
+    "role": "Role",
+    "personaGoals": "Goals",
+    "challenges": "Challenges",
+    "channels": "Channels",
+    "strength": "Strength",
+    "weakness": "Weakness",
+    "description": "Comprehensive CMO-level marketing analysis"
+  },
   "settings": {
     "title": "Settings",
     "profile": "Profile",

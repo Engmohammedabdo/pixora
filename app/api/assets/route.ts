@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { getSignedAssetUrl } from '@/lib/supabase/signed-url';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -44,9 +45,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    // Sign asset URLs
+    const signedData = await Promise.all(
+      (data || []).map(async (asset) => ({
+        ...asset,
+        url: await getSignedAssetUrl(supabase, asset.url),
+      }))
+    );
+
     return NextResponse.json({
       success: true,
-      data,
+      data: signedData,
       total: count || 0,
       page,
       limit,

@@ -26,6 +26,7 @@ const TONES = ['professional', 'friendly', 'energetic', 'calm'] as const;
 
 export default function VoiceOverPage(): React.ReactElement {
   const t = useTranslations();
+  const tVo = useTranslations('voiceover');
   const [script, setScript] = useState('');
   const [voice, setVoice] = useState('male_pro');
   const [dialect, setDialect] = useState('saudi');

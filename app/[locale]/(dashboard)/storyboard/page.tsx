@@ -27,6 +27,7 @@ interface Scene {
 
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
+  const tSb = useTranslations('storyboard');
   const [concept, setConcept] = useState('');
   const [duration, setDuration] = useState<number>(30);
   const [style, setStyle] = useState('cinematic');

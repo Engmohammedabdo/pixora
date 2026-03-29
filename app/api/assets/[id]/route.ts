@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { getSignedAssetUrl } from '@/lib/supabase/signed-url';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -26,7 +27,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams): Promi
       return NextResponse.json({ success: false, error: 'not_found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data });
+    // Sign asset URL
+    const signedData = {
+      ...data,
+      url: await getSignedAssetUrl(supabase, data.url),
+    };
+
+    return NextResponse.json({ success: true, data: signedData });
   } catch (error) {
     console.error('Asset GET error:', error);
     return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });

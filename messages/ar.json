@@ -220,6 +220,130 @@
     "deleteSelected": "حذف المحدد",
     "downloadSelected": "تحميل المحدد"
   },
+  "plan": {
+    "businessName": "اسم العمل",
+    "industry": "القطاع",
+    "goals": "الأهداف",
+    "brandAwareness": "وعي العلامة",
+    "leadGeneration": "توليد عملاء",
+    "sales": "مبيعات",
+    "retention": "الاحتفاظ بالعملاء",
+    "targetMarket": "السوق المستهدف",
+    "monthlyBudget": "الميزانية الشهرية",
+    "duration": "المدة",
+    "day": "يوم",
+    "tabObjectives": "الأهداف",
+    "tabChannels": "القنوات",
+    "tabCalendar": "التقويم",
+    "tabBudget": "الميزانية",
+    "emptyState": "الخطة ستظهر هنا",
+    "week": "الأسبوع",
+    "totalBudget": "الميزانية الإجمالية",
+    "description": "خطة تسويقية شهرية مفصلة"
+  },
+  "storyboard": {
+    "videoConcept": "فكرة الفيديو",
+    "duration": "المدة",
+    "style": "الأسلوب",
+    "platform": "المنصة",
+    "styles": {
+      "cinematic": "سينمائي",
+      "ugc": "محتوى مستخدم",
+      "animation": "رسوم متحركة",
+      "documentary": "وثائقي"
+    },
+    "platforms": {
+      "instagram_reel": "Instagram Reel",
+      "tiktok": "TikTok",
+      "youtube": "YouTube",
+      "tv": "TV"
+    },
+    "emptyState": "الستوري بورد سيظهر هنا",
+    "exportPdf": "تصدير PDF",
+    "description": "ستوري بورد احترافي لفيديو تسويقي"
+  },
+  "voiceover": {
+    "script": "النص",
+    "voice": "الصوت",
+    "voices": {
+      "male_pro": "رجل - احترافي",
+      "female_pro": "امرأة - احترافية",
+      "male_youth": "رجل - شبابي",
+      "female_youth": "امرأة - شبابية",
+      "male_formal": "رجل - رسمي"
+    },
+    "dialect": "اللهجة",
+    "dialects": {
+      "saudi": "سعودية",
+      "emirati": "إماراتية",
+      "egyptian": "مصرية",
+      "gulf": "خليجية",
+      "formal": "فصحى"
+    },
+    "speed": "السرعة",
+    "speeds": {
+      "slow": "بطيء",
+      "normal": "عادي",
+      "fast": "سريع"
+    },
+    "tone": "النبرة",
+    "tones": {
+      "professional": "احترافي",
+      "friendly": "ودود",
+      "energetic": "حماسي",
+      "calm": "هادئ"
+    },
+    "emptyState": "التعليق الصوتي سيظهر هنا",
+    "downloadMp3": "تحميل MP3",
+    "second": "ثانية",
+    "description": "توليد تعليق صوتي احترافي"
+  },
+  "edit": {
+    "originalImage": "الصورة الأصلية",
+    "uploadImage": "ارفع الصورة",
+    "editType": "نوع التعديل",
+    "editTypes": {
+      "background_replace": "تغيير الخلفية",
+      "object_remove": "إزالة عنصر",
+      "color_change": "تغيير اللون",
+      "text_add": "إضافة نص",
+      "style_transfer": "تغيير الأسلوب"
+    },
+    "editDescription": "وصف التعديل",
+    "original": "الأصلية",
+    "afterEdit": "بعد التعديل",
+    "pressGenerate": "اضغط توليد",
+    "emptyState": "النتيجة ستظهر هنا",
+    "description": "عدّل صورك بالذكاء الاصطناعي"
+  },
+  "analysis": {
+    "businessName": "اسم العمل",
+    "industry": "القطاع",
+    "businessDescription": "وصف العمل",
+    "competitors": "المنافسون",
+    "targetMarket": "السوق المستهدف",
+    "painPoints": "نقاط الألم",
+    "tabSwot": "SWOT",
+    "tabPersonas": "Personas",
+    "tabCompetitors": "المنافسون",
+    "tabRoadmap": "خارطة الطريق",
+    "tabKpis": "KPIs",
+    "emptyState": "التحليل سيظهر هنا",
+    "strengths": "نقاط القوة",
+    "weaknesses": "نقاط الضعف",
+    "opportunities": "الفرص",
+    "threats": "التهديدات",
+    "day30": "30 يوم",
+    "day60": "60 يوم",
+    "day90": "90 يوم",
+    "role": "الدور",
+    "personaGoals": "الأهداف",
+    "challenges": "التحديات",
+    "channels": "القنوات",
+    "strength": "القوة",
+    "weakness": "الضعف",
+    "description": "تحليل تسويقي شامل CMO-level"
+  },
   "settings": {
     "title": "الإعدادات",
     "profile": "الملف الشخصي",

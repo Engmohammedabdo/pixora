@@ -31,6 +31,7 @@ interface Analysis {
 
 export default function AnalysisPage(): React.ReactElement {
   const t = useTranslations();
+  const tAn = useTranslations('analysis');
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [description, setDescription] = useState('');

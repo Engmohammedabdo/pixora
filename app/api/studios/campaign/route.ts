@@ -6,6 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { maybeWatermark } from '@/lib/image/watermark';
 import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
@@ -137,6 +138,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       postImages = await Promise.all(imagePromises);
     }
+
+    // Apply watermark to campaign images for free plan users
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = profile?.plan_id || 'free';
+    postImages = await Promise.all(
+      postImages.map(async (url) =>
+        url ? (await maybeWatermark(url, planId)) || url : null
+      )
+    );
 
     // Combine posts with images
     const postsWithImages = posts.map((post, i) => ({
