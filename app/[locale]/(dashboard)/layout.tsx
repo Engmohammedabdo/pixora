@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
 
   useEffect(() => {
     if (profile) {
-      setBalance(profile.credits_balance);
+      setBalance(profile.credits_balance + (profile.purchased_credits || 0));
     }
   }, [profile, setBalance]);
 

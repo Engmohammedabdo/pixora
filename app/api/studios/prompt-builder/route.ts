@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
 import { buildPromptBuilderPrompt, getMockPromptResults } from '@/lib/ai/prompts/prompt-builder';
+import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
   description: z.string().min(5).max(500),
@@ -17,6 +18,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!user || authError) {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+
+    if (!rateLimit(`studio:${user.id}`, 20, 60000)) {
+      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
     const body = await request.json();

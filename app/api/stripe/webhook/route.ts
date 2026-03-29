@@ -76,16 +76,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // Get current balance
             const { data: profile } = await supabase
               .from('profiles')
-              .select('credits_balance')
+              .select('credits_balance, purchased_credits')
               .eq('id', userId)
               .single();
 
-            const newBalance = (profile?.credits_balance || 0) + creditsToAdd;
+            const newPurchased = (profile?.purchased_credits || 0) + creditsToAdd;
+            const totalBalance = (profile?.credits_balance || 0) + newPurchased;
 
-            // Add credits
+            // Add to purchased_credits (never expire)
             await supabase
               .from('profiles')
-              .update({ credits_balance: newBalance })
+              .update({ purchased_credits: newPurchased })
               .eq('id', userId);
 
             // Log transaction
@@ -93,10 +94,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               user_id: userId,
               amount: creditsToAdd,
               type: 'topup',
-              description: `Top-up: ${topupId} — ${creditsToAdd} credits`,
+              description: `Top-up: ${topupId} — ${creditsToAdd} credits (never expire)`,
               stripe_payment_intent_id: typeof session.payment_intent === 'string'
                 ? session.payment_intent : null,
-              balance_after: newBalance,
+              balance_after: totalBalance,
             });
           }
         }
@@ -124,7 +125,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const userId = subscription.metadata?.userId;
         if (!userId) break;
 
-        // Downgrade to free
+        // Downgrade to free — keep purchased credits
+        const { data: cancelProfile } = await supabase
+          .from('profiles')
+          .select('purchased_credits')
+          .eq('id', userId)
+          .single();
+
         await supabase
           .from('profiles')
           .update({
@@ -138,8 +145,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           user_id: userId,
           amount: 0,
           type: 'reset',
-          description: 'Subscription cancelled — downgraded to Free',
-          balance_after: 25,
+          description: `Subscription cancelled — downgraded to Free (purchased: ${cancelProfile?.purchased_credits || 0} kept)`,
+          balance_after: 25 + (cancelProfile?.purchased_credits || 0),
         });
         break;
       }

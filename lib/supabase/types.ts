@@ -10,9 +10,12 @@ export interface Database {
           locale: string;
           plan_id: string;
           credits_balance: number;
+          purchased_credits: number;
           credits_reset_date: string | null;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
+          onboarding_completed: boolean;
+          onboarding_step: number;
           created_at: string;
           updated_at: string;
         };
@@ -24,9 +27,12 @@ export interface Database {
           locale?: string;
           plan_id?: string;
           credits_balance?: number;
+          purchased_credits?: number;
           credits_reset_date?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
+          onboarding_completed?: boolean;
+          onboarding_step?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -38,9 +44,12 @@ export interface Database {
           locale?: string;
           plan_id?: string;
           credits_balance?: number;
+          purchased_credits?: number;
           credits_reset_date?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
+          onboarding_completed?: boolean;
+          onboarding_step?: number;
           updated_at?: string;
         };
         Relationships: [];
