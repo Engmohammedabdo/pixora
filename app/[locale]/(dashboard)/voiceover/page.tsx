@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -36,9 +36,12 @@ export default function VoiceOverPage(): React.ReactElement {
   const creditCost = Math.max(1, Math.ceil(script.length / 150));
   const isValid = script.length >= 1;
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
-    setIsLoading(true); setError(null); setAudioUrl(null);
+    setIsLoading(true); setError(null); setAudioUrl(null); setIsPlaying(false);
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     try {
       const res = await fetch('/api/studios/voiceover', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -82,17 +85,34 @@ export default function VoiceOverPage(): React.ReactElement {
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Mic className="h-12 w-12" /><p className="text-sm mt-4">{tVo('emptyState')}</p></div>
   ) : (
     <div className="flex flex-col items-center py-12 gap-6">
-      <Badge variant="outline">Mock Audio — {audioDuration}s</Badge>
+      <Badge variant="outline">{audioDuration}s — التعليق الصوتي</Badge>
       <div className="w-full max-w-sm bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-4">
+        {/* Native audio player for real playback */}
+        <audio
+          ref={(el) => { audioRef.current = el; }}
+          src={audioUrl}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+          className="hidden"
+        />
+        {/* Visual waveform */}
         <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-          <div className="flex gap-0.5">{Array.from({ length: 20 }).map((_, i) => (<div key={i} className="w-1 bg-primary-300 rounded-full" style={{ height: `${12 + Math.random() * 24}px` }} />))}</div>
+          <div className="flex gap-0.5">{Array.from({ length: 20 }).map((_, i) => (<div key={i} className={`w-1 rounded-full transition-all ${isPlaying ? 'bg-primary-500 animate-pulse' : 'bg-primary-300'}`} style={{ height: `${12 + Math.random() * 24}px` }} />))}</div>
         </div>
-        <Button size="lg" variant="default" className="rounded-full h-14 w-14" onClick={() => setIsPlaying(!isPlaying)}>
+        {/* Play/Pause button — actually controls audio */}
+        <Button size="lg" variant="default" className="rounded-full h-14 w-14" onClick={() => {
+          if (!audioRef.current) return;
+          if (isPlaying) { audioRef.current.pause(); } else { audioRef.current.play(); }
+        }}>
           {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ms-0.5" />}
         </Button>
         <p className="text-xs text-[var(--color-text-muted)]">{audioDuration} {tVo('second')}</p>
       </div>
-      <Button variant="outline" className="gap-2"><Download className="h-4 w-4" />{tVo('downloadMp3')}</Button>
+      {/* Download button — actually downloads */}
+      <a href={audioUrl} download={`pyrasuite-voiceover-${Date.now()}.mp3`}>
+        <Button variant="outline" className="gap-2"><Download className="h-4 w-4" />{tVo('downloadMp3')}</Button>
+      </a>
     </div>
   );
 

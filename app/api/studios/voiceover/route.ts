@@ -15,12 +15,15 @@ const InputSchema = z.object({
 });
 
 const VOICE_MAP: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'> = {
+  male_pro: 'onyx',
+  female_pro: 'nova',
+  male_youth: 'echo',
+  female_youth: 'shimmer',
+  male_formal: 'fable',
+  // Fallbacks
   male: 'onyx',
   female: 'nova',
   neutral: 'alloy',
-  young: 'echo',
-  professional: 'fable',
-  warm: 'shimmer',
 };
 
 function mapVoice(voice: string): 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' {
