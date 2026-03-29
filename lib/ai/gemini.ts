@@ -39,9 +39,9 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
     return { url: getMockImageUrl(), model: 'gemini', mock: true };
   }
 
-  // Real Gemini API call
+  // Real Gemini API call — use gemini-2.5-flash-image for image generation
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +85,7 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-06:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

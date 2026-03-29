@@ -104,6 +104,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       referenceImageUrl: input.referenceImageUrl,
     });
 
+    // Upload base64 image to Supabase Storage if not a URL
+    let finalUrl = result.url || '';
+    if (finalUrl.startsWith('data:')) {
+      try {
+        const matches = finalUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          const mimeType = matches[1];
+          const base64Data = matches[2];
+          const ext = mimeType.includes('png') ? 'png' : 'jpg';
+          const fileName = `generations/${user.id}/${generation.id}.${ext}`;
+          const buffer = Buffer.from(base64Data, 'base64');
+
+          const { error: uploadError } = await supabase.storage
+            .from('assets')
+            .upload(fileName, buffer, { contentType: mimeType, upsert: true });
+
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
+            finalUrl = urlData.publicUrl;
+          } else {
+            console.error('Upload error:', uploadError.message);
+            // Keep base64 as fallback
+          }
+        }
+      } catch (uploadErr) {
+        console.error('Failed to upload to storage:', uploadErr);
+        // Keep base64 as fallback
+      }
+    }
+
     // Deduct credits
     const deductResult = await deductCredits({
       supabase,
@@ -118,7 +148,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await supabase
       .from('generations')
       .update({
-        output: { url: result.url, mock: result.mock },
+        output: { url: finalUrl, mock: result.mock },
         status: 'completed',
       })
       .eq('id', generation.id);
@@ -128,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       user_id: user.id,
       generation_id: generation.id,
       type: 'image',
-      url: result.url || '',
+      url: finalUrl,
       format: 'png',
     });
 
@@ -136,7 +166,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       data: {
         generationId: generation.id,
-        imageUrl: result.url,
+        imageUrl: finalUrl,
         model: result.model,
         mock: result.mock,
         usedFallback: result.usedFallback,
