@@ -9,20 +9,20 @@ const steps = [
   {
     number: 1,
     icon: Pencil,
-    title: 'اكتب وصفك',
-    description: 'صف ما تريده بالعربية أو الإنجليزية — المنصة تفهم الاثنين',
+    title: 'اكتب فكرتك بالعربي',
+    description: 'وصف بسيط يكفي — "أبي صورة لمنتج قهوة بخلفية صحراوية"',
   },
   {
     number: 2,
     icon: Sparkles,
-    title: 'اختر الاستوديو',
-    description: '9 استوديوهات متخصصة — من صور المنتجات إلى الحملات الكاملة',
+    title: 'Pyra AI تشتغل 🦊',
+    description: 'تختار الاستوديو المناسب، Pyra AI تفهم طلبك وتنفّذه بثواني',
   },
   {
     number: 3,
     icon: Download,
-    title: 'حمّل نتائجك',
-    description: 'صور، PDF، حملات كاملة — جاهزة للنشر في ثواني',
+    title: 'حمّل وانشر',
+    description: 'صور HD · PDF · حملات كاملة — جاهزة للنشر على أي منصة',
   },
 ];
 
@@ -33,9 +33,12 @@ export function HowItWorks(): React.ReactElement {
   return (
     <section className="bg-[var(--color-surface)] py-20 px-6">
       <div className="mx-auto max-w-5xl">
-        <h2 className="mb-16 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
-          كيف يعمل PyraSuite؟
+        <h2 className="mb-4 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
+          ثلاث خطوات وخلاص
         </h2>
+        <p className="mb-16 text-center text-[var(--color-text-secondary)]">
+          بدون تعقيد — بدون منحنى تعلّم
+        </p>
 
         <motion.div
           ref={ref}
@@ -48,32 +51,22 @@ export function HowItWorks(): React.ReactElement {
             const Icon = step.icon;
             return (
               <div key={step.number} className="flex flex-1 items-center md:flex-col">
-                {/* Step content */}
                 <div className="flex flex-col items-center text-center">
                   <motion.div variants={fadeInUp} className="flex flex-col items-center">
-                    {/* Number badge */}
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-xl font-bold text-white">
                       {step.number}
                     </div>
-
-                    {/* Icon */}
                     <div className="mb-4">
                       <Icon className="h-8 w-8 text-primary-600 dark:text-primary-400" />
                     </div>
-
-                    {/* Title */}
                     <h3 className="mb-2 font-semibold text-[var(--color-text-primary)]">
                       {step.title}
                     </h3>
-
-                    {/* Description */}
-                    <p className="max-w-[200px] text-sm text-[var(--color-text-secondary)]">
+                    <p className="max-w-[220px] text-sm text-[var(--color-text-secondary)]">
                       {step.description}
                     </p>
                   </motion.div>
                 </div>
-
-                {/* Connector line (hidden on mobile and after last step) */}
                 {index < steps.length - 1 && (
                   <div className="hidden flex-1 md:block">
                     <div className="mt-6 border-t-2 border-dashed border-[var(--color-border)]" />

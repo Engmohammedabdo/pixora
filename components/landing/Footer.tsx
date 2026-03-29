@@ -24,15 +24,17 @@ export function Footer(): React.ReactElement {
   return (
     <footer className="border-t border-[var(--color-border)] bg-[var(--color-surface)] py-12 px-6">
       <div className="mx-auto max-w-7xl">
-        {/* Main grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
-          {/* Column 1: Logo */}
+          {/* Column 1: Brand */}
           <div>
-            <h3 className="text-lg font-bold font-cairo text-[var(--color-text-primary)] mb-2">
+            <h3 className="text-lg font-bold font-cairo text-[var(--color-text-primary)] mb-1">
               PyraSuite
             </h3>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              منصة التسويق بالذكاء الاصطناعي
+            <p className="text-sm text-[var(--color-text-muted)] mb-2">
+              مدعوم بمحرك Pyra AI 🦊
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+              اكتب بالعربي. بايرا تنفّذ.
             </p>
           </div>
 
@@ -100,7 +102,7 @@ export function Footer(): React.ReactElement {
             &copy; 2026 PyraSuite. جميع الحقوق محفوظة.
           </p>
           <p className="text-sm text-[var(--color-text-muted)]">
-            صنع بـ ❤️ بواسطة Pyramedia
+            Powered by Pyra AI 🦊 — Built by Pyramedia
           </p>
         </div>
       </div>

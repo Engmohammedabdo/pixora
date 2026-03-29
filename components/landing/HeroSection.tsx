@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import {
   fadeInUp,
   slideInRight,
@@ -14,14 +14,16 @@ import {
 } from '@/lib/animations';
 
 const TYPEWRITER_WORDS = [
-  'صور احترافية',
-  'حملات تسويقية',
-  'تحليلات ذكية',
-  'خطط تسويقية',
+  'صورة تبيع',
+  'حملة تشتعل',
+  'خطة تسويق كاملة',
+  'تحليل ينافس الوكالات',
+  'صوت يمثّلك',
 ];
 
 const FLOATING_CARDS = [
   {
+    emoji: '🖼️',
     label: 'منشئ الصور',
     gradient: 'from-purple-500 to-pink-500',
     size: 'w-48 h-32',
@@ -29,25 +31,21 @@ const FLOATING_CARDS = [
     duration: 3,
   },
   {
-    label: 'تصوير المنتجات',
-    gradient: 'from-blue-500 to-cyan-500',
+    emoji: '📱',
+    label: 'مخطط الحملات',
+    gradient: 'from-amber-500 to-orange-500',
     size: 'w-56 h-36',
     position: 'top-36 end-24',
     duration: 4,
   },
   {
-    label: 'مخطط الحملات',
-    gradient: 'from-amber-500 to-orange-500',
+    emoji: '📊',
+    label: 'الخطة التسويقية',
+    gradient: 'from-blue-500 to-cyan-500',
     size: 'w-44 h-28',
     position: 'top-64 end-4',
     duration: 5,
   },
-];
-
-const STATS = [
-  '9 استوديوهات',
-  '3 نماذج AI',
-  '25 كريدت مجاناً',
 ];
 
 export function HeroSection(): React.ReactElement {
@@ -57,7 +55,7 @@ export function HeroSection(): React.ReactElement {
   useEffect(() => {
     const interval = setInterval(() => {
       setWordIndex((prev) => (prev + 1) % TYPEWRITER_WORDS.length);
-    }, 3000);
+    }, 2800);
     return () => clearInterval(interval);
   }, []);
 
@@ -74,7 +72,6 @@ export function HeroSection(): React.ReactElement {
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--color-primary-light,rgba(124,58,237,0.10)),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_80%,rgba(236,72,153,0.05),transparent)]" />
-        {/* Floating animated circles */}
         <motion.div
           className="absolute top-20 start-10 w-72 h-72 rounded-full bg-primary-500/5 blur-3xl"
           animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
@@ -99,8 +96,8 @@ export function HeroSection(): React.ReactElement {
           >
             <motion.div variants={slideInRight}>
               <Badge variant="secondary" className="mb-6 gap-1.5 px-4 py-1.5 text-sm">
-                <Sparkles className="h-3.5 w-3.5" />
-                المنصة العربية الأولى للتسويق بالـ AI
+                <span>🦊</span>
+                مدعوم بمحرك Pyra AI
               </Badge>
             </motion.div>
 
@@ -108,7 +105,7 @@ export function HeroSection(): React.ReactElement {
               variants={slideInRight}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold font-cairo leading-tight mb-6"
             >
-              منظومة تسويق متكاملة..
+              قولها بالعربي...
               <br />
               <span className="bg-gradient-to-l from-primary-500 to-accent-500 bg-clip-text text-transparent">
                 {TYPEWRITER_WORDS[wordIndex]}
@@ -122,10 +119,11 @@ export function HeroSection(): React.ReactElement {
 
             <motion.h2
               variants={slideInRight}
-              className="text-lg sm:text-xl text-[var(--color-text-secondary)] max-w-2xl mb-10 mx-auto lg:mx-0"
+              className="text-lg sm:text-xl text-[var(--color-text-secondary)] max-w-2xl mb-10 mx-auto lg:mx-0 leading-relaxed"
             >
-              9 استوديوهات ذكاء اصطناعي. نماذج متعددة. واجهة عربية. نظام كريدت شفاف.
-              كل اللي تحتاجه لتسويق احترافي.
+              اكتب فكرتك — Pyra AI تحوّلها لحملة تسويقية كاملة.
+              <br className="hidden sm:block" />
+              صور، فيديو، خطط، تحليلات، وتعليق صوتي. <strong>بالعربي من البداية.</strong>
             </motion.h2>
 
             <motion.div
@@ -134,12 +132,12 @@ export function HeroSection(): React.ReactElement {
             >
               <Button size="lg" className="text-base px-8 gap-2" asChild>
                 <Link href="/signup">
-                  ابدأ الآن مجاناً
+                  ابدأ مجاناً — 25 كريدت هدية
                   <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" className="text-base px-8" asChild>
-                <a href="#studios">استكشف الاستوديوهات</a>
+                <a href="#studios">شوف الاستوديوهات</a>
               </Button>
             </motion.div>
 
@@ -147,7 +145,7 @@ export function HeroSection(): React.ReactElement {
               variants={slideInRight}
               className="text-xs text-[var(--color-text-muted)]"
             >
-              بدون بطاقة ائتمان — ابدأ بثواني
+              بدون بطاقة ائتمان · تسجيل بثانيتين · النتيجة فورية
             </motion.p>
           </motion.div>
 
@@ -170,7 +168,9 @@ export function HeroSection(): React.ReactElement {
                   ease: 'easeInOut',
                 }}
               >
-                <div className={`h-3/4 bg-gradient-to-br ${card.gradient} opacity-80`} />
+                <div className={`h-3/4 bg-gradient-to-br ${card.gradient} opacity-80 flex items-center justify-center`}>
+                  <span className="text-3xl">{card.emoji}</span>
+                </div>
                 <div className="px-3 py-2">
                   <span className="text-xs font-medium text-[var(--color-text-secondary)]">
                     {card.label}
@@ -190,12 +190,12 @@ export function HeroSection(): React.ReactElement {
           viewport={{ once: true }}
         >
           <div className="inline-flex items-center gap-4 bg-[var(--color-surface-2)] rounded-full px-6 py-3">
-            {STATS.map((stat, i) => (
+            {['9 استوديوهات', 'محرك Pyra AI 🦊', '25 كريدت مجاناً'].map((stat, i) => (
               <span key={i} className="flex items-center gap-4">
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">
                   {stat}
                 </span>
-                {i < STATS.length - 1 && (
+                {i < 2 && (
                   <span className="text-[var(--color-text-muted)]">·</span>
                 )}
               </span>
