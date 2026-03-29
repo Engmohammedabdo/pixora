@@ -54,22 +54,22 @@ export default function StoryboardPage(): React.ReactElement {
     } catch { setError('Network error'); } finally { setIsLoading(false); }
   }, [isValid, concept, duration, style, platform, setBalance]);
 
-  const styleLabels: Record<string, string> = { cinematic: 'سينمائي', ugc: 'محتوى مستخدم', animation: 'رسوم متحركة', documentary: 'وثائقي' };
-  const platformLabels: Record<string, string> = { instagram_reel: 'Instagram Reel', tiktok: 'TikTok', youtube: 'YouTube', tv: 'TV' };
+  const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
+  const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
 
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>فكرة الفيديو</Label><textarea value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="وصف فكرة الفيديو التسويقي..." rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label>{tSb('videoConcept')}</Label><textarea value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="وصف فكرة الفيديو التسويقي..." rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
       <div className="space-y-2">
-        <Label>المدة</Label>
+        <Label>{tSb('duration')}</Label>
         <div className="flex gap-2">{DURATIONS.map((d) => (<button key={d} type="button" onClick={() => setDuration(d)} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{d}s</button>))}</div>
       </div>
       <div className="space-y-2">
-        <Label>الأسلوب</Label>
+        <Label>{tSb('style')}</Label>
         <div className="grid grid-cols-2 gap-2">{STYLES.map((s) => (<button key={s} type="button" onClick={() => setStyle(s)} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', style === s ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{styleLabels[s]}</button>))}</div>
       </div>
       <div className="space-y-2">
-        <Label>المنصة</Label>
+        <Label>{tSb('platform')}</Label>
         <div className="grid grid-cols-2 gap-2">{PLATFORMS.map((p) => (<button key={p} type="button" onClick={() => setPlatform(p)} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', platform === p ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{platformLabels[p]}</button>))}</div>
       </div>
       <div className="flex items-center justify-between pt-2">
@@ -84,12 +84,12 @@ export default function StoryboardPage(): React.ReactElement {
   ) : error ? (
     <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
   ) : scenes.length === 0 ? (
-    <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Film className="h-12 w-12" /><p className="text-sm mt-4">الستوري بورد سيظهر هنا</p></div>
+    <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Film className="h-12 w-12" /><p className="text-sm mt-4">{tSb('emptyState')}</p></div>
   ) : (
     <div className="space-y-3">
     <div>
       <Button size="sm" variant="outline" className="gap-1" onClick={() => openPdfInNewTab(generateStoryboardPdf(scenes, concept))}>
-        <FileText className="h-3 w-3" /> تصدير PDF
+        <FileText className="h-3 w-3" /> {tSb('exportPdf')}
       </Button>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -118,7 +118,7 @@ export default function StoryboardPage(): React.ReactElement {
 
   return (
     <div className="h-[calc(100vh-3.5rem)]">
-      <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.storyboard')}</h1><p className="text-sm text-[var(--color-text-secondary)]">ستوري بورد احترافي لفيديو تسويقي</p></div>
+      <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.storyboard')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tSb('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useCreditsStore } from '@/store/credits';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Check, CreditCard, Coins, Sparkles, ExternalLink } from 'lucide-react';
 
 export default function BillingPage(): React.ReactElement {
+  const t = useTranslations('billing');
   const { profile } = useUser();
   const { balance } = useCreditsStore();
   const searchParams = useSearchParams();
@@ -73,31 +75,31 @@ export default function BillingPage(): React.ReactElement {
       {success && (
         <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-300">
           <Check className="h-5 w-5" />
-          <span>تمت العملية بنجاح! تم تحديث حسابك.</span>
+          <span>{t('successMessage')}</span>
         </div>
       )}
 
-      {/* ═══════════ SECTION 1: Current Plan ═══════════ */}
+      {/* SECTION 1: Current Plan */}
       <section>
-        <h1 className="text-2xl font-bold font-cairo mb-4">الفواتير والاشتراك</h1>
+        <h1 className="text-2xl font-bold font-cairo mb-4">{t('title')}</h1>
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <CreditCard className="h-5 w-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold">خطتك الحالية</h2>
+                  <h2 className="text-lg font-semibold">{t('currentPlan')}</h2>
                   <Badge variant="default">{currentPlan.nameAr}</Badge>
                 </div>
                 <p className="text-sm text-[var(--color-text-secondary)]">
-                  {currentPlan.credits.toLocaleString()} كريدت/شهر — دقة {currentPlan.resolution}
+                  {currentPlan.credits.toLocaleString()} {t('creditsPerMonth')} — {t('resolution')} {currentPlan.resolution}
                 </p>
               </div>
               <div className="flex gap-2">
                 {currentPlanId !== 'free' && (
                   <Button variant="outline" size="sm" onClick={handleManageSubscription} disabled={loading} className="gap-1">
                     <ExternalLink className="h-3 w-3" />
-                    إدارة الاشتراك
+                    {t('manageSubscription')}
                   </Button>
                 )}
               </div>
@@ -110,14 +112,14 @@ export default function BillingPage(): React.ReactElement {
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-1.5">
                   <Coins className="h-4 w-4 text-primary-500" />
-                  رصيد الكريدت
+                  {t('creditBalance')}
                 </span>
                 <span className="font-bold text-primary-600">{balance} / {currentPlan.credits}</span>
               </div>
               <Progress value={creditPercentage} className="h-2.5" />
               {profile?.credits_reset_date && (
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  يُجدد في: {new Date(profile.credits_reset_date).toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' })}
+                  {t('renewsAt')} {new Date(profile.credits_reset_date).toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' })}
                 </p>
               )}
             </div>
@@ -125,11 +127,11 @@ export default function BillingPage(): React.ReactElement {
         </Card>
       </section>
 
-      {/* ═══════════ SECTION 2: Plans Comparison ═══════════ */}
+      {/* SECTION 2: Plans Comparison */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-5 w-5 text-primary-500" />
-          <h2 className="text-xl font-bold font-cairo">الخطط والأسعار</h2>
+          <h2 className="text-xl font-bold font-cairo">{t('plansAndPricing')}</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {Object.values(PLANS).map((plan) => (
@@ -145,13 +147,13 @@ export default function BillingPage(): React.ReactElement {
         </div>
       </section>
 
-      {/* ═══════════ SECTION 3: Top-ups ═══════════ */}
+      {/* SECTION 3: Top-ups */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Coins className="h-5 w-5 text-primary-500" />
-          <h2 className="text-xl font-bold font-cairo">شحن كريدت</h2>
+          <h2 className="text-xl font-bold font-cairo">{t('topUpCredits')}</h2>
         </div>
-        <p className="text-sm text-[var(--color-text-secondary)] mb-4">كريدت إضافي لا ينتهي (صالح لمدة 12 شهر)</p>
+        <p className="text-sm text-[var(--color-text-secondary)] mb-4">{t('topUpDescription')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {Object.values(TOPUPS).map((topup) => (
             <TopupCard
@@ -165,11 +167,11 @@ export default function BillingPage(): React.ReactElement {
         </div>
       </section>
 
-      {/* ═══════════ SECTION 4: Transaction History ═══════════ */}
+      {/* SECTION 4: Transaction History */}
       <section>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">سجل المعاملات</CardTitle>
+            <CardTitle className="text-base">{t('transactionHistory')}</CardTitle>
           </CardHeader>
           <CardContent>
             <TransactionTable />

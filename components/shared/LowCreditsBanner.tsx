@@ -1,12 +1,14 @@
 'use client';
 
 import { Link } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import { useCreditsStore } from '@/store/credits';
 import { AlertTriangle, XCircle, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function LowCreditsBanner(): React.ReactElement | null {
   const { balance, loading } = useCreditsStore();
+  const t = useTranslations('lowCredits');
 
   if (loading || balance > 5) return null;
 
@@ -22,12 +24,12 @@ export function LowCreditsBanner(): React.ReactElement | null {
       {isEmpty ? <XCircle className="h-4 w-4 flex-shrink-0" /> : <AlertTriangle className="h-4 w-4 flex-shrink-0" />}
       <span className="flex-1">
         {isEmpty
-          ? 'رصيدك 0 كريدت — لا يمكنك التوليد حتى تشحن.'
-          : `رصيدك منخفض (${balance} كريدت متبقي).`}
+          ? t('emptyBalance')
+          : t('lowBalance', { balance })}
       </span>
       <Link href="/billing" className="flex items-center gap-1 font-medium hover:underline">
         <Coins className="h-3 w-3" />
-        {isEmpty ? 'اشحن الآن' : 'شحن كريدت'}
+        {isEmpty ? t('topUpNow') : t('topUpCredits')}
       </Link>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,40 +13,48 @@ import {
   Rocket, X, CreditCard,
 } from 'lucide-react';
 
-const STEPS = [
+interface StepConfig {
+  icon: typeof Rocket;
+  titleKey: string;
+  descriptionKey: string;
+  ctaKey: string;
+  action: string | null;
+}
+
+const STEPS: StepConfig[] = [
   {
     icon: Rocket,
-    title: 'مرحباً بك في Pixora!',
-    description: 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي. 9 استوديوهات ذكية تساعدك تنشئ محتوى احترافي في دقائق.',
-    cta: 'التالي',
+    titleKey: 'step1Title',
+    descriptionKey: 'step1Description',
+    ctaKey: 'step1Cta',
     action: null,
   },
   {
     icon: Palette,
-    title: 'أنشئ هويتك البصرية',
-    description: 'أضف شعارك، ألوانك، وخطوطك. بنستخدمهم تلقائياً في كل شي تنشئه — بدون ما تعيد إدخالهم كل مرة.',
-    cta: 'أنشئ الهوية',
+    titleKey: 'step2Title',
+    descriptionKey: 'step2Description',
+    ctaKey: 'step2Cta',
     action: '/brand-kit',
   },
   {
     icon: Image,
-    title: 'جرّب أول استوديو',
-    description: 'جرب منشئ الصور — اكتب وصف بسيط بالعربي أو الإنجليزي وشوف النتيجة. أول توليد مجاني!',
-    cta: 'جرّب الآن',
+    titleKey: 'step3Title',
+    descriptionKey: 'step3Description',
+    ctaKey: 'step3Cta',
     action: '/creator',
   },
   {
     icon: CreditCard,
-    title: 'اختر خطتك',
-    description: 'ابدأ مجاناً بـ 25 كريدت شهرياً، أو ترقّى لخطة أكبر حسب احتياجك. تقدر تترقى في أي وقت.',
-    cta: 'شوف الخطط',
+    titleKey: 'step4Title',
+    descriptionKey: 'step4Description',
+    ctaKey: 'step4Cta',
     action: '/billing',
   },
   {
     icon: Gift,
-    title: 'مبروك! حصلت على 5 كريدت إضافية',
-    description: 'شكراً لإكمالك التعريف — أضفنا 5 كريدت مجانية لحسابك. ابدأ الإنشاء الآن!',
-    cta: 'ابدأ الاستخدام',
+    titleKey: 'step5Title',
+    descriptionKey: 'step5Description',
+    ctaKey: 'step5Cta',
     action: null,
   },
 ];
@@ -53,6 +62,7 @@ const STEPS = [
 export default function OnboardingPage(): React.ReactElement {
   const [step, setStep] = useState(0);
   const router = useRouter();
+  const t = useTranslations('onboarding');
 
   const currentStep = STEPS[step];
   const progress = ((step + 1) / STEPS.length) * 100;
@@ -83,13 +93,13 @@ export default function OnboardingPage(): React.ReactElement {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <Badge variant="secondary" className="text-xs">
-              خطوة {step + 1} من {STEPS.length}
+              {t('stepOf', { current: step + 1, total: STEPS.length })}
             </Badge>
             <button
               onClick={handleSkip}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors flex items-center gap-1"
             >
-              تخطي
+              {t('skip')}
               <X className="h-3 w-3" />
             </button>
           </div>
@@ -111,9 +121,9 @@ export default function OnboardingPage(): React.ReactElement {
               />
             </div>
 
-            <h2 className="text-2xl font-bold font-cairo">{currentStep.title}</h2>
+            <h2 className="text-2xl font-bold font-cairo">{t(currentStep.titleKey)}</h2>
             <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mx-auto leading-relaxed">
-              {currentStep.description}
+              {t(currentStep.descriptionKey)}
             </p>
           </div>
 
@@ -127,23 +137,23 @@ export default function OnboardingPage(): React.ReactElement {
               className="gap-1"
             >
               <ArrowRight className="h-4 w-4 rtl:rotate-180" />
-              السابق
+              {t('previous')}
             </Button>
 
             <Button onClick={handleNext} size="lg" className="gap-2 px-6">
               {isLast ? (
                 <>
                   <Check className="h-4 w-4" />
-                  {currentStep.cta}
+                  {t(currentStep.ctaKey)}
                 </>
               ) : currentStep.action ? (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  {currentStep.cta}
+                  {t(currentStep.ctaKey)}
                 </>
               ) : (
                 <>
-                  {currentStep.cta}
+                  {t(currentStep.ctaKey)}
                   <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 </>
               )}

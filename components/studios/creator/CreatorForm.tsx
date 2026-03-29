@@ -63,7 +63,23 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
   const handleRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Show local preview immediately
     setReferenceImage(URL.createObjectURL(file));
+
+    // Upload to server to get a real URL the API can access
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bucket', 'uploads');
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        setReferenceImage(data.data.url);
+      }
+    } catch {
+      // Keep blob URL as fallback for preview
+    }
   };
 
   return (

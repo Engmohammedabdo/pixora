@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import { Coins, Sparkles, Lock } from 'lucide-react';
 
 type PromptVariant = 'insufficient_credits' | 'feature_locked' | 'resolution_locked';
@@ -29,21 +30,23 @@ export function UpgradePrompt({
   requiredPlan,
   feature,
 }: UpgradePromptProps): React.ReactElement {
+  const t = useTranslations('upgrade');
+
   const content: Record<PromptVariant, { icon: React.ReactNode; title: string; description: string }> = {
     insufficient_credits: {
       icon: <Coins className="h-10 w-10 text-[var(--color-warning)]" />,
-      title: 'رصيدك غير كافي',
-      description: `تحتاج ${requiredCredits} كريدت لكن عندك ${availableCredits} فقط. اشحن كريدت أو ترقّى لخطة أعلى.`,
+      title: t('insufficientCredits'),
+      description: t('insufficientCreditsDescription', { required: requiredCredits ?? 0, available: availableCredits ?? 0 }),
     },
     feature_locked: {
       icon: <Lock className="h-10 w-10 text-primary-500" />,
-      title: 'هذه الميزة غير متاحة',
-      description: `${feature || 'هذه الميزة'} متاحة في خطة ${requiredPlan || 'Pro'} وأعلى. ترقّى للاستفادة.`,
+      title: t('featureLocked'),
+      description: t('featureLockedDescription', { feature: feature || '', plan: requiredPlan || 'Pro' }),
     },
     resolution_locked: {
       icon: <Sparkles className="h-10 w-10 text-primary-500" />,
-      title: 'دقة أعلى تحتاج ترقية',
-      description: `خطة ${currentPlan} تدعم حتى ${currentPlan === 'free' ? '1080p' : '2K'} فقط. ترقّى لدقة 4K.`,
+      title: t('resolutionLocked'),
+      description: t('resolutionLockedDescription', { plan: currentPlan, maxRes: currentPlan === 'free' ? '1080p' : '2K' }),
     },
   };
 
@@ -59,10 +62,10 @@ export function UpgradePrompt({
         </DialogHeader>
 
         <div className="flex items-center justify-center gap-2 mt-2">
-          <Badge variant="outline">خطتك: {currentPlan}</Badge>
+          <Badge variant="outline">{t('yourPlan')} {currentPlan}</Badge>
           {requiredCredits && availableCredits !== undefined && (
             <Badge variant="secondary">
-              {availableCredits} / {requiredCredits} كريدت
+              {availableCredits} / {requiredCredits} credits
             </Badge>
           )}
         </div>
@@ -71,10 +74,10 @@ export function UpgradePrompt({
           <Button asChild>
             <Link href="/billing">
               <Sparkles className="h-4 w-4 me-2" />
-              {variant === 'insufficient_credits' ? 'شحن كريدت' : 'ترقية الخطة'}
+              {variant === 'insufficient_credits' ? t('topUpCredits') : t('upgradePlan')}
             </Link>
           </Button>
-          <Button variant="ghost" onClick={onClose}>لاحقاً</Button>
+          <Button variant="ghost" onClick={onClose}>{t('later')}</Button>
         </div>
       </DialogContent>
     </Dialog>

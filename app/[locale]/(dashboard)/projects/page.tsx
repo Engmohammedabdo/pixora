@@ -18,6 +18,7 @@ interface Project {
 
 export default function ProjectsPage(): React.ReactElement {
   const t = useTranslations();
+  const tProjects = useTranslations('projects');
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
@@ -39,8 +40,8 @@ export default function ProjectsPage(): React.ReactElement {
       {projects.length === 0 ? (
         <div className="flex flex-col items-center py-24 text-[var(--color-text-muted)]">
           <FolderOpen className="h-16 w-16 mb-4" />
-          <h3 className="text-lg font-medium mb-1">لا توجد مشاريع بعد</h3>
-          <p className="text-sm mb-4">أنشئ مشروعك الأول لتنظيم أعمالك</p>
+          <h3 className="text-lg font-medium mb-1">{tProjects('empty')}</h3>
+          <p className="text-sm mb-4">{tProjects('emptyDescription')}</p>
           <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 me-2" />{t('common.create')}</Button>
         </div>
       ) : (
@@ -51,7 +52,7 @@ export default function ProjectsPage(): React.ReactElement {
                 <CardTitle className="text-base flex items-center gap-2"><FolderOpen className="h-4 w-4 text-primary-500" />{project.name}</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)]">
-                <Badge variant="secondary">{project.generationCount} generations</Badge>
+                <Badge variant="secondary">{project.generationCount} {tProjects('generations')}</Badge>
                 <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(project.createdAt).toLocaleDateString('ar-SA')}</div>
               </CardContent>
             </Card>
@@ -61,9 +62,9 @@ export default function ProjectsPage(): React.ReactElement {
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>مشروع جديد</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{tProjects('newProject')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="اسم المشروع" onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={tProjects('projectName')} onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
             <Button onClick={handleCreate} disabled={!newName.trim()} className="w-full">{t('common.create')}</Button>
           </div>
         </DialogContent>

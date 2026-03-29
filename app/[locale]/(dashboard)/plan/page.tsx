@@ -64,20 +64,20 @@ export default function PlanPage(): React.ReactElement {
       <div className="space-y-2"><Label>{tPlan('businessName')}</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="اسم شركتك أو مشروعك" /></div>
       <div className="space-y-2"><Label>{tPlan('industry')}</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="مثال: مطاعم، عيادات، SaaS..." /></div>
       <div className="space-y-2">
-        <Label>الأهداف</Label>
+        <Label>{tPlan('goals')}</Label>
         <div className="flex flex-wrap gap-2">{GOALS.map((g) => (
           <button key={g} type="button" onClick={() => toggleGoal(g)} className={cn('rounded-full px-3 py-1.5 text-xs transition-colors', goals.includes(g) ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}>
-            {g === 'brand_awareness' ? 'وعي العلامة' : g === 'lead_generation' ? 'توليد عملاء' : g === 'sales' ? 'مبيعات' : 'الاحتفاظ بالعملاء'}
+            {g === 'brand_awareness' ? tPlan('brandAwareness') : g === 'lead_generation' ? tPlan('leadGeneration') : g === 'sales' ? tPlan('sales') : tPlan('retention')}
           </button>
         ))}</div>
       </div>
-      <div className="space-y-2"><Label>السوق المستهدف</Label><Input value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} placeholder="مثال: رواد أعمال في السعودية" /></div>
-      <div className="space-y-2"><Label>الميزانية الشهرية</Label><Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="$1,000 - $5,000" dir="ltr" /></div>
+      <div className="space-y-2"><Label>{tPlan('targetMarket')}</Label><Input value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} placeholder="مثال: رواد أعمال في السعودية" /></div>
+      <div className="space-y-2"><Label>{tPlan('monthlyBudget')}</Label><Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="$1,000 - $5,000" dir="ltr" /></div>
       <div className="space-y-2">
-        <Label>المدة</Label>
+        <Label>{tPlan('duration')}</Label>
         <div className="flex gap-2">{DURATIONS.map((d) => (
           <button key={d} type="button" onClick={() => setDuration(d)} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>
-            {d} يوم
+            {d} {tPlan('day')}
           </button>
         ))}</div>
       </div>
@@ -89,10 +89,10 @@ export default function PlanPage(): React.ReactElement {
   );
 
   const tabs = [
-    { id: 'objectives', label: 'الأهداف', icon: Target },
-    { id: 'channels', label: 'القنوات', icon: TrendingUp },
-    { id: 'calendar', label: 'التقويم', icon: Calendar },
-    { id: 'budget', label: 'الميزانية', icon: DollarSign },
+    { id: 'objectives', label: tPlan('tabObjectives'), icon: Target },
+    { id: 'channels', label: tPlan('tabChannels'), icon: TrendingUp },
+    { id: 'calendar', label: tPlan('tabCalendar'), icon: Calendar },
+    { id: 'budget', label: tPlan('tabBudget'), icon: DollarSign },
   ];
 
   const previewPanel = isLoading ? (
@@ -100,20 +100,20 @@ export default function PlanPage(): React.ReactElement {
   ) : error ? (
     <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
   ) : !plan ? (
-    <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Calendar className="h-12 w-12" /><p className="text-sm mt-4">الخطة ستظهر هنا</p></div>
+    <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Calendar className="h-12 w-12" /><p className="text-sm mt-4">{tPlan('emptyState')}</p></div>
   ) : (
     <div className="space-y-4">
       <div className="flex gap-1 overflow-x-auto pb-2">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
       {activeTab === 'objectives' && (<div className="space-y-3">{plan.objectives?.map((obj, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm">{obj.goal}</h4><div className="flex gap-4 mt-2 text-xs text-[var(--color-text-secondary)]"><span>KPI: {obj.kpi}</span><Badge variant="secondary">{obj.target}</Badge></div></CardContent></Card>))}</div>)}
       {activeTab === 'channels' && (<div className="space-y-3">{plan.channels?.map((ch, i) => (<Card key={i}><CardContent className="p-4"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold text-sm">{ch.name}</h4><Badge variant="default">{ch.budget_pct}%</Badge></div><p className="text-xs text-[var(--color-text-secondary)]">{ch.strategy}</p></CardContent></Card>))}</div>)}
-      {activeTab === 'calendar' && (<div className="space-y-3">{plan.calendar?.map((week) => (<Card key={week.week}><CardHeader className="pb-2"><CardTitle className="text-sm">الأسبوع {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{week.content.map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
-      {activeTab === 'budget' && plan.budget && (<div className="space-y-3"><Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-primary-600">{plan.budget.total}</p><p className="text-xs text-[var(--color-text-muted)] mt-1">الميزانية الإجمالية</p></CardContent></Card><div className="space-y-2">{plan.budget.breakdown.map((item, i) => (<div key={i} className="flex items-center justify-between text-sm"><span>{item.item}</span><div className="flex items-center gap-2"><span className="font-medium">{item.amount}</span><Badge variant="secondary" className="text-[10px]">{item.pct}%</Badge></div></div>))}</div></div>)}
+      {activeTab === 'calendar' && (<div className="space-y-3">{plan.calendar?.map((week) => (<Card key={week.week}><CardHeader className="pb-2"><CardTitle className="text-sm">{tPlan('week')} {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{week.content.map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
+      {activeTab === 'budget' && plan.budget && (<div className="space-y-3"><Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-primary-600">{plan.budget.total}</p><p className="text-xs text-[var(--color-text-muted)] mt-1">{tPlan('totalBudget')}</p></CardContent></Card><div className="space-y-2">{plan.budget.breakdown.map((item, i) => (<div key={i} className="flex items-center justify-between text-sm"><span>{item.item}</span><div className="flex items-center gap-2"><span className="font-medium">{item.amount}</span><Badge variant="secondary" className="text-[10px]">{item.pct}%</Badge></div></div>))}</div></div>)}
     </div>
   );
 
   return (
     <div className="h-[calc(100vh-3.5rem)]">
-      <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.plan')}</h1><p className="text-sm text-[var(--color-text-secondary)]">خطة تسويقية شهرية مفصلة</p></div>
+      <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.plan')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tPlan('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>
   );

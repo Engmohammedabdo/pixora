@@ -31,20 +31,21 @@ const roleIcons: Record<string, React.ReactNode> = {
   member: <User className="h-3 w-3 text-[var(--color-text-muted)]" />,
 };
 
-const roleLabels: Record<string, string> = {
-  owner: 'مالك',
-  admin: 'مدير',
-  member: 'عضو',
-};
-
 const roleBadgeVariants: Record<string, 'default' | 'secondary' | 'outline'> = {
   owner: 'default',
   admin: 'secondary',
   member: 'outline',
 };
 
+const roleKeys: Record<string, string> = {
+  owner: 'roleOwner',
+  admin: 'roleAdmin',
+  member: 'roleMember',
+};
+
 export default function TeamPage(): React.ReactElement {
   const t = useTranslations();
+  const tTeam = useTranslations('team');
   const [members] = useState<TeamMember[]>(MOCK_MEMBERS);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -53,7 +54,7 @@ export default function TeamPage(): React.ReactElement {
   const handleInvite = (): void => {
     if (!inviteEmail) return;
     // UI-only: would call API in production
-    alert(`سيتم إرسال دعوة إلى ${inviteEmail} كـ ${roleLabels[inviteRole]}`);
+    alert(tTeam('inviteAlert', { email: inviteEmail, role: tTeam(roleKeys[inviteRole]) }));
     setInviteEmail('');
     setShowInvite(false);
   };
@@ -63,11 +64,11 @@ export default function TeamPage(): React.ReactElement {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold font-cairo">{t('nav.team')}</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">إدارة فريقك والصلاحيات</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">{tTeam('subtitle')}</p>
         </div>
         <Button onClick={() => setShowInvite(true)} className="gap-2">
           <UserPlus className="h-4 w-4" />
-          دعوة عضو
+          {tTeam('inviteMember')}
         </Button>
       </div>
 
@@ -77,9 +78,9 @@ export default function TeamPage(): React.ReactElement {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="h-4 w-4 text-primary-500" />
-              فريقك
+              {tTeam('yourTeam')}
             </CardTitle>
-            <Badge variant="secondary">{members.length} / 5 أعضاء</Badge>
+            <Badge variant="secondary">{members.length} / 5 {tTeam('members')}</Badge>
           </div>
         </CardHeader>
         <CardContent>
@@ -100,7 +101,7 @@ export default function TeamPage(): React.ReactElement {
                 <div className="flex items-center gap-2">
                   <Badge variant={roleBadgeVariants[member.role]} className="gap-1 text-xs">
                     {roleIcons[member.role]}
-                    {roleLabels[member.role]}
+                    {tTeam(roleKeys[member.role])}
                   </Badge>
                   {member.role !== 'owner' && (
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-[var(--color-error)]">
@@ -119,9 +120,9 @@ export default function TeamPage(): React.ReactElement {
         <CardContent className="p-4 flex items-start gap-3">
           <Shield className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">ميزة الفريق متاحة في خطة Business وأعلى</p>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">{tTeam('businessFeature')}</p>
             <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
-              ترقّى لخطة Business ($59/شهر) للحصول على فريق حتى 5 أعضاء مع كريدت مشترك.
+              {tTeam('businessUpgrade')}
             </p>
           </div>
         </CardContent>
@@ -130,10 +131,10 @@ export default function TeamPage(): React.ReactElement {
       {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>دعوة عضو جديد</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{tTeam('inviteNewMember')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>البريد الإلكتروني</Label>
+              <Label>{tTeam('email')}</Label>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-[var(--color-text-muted)]" />
                 <Input
@@ -146,7 +147,7 @@ export default function TeamPage(): React.ReactElement {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>الصلاحية</Label>
+              <Label>{tTeam('role')}</Label>
               <div className="flex gap-2">
                 {(['admin', 'member'] as const).map((role) => (
                   <button
@@ -160,7 +161,7 @@ export default function TeamPage(): React.ReactElement {
                     )}
                   >
                     {roleIcons[role]}
-                    {roleLabels[role]}
+                    {tTeam(roleKeys[role])}
                   </button>
                 ))}
               </div>
@@ -168,7 +169,7 @@ export default function TeamPage(): React.ReactElement {
             <Separator />
             <Button onClick={handleInvite} disabled={!inviteEmail} className="w-full gap-2">
               <UserPlus className="h-4 w-4" />
-              إرسال الدعوة
+              {tTeam('sendInvite')}
             </Button>
           </div>
         </DialogContent>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -21,15 +22,16 @@ const typeColors: Record<string, 'default' | 'secondary' | 'success' | 'destruct
   reset: 'destructive',
 };
 
-const typeLabels: Record<string, string> = {
-  subscription: 'اشتراك',
-  topup: 'شحن',
-  usage: 'استخدام',
-  refund: 'استرداد',
-  reset: 'إعادة ضبط',
+const typeKeys: Record<string, string> = {
+  subscription: 'typeSubscription',
+  topup: 'typeTopup',
+  usage: 'typeUsage',
+  refund: 'typeRefund',
+  reset: 'typeReset',
 };
 
 export function TransactionTable(): React.ReactElement {
+  const t = useTranslations('billing');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +50,7 @@ export function TransactionTable(): React.ReactElement {
   }
 
   if (transactions.length === 0) {
-    return <p className="text-sm text-[var(--color-text-muted)] text-center py-8">لا توجد معاملات بعد</p>;
+    return <p className="text-sm text-[var(--color-text-muted)] text-center py-8">{t('noTransactions')}</p>;
   }
 
   return (
@@ -56,11 +58,11 @@ export function TransactionTable(): React.ReactElement {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-[var(--color-text-muted)]">
-            <th className="text-start py-2 px-3 font-medium">التاريخ</th>
-            <th className="text-start py-2 px-3 font-medium">النوع</th>
-            <th className="text-start py-2 px-3 font-medium">الوصف</th>
-            <th className="text-end py-2 px-3 font-medium">الكمية</th>
-            <th className="text-end py-2 px-3 font-medium">الرصيد</th>
+            <th className="text-start py-2 px-3 font-medium">{t('date')}</th>
+            <th className="text-start py-2 px-3 font-medium">{t('type')}</th>
+            <th className="text-start py-2 px-3 font-medium">{t('description')}</th>
+            <th className="text-end py-2 px-3 font-medium">{t('amount')}</th>
+            <th className="text-end py-2 px-3 font-medium">{t('balanceAfter')}</th>
           </tr>
         </thead>
         <tbody>
@@ -71,7 +73,7 @@ export function TransactionTable(): React.ReactElement {
               </td>
               <td className="py-2 px-3">
                 <Badge variant={typeColors[tx.type] || 'secondary'} className="text-[10px]">
-                  {typeLabels[tx.type] || tx.type}
+                  {typeKeys[tx.type] ? t(typeKeys[tx.type]) : tx.type}
                 </Badge>
               </td>
               <td className="py-2 px-3 text-xs max-w-[200px] truncate">{tx.description || '-'}</td>

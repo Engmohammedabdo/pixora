@@ -46,11 +46,18 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const selectedShotOption = SHOT_OPTIONS.find((o) => o.count === shots)!;
   const isValid = !!productImage;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
-    if (file) {
-      setProductImage(URL.createObjectURL(file));
-    }
+    if (!file) return;
+    setProductImage(URL.createObjectURL(file));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bucket', 'uploads');
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success && data.data?.url) setProductImage(data.data.url);
+    } catch { /* keep blob preview */ }
   };
 
   const handleSubmit = (e: React.FormEvent): void => {
