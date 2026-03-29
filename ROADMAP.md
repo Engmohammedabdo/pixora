@@ -50,7 +50,7 @@
 
 | # | Gap | Priority | Description |
 |---|-----|----------|-------------|
-| M1 | No Trial Period | HIGH | No "7-day Pro trial" |
+| ~~M1~~ | ~~No Trial Period~~ | ~~N/A~~ | ~~Not needed — Free plan with 25 credits covers trial~~ |
 | M2 | No Annual Billing | MEDIUM | Only monthly pricing |
 | M3 | No Auto Top-up | MEDIUM | No "auto buy credits when < 10" |
 | M4 | No Referral System | MEDIUM | Missing viral growth loop |
@@ -69,6 +69,30 @@
 ---
 
 ## Part 2: Feature Roadmap (Prioritized Phases)
+
+### Phase 0: "First Impression" — Premium Landing Page (PRIORITY #1)
+> Goal: صفحة رئيسية مبهرة تبيع المنصة قبل ما المستخدم يسجل
+
+The current landing page is basic (text + cards). Need a **world-class, animation-heavy landing page** that WOWs visitors instantly — inspired by Morpho, Framer, Linear.
+
+| # | Feature | Complexity | Impact | Description |
+|---|---------|-----------|--------|-------------|
+| L1 | **Hero Section with Parallax** | M | CRITICAL | Full-screen hero with animated gradient background, floating AI-generated images, typewriter effect on headline, CTA buttons with hover glow |
+| L2 | **Interactive Studio Showcase** | L | CRITICAL | Scroll-triggered animated cards for each of the 9 studios. Each card reveals on scroll with stagger animation. Click to see a demo output. |
+| L3 | **"How It Works" Section** | M | HIGH | 3-step animated flow: "Write → Generate → Download". Each step animates in sequence as user scrolls. |
+| L4 | **Live Generation Demo** | L | HIGH | Embedded mini-Creator that generates a mock image without signup. User types prompt → sees result → "Sign up to save" CTA. |
+| L5 | **Statistics Counter** | S | HIGH | Animated counters: "9 Studios", "3 AI Models", "5 Plans", "25 Free Credits". Numbers count up on scroll. |
+| L6 | **Pricing Section with Toggle** | M | HIGH | Pricing cards with monthly/annual toggle, hover animations, "Most Popular" badge pulse, feature comparison accordion. |
+| L7 | **FAQ Accordion with Smooth Animation** | S | MEDIUM | Framer-motion powered accordion with height animation. |
+| L8 | **Social Proof Section** | M | HIGH | Testimonials carousel (placeholder data), trust badges, "Used by X+ marketers" counter. Stats like "50,000+ generations" |
+| L9 | **Footer with Newsletter** | S | MEDIUM | Email capture, social links, sitemap links, language switcher |
+| L10 | **Scroll Animations Throughout** | M | HIGH | Intersection Observer + framer-motion: fade-in-up on every section, parallax on backgrounds, scale-up on images |
+| L11 | **Mobile-First Responsive** | M | HIGH | Every section optimized for mobile with touch-friendly interactions |
+| L12 | **Dark Mode Support** | S | MEDIUM | Landing page fully dark-mode aware with CSS variables |
+
+**Dependencies:** `framer-motion` (already installed), no new packages needed.
+
+---
 
 ### Phase A: "WOW Factor" — Quick Wins (1-2 weeks)
 > Goal: Make users feel the app is premium in the first 60 seconds
@@ -210,6 +234,7 @@ ALTER TABLE generations ADD COLUMN user_rating INTEGER; -- 1=thumbs down, 5=thum
 ## Part 5: Implementation Priority Summary
 
 ```
+FIRST:     Phase 0 (Landing Page)   → 12 features, FIRST IMPRESSION (highest priority)
 Week 1-2:  Phase A (Quick Wins)     → 10 features, instant WOW
 Week 3-6:  Phase B (Core)           → 12 features, mature SaaS
 Week 7-10: Phase C (Retention)      → 8 features, daily engagement
@@ -218,11 +243,12 @@ Week 11+:  Phase D (Premium)        → 10 features, market differentiation
 
 ### Top 10 Highest ROI Features:
 
-1. **Toast Notifications** (S/HIGH) — literally zero feedback right now
-2. **Generation Progress Indicator** (M/HIGH) — skeleton feels broken
-3. **Prompt Templates Library** (M/HIGH) — removes "blank page" problem
-4. **WhatsApp Share** (S/HIGH) — viral loop for Arab market
-5. **Daily Login Bonus** (M/HIGH) — immediate retention boost
+1. **🔥 Premium Landing Page** (L/CRITICAL) — first thing users see, must be stunning
+2. **Toast Notifications** (S/HIGH) — literally zero feedback right now
+3. **Generation Progress Indicator** (M/HIGH) — skeleton feels broken
+4. **Prompt Templates Library** (M/HIGH) — removes "blank page" problem
+5. **WhatsApp Share** (S/HIGH) — viral loop for Arab market
+6. **Daily Login Bonus** (M/HIGH) — immediate retention boost
 6. **Confetti + Image Reveal** (S/HIGH) — emotional dopamine hit
 7. **Command Palette** (M/HIGH) — power user magnet
 8. **Referral System** (L/HIGH) — organic growth engine
