@@ -1,25 +1,142 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/hooks/useUser';
-import { Settings } from 'lucide-react';
+import { useRouter, usePathname } from '@/i18n/routing';
+import { useTheme } from 'next-themes';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+import { User, Globe, Sun, Moon, Monitor, LogOut, Shield, FileText } from 'lucide-react';
+import { Link } from '@/i18n/routing';
 
 export default function SettingsPage(): React.ReactElement {
   const t = useTranslations('settings');
-  const { profile } = useUser();
+  const { profile, signOut } = useUser();
+  const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
+  const switchLocale = currentLocale === 'ar' ? 'en' : 'ar';
+
+  const initials = profile?.name
+    ? profile.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+
+  const themes = [
+    { id: 'light', label: t('light'), icon: Sun },
+    { id: 'dark', label: t('dark'), icon: Moon },
+    { id: 'system', label: t('system'), icon: Monitor },
+  ] as const;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold font-cairo">{t('title')}</h1>
+
+      {/* Profile */}
       <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Settings className="h-4 w-4" />{t('profile')}</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p><strong>{t('language')}:</strong> {profile?.locale === 'ar' ? t('arabic') : t('english')}</p>
-          <p><strong>Email:</strong> {profile?.email || '-'}</p>
-          <p><strong>Plan:</strong> {profile?.plan_id || 'free'}</p>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <User className="h-4 w-4" /> {t('profile')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-semibold text-lg">{profile?.name || '-'}</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">{profile?.email || '-'}</p>
+              <Badge variant="secondary" className="mt-1">{profile?.plan_id || 'free'}</Badge>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Language */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="h-4 w-4" /> {t('language')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {[
+              { locale: 'ar', label: t('arabic') },
+              { locale: 'en', label: t('english') },
+            ].map(({ locale, label }) => (
+              <button
+                key={locale}
+                onClick={() => router.replace(pathname, { locale: locale as 'ar' | 'en' })}
+                className={cn(
+                  'flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors',
+                  currentLocale === locale
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                    : 'border-[var(--color-border)] hover:border-primary-300'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Theme */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sun className="h-4 w-4" /> {t('theme')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {themes.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTheme(id)}
+                className={cn(
+                  'flex-1 flex flex-col items-center gap-2 rounded-lg border px-4 py-3 transition-colors',
+                  theme === id
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                    : 'border-[var(--color-border)] hover:border-primary-300'
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-xs font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Legal */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" /> قانوني
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Link href="/privacy" className="block text-sm text-primary-500 hover:underline">سياسة الخصوصية</Link>
+          <Link href="/terms" className="block text-sm text-primary-500 hover:underline">شروط الاستخدام</Link>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
+      {/* Logout */}
+      <Button variant="destructive" onClick={signOut} className="gap-2 w-full">
+        <LogOut className="h-4 w-4" />
+        تسجيل الخروج
+      </Button>
     </div>
   );
 }

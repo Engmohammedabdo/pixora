@@ -12,7 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
-import { Sparkles, AlertTriangle, Film, Camera, Music } from 'lucide-react';
+import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-react';
+import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
 const STYLES = ['cinematic', 'ugc', 'animation', 'documentary'] as const;
 const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
@@ -84,6 +85,12 @@ export default function StoryboardPage(): React.ReactElement {
   ) : scenes.length === 0 ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Film className="h-12 w-12" /><p className="text-sm mt-4">الستوري بورد سيظهر هنا</p></div>
   ) : (
+    <div className="space-y-3">
+    <div>
+      <Button size="sm" variant="outline" className="gap-1" onClick={() => openPdfInNewTab(generateStoryboardPdf(scenes, concept))}>
+        <FileText className="h-3 w-3" /> تصدير PDF
+      </Button>
+    </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {scenes.map((scene) => (
         <Card key={scene.scene_number} className="overflow-hidden">
@@ -104,6 +111,7 @@ export default function StoryboardPage(): React.ReactElement {
           </CardContent>
         </Card>
       ))}
+    </div>
     </div>
   );
 

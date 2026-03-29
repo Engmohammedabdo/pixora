@@ -13,7 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
-import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3 } from 'lucide-react';
+import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, FileText } from 'lucide-react';
+import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
@@ -112,7 +113,10 @@ export default function AnalysisPage(): React.ReactElement {
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><BarChart3 className="h-12 w-12" /><p className="text-sm mt-4">التحليل سيظهر هنا</p></div>
   ) : (
     <div className="space-y-4">
-      <div className="flex gap-1 overflow-x-auto pb-2">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+      <div className="flex items-center gap-2 pb-2">
+        <div className="flex gap-1 overflow-x-auto flex-1">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+        <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => openPdfInNewTab(generateAnalysisPdf(analysis, businessName))}><FileText className="h-3 w-3" />PDF</Button>
+      </div>
       {activeTab === 'swot' && renderSwot()}
       {activeTab === 'personas' && (<div className="space-y-3">{analysis.personas?.map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>الدور:</strong> {p.role}</p><p><strong>الأهداف:</strong> {p.goals}</p><p><strong>التحديات:</strong> {p.pain_points}</p><p><strong>القنوات:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
       {activeTab === 'competitors' && (<div className="space-y-3">{analysis.competitors?.map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 rounded p-2"><strong>القوة:</strong> {c.strengths}</div><div className="bg-red-50 rounded p-2"><strong>الضعف:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
