@@ -1,4 +1,5 @@
 import type { AIModel } from '@/types/studios';
+import { isValidApiKey } from './utils';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -32,7 +33,7 @@ function getMockImageUrl(): string {
 export async function generateImage(options: GenerateImageOptions): Promise<AIResult> {
   const apiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey || apiKey === '' || apiKey === 'mock') {
+  if (!isValidApiKey(apiKey)) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     return { url: getMockImageUrl(), model: 'gpt', mock: true };
   }
@@ -74,7 +75,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
 export async function generateText(options: GenerateTextOptions): Promise<AIResult> {
   const apiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey || apiKey === '' || apiKey === 'mock') {
+  if (!isValidApiKey(apiKey)) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return { text: '{"mock": true}', model: 'gpt', mock: true };
   }

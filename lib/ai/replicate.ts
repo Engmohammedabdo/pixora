@@ -1,4 +1,5 @@
 import type { AIModel } from '@/types/studios';
+import { isValidApiKey } from './utils';
 
 interface GenerateFluxOptions {
   prompt: string;
@@ -24,7 +25,7 @@ function getMockImageUrl(): string {
 export async function generateFlux(options: GenerateFluxOptions): Promise<AIResult> {
   const apiToken = process.env.REPLICATE_API_TOKEN;
 
-  if (!apiToken || apiToken === '' || apiToken === 'mock') {
+  if (!isValidApiKey(apiToken)) {
     await new Promise((resolve) => setTimeout(resolve, 2500));
     return { url: getMockImageUrl(), model: 'flux', mock: true };
   }
