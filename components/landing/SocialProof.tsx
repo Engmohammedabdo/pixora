@@ -7,19 +7,19 @@ import { staggerContainer, fadeInUp } from '@/lib/animations';
 
 const TESTIMONIALS = [
   {
-    quote: 'PyraSuite غيّر طريقة عملنا بالكامل. ننتج محتوى أسبوع كامل في ساعة واحدة.',
+    quote: 'كنت أقضي أسبوع على محتوى السوشال. الحين Pyra AI تخلصه بـ ساعة. مش مبالغة.',
     name: 'سارة المهندي',
     role: 'مديرة تسويق — شركة تقنية',
     stars: 5,
   },
   {
-    quote: 'أخيراً منصة تفهم العربي! المحتوى يطلع طبيعي ومش ترجمة.',
+    quote: 'أخيراً أداة تفهم لما أكتب بالخليجي. المحتوى يطلع طبيعي — مش واضح إنه AI.',
     name: 'خالد الحربي',
     role: 'صاحب وكالة تسويق',
     stars: 5,
   },
   {
-    quote: 'نظام الكريدت واضح وعادل. أعرف بالضبط كم بصرف قبل ما أبدأ.',
+    quote: 'نظام الكريدت الشفاف هو اللي خلاني أشترك. أعرف بالضبط كم بصرف قبل ما أبدأ.',
     name: 'نورة العتيبي',
     role: 'فريلانسر — إدارة سوشال ميديا',
     stars: 5,
@@ -39,9 +39,10 @@ export function SocialProof(): React.ReactElement {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mx-auto max-w-3xl text-center text-[var(--color-text-secondary)] italic leading-relaxed mb-16"
+          className="mx-auto max-w-2xl text-center text-[var(--color-text-secondary)] leading-relaxed mb-16"
         >
-          بنية تحتية سحابية قوية تضمن سرعة الاستجابة واستقرار الأداء، مصممة لتلبية احتياجات وكالات التسويق، الشركات الناشئة، ورواد الأعمال.
+          بنية تحتية سحابية مصممة لوكالات التسويق، الشركات الناشئة، والمسوّقين المستقلين —
+          سرعة واستقرار تقدر تعتمد عليهم.
         </motion.p>
 
         {/* Testimonial cards */}
@@ -58,7 +59,6 @@ export function SocialProof(): React.ReactElement {
               variants={fadeInUp}
               className="rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)] p-6"
             >
-              {/* Quote icon */}
               <span className="block text-4xl text-primary-200 dark:text-primary-800 mb-4 leading-none select-none">
                 &ldquo;
               </span>
@@ -67,7 +67,6 @@ export function SocialProof(): React.ReactElement {
                 {testimonial.quote}
               </p>
 
-              {/* Star rating */}
               <div className="flex gap-1 mb-4">
                 {Array.from({ length: testimonial.stars }).map((_, i) => (
                   <Star
@@ -77,7 +76,6 @@ export function SocialProof(): React.ReactElement {
                 ))}
               </div>
 
-              {/* Separator */}
               <div className="border-t border-[var(--color-border)]/50 pt-4">
                 <p className="font-semibold text-sm text-[var(--color-text-primary)]">
                   {testimonial.name}

@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { fadeInUp } from '@/lib/animations';
 
 export function FinalCta(): React.ReactElement {
@@ -20,11 +20,6 @@ export function FinalCta(): React.ReactElement {
         animate={{ scale: [1.2, 1, 1.2], opacity: [0.15, 0.25, 0.15] }}
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
       />
-      <motion.div
-        className="absolute top-1/2 end-1/3 w-48 h-48 rounded-full bg-white/5 blur-3xl"
-        animate={{ scale: [1, 1.15, 1], opacity: [0.08, 0.18, 0.08] }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-      />
 
       <div className="relative mx-auto max-w-3xl text-center text-white">
         <motion.div
@@ -33,14 +28,14 @@ export function FinalCta(): React.ReactElement {
           whileInView="visible"
           viewport={{ once: true }}
         >
-          <Sparkles className="h-8 w-8 mx-auto mb-6 opacity-80" />
+          <span className="text-5xl mb-6 block">🦊</span>
 
           <h2 className="text-4xl font-bold font-cairo mb-4">
-            جاهز تبدأ تسويقك بذكاء؟
+            قول لبايرا إيش تبي — والباقي عليها
           </h2>
 
-          <p className="text-lg text-white/80 mb-10">
-            25 كريدت مجاناً — بدون بطاقة ائتمان — ابدأ بثواني
+          <p className="text-lg text-white/80 mb-10 max-w-xl mx-auto">
+            25 كريدت مجاناً تنتظرك. بدون بطاقة ائتمان. سجّل بثانيتين وابدأ أول حملة لك.
           </p>
 
           <motion.div
@@ -55,11 +50,15 @@ export function FinalCta(): React.ReactElement {
               asChild
             >
               <Link href="/signup">
-                أنشئ حسابك المجاني
+                ابدأ مجاناً الحين
                 <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
               </Link>
             </Button>
           </motion.div>
+
+          <p className="mt-6 text-sm text-white/50">
+            أكثر من 9 استوديوهات جاهزة تنتظرك
+          </p>
         </motion.div>
       </div>
     </section>

@@ -5,18 +5,17 @@ import { motion, useInView } from 'framer-motion';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 
 const STATS = [
-  { value: 9, label: 'استوديو متخصص' },
-  { value: 3, label: 'نماذج ذكاء اصطناعي' },
-  { value: 5, label: 'خطط اشتراك' },
-  { value: 25, label: 'كريدت مجاناً' },
+  { value: 9, suffix: '', label: 'استوديو متخصص' },
+  { value: 25, suffix: '', label: 'كريدت مجاناً للبداية' },
+  { value: 5, suffix: '', label: 'باقات تناسب الجميع' },
+  { value: 10, suffix: ' دقائق', label: 'من الفكرة للحملة' },
 ];
 
-function AnimatedCounter({ target, inView }: { target: number; inView: boolean }) {
+function AnimatedCounter({ target, suffix, inView }: { target: number; suffix: string; inView: boolean }) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!inView) return;
-
     const duration = 2000;
     const startTime = performance.now();
 
@@ -25,16 +24,13 @@ function AnimatedCounter({ target, inView }: { target: number; inView: boolean }
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(eased * target));
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
+      if (progress < 1) requestAnimationFrame(animate);
     }
 
     requestAnimationFrame(animate);
   }, [inView, target]);
 
-  return <>{count}+</>;
+  return <>{count}{suffix}</>;
 }
 
 export default function StatsSection() {
@@ -57,7 +53,7 @@ export default function StatsSection() {
             className="text-center"
           >
             <div className="text-5xl font-bold text-white mb-2">
-              <AnimatedCounter target={stat.value} inView={isInView} />
+              <AnimatedCounter target={stat.value} suffix={stat.suffix} inView={isInView} />
             </div>
             <div className="text-sm text-primary-200">{stat.label}</div>
           </motion.div>
