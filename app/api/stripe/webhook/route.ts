@@ -4,6 +4,9 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCreditsForPlan } from '@/lib/stripe/plans';
 import type Stripe from 'stripe';
 
+// In-memory idempotency set (sufficient for single-instance; use DB table at scale)
+const processedEvents = new Set<string>();
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = await request.text();
   const signature = request.headers.get('stripe-signature');
@@ -14,15 +17,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     if (webhookSecret && signature) {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } else {
-      // Dev mode: parse without verification
-      console.warn('Webhook signature verification skipped (no secret configured)');
+    } else if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_APP_URL?.includes('localhost')) {
+      // Dev mode only: parse without verification
+      console.warn('Webhook signature verification skipped (dev mode)');
       event = JSON.parse(body) as Stripe.Event;
+    } else {
+      // Production without secret = reject
+      console.error('STRIPE_WEBHOOK_SECRET not configured in production');
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('Webhook signature verification failed:', message);
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
+  }
+
+  // C3: Idempotency — skip already-processed events
+  if (processedEvents.has(event.id)) {
+    return NextResponse.json({ received: true, skipped: 'duplicate' });
+  }
+  processedEvents.add(event.id);
+  // Prevent memory leak: cap at 10k entries
+  if (processedEvents.size > 10000) {
+    const first = processedEvents.values().next().value;
+    if (first) processedEvents.delete(first);
   }
 
   const supabase = await createServiceRoleClient();
@@ -41,7 +59,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             ? session.subscription
             : session.subscription?.id;
 
-          // Update profile with new plan
           await supabase
             .from('profiles')
             .update({
@@ -52,19 +69,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             })
             .eq('id', userId);
 
-          // Log transaction
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('credits_balance')
-            .eq('id', userId)
-            .single();
-
           await supabase.from('credit_transactions').insert({
             user_id: userId,
             amount: credits,
             type: 'subscription',
             description: `Subscription: ${planId} plan — ${credits} credits`,
-            balance_after: profile?.credits_balance || credits,
+            balance_after: credits,
           });
         }
 
@@ -73,23 +83,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           const topupId = session.metadata?.topupId || 'unknown';
 
           if (creditsToAdd > 0) {
-            // Get current balance
             const { data: profile } = await supabase
               .from('profiles')
               .select('credits_balance, purchased_credits')
               .eq('id', userId)
               .single();
 
-            const newPurchased = (profile?.purchased_credits || 0) + creditsToAdd;
-            const totalBalance = (profile?.credits_balance || 0) + newPurchased;
+            // C4: Fix balance calculation — don't double-count
+            const currentPurchased = profile?.purchased_credits || 0;
+            const newPurchased = currentPurchased + creditsToAdd;
+            const currentBalance = profile?.credits_balance || 0;
+            const newTotalBalance = currentBalance + creditsToAdd;
 
-            // Add to purchased_credits (never expire)
             await supabase
               .from('profiles')
               .update({ purchased_credits: newPurchased })
               .eq('id', userId);
 
-            // Log transaction
             await supabase.from('credit_transactions').insert({
               user_id: userId,
               amount: creditsToAdd,
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               description: `Top-up: ${topupId} — ${creditsToAdd} credits (never expire)`,
               stripe_payment_intent_id: typeof session.payment_intent === 'string'
                 ? session.payment_intent : null,
-              balance_after: totalBalance,
+              balance_after: newTotalBalance,
             });
           }
         }
@@ -125,7 +135,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const userId = subscription.metadata?.userId;
         if (!userId) break;
 
-        // Downgrade to free — keep purchased credits
         const { data: cancelProfile } = await supabase
           .from('profiles')
           .select('purchased_credits')
@@ -158,13 +167,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         if (customerId) {
           console.error(`Payment failed for customer ${customerId}`);
-          // Future: send notification email
         }
         break;
       }
 
       default:
-        // Unhandled event type
         break;
     }
   } catch (error) {

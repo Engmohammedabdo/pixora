@@ -87,6 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         prompt,
         model: 'flux',
         resolution: '1080p',
+        referenceImageUrl: input.productImageUrl,
       }).catch(() => null);
     });
 
@@ -108,6 +109,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       description: `Photoshoot - ${input.shots} shots - ${input.environment}`,
       generationId: generation.id,
     });
+
+    if (!deductResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'credit_deduction_failed' },
+        { status: 402 }
+      );
+    }
 
     // Update generation
     await supabase

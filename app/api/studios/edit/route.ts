@@ -39,9 +39,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }).select().single();
 
     const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
-    const result = await generateImage({ prompt, model: 'gpt', resolution: '1080p' });
+    const result = await generateImage({ prompt, model: 'gpt', resolution: '1080p', referenceImageUrl: input.imageUrl });
 
     const deductResult = await deductCredits({ supabase, userId: user.id, amount: CREDIT_COST, studio: 'edit', description: `Image edit - ${input.editType}`, generationId: generation?.id });
+
+    if (!deductResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'credit_deduction_failed' },
+        { status: 402 }
+      );
+    }
 
     if (generation) {
       await supabase.from('generations').update({ status: 'completed', output: { imageUrl: result.url, mock: result.mock } }).eq('id', generation.id);

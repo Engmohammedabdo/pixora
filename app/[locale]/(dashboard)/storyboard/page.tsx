@@ -58,7 +58,7 @@ export default function StoryboardPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>فكرة الفيديو</Label><textarea value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="وصف فكرة الفيديو التسويقي..." rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label>فكرة الفيديو</Label><textarea value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="وصف فكرة الفيديو التسويقي..." rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
       <div className="space-y-2">
         <Label>المدة</Label>
         <div className="flex gap-2">{DURATIONS.map((d) => (<button key={d} type="button" onClick={() => setDuration(d)} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{d}s</button>))}</div>

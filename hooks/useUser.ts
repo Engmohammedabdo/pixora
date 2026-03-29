@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/lib/supabase/types';
@@ -17,7 +17,8 @@ export function useUser(): UseUserReturn {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createBrowserClient();
+  // C8: Memoize client to prevent re-creation on every render
+  const supabase = useMemo(() => createBrowserClient(), []);
 
   useEffect(() => {
     const getUser = async (): Promise<void> => {
@@ -60,10 +61,12 @@ export function useUser(): UseUserReturn {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  const signOut = async (): Promise<void> => {
+  // C6: Use current locale instead of hardcoded /ar/
+  const signOut = useCallback(async (): Promise<void> => {
     await supabase.auth.signOut();
-    window.location.href = '/ar/login';
-  };
+    const locale = window.location.pathname.split('/')[1] || 'ar';
+    window.location.href = `/${locale}/login`;
+  }, [supabase]);
 
   return { user, profile, loading, signOut };
 }

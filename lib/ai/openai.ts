@@ -41,7 +41,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   const sizeMap: Record<string, string> = {
     '1080p': '1024x1024',
     '2K': '1024x1536',
-    '4K': '1536x1536',
+    '4K': '1536x1024',
   };
 
   const response = await fetch('https://api.openai.com/v1/images/generations', {

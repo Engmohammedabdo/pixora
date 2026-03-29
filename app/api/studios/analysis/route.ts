@@ -51,6 +51,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const deductResult = await deductCredits({ supabase, userId: user.id, amount: creditCost, studio: 'analysis', description: `Marketing Analysis - ${input.businessName}`, generationId: generation?.id });
 
+    if (!deductResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'credit_deduction_failed' },
+        { status: 402 }
+      );
+    }
+
     if (generation) {
       await supabase.from('generations').update({ output: { analysis, mock: result.mock }, status: 'completed' }).eq('id', generation.id);
     }

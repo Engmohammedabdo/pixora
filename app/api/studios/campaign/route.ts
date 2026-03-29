@@ -154,6 +154,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation.id,
     });
 
+    if (!deductResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'credit_deduction_failed' },
+        { status: 402 }
+      );
+    }
+
     // Update generation
     await supabase
       .from('generations')

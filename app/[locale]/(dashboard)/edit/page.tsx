@@ -72,7 +72,7 @@ export default function EditPage(): React.ReactElement {
           </button>
         ))}</div>
       </div>
-      <div className="space-y-2"><Label>وصف التعديل</Label><textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="مثال: غيّر الخلفية لمكتب حديث مع إضاءة طبيعية..." rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label>وصف التعديل</Label><textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="مثال: غيّر الخلفية لمكتب حديث مع إضاءة طبيعية..." rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
       <div className="flex items-center justify-between pt-2">
         <CreditCost cost={1} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>

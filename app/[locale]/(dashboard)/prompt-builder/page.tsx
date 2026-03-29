@@ -62,7 +62,7 @@ export default function PromptBuilderPage(): React.ReactElement {
           placeholder="مثال: صورة إعلانية لعطر فاخر على رخام مع إضاءة ناعمة..."
           rows={4}
           maxLength={500}
-          className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none"
+          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none"
         />
         <p className="text-xs text-end text-[var(--color-text-muted)]">{description.length}/500</p>
       </div>

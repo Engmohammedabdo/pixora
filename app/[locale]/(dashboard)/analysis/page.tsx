@@ -74,7 +74,7 @@ export default function AnalysisPage(): React.ReactElement {
           ))}
         </div>
       </div>
-      <div className="space-y-2"><Label>وصف العمل</Label><textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="وصف مفصل عن عملك..." rows={3} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label>وصف العمل</Label><textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="وصف مفصل عن عملك..." rows={3} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
       <div className="space-y-2"><Label>المنافسون</Label>{competitors.map((c, i) => (<Input key={i} value={c} onChange={(e) => { const n = [...competitors]; n[i] = e.target.value; setCompetitors(n); }} placeholder={`منافس ${i + 1}`} className="mb-1" />))}</div>
       <div className="space-y-2"><Label>السوق المستهدف</Label><Input value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} placeholder="مثال: شركات صغيرة ومتوسطة في السعودية" /></div>
       <div className="space-y-2"><Label>نقاط الألم</Label><Input value={painPoints} onChange={(e) => setPainPoints(e.target.value)} placeholder="أبرز التحديات الحالية..." /></div>

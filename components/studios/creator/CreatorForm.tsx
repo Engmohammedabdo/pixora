@@ -75,7 +75,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
           placeholder={t('promptPlaceholder')}
           rows={4}
           maxLength={1000}
-          className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
+          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
         />
         <p className="text-xs text-[var(--color-text-muted)] text-end">{prompt.length}/1000</p>
       </div>

@@ -16,7 +16,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const bucket = (formData.get('bucket') as string) || 'uploads';
+    const ALLOWED_BUCKETS = ['uploads', 'brand-kits', 'generations'];
+    const rawBucket = (formData.get('bucket') as string) || 'uploads';
+    const bucket = ALLOWED_BUCKETS.includes(rawBucket) ? rawBucket : 'uploads';
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'no_file' }, { status: 400 });

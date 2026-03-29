@@ -12,7 +12,7 @@ export async function GET(): Promise<NextResponse> {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('credits_balance, plan_id')
+      .select('credits_balance, purchased_credits, plan_id')
       .eq('id', user.id)
       .single();
 
@@ -23,7 +23,9 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       success: true,
       data: {
-        balance: data.credits_balance,
+        balance: data.credits_balance + (data.purchased_credits || 0),
+        planCredits: data.credits_balance,
+        purchasedCredits: data.purchased_credits || 0,
         planId: data.plan_id,
       },
     });

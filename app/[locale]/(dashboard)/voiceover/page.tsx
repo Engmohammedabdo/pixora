@@ -64,7 +64,7 @@ export default function VoiceOverPage(): React.ReactElement {
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>النص</Label>
-        <textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="اكتب نص التعليق الصوتي هنا..." rows={5} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
+        <textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="اكتب نص التعليق الصوتي هنا..." rows={5} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
         <div className="flex justify-between text-xs text-[var(--color-text-muted)]"><span>~{Math.ceil(script.length / 5)}s تقريباً</span><span>{script.length}/500</span></div>
       </div>
       <div className="space-y-2"><Label>الصوت</Label><div className="space-y-1">{VOICES.map((v) => (<button key={v.id} type="button" onClick={() => setVoice(v.id)} className={cn('w-full text-start rounded-lg border px-3 py-2 text-xs transition-colors', voice === v.id ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{v.label}</button>))}</div></div>

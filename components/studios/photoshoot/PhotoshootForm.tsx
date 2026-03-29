@@ -149,7 +149,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
           placeholder={t('notesPlaceholder')}
           rows={2}
           maxLength={500}
-          className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
+          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
         />
       </div>
 

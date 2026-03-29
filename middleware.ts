@@ -5,9 +5,11 @@ import { routing } from '@/i18n/routing';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-const publicPaths = ['/login', '/signup', '/callback'];
+const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms'];
 
 function isPublicPath(pathname: string): boolean {
+  // Landing page: /ar or /en (exact locale root)
+  if (/^\/[a-z]{2}\/?$/.test(pathname)) return true;
   return publicPaths.some((path) => pathname.includes(path));
 }
 

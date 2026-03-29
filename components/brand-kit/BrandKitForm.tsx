@@ -94,7 +94,7 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
           placeholder={t('brandVoicePlaceholder')}
           rows={3}
           maxLength={500}
-          className="flex w-full rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         />
       </div>
 

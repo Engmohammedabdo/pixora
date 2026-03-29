@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function SignupPage(): React.ReactElement {
   const t = useTranslations('auth');
+  const locale = useLocale();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +31,7 @@ export default function SignupPage(): React.ReactElement {
       password,
       options: {
         data: { full_name: name },
-        emailRedirectTo: `${window.location.origin}/ar/callback`,
+        emailRedirectTo: `${window.location.origin}/${locale}/callback`,
       },
     });
 
@@ -48,7 +49,7 @@ export default function SignupPage(): React.ReactElement {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/ar/callback`,
+        redirectTo: `${window.location.origin}/${locale}/callback`,
       },
     });
 

@@ -88,6 +88,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       description: `Voiceover - ${input.voice} (${input.dialect})`, generationId: generation?.id,
     });
 
+    if (!deductResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'credit_deduction_failed' },
+        { status: 402 }
+      );
+    }
+
     if (generation) {
       await supabase.from('generations').update({
         status: 'completed',

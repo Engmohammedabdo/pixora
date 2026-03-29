@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage(): React.ReactElement {
   const t = useTranslations('auth');
+  const locale = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,14 +35,14 @@ export default function LoginPage(): React.ReactElement {
       return;
     }
 
-    window.location.href = '/ar/dashboard';
+    window.location.href = `/${locale}/dashboard`;
   };
 
   const handleGoogleLogin = async (): Promise<void> => {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/ar/callback`,
+        redirectTo: `${window.location.origin}/${locale}/callback`,
       },
     });
 
