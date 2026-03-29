@@ -31,6 +31,6 @@ export function getMockStoryboard(): Record<string, unknown>[] {
     { scene_number: 6, visual_description: 'Montage of generated marketing materials, quick cuts', dialogue: 'صور، حملات، تحليلات', camera_angle: 'Various', camera_movement: 'Quick Cuts', duration_seconds: 4, mood: 'Dynamic', music_note: 'Fast rhythm' },
     { scene_number: 7, visual_description: 'Happy customer looking at results on screen, smiling', dialogue: 'نتائج تتكلم عن نفسها', camera_angle: 'Medium Close Up', camera_movement: 'Dolly In', duration_seconds: 3, mood: 'Warm', music_note: 'Emotional' },
     { scene_number: 8, visual_description: 'Team collaboration scene, modern office, diverse team', dialogue: 'لفريقك الكامل', camera_angle: 'Wide Shot', camera_movement: 'Pan', duration_seconds: 4, mood: 'Collaborative', music_note: 'Inspiring' },
-    { scene_number: 9, visual_description: 'Logo animation with tagline, brand colors background', dialogue: 'Pixora — تسويقك بذكاء', camera_angle: 'Center Frame', camera_movement: 'Zoom Out', duration_seconds: 3, mood: 'Confident', music_note: 'Logo sting' },
+    { scene_number: 9, visual_description: 'Logo animation with tagline, brand colors background', dialogue: 'PyraSuite — تسويقك بذكاء', camera_angle: 'Center Frame', camera_movement: 'Zoom Out', duration_seconds: 3, mood: 'Confident', music_note: 'Logo sting' },
   ];
 }

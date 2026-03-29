@@ -37,7 +37,7 @@ function wrapInHtml(title: string, content: string): string {
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>${title} — Pixora</title>
+<title>${title} — PyraSuite</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #0F172A; padding: 40px; line-height: 1.6; direction: rtl; }
@@ -68,7 +68,7 @@ function wrapInHtml(title: string, content: string): string {
 </head>
 <body>
 ${content}
-<div class="footer">تم الإنشاء بواسطة <span class="brand">Pixora</span> — منصة التسويق بالذكاء الاصطناعي</div>
+<div class="footer">تم الإنشاء بواسطة <span class="brand">PyraSuite</span> — منصة التسويق بالذكاء الاصطناعي</div>
 </body>
 </html>`;
 }

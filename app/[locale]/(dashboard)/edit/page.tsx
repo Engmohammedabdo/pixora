@@ -97,7 +97,7 @@ export default function EditPage(): React.ReactElement {
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && /* eslint-disable-next-line @next/next/no-img-element */ <img src={originalImage} alt="Original" className="w-full rounded-lg border" />}</div>
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={resultImage} alt="Edited" className="w-full rounded-lg border" /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
       </div>
-      {resultImage && (<Button onClick={() => { const a = document.createElement('a'); a.href = resultImage; a.download = 'pixora-edit.png'; a.click(); }} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
+      {resultImage && (<Button onClick={() => { const a = document.createElement('a'); a.href = resultImage; a.download = 'pyrasuite-edit.png'; a.click(); }} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
     </div>
   );
 

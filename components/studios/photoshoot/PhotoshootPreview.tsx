@@ -63,7 +63,7 @@ export function PhotoshootPreview({
       if (shot.url) {
         const link = document.createElement('a');
         link.href = shot.url;
-        link.download = `pixora-photoshoot-${i + 1}.png`;
+        link.download = `pyrasuite-photoshoot-${i + 1}.png`;
         link.click();
       }
     });

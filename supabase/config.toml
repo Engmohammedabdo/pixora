@@ -1,6 +1,6 @@
 [project]
 id = "pixora-local"
-name = "Pixora"
+name = "PyraSuite"
 
 [auth]
 enabled = true

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Pixora",
+    "appName": "PyraSuite",
     "loading": "Loading...",
     "error": "An error occurred",
     "save": "Save",
@@ -29,8 +29,8 @@
     "forgotPassword": "Forgot password?",
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
-    "signupTitle": "Create your Pixora account",
-    "loginTitle": "Welcome to Pixora",
+    "signupTitle": "Create your PyraSuite account",
+    "loginTitle": "Welcome to PyraSuite",
     "loginSubtitle": "Sign in to start creating professional marketing content",
     "signupSubtitle": "Start free with 25 credits",
     "continueWithGoogle": "Continue with Google",
@@ -384,7 +384,7 @@
     "stepOf": "Step {current} of {total}",
     "skip": "Skip",
     "previous": "Previous",
-    "step1Title": "Welcome to Pixora!",
+    "step1Title": "Welcome to PyraSuite!",
     "step1Description": "The first Arabic AI marketing platform. 9 smart studios to help you create professional content in minutes.",
     "step1Cta": "Next",
     "step2Title": "Create Your Brand Kit",

@@ -63,7 +63,7 @@ export default function AnalysisPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>{tAn('businessName')}</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="مثال: Pixora" /></div>
+      <div className="space-y-2"><Label>{tAn('businessName')}</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="مثال: PyraSuite" /></div>
       <div className="space-y-2">
         <Label>{tAn('industry')}</Label>
         <div className="grid grid-cols-2 gap-2">

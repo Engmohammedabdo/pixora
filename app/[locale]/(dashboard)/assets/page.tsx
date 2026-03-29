@@ -80,7 +80,7 @@ export default function AssetsPage(): React.ReactElement {
     selected.forEach((asset) => {
       const link = document.createElement('a');
       link.href = asset.url;
-      link.download = `pixora-${asset.id}.png`;
+      link.download = `pyrasuite-${asset.id}.png`;
       link.click();
     });
   };

@@ -114,7 +114,7 @@ export function Sidebar(): React.ReactElement {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-4">
         <Link href="/dashboard" className="text-xl font-bold text-primary-600 font-cairo">
-          Pixora
+          PyraSuite
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}

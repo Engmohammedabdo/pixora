@@ -52,7 +52,7 @@ export default function LandingPage(): React.ReactElement {
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b bg-[var(--color-surface)]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <span className="text-2xl font-bold text-primary-600 font-cairo">Pixora</span>
+          <span className="text-2xl font-bold text-primary-600 font-cairo">PyraSuite</span>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild><Link href="/login">{t('auth.login')}</Link></Button>
             <Button size="sm" asChild><Link href="/signup">{t('auth.signup')}</Link></Button>
@@ -92,7 +92,7 @@ export default function LandingPage(): React.ReactElement {
       {/* ═══ FEATURES ═══ */}
       <section className="py-20 bg-[var(--color-surface)]">
         <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl font-bold font-cairo text-center mb-4">ليش Pixora؟</h2>
+          <h2 className="text-3xl font-bold font-cairo text-center mb-4">ليش PyraSuite؟</h2>
           <p className="text-center text-[var(--color-text-secondary)] mb-12 max-w-2xl mx-auto">
             أدوات تسويق بالذكاء الاصطناعي مصممة للسوق العربي — مش مجرد ترجمة.
           </p>
@@ -212,8 +212,8 @@ export default function LandingPage(): React.ReactElement {
       {/* Footer */}
       <footer className="border-t py-8 bg-[var(--color-surface)]">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[var(--color-text-muted)]">
-          <span className="font-bold text-primary-600 font-cairo">Pixora</span>
-          <p>&copy; {new Date().getFullYear()} Pixora. جميع الحقوق محفوظة.</p>
+          <span className="font-bold text-primary-600 font-cairo">PyraSuite</span>
+          <p>&copy; {new Date().getFullYear()} PyraSuite. جميع الحقوق محفوظة.</p>
         </div>
       </footer>
     </div>

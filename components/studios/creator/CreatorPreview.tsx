@@ -66,7 +66,7 @@ export function CreatorPreview({
   const handleDownload = (url: string, index: number): void => {
     const link = document.createElement('a');
     link.href = url;
-    link.download = `pixora-${Date.now()}-${index}.png`;
+    link.download = `pyrasuite-${Date.now()}-${index}.png`;
     link.click();
   };
 

@@ -29,7 +29,7 @@ export default function PrivacyPage(): React.ReactElement {
       <Card>
         <CardHeader><CardTitle className="text-base">3. المحتوى المُولّد</CardTitle></CardHeader>
         <CardContent className="text-sm leading-relaxed space-y-2">
-          <p>المحتوى الذي تنشئه باستخدام Pixora (صور، نصوص، حملات) يعود ملكيته لك بالكامل.</p>
+          <p>المحتوى الذي تنشئه باستخدام PyraSuite (صور، نصوص، حملات) يعود ملكيته لك بالكامل.</p>
           <p>نحتفظ بنسخ من المحتوى المُولّد لتقديم الخدمة فقط ولا نستخدمه لأي غرض آخر.</p>
         </CardContent>
       </Card>

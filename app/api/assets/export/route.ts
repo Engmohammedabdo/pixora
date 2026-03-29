@@ -40,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         const buffer = await res.arrayBuffer();
         const ext = asset.format || (asset.type === 'audio' ? 'mp3' : 'png');
-        const studio = (asset.generations as { studio?: string } | null)?.studio || 'pixora';
+        const studio = (asset.generations as { studio?: string } | null)?.studio || 'pyrasuite';
         const filename = `${studio}-${index + 1}.${ext}`;
 
         zip.file(filename, buffer);
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="pixora-export-${Date.now()}.zip"`,
+        'Content-Disposition': `attachment; filename="pyrasuite-export-${Date.now()}.zip"`,
       },
     });
   } catch (error) {

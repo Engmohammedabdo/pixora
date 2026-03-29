@@ -21,10 +21,10 @@ interface AIResult {
 }
 
 const MOCK_IMAGE_URLS = [
-  'https://placehold.co/1080x1080/6366F1/FFFFFF?text=Pixora+Generated',
-  'https://placehold.co/1080x1080/06B6D4/FFFFFF?text=Pixora+AI',
-  'https://placehold.co/1080x1080/F59E0B/FFFFFF?text=Pixora+Studio',
-  'https://placehold.co/1080x1080/10B981/FFFFFF?text=Pixora+Creative',
+  'https://placehold.co/1080x1080/6366F1/FFFFFF?text=PyraSuite+Generated',
+  'https://placehold.co/1080x1080/06B6D4/FFFFFF?text=PyraSuite+AI',
+  'https://placehold.co/1080x1080/F59E0B/FFFFFF?text=PyraSuite+Studio',
+  'https://placehold.co/1080x1080/10B981/FFFFFF?text=PyraSuite+Creative',
 ];
 
 function getMockImageUrl(): string {

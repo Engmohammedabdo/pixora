@@ -8,22 +8,22 @@ import '../globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Pixora — منصة التسويق بالذكاء الاصطناعي',
-    template: '%s | Pixora',
+    default: 'PyraSuite — منصة التسويق بالذكاء الاصطناعي',
+    template: '%s | PyraSuite',
   },
   description: 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات، نماذج AI متعددة، واجهة عربية.',
-  keywords: ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'Pixora', 'حملات تسويقية', 'تصميم', 'صور AI'],
-  authors: [{ name: 'Pixora' }],
+  keywords: ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI'],
+  authors: [{ name: 'PyraSuite' }],
   openGraph: {
     type: 'website',
-    siteName: 'Pixora',
-    title: 'Pixora — منصة التسويق بالذكاء الاصطناعي',
+    siteName: 'PyraSuite',
+    title: 'PyraSuite — منصة التسويق بالذكاء الاصطناعي',
     description: 'حوّل أي فكرة لحملة تسويقية احترافية في دقائق — 9 استوديوهات AI، واجهة عربية، نظام كريدت شفاف.',
     locale: 'ar_SA',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pixora — AI Marketing Platform',
+    title: 'PyraSuite — AI Marketing Platform',
     description: 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي',
   },
   robots: {

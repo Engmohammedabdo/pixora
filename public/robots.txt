@@ -4,4 +4,4 @@ Disallow: /api/
 Disallow: /dashboard/
 Disallow: /onboarding/
 
-Sitemap: https://pixora.ai/sitemap.xml
+Sitemap: https://pyrasuite.pyramedia.cloud/sitemap.xml

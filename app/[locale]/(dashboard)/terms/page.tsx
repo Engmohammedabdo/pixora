@@ -13,14 +13,14 @@ export default function TermsPage(): React.ReactElement {
       <Card>
         <CardHeader><CardTitle className="text-base">1. قبول الشروط</CardTitle></CardHeader>
         <CardContent className="text-sm leading-relaxed space-y-2">
-          <p>باستخدامك لمنصة Pixora، توافق على هذه الشروط والأحكام. إذا لم توافق، يرجى عدم استخدام الخدمة.</p>
+          <p>باستخدامك لمنصة PyraSuite، توافق على هذه الشروط والأحكام. إذا لم توافق، يرجى عدم استخدام الخدمة.</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">2. الخدمة</CardTitle></CardHeader>
         <CardContent className="text-sm leading-relaxed space-y-2">
-          <p>Pixora منصة تسويق بالذكاء الاصطناعي تتيح لك إنشاء محتوى تسويقي متنوع باستخدام نماذج AI متعددة.</p>
+          <p>PyraSuite منصة تسويق بالذكاء الاصطناعي تتيح لك إنشاء محتوى تسويقي متنوع باستخدام نماذج AI متعددة.</p>
           <p>نحتفظ بحق تعديل أو إيقاف أي ميزة مع إشعار مسبق.</p>
         </CardContent>
       </Card>
