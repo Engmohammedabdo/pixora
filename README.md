@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/PyraSuite-Powered%20by%20Bayra%20AI%20🦊-6366F1?style=for-the-badge&logoColor=white" alt="PyraSuite — Powered by Bayra AI" />
+<img src="https://img.shields.io/badge/PyraSuite-Powered%20by%20Pyra%20AI%20🦊-6366F1?style=for-the-badge&logoColor=white" alt="PyraSuite — Powered by Pyra AI" />
 
 # 🚀 PyraSuite
 
@@ -8,7 +8,7 @@
 
 <br />
 
-**9 استوديوهات** · **محرك بايرا AI** · **عربي أولاً** · **من الصفر للحملة في دقائق**
+**9 استوديوهات** · **محرك Pyra AI** · **عربي أولاً** · **من الصفر للحملة في دقائق**
 
 <br />
 
@@ -156,7 +156,7 @@
 <tr>
 <td width="50%">
 
-**🦊 محرك بايرا AI**
+**🦊 محرك Pyra AI**
 - ذكاء متعدد الطبقات (سرعة · جودة · إبداع)
 - Fallback تلقائي — لو مسار فشل، بايرا تجرّب مسار ثاني
 - 3 محاولات قبل ما ترجع خطأ
@@ -265,7 +265,7 @@ Styling         → Tailwind CSS v3 + CSS Variables + Framer Motion
 UI              → shadcn/ui (مخصصة بالكامل)
 Auth & DB       → Supabase (Auth + PostgreSQL + Storage + RLS)
 Payments        → Stripe (Subscriptions + One-time + Webhooks)
-AI Engine       → Bayra AI 🦊 (multi-layer, auto-fallback, Arabic-native)
+AI Engine       → Pyra AI 🦊 (multi-layer, auto-fallback, Arabic-native)
 State           → Zustand (client) + React Query (server)
 i18n            → next-intl (Arabic-first, URL-based locale)
 Dark Mode       → next-themes (system detection, zero flash)
@@ -314,7 +314,7 @@ app/
 │   └── layout.tsx                 # Root (i18n + theme + query)
 │
 ├── api/                           # ⚡ 21 API Route
-│   ├── studios/                   # 9 استوديوهات (Bayra AI endpoints)
+│   ├── studios/                   # 9 استوديوهات (Pyra AI endpoints)
 │   ├── stripe/                    # checkout · topup · webhook · portal
 │   ├── credits/                   # balance · transactions
 │   ├── brand-kits/                # CRUD
@@ -332,7 +332,7 @@ components/                        # 🧩 49 Component
 └── providers/                     # QueryProvider, ThemeProvider
 │
 lib/                               # 🔧 Core Logic
-├── ai/                            # 🦊 Bayra AI Engine (Router + Prompts + Fallback)
+├── ai/                            # 🦊 Pyra AI Engine (Router + Prompts + Fallback)
 ├── credits/                       # check · deduct (atomic) · costs
 ├── stripe/                        # client · plans (5 plans + 4 top-ups)
 ├── supabase/                      # client · server · types · signed-url
@@ -378,7 +378,7 @@ npm install
 
 # 3️⃣ Configure
 cp .env.local.example .env.local
-# عدّل .env.local — حط مفاتيح Supabase + Stripe + Bayra AI
+# عدّل .env.local — حط مفاتيح Supabase + Stripe + Pyra AI
 
 # 4️⃣ Database
 # طبّق الـ migrations من supabase/migrations/ (001-013)
@@ -433,7 +433,7 @@ docker run -p 3000:3000 --env-file .env.local pyrasuite
 
 <br />
 
-**Powered by Bayra AI 🦊 — Built by [Pyramedia](https://pyramedia.info)**
+**Powered by Pyra AI 🦊 — Built by [Pyramedia](https://pyramedia.info)**
 
 *اكتب بالعربي. بايرا تنفّذ.*
 
