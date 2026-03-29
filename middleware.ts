@@ -8,12 +8,25 @@ const intlMiddleware = createIntlMiddleware(routing);
 const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/forgot-password', '/reset-password'];
 
 function isPublicPath(pathname: string): boolean {
+  // Root path (before locale redirect)
+  if (pathname === '/') return true;
   // Landing page: /ar or /en (exact locale root)
   if (/^\/[a-z]{2}\/?$/.test(pathname)) return true;
-  return publicPaths.some((path) => pathname.includes(path));
+  // Strip locale prefix and check against public paths
+  const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}/, '') || '/';
+  if (pathWithoutLocale === '/' || pathWithoutLocale === '') return true;
+  return publicPaths.some((path) => pathWithoutLocale.startsWith(path));
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+
+  // Public paths: run intl middleware and return immediately (no auth check)
+  if (isPublicPath(pathname) || pathname.startsWith('/api')) {
+    const intlResponse = intlMiddleware(request);
+    return intlResponse || NextResponse.next({ request });
+  }
+
   // Handle intl routing first
   const intlResponse = intlMiddleware(request);
   const response = intlResponse || NextResponse.next({ request });
@@ -46,16 +59,18 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // Refresh session
   const { data: { user } } = await supabase.auth.getUser();
-  const { pathname } = request.nextUrl;
 
-  // Redirect logged-in users away from auth pages
-  if (user && isPublicPath(pathname)) {
-    const locale = pathname.split('/')[1] || 'ar';
-    return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
+  // Redirect logged-in users away from auth pages (login/signup only, NOT landing page)
+  if (user) {
+    const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}/, '') || '/';
+    if (['/login', '/signup'].some((p) => pathWithoutLocale.startsWith(p))) {
+      const locale = pathname.split('/')[1] || 'ar';
+      return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
+    }
   }
 
-  // Redirect non-logged-in users to login
-  if (!user && !isPublicPath(pathname) && !pathname.startsWith('/api')) {
+  // Redirect non-logged-in users to login (protected pages only)
+  if (!user) {
     const locale = pathname.split('/')[1] || 'ar';
     return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
   }
