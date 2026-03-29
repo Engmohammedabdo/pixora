@@ -16,7 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Menu, Coins, Globe, LogOut, Settings, User } from 'lucide-react';
+import { Menu, Coins, Globe, LogOut, Settings, User, Sun, Moon } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 export function TopBar(): React.ReactElement {
   const t = useTranslations();
@@ -34,6 +35,8 @@ export function TopBar(): React.ReactElement {
         .toUpperCase()
         .slice(0, 2)
     : 'U';
+
+  const { theme, setTheme } = useTheme();
 
   const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
   const switchLocale = currentLocale === 'ar' ? 'en' : 'ar';
@@ -65,6 +68,17 @@ export function TopBar(): React.ReactElement {
           <span className="font-semibold">{balance}</span>
         </Badge>
       </Link>
+
+      {/* Theme Toggle */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        aria-label="Toggle theme"
+      >
+        <Sun className="h-4 w-4 hidden dark:block" />
+        <Moon className="h-4 w-4 block dark:hidden" />
+      </Button>
 
       {/* Language Switcher */}
       <Button
