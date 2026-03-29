@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/PyraSuite-AI%20Marketing-6366F1?style=for-the-badge&logoColor=white" alt="PyraSuite" />
+<img src="https://img.shields.io/badge/PyraSuite-Powered%20by%20Bayra%20AI%20🦊-6366F1?style=for-the-badge&logoColor=white" alt="PyraSuite — Powered by Bayra AI" />
 
 # 🚀 PyraSuite
 
-### أول منصة عربية تحوّل أي فكرة لحملة تسويقية كاملة بالذكاء الاصطناعي
+### أول منصة عربية تحوّل أي فكرة لحملة تسويقية كاملة — بقوة بايرا 🦊
 
 <br />
 
-**9 استوديوهات ذكية** · **3 نماذج AI** · **عربي أولاً** · **من الصفر للحملة في دقائق**
+**9 استوديوهات** · **محرك بايرا AI** · **عربي أولاً** · **من الصفر للحملة في دقائق**
 
 <br />
 
@@ -20,7 +20,7 @@
 
 <br />
 
-[**🌐 جرّب الحين →**](https://pyrasuite.pyramedia.cloud/) &nbsp;&nbsp;|&nbsp;&nbsp; [**📖 الدليل**](#getting-started) &nbsp;&nbsp;|&nbsp;&nbsp; [**🏗️ الهيكل**](#project-structure)
+[**🌐 جرّب الحين →**](https://pyrasuite.pyramedia.cloud/) &nbsp;&nbsp;|&nbsp;&nbsp; [**📖 الدليل**](#-getting-started) &nbsp;&nbsp;|&nbsp;&nbsp; [**🏗️ الهيكل**](#-project-structure)
 
 <br />
 
@@ -38,13 +38,27 @@
 
 ## 💡 إيش هو PyraSuite؟
 
-تخيّل إنك صاحب بزنس صغير أو مسوّق مستقل. عندك فكرة حملة بس ما عندك مصمم، ولا مصوّر، ولا كاتب محتوى. وميزانيتك محدودة.
+تخيّل إنك صاحب بزنس أو مسوّق. عندك فكرة حملة بس ما عندك مصمم، ولا مصوّر، ولا كاتب محتوى. وميزانيتك محدودة.
 
-**PyraSuite يحل هالمشكلة.**
+**عادي. عندك بايرا 🦊**
 
-تكتب فكرتك بالعربي ← تختار الاستوديو ← تضغط زر ← تطلع لك حملة كاملة: صور احترافية، خطة 90 يوم، ستوري بورد فيديو، تحليل منافسين، وحتى تعليق صوتي.
+تكتب فكرتك بالعربي ← تختار الاستوديو ← تضغط زر ← **بايرا تولّد لك كل شي:** صور احترافية، خطة 90 يوم، ستوري بورد فيديو، تحليل منافسين، وحتى تعليق صوتي.
 
-**كل هذا بدون ما تفتح Photoshop ولا تكتب prompt إنجليزي واحد.**
+**بدون Photoshop. بدون مصمم. بدون ما تكتب كلمة إنجليزية وحدة.**
+
+> *"اكتب بالعربي، بايرا تفهمك وتنفّذ."*
+
+<br />
+
+## 🦊 مين بايرا؟
+
+**بايرا هي محرك الذكاء الاصطناعي** اللي يدير كل شي ورا الكواليس في PyraSuite.
+
+هي اللي تولّد الصور. هي اللي تكتب الخطة التسويقية. هي اللي تحلل منافسينك وتعطيك خارطة طريق. هي اللي تسوّي تعليق صوتي بلهجتك.
+
+**إنت بس تقول لها إيش تبي — وهي تسويه.**
+
+بايرا مش أداة وحدة. هي **9 استوديوهات متخصصة**، كل واحد مدرّب على مهارة معيّنة. تبي صورة؟ عندها استوديو لها. تبي حملة كاملة 9 بوستات؟ استوديو ثاني. تبي خطة 3 شهور؟ ثالث.
 
 <br />
 
@@ -52,11 +66,11 @@
 
 | المشكلة | الحل |
 |:---|:---|
-| أدوات AI كلها إنجليزية | 🌍 **عربي أولاً** — واجهة كاملة RTL من البداية |
-| كل أداة لحالها | 🎨 **9 استوديوهات في مكان واحد** — من الصورة للحملة الكاملة |
-| الأسعار غامضة | 💎 **نظام كريدت شفاف** — تعرف بالضبط كم بتدفع |
-| النتائج عامة وما تمثلك | 🎭 **هوية بصرية (Brand Kit)** — ألوانك وشعارك في كل توليد |
-| موديل واحد وصلاحياته محدودة | 🤖 **3 نماذج AI** — Gemini + GPT + Flux مع fallback تلقائي |
+| أدوات التصميم كلها إنجليزية | 🌍 **عربي أولاً** — واجهة كاملة RTL + بايرا تفهم العربي |
+| كل أداة لحالها وبحساب لحاله | 🎨 **9 استوديوهات في مكان واحد** — اشتراك واحد يكفي |
+| الأسعار غامضة | 💎 **نظام كريدت شفاف** — تعرف بالضبط كم بتدفع قبل ما تضغط |
+| النتائج عامة وما تمثل البراند | 🎭 **هوية بصرية** — شعارك وألوانك في كل صورة تلقائي |
+| جودة متذبذبة | 🦊 **محرك بايرا** — ذكاء متعدد الطبقات مع retry تلقائي |
 
 <br />
 
@@ -67,22 +81,22 @@
 <td width="33%" align="center">
 
 ### 🖼️ منشئ الصور
-صور تسويقية احترافية من وصف نصي<br/>
-<sub>1-4 صور · اختر الموديل · اختر الريزولوشن</sub>
+صور تسويقية احترافية من وصف عربي<br/>
+<sub>1-4 صور · 3 مستويات جودة · Brand Kit تلقائي</sub>
 
 </td>
 <td width="33%" align="center">
 
 ### 📸 تصوير المنتجات
-تصوير منتجات بـ 6 زوايا مختلفة<br/>
-<sub>خلفيات متعددة · إضاءة احترافية · جاهز للسوشال</sub>
+تصوير منتجات احترافي بـ 6 زوايا<br/>
+<sub>خلفيات متعددة · إضاءة ستوديو · جاهز للسوشال</sub>
 
 </td>
 <td width="33%" align="center">
 
 ### 📱 مخطط الحملات
 حملة كاملة 9 منشورات بضغطة<br/>
-<sub>صور + كابشنز + هاشتاقات · 12 كريدت</sub>
+<sub>صور + كابشنز + هاشتاقات · جاهزة للنشر</sub>
 
 </td>
 </tr>
@@ -91,21 +105,21 @@
 
 ### 📊 الخطة التسويقية
 خطة 30/60/90 يوم مع تقويم محتوى<br/>
-<sub>ميزانية + KPIs + جدول نشر · 5 كريدت</sub>
+<sub>ميزانية + KPIs + جدول نشر + أهداف</sub>
 
 </td>
 <td align="center">
 
 ### 🎬 ستوري بورد
 ستوري بورد فيديو 9 مشاهد<br/>
-<sub>زوايا كاميرا + حوار + إخراج · 14 كريدت</sub>
+<sub>زوايا كاميرا + حوار + ملاحظات إخراج</sub>
 
 </td>
 <td align="center">
 
 ### 📈 التحليل التسويقي
 تحليل SWOT + شخصيات + منافسين<br/>
-<sub>خارطة طريق + KPIs + توصيات · 3 كريدت</sub>
+<sub>خارطة طريق + KPIs + توصيات عملية</sub>
 
 </td>
 </tr>
@@ -114,20 +128,20 @@
 
 ### 🎙️ التعليق الصوتي
 صوت احترافي بلهجتك المفضلة<br/>
-<sub>سرعة + نبرة + لهجة · 1 كريدت/30 ثانية</sub>
+<sub>سرعة + نبرة + لهجة عربية · جاهز للفيديو</sub>
 
 </td>
 <td align="center">
 
 ### ✏️ تعديل الصور
-تعديل بالذكاء الاصطناعي<br/>
-<sub>إزالة خلفية · تلوين · نص · ستايل · 1 كريدت</sub>
+تعديل ذكي بأمر واحد<br/>
+<sub>إزالة خلفية · تلوين · نص · ستايل · تحسين</sub>
 
 </td>
 <td align="center">
 
 ### 💡 مساعد البرومبت
-حوّل وصفك لبرومبت احترافي<br/>
+حوّل وصفك لأمر احترافي لبايرا<br/>
 <sub>3 نسخ مختلفة · **مجاني بالكامل** ✨</sub>
 
 </td>
@@ -142,44 +156,44 @@
 <tr>
 <td width="50%">
 
-**🤖 ذكاء اصطناعي متعدد**
-- Gemini 2.5 Flash (الأسرع)
-- GPT Image (الأعلى جودة)
-- Flux 1.1 Pro (الأكثر إبداعية)
-- Fallback تلقائي + 3 محاولات
+**🦊 محرك بايرا AI**
+- ذكاء متعدد الطبقات (سرعة · جودة · إبداع)
+- Fallback تلقائي — لو مسار فشل، بايرا تجرّب مسار ثاني
+- 3 محاولات قبل ما ترجع خطأ
+- تفهم العربي من أول كلمة
 
 **🎭 هوية بصرية (Brand Kit)**
 - شعارك + ألوانك + خطوطك
 - يتطبّقون تلقائي على كل توليد
-- عدد لا محدود من الهويات
+- أنشئ عدد لا محدود من الهويات
 
 **💰 نظام كريدت ذكي**
 - خصم ذري (race-condition safe)
-- كريدت اشتراك + كريدت مشتراة (منفصلين)
-- الكريدت المشتراة ما تنتهي 12 شهر
+- كريدت اشتراك + كريدت مشتراة منفصلين
+- المشتراة ما تنتهي لمدة 12 شهر
 - Pro+ يحتفظ بـ 20% من الرصيد الشهري
 
 </td>
 <td width="50%">
 
 **🌙 واجهة حديثة**
-- Dark Mode (كشف تلقائي + toggle)
-- Glassmorphism + Framer Motion animations
-- 11 section Landing Page
+- Dark Mode (كشف تلقائي + toggle بدون وميض)
+- Glassmorphism + حركات Framer Motion
+- Landing Page من 11 قسم
 - Mobile responsive بالكامل
 
-**🔒 أمان متقدم**
+**🔒 أمان على مستوى البنوك**
 - Row Level Security على كل الجداول
 - Signed URLs (15 دقيقة انتهاء صلاحية)
-- Rate Limiting (20 req/min per user)
-- Zod validation على كل API input
+- Rate Limiting (20 طلب/دقيقة لكل مستخدم)
+- Validation على كل مدخل API
 - Watermark تلقائي للخطة المجانية
 
 **📦 تصدير وتنظيم**
 - PDF Export (حملات + تحليلات + ستوري بورد)
 - ZIP Download (تحميل دفعة واحدة)
 - مشاريع (Projects) لتنظيم الشغل
-- فرق عمل (Teams) مع أدوار
+- فرق عمل (Teams) مع أدوار وصلاحيات
 
 </td>
 </tr>
@@ -248,10 +262,10 @@
 ```
 Frontend        → Next.js 15 (App Router) + TypeScript (strict)
 Styling         → Tailwind CSS v3 + CSS Variables + Framer Motion
-UI              → shadcn/ui (11 components مخصصة)
+UI              → shadcn/ui (مخصصة بالكامل)
 Auth & DB       → Supabase (Auth + PostgreSQL + Storage + RLS)
 Payments        → Stripe (Subscriptions + One-time + Webhooks)
-AI Models       → Google Gemini · OpenAI GPT · Replicate Flux
+AI Engine       → Bayra AI 🦊 (multi-layer, auto-fallback, Arabic-native)
 State           → Zustand (client) + React Query (server)
 i18n            → next-intl (Arabic-first, URL-based locale)
 Dark Mode       → next-themes (system detection, zero flash)
@@ -276,7 +290,7 @@ app/
 │   │   ├── forgot-password/       # نسيت كلمة المرور
 │   │   └── reset-password/        # إعادة تعيين
 │   │
-│   ├── (landing)/                 # 🌐 Landing Page (11 sections)
+│   ├── (landing)/                 # 🌐 Landing Page (11 قسم)
 │   │   └── page.tsx               # NavBar → Hero → Studios → Pricing → CTA
 │   │
 │   ├── (dashboard)/               # 🎨 Dashboard (22 صفحة)
@@ -296,11 +310,11 @@ app/
 │   │   ├── billing/               # 💳 الفواتير والباقات
 │   │   ├── team/                  # 👥 إدارة الفريق
 │   │   ├── settings/              # ⚙️ الإعدادات
-│   │   └── onboarding/            # 🎯 جولة ترحيبية
+│   │   └── onboarding/            # 🎯 جولة ترحيبية (5 خطوات + كريدت مجاني)
 │   └── layout.tsx                 # Root (i18n + theme + query)
 │
 ├── api/                           # ⚡ 21 API Route
-│   ├── studios/                   # 9 استوديوهات
+│   ├── studios/                   # 9 استوديوهات (Bayra AI endpoints)
 │   ├── stripe/                    # checkout · topup · webhook · portal
 │   ├── credits/                   # balance · transactions
 │   ├── brand-kits/                # CRUD
@@ -318,7 +332,7 @@ components/                        # 🧩 49 Component
 └── providers/                     # QueryProvider, ThemeProvider
 │
 lib/                               # 🔧 Core Logic
-├── ai/                            # Router + Gemini + OpenAI + Replicate + Prompts
+├── ai/                            # 🦊 Bayra AI Engine (Router + Prompts + Fallback)
 ├── credits/                       # check · deduct (atomic) · costs
 ├── stripe/                        # client · plans (5 plans + 4 top-ups)
 ├── supabase/                      # client · server · types · signed-url
@@ -340,7 +354,7 @@ messages/                          # 🌐 ar.json + en.json
 <tr><th>الجدول</th><th>الوصف</th><th>RLS</th></tr>
 <tr><td><code>profiles</code></td><td>المستخدمين (خطة + كريدت + Stripe IDs)</td><td>✅</td></tr>
 <tr><td><code>brand_kits</code></td><td>الهوية البصرية (شعار + ألوان + خطوط)</td><td>✅</td></tr>
-<tr><td><code>generations</code></td><td>سجل التوليدات (model + prompt + cost)</td><td>✅</td></tr>
+<tr><td><code>generations</code></td><td>سجل التوليدات (prompt + cost + studio)</td><td>✅</td></tr>
 <tr><td><code>credit_transactions</code></td><td>سجل الكريدت (audit ledger)</td><td>✅</td></tr>
 <tr><td><code>assets</code></td><td>الملفات المولّدة (صور + فيديو + صوت)</td><td>✅</td></tr>
 <tr><td><code>teams</code></td><td>الفرق</td><td>✅</td></tr>
@@ -364,7 +378,7 @@ npm install
 
 # 3️⃣ Configure
 cp .env.local.example .env.local
-# عدّل .env.local — حط مفاتيح Supabase + Stripe + AI
+# عدّل .env.local — حط مفاتيح Supabase + Stripe + Bayra AI
 
 # 4️⃣ Database
 # طبّق الـ migrations من supabase/migrations/ (001-013)
@@ -374,7 +388,7 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-> 💡 **بدون مفاتيح AI؟** المنصة تشتغل بـ **Mock Mode** — كل الاستوديوهات ترجع نتائج تجريبية
+> 💡 **بدون مفاتيح AI؟** المنصة تشتغل بـ **Demo Mode** — كل الاستوديوهات ترجع نتائج تجريبية عشان تشوف الواجهة
 
 <br />
 
@@ -417,9 +431,11 @@ docker run -p 3000:3000 --env-file .env.local pyrasuite
 
 <div align="center">
 
-**Built with ❤️ by [Pyramedia](https://pyramedia.info)**
+<br />
 
-*AI + Marketing = PyraSuite*
+**Powered by Bayra AI 🦊 — Built by [Pyramedia](https://pyramedia.info)**
+
+*اكتب بالعربي. بايرا تنفّذ.*
 
 <sub>© 2026 PyraSuite by Pyramedia. All rights reserved.</sub>
 
