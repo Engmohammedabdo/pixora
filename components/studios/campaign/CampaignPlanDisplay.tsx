@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Copy, Check, Download, Image, AlertTriangle } from 'lucide-react';
+import { Copy, Check, Download, Image, AlertTriangle, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { generateCampaignPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
 export interface CampaignPost {
   scenario: string;
@@ -88,6 +89,10 @@ export function CampaignPlanDisplay({
         <Button size="sm" variant="outline" onClick={handleCopyAll} className="gap-1">
           {copiedIndex === -1 ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copiedIndex === -1 ? tStudio('copied') : t('copyAll')}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => openPdfInNewTab(generateCampaignPdf(posts))} className="gap-1">
+          <FileText className="h-3 w-3" />
+          {t('exportPdf')}
         </Button>
       </div>
 
