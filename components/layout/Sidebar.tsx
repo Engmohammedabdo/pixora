@@ -6,6 +6,8 @@ import { Link } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
 import { useCreditsStore } from '@/store/credits';
+import { useUser } from '@/hooks/useUser';
+import { getPlan } from '@/lib/stripe/plans';
 import {
   Home,
   Image,
@@ -68,6 +70,8 @@ export function Sidebar(): React.ReactElement {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const { balance } = useCreditsStore();
+  const { profile } = useUser();
+  const planCredits = getPlan(profile?.plan_id || 'free').credits;
 
   const renderNavItem = (item: NavItem): React.ReactElement => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -144,7 +148,7 @@ export function Sidebar(): React.ReactElement {
           </div>
           <span className="font-bold text-primary-600">{balance}</span>
         </div>
-        <Progress value={Math.min((balance / 25) * 100, 100)} className="h-2" />
+        <Progress value={Math.min((balance / planCredits) * 100, 100)} className="h-2" />
         <Link
           href="/billing"
           className="block text-center text-xs text-primary-500 hover:underline"

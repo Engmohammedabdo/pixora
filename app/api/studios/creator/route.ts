@@ -6,6 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateImage } from '@/lib/ai/router';
 import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { getMaxResolution } from '@/lib/stripe/plans';
 import { rateLimit } from '@/lib/rate-limit';
 
 const InputSchema = z.object({
@@ -32,6 +33,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const input = InputSchema.parse(body);
+
+    // Enforce resolution limit based on user's plan
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const maxRes = getMaxResolution(profile?.plan_id || 'free');
+    const resOrder: string[] = ['1080p', '2K', '4K'];
+    if (resOrder.indexOf(input.resolution) > resOrder.indexOf(maxRes)) {
+      return NextResponse.json(
+        { success: false, error: 'resolution_not_available', maxResolution: maxRes },
+        { status: 403 }
+      );
+    }
 
     // Calculate credit cost
     const creditCost = CREDIT_COSTS.image[input.resolution];

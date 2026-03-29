@@ -2,6 +2,8 @@
 
 import { useTranslations } from 'next-intl';
 import { useCreditsStore } from '@/store/credits';
+import { useUser } from '@/hooks/useUser';
+import { getPlan } from '@/lib/stripe/plans';
 import { Link } from '@/i18n/routing';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
@@ -13,11 +15,14 @@ interface CreditsWidgetProps {
   className?: string;
 }
 
-export function CreditsWidget({ maxCredits = 25, className }: CreditsWidgetProps): React.ReactElement {
+export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): React.ReactElement {
   const t = useTranslations('credits');
   const { balance, loading } = useCreditsStore();
+  const { profile } = useUser();
+  const planCredits = getPlan(profile?.plan_id || 'free').credits;
+  const effectiveMax = maxCredits ?? planCredits;
 
-  const percentage = Math.min((balance / maxCredits) * 100, 100);
+  const percentage = Math.min((balance / effectiveMax) * 100, 100);
   const isLow = percentage < 20;
 
   if (loading) {

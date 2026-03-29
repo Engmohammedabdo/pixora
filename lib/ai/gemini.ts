@@ -55,8 +55,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   );
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    throw new Error(`Gemini image API error: ${response.status}`);
   }
 
   const data = await response.json();
