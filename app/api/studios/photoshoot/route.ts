@@ -7,6 +7,7 @@ import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
   productImageUrl: z.string().min(1),
@@ -169,6 +170,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
+    }
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
+        { status: 400 }
+      );
     }
     console.error('Photoshoot API error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });

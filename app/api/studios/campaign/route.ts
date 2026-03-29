@@ -8,6 +8,7 @@ import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
   productDescription: z.string().min(10).max(2000),
@@ -198,6 +199,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
+    }
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
+        { status: 400 }
+      );
     }
     console.error('Campaign API error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });

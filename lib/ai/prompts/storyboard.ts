@@ -1,25 +1,62 @@
+import { sanitizePrompt } from './safety';
+import { getPromptVersion } from './versions';
+
 interface StoryboardPromptInput {
   concept: string;
   duration: number;
   style: string;
   platform: string;
   brandName?: string;
+  targetAudience?: string;
+  keyMessage?: string;
 }
 
-// v1.0
+// v2.0 — matches system-prompts.md storyboard_v1
 export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
-  return `Act as a professional film director and storyboard artist.
-Video concept: ${input.concept}
-Duration: ${input.duration} seconds
-Style: ${input.style}
-Platform: ${input.platform}
-${input.brandName ? `Brand: ${input.brandName}` : ''}
+  const { concept, duration, style, platform, brandName, targetAudience, keyMessage } = input;
+  const safeConcept = sanitizePrompt(concept);
 
-Create a professional storyboard with exactly 9 scenes. Return valid JSON array, each:
-{ "scene_number": number, "visual_description": string (English, for image gen), "dialogue": string (Arabic), "camera_angle": string, "camera_movement": string, "duration_seconds": number, "mood": string, "music_note": string }
+  let prompt = `You are a professional film director and storyboard artist with experience in commercial advertising.`;
 
-Total duration must equal ${input.duration} seconds. Return ONLY valid JSON array.`;
+  prompt += `\n\nVideo Brief:`;
+  prompt += `\n- Concept: ${safeConcept}`;
+  prompt += `\n- Duration: ${duration} seconds total`;
+  prompt += `\n- Style: ${style}`;
+  prompt += `\n- Platform: ${platform}`;
+  if (targetAudience) prompt += `\n- Target Audience: ${targetAudience}`;
+  if (brandName) prompt += `\n- Brand: ${brandName}`;
+  if (keyMessage) prompt += `\n- Key Message: ${keyMessage}`;
+
+  prompt += `\n\nCreate a professional storyboard with exactly 9 scenes.`;
+  prompt += `\nThe total duration of all scenes must equal exactly ${duration} seconds.`;
+
+  prompt += `\n\nEach scene must follow this exact JSON structure:`;
+  prompt += `\n{`;
+  prompt += `\n  "scene_number": 1,`;
+  prompt += `\n  "title": "Short scene title",`;
+  prompt += `\n  "visual_description": "Detailed description in English for image generation — describe composition, subjects, colors, lighting, action",`;
+  prompt += `\n  "dialogue": "Spoken text or voice-over in Arabic",`;
+  prompt += `\n  "on_screen_text": "Any text on screen (or null)",`;
+  prompt += `\n  "camera_angle": "Wide Shot | Medium Shot | Close-Up | Extreme Close-Up | POV | Aerial",`;
+  prompt += `\n  "camera_movement": "Static | Pan Left | Pan Right | Zoom In | Zoom Out | Dolly | Handheld",`;
+  prompt += `\n  "duration_seconds": 5,`;
+  prompt += `\n  "mood": "Energetic | Calm | Dramatic | Humorous | Inspirational",`;
+  prompt += `\n  "music_note": "Suggested music style and tempo",`;
+  prompt += `\n  "transition": "Cut | Fade | Dissolve | Wipe"`;
+  prompt += `\n}`;
+
+  prompt += `\n\nStyle Guidelines:`;
+  prompt += `\n- Cinematic: Dramatic lighting, wide establishing shots, emotional close-ups`;
+  prompt += `\n- UGC: Handheld, natural lighting, authentic feel, direct-to-camera`;
+  prompt += `\n- Animation: Describe shapes/characters/motion rather than photography`;
+  prompt += `\n- Documentary: Observational, real moments, interviews, b-roll heavy`;
+
+  prompt += `\n\nIMPORTANT: Return ONLY a valid JSON array of 9 scenes. No additional text.`;
+
+  return prompt;
 }
+
+export const STORYBOARD_PROMPT_VERSION = getPromptVersion('storyboard');
 
 export function getMockStoryboard(): Record<string, unknown>[] {
   return [

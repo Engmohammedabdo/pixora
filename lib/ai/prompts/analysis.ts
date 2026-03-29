@@ -1,3 +1,6 @@
+import { sanitizePrompt } from './safety';
+import { getPromptVersion } from './versions';
+
 interface AnalysisPromptInput {
   businessName: string;
   industry: string;
@@ -5,32 +8,46 @@ interface AnalysisPromptInput {
   competitors: string[];
   targetMarket: string;
   painPoints: string;
+  stage?: string;
 }
 
-// v1.0
+// v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
-  const competitorList = input.competitors.filter(Boolean).join(', ') || 'Not specified';
+  const { businessName, industry, description, competitors, targetMarket, painPoints, stage } = input;
+  const safeDesc = sanitizePrompt(description);
+  const competitorList = competitors.filter(Boolean).join(', ') || 'Not specified';
 
-  return `Act as a world-class CMO with 20+ years in the ${input.industry} market.
-Business: ${input.businessName}
-Industry: ${input.industry}
-Description: ${input.description}
-Competitors: ${competitorList}
-Target Market: ${input.targetMarket}
-Pain Points: ${input.painPoints}
+  let prompt = `You are a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${industry} industry.`;
 
-Provide comprehensive marketing analysis. Return as valid JSON with these keys:
-1. "swot": { "strengths": string[], "weaknesses": string[], "opportunities": string[], "threats": string[] }
-2. "personas": [{ "name": string, "age": string, "role": string, "goals": string, "pain_points": string, "channels": string }] (3 personas)
-3. "competitors": [{ "name": string, "strengths": string, "weaknesses": string, "market_share": string }]
-4. "usp": { "statement": string, "positioning": string, "differentiators": string[] }
-5. "gtm": { "strategy": string, "channels": string[], "tactics": string[] }
-6. "pricing": { "recommendation": string, "model": string, "tiers": string[] }
-7. "roadmap": { "day_30": string[], "day_60": string[], "day_90": string[] }
-8. "kpis": [{ "metric": string, "target": string, "timeframe": string }]
+  prompt += `\n\nBusiness Under Analysis:`;
+  prompt += `\n- Name: ${businessName}`;
+  prompt += `\n- Industry: ${industry}`;
+  prompt += `\n- Description: ${safeDesc}`;
+  prompt += `\n- Current Stage: ${stage || 'Growth'}`;
+  prompt += `\n- Target Market: ${targetMarket}`;
+  prompt += `\n- Main Competitors: ${competitorList}`;
+  prompt += `\n- Current Challenges: ${painPoints || 'Not specified'}`;
 
-All text content in Arabic. Return ONLY valid JSON.`;
+  prompt += `\n\nProvide a comprehensive marketing analysis. Return as valid JSON with these exact keys:`;
+  prompt += `\n{`;
+  prompt += `\n  "swot": { "strengths": ["4-5 items"], "weaknesses": ["4-5 items"], "opportunities": ["4-5 items"], "threats": ["4-5 items"] },`;
+  prompt += `\n  "personas": [{ "name": "", "age": "", "role": "", "goals": "", "pain_points": "", "channels": "", "messaging": "" }],`;
+  prompt += `\n  "competitors": [{ "name": "", "strengths": "", "weaknesses": "", "market_share": "", "pricing": "", "digital_presence": "" }],`;
+  prompt += `\n  "usp": { "statement": "One powerful sentence", "positioning": "", "differentiators": ["3 items"], "taglines": ["3 Arabic taglines"] },`;
+  prompt += `\n  "gtm": { "strategy": "", "primary_channel": "", "channels": [""], "tactics": [""], "partnerships": [""] },`;
+  prompt += `\n  "pricing": { "recommendation": "", "model": "", "tiers": [""], "justification": "" },`;
+  prompt += `\n  "roadmap": { "day_30": ["5 actions"], "day_60": ["5 actions"], "day_90": ["5 actions"] },`;
+  prompt += `\n  "kpis": [{ "metric": "", "target_30d": "", "target_90d": "", "tracking": "" }]`;
+  prompt += `\n}`;
+
+  prompt += `\n\nAll text content in Arabic. Be specific, actionable, and tailored to the market context.`;
+  prompt += `\nInclude local market insights and cultural nuances.`;
+  prompt += `\nReturn ONLY valid JSON.`;
+
+  return prompt;
 }
+
+export const ANALYSIS_PROMPT_VERSION = getPromptVersion('marketing_analysis');
 
 export function getMockAnalysis(): Record<string, unknown> {
   return {

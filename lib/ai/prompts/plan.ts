@@ -1,3 +1,6 @@
+import { sanitizePrompt } from './safety';
+import { getPromptVersion } from './versions';
+
 interface PlanPromptInput {
   businessName: string;
   industry: string;
@@ -5,27 +8,41 @@ interface PlanPromptInput {
   targetMarket: string;
   budget: string;
   duration: number;
+  stage?: string;
 }
 
-// v1.0
+// v2.0 — matches system-prompts.md marketing_plan_v1
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  return `Act as a senior marketing strategist. Create a ${input.duration}-day marketing plan.
-Business: ${input.businessName}
-Industry: ${input.industry}
-Goals: ${input.goals.join(', ')}
-Target Market: ${input.targetMarket}
-Monthly Budget: ${input.budget}
+  const { businessName, industry, goals, targetMarket, budget, duration, stage } = input;
 
-Return valid JSON:
-{
-  "objectives": [{ "goal": string, "kpi": string, "target": string }],
-  "channels": [{ "name": string, "budget_pct": number, "strategy": string }],
-  "calendar": [{ "week": number, "content": string[], "channel": string }],
-  "budget": { "total": string, "breakdown": [{ "item": string, "amount": string, "pct": number }] },
-  "kpis": [{ "metric": string, "target": string, "tracking": string }]
+  let prompt = `You are a Senior Marketing Strategist with expertise in ${industry} businesses.`;
+
+  prompt += `\n\nBusiness Information:`;
+  prompt += `\n- Name: ${businessName}`;
+  prompt += `\n- Industry: ${industry}`;
+  prompt += `\n- Stage: ${stage || 'Growth'}`;
+  prompt += `\n- Target Market: ${targetMarket}`;
+  prompt += `\n- Monthly Budget: ${budget}`;
+  prompt += `\n- Primary Goals: ${goals.join(', ')}`;
+
+  prompt += `\n\nCreate a detailed ${duration}-day marketing plan. Return as valid JSON:`;
+  prompt += `\n{`;
+  prompt += `\n  "objectives": [{ "goal": "SMART objective", "kpi": "metric", "target": "specific number" }],`;
+  prompt += `\n  "channels": [{ "name": "", "budget_pct": 0, "strategy": "detailed approach" }],`;
+  prompt += `\n  "calendar": [{ "week": 1, "content": ["items"], "channel": "" }],`;
+  prompt += `\n  "budget": { "total": "", "breakdown": [{ "item": "", "amount": "", "pct": 0 }] },`;
+  prompt += `\n  "kpis": [{ "metric": "", "target": "", "tracking": "how to measure" }],`;
+  prompt += `\n  "quick_wins": ["5-7 immediate actions for first 2 weeks"],`;
+  prompt += `\n  "risks": [{ "risk": "", "probability": "High/Medium/Low", "mitigation": "" }]`;
+  prompt += `\n}`;
+
+  prompt += `\n\nAll text in Arabic. Be specific, actionable, and realistic for the given budget.`;
+  prompt += `\nReturn ONLY valid JSON.`;
+
+  return prompt;
 }
-All text in Arabic. Return ONLY valid JSON.`;
-}
+
+export const PLAN_PROMPT_VERSION = getPromptVersion('marketing_plan');
 
 export function getMockPlan(): Record<string, unknown> {
   return {
@@ -52,6 +69,20 @@ export function getMockPlan(): Record<string, unknown> {
       { metric: 'تكلفة الـ Lead', target: 'أقل من $10', tracking: 'يومي' },
       { metric: 'معدل التحويل', target: '3%+', tracking: 'أسبوعي' },
       { metric: 'العائد على الإعلان', target: '3x ROAS', tracking: 'شهري' },
+    ],
+    quick_wins: [
+      'إنشاء حسابات على جميع المنصات الاجتماعية وتوحيد الهوية البصرية',
+      'نشر 5 منشورات تعريفية بالعلامة التجارية',
+      'إطلاق عرض ترحيبي للعملاء الجدد بخصم 15%',
+      'التواصل مع 10 مؤثرين محليين للتعاون',
+      'إعداد حملة Google Ads للكلمات المفتاحية الأساسية',
+      'إرسال نشرة بريدية تعريفية للقائمة الحالية',
+    ],
+    risks: [
+      { risk: 'تجاوز الميزانية المخصصة للإعلانات', probability: 'Medium', mitigation: 'وضع حدود يومية صارمة ومراجعة الإنفاق أسبوعياً' },
+      { risk: 'ضعف التفاعل على المحتوى', probability: 'Medium', mitigation: 'تجربة أنواع مختلفة من المحتوى وتحليل الأداء كل أسبوع' },
+      { risk: 'تغير خوارزميات المنصات', probability: 'Low', mitigation: 'تنويع القنوات وعدم الاعتماد على منصة واحدة' },
+      { risk: 'دخول منافس جديد بأسعار أقل', probability: 'High', mitigation: 'التركيز على القيمة المضافة وبناء ولاء العملاء' },
     ],
   };
 }

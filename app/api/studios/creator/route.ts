@@ -9,6 +9,8 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { maybeWatermark } from '@/lib/image/watermark';
+import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
 
 const InputSchema = z.object({
@@ -257,6 +259,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: 'validation_error', details: error.issues },
+        { status: 400 }
+      );
+    }
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
         { status: 400 }
       );
     }

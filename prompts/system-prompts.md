@@ -1,7 +1,9 @@
-# Pixora — System Prompts Library
+# PyraSuite — System Prompts Library
 
-> كل الـ System Prompts المستخدمة في Pixora. كل prompt مع شرح وأمثلة.
-> **Version:** 1.0 | يُحدّث مع كل تغيير في الـ prompt
+> كل الـ System Prompts المستخدمة في PyraSuite. كل prompt مع شرح وأمثلة.
+> **Version:** 2.0 | Fully implemented in `lib/ai/prompts/` — matching this spec.
+> **Safety:** All prompts sanitized via `lib/ai/prompts/safety.ts`
+> **Versioning:** Tracked via `lib/ai/prompts/versions.ts`
 
 ---
 

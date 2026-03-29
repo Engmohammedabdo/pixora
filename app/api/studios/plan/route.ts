@@ -7,6 +7,7 @@ import { generateText } from '@/lib/ai/router';
 import { buildPlanPrompt, getMockPlan } from '@/lib/ai/prompts/plan';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
   businessName: z.string().min(2).max(200),
@@ -65,6 +66,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: deductResult.newBalance } });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
+        { status: 400 }
+      );
+    }
     console.error('Plan API error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });
   }

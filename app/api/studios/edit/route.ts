@@ -6,6 +6,7 @@ import { deductCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
   imageUrl: z.string().min(1),
@@ -68,6 +69,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true, data: { generationId: generation?.id, imageUrl: result.url, mock: result.mock, creditsUsed: CREDIT_COST, newBalance: deductResult.newBalance } });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
+        { status: 400 }
+      );
+    }
     console.error('Edit API error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });
   }
