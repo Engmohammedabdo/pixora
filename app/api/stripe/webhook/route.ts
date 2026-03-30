@@ -40,11 +40,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ received: true, skipped: 'duplicate' });
   }
 
-  await supabase.from('webhook_events').insert({
-    event_id: event.id,
-    event_type: event.type,
-  });
-
   try {
     switch (event.type) {
       // ═══ CHECKOUT COMPLETED (new subscription or top-up) ═══
@@ -243,8 +238,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch (error) {
     console.error('Webhook handler error:', error);
+    // Don't mark as processed — Stripe will retry
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
+
+  // Mark as processed AFTER business logic succeeds (atomic idempotency)
+  await supabase.from('webhook_events').insert({
+    event_id: event.id,
+    event_type: event.type,
+  });
 
   return NextResponse.json({ received: true });
 }

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(): Promise<NextResponse> {
-  const checks: Record<string, { status: 'ok' | 'error'; ms?: number; error?: string }> = {};
+  const checks: Record<string, { status: 'ok' | 'error'; ms?: number }> = {};
   const start = Date.now();
 
   // Check 1: Supabase connection
@@ -16,16 +16,12 @@ export async function GET(): Promise<NextResponse> {
     checks.database = {
       status: error ? 'error' : 'ok',
       ms: Date.now() - dbStart,
-      ...(error && { error: error.message }),
     };
-  } catch (e) {
-    checks.database = {
-      status: 'error',
-      error: e instanceof Error ? e.message : 'Unknown error',
-    };
+  } catch {
+    checks.database = { status: 'error' };
   }
 
-  // Check 2: Environment variables
+  // Check 2: Required config present (don't reveal WHICH vars are missing)
   const requiredEnvVars = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -36,21 +32,17 @@ export async function GET(): Promise<NextResponse> {
     'ADMIN_USERNAME',
     'ADMIN_PASSWORD',
   ];
-
-  const missingEnvVars = requiredEnvVars.filter((v) => !process.env[v]);
-  checks.env = {
-    status: missingEnvVars.length === 0 ? 'ok' : 'error',
-    ...(missingEnvVars.length > 0 && { error: `Missing: ${missingEnvVars.join(', ')}` }),
+  const missingCount = requiredEnvVars.filter((v) => !process.env[v]).length;
+  checks.config = {
+    status: missingCount === 0 ? 'ok' : 'error',
   };
 
-  // Check 3: Stripe key validity
+  // Check 3: Payment processor
   const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-  checks.stripe = {
+  checks.payments = {
     status: stripeKey.startsWith('sk_') ? 'ok' : 'error',
-    ...(!stripeKey.startsWith('sk_') && { error: 'Invalid or missing Stripe key' }),
   };
 
-  // Overall status
   const allOk = Object.values(checks).every((c) => c.status === 'ok');
   const totalMs = Date.now() - start;
 
@@ -58,15 +50,12 @@ export async function GET(): Promise<NextResponse> {
     {
       status: allOk ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
       responseTime: totalMs,
       checks,
     },
     {
       status: allOk ? 200 : 503,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
     }
   );
 }

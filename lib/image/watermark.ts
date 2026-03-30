@@ -81,9 +81,24 @@ async function urlToBuffer(imageUrl: string): Promise<Buffer> {
     return Buffer.from(base64Data, 'base64');
   }
 
-  const response = await fetch(imageUrl);
-  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
-  return Buffer.from(await response.arrayBuffer());
+  // SSRF protection: only allow HTTPS and known domains
+  const url = new URL(imageUrl);
+  if (url.protocol !== 'https:') throw new Error('Only HTTPS URLs allowed');
+  const allowedHosts = ['.supabase.co', '.supabase.in', '.pyramedia.cloud', 'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery'];
+  if (!allowedHosts.some((h) => url.hostname.endsWith(h) || url.hostname === h)) {
+    throw new Error(`Host not allowed: ${url.hostname}`);
+  }
+
+  // Fetch with 10s timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(imageUrl, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
