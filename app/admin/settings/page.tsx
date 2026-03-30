@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import SettingsToggle from '@/components/admin/SettingsToggle';
 import { Settings, Save, Loader2, CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface FeatureFlags {
   maintenance_mode: boolean;
@@ -85,6 +86,7 @@ export default function AdminSettingsPage() {
         }),
       ]);
       setSaved(true);
+      toast.success('Settings saved successfully');
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error('Failed to save:', err);

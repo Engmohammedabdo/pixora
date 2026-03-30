@@ -94,8 +94,12 @@ export default function AdminModelsPage() {
         }),
       });
       const data = await res.json();
-      if (data.success) setDirty(false);
-      else if (data.error) toast.error(data.error);
+      if (data.success) {
+        setDirty(false);
+        toast.success('Model configuration saved');
+      } else if (data.error) {
+        toast.error(data.error);
+      }
     } finally {
       setSaving(false);
     }

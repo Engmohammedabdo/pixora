@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import StudioConfigCard from '@/components/admin/StudioConfigCard';
+import { toast } from 'sonner';
 import { SlidersHorizontal, Save, Loader2 } from 'lucide-react';
 
 interface StudioData {
@@ -68,7 +69,12 @@ export default function AdminStudiosPage() {
       });
 
       const data = await res.json();
-      if (data.success) setDirty(false);
+      if (data.success) {
+        setDirty(false);
+        toast.success('Studio configuration saved');
+      } else {
+        toast.error(data.error || 'Failed to save');
+      }
     } catch (err) {
       console.error('Failed to save:', err);
     } finally {

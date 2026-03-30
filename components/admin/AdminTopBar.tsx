@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut, Shield, Search } from 'lucide-react';
+import { LogOut, Shield, Search, Menu } from 'lucide-react';
 import { useState } from 'react';
 
 const pageNames: Record<string, string> = {
@@ -28,9 +28,10 @@ function getBreadcrumb(pathname: string): string {
 
 interface AdminTopBarProps {
   onSearchClick?: () => void;
+  onMenuClick?: () => void;
 }
 
-export default function AdminTopBar({ onSearchClick }: AdminTopBarProps) {
+export default function AdminTopBar({ onSearchClick, onMenuClick }: AdminTopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -48,12 +49,23 @@ export default function AdminTopBar({ onSearchClick }: AdminTopBarProps) {
   }
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.06] bg-slate-950/50 px-6 backdrop-blur-md">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2.5 text-sm">
-        <span className="text-slate-500">Admin</span>
-        <span className="text-slate-700">/</span>
-        <span className="font-semibold text-white">{currentPage}</span>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-slate-950/50 px-4 backdrop-blur-md sm:h-16 sm:px-6">
+      {/* Left: hamburger + breadcrumb */}
+      <div className="flex items-center gap-3">
+        {/* Mobile hamburger */}
+        <button
+          onClick={onMenuClick}
+          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="hidden text-slate-500 sm:inline">Admin</span>
+          <span className="hidden text-slate-700 sm:inline">/</span>
+          <span className="font-semibold text-white">{currentPage}</span>
+        </div>
       </div>
 
       {/* Right side */}
@@ -61,26 +73,26 @@ export default function AdminTopBar({ onSearchClick }: AdminTopBarProps) {
         {/* Search button */}
         <button
           onClick={onSearchClick}
-          className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-xs text-slate-500 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04] hover:text-slate-300"
+          className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-xs text-slate-500 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04] hover:text-slate-300 sm:px-3"
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Search...</span>
-          <kbd className="hidden rounded border border-white/[0.1] bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium sm:inline-block">
+          <kbd className="hidden rounded border border-white/[0.1] bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium md:inline-block">
             ⌘K
           </kbd>
         </button>
 
-        <div className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1 ring-1 ring-indigo-500/20">
+        <div className="hidden items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1 ring-1 ring-indigo-500/20 sm:flex">
           <Shield className="h-3 w-3 text-indigo-400" />
           <span className="text-xs font-semibold text-indigo-400">Admin</span>
         </div>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50 sm:px-3"
         >
           <LogOut className="h-3.5 w-3.5" />
-          {loggingOut ? 'Logging out...' : 'Logout'}
+          <span className="hidden sm:inline">{loggingOut ? 'Logging out...' : 'Logout'}</span>
         </button>
       </div>
     </header>

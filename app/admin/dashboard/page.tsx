@@ -220,6 +220,7 @@ export default function AdminDashboardPage() {
           value={overview?.totalUsers ?? 0}
           badge={overview ? `+${overview.newUsersToday} today` : undefined}
           badgeColor="green"
+          sparkline={charts.signups.map(d => (d.count as number) || 0)}
           loading={loading}
         />
         <KPICard
@@ -227,6 +228,7 @@ export default function AdminDashboardPage() {
           label="Revenue (MTD Credits)"
           value={overview?.revenueThisMonth ?? 0}
           badgeColor="blue"
+          sparkline={charts.revenue.slice(-7).map(d => (d.total as number) || 0)}
           loading={loading}
         />
         <KPICard
@@ -241,6 +243,7 @@ export default function AdminDashboardPage() {
           value={overview ? `${overview.errorRate}%` : '0%'}
           badge={overview ? `${overview.failedToday} failed` : undefined}
           badgeColor={overview && overview.errorRate > 5 ? 'red' : 'green'}
+          trend={overview ? { value: overview.errorRate > 5 ? overview.errorRate : -overview.errorRate } : undefined}
           loading={loading}
         />
         <KPICard
