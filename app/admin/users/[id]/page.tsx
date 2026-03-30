@@ -215,7 +215,7 @@ export default function AdminUserDetailPage() {
     try {
       const body = user.banned
         ? { banned: false }
-        : { banned: true, ban_reason: banReason || 'Banned by admin' };
+        : { banned: true, ban_reason: banReason.trim() };
 
       const res = await fetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
@@ -346,20 +346,54 @@ export default function AdminUserDetailPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={banDialogOpen}
-        title={user.banned ? 'Unban User' : 'Ban User'}
-        description={
-          user.banned
-            ? `Are you sure you want to unban ${user.name || user.email}?`
-            : `Are you sure you want to ban ${user.name || user.email}? They will be unable to use the platform.`
-        }
-        confirmLabel={user.banned ? 'Unban' : 'Ban'}
-        confirmVariant={user.banned ? 'primary' : 'danger'}
-        onConfirm={handleToggleBan}
-        onCancel={() => { setBanDialogOpen(false); setBanReason(''); }}
-        loading={actionLoading}
-      />
+      {/* Ban dialog — includes reason input when banning */}
+      {banDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setBanDialogOpen(false); setBanReason(''); }} />
+          <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              {user.banned ? 'Unban User' : 'Ban User'}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {user.banned
+                ? `Are you sure you want to unban ${user.name || user.email}?`
+                : `Are you sure you want to ban ${user.name || user.email}? They will be unable to use the platform.`}
+            </p>
+            {!user.banned && (
+              <div className="mt-4">
+                <label className="mb-1 block text-sm font-medium text-slate-700">Ban Reason (required)</label>
+                <textarea
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Reason for banning this user..."
+                  required
+                />
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => { setBanDialogOpen(false); setBanReason(''); }}
+                disabled={actionLoading}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleToggleBan}
+                disabled={actionLoading || (!user.banned && !banReason.trim())}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+                  user.banned ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-red-600 hover:bg-red-500'
+                }`}
+              >
+                {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {user.banned ? 'Unban' : 'Ban'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={deleteDialogOpen}

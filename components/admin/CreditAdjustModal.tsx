@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2, X } from 'lucide-react';
 
 interface CreditAdjustModalProps {
@@ -32,6 +32,17 @@ export default function CreditAdjustModal({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape' && !loading) onClose();
+  }, [onClose, loading]);
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [open, handleEscape]);
 
   if (!open) return null;
 

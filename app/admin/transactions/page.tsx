@@ -72,6 +72,7 @@ export default function AdminTransactionsPage() {
   // User search for manual adjustment
   const [userSearch, setUserSearch] = useState('');
   const [userResults, setUserResults] = useState<{ id: string; name: string; email: string; credits_balance: number }[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
 
   const columns: Column<TransactionRow>[] = [
@@ -159,12 +160,14 @@ export default function AdminTransactionsPage() {
       setUserResults([]);
       return;
     }
+    setSearchingUsers(true);
     const timeout = setTimeout(async () => {
       try {
         const res = await fetch(`/api/admin/users?search=${encodeURIComponent(userSearch)}&limit=5`);
         const result = await res.json();
         if (result.success) setUserResults(result.data);
       } catch { /* ignore */ }
+      finally { setSearchingUsers(false); }
     }, 300);
     return () => clearTimeout(timeout);
   }, [userSearch, searchUser]);
@@ -205,7 +208,10 @@ export default function AdminTransactionsPage() {
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500"
                 autoFocus
               />
-              {userResults.length > 0 && (
+              {searchingUsers && (
+                <p className="mt-2 text-center text-xs text-slate-400">Searching...</p>
+              )}
+              {!searchingUsers && userResults.length > 0 && (
                 <ul className="mt-2 max-h-40 overflow-auto">
                   {userResults.map((u) => (
                     <li key={u.id}>

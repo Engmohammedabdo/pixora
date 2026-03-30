@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -13,6 +13,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   loading?: boolean;
+  error?: string;
 }
 
 export default function ConfirmDialog({
@@ -25,8 +26,25 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
   loading,
+  error,
 }: ConfirmDialogProps) {
   const [inputValue, setInputValue] = useState('');
+
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape' && !loading) onCancel();
+  }, [onCancel, loading]);
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [open, handleEscape]);
+
+  // Reset input when dialog opens/closes
+  useEffect(() => {
+    if (!open) setInputValue('');
+  }, [open]);
 
   if (!open) return null;
 
@@ -39,10 +57,7 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-
-      {/* Dialog */}
+      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
       <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
         <div className="flex items-start gap-3">
           {confirmVariant === 'danger' && (
@@ -69,6 +84,10 @@ export default function ConfirmDialog({
               placeholder={requireInput}
             />
           </div>
+        )}
+
+        {error && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
         )}
 
         <div className="mt-6 flex justify-end gap-3">
