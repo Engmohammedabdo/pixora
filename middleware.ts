@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
 import { routing } from '@/i18n/routing';
+import { jwtVerify } from 'jose';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -20,6 +21,40 @@ function isPublicPath(pathname: string): boolean {
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+
+  // ===== ADMIN ROUTES — Handle before intl =====
+  if (pathname.startsWith('/admin')) {
+    if (pathname === '/admin/login') {
+      const adminToken = request.cookies.get('admin_session')?.value;
+      if (adminToken) {
+        try {
+          const secret = process.env.ADMIN_JWT_SECRET;
+          if (secret) {
+            await jwtVerify(adminToken, new TextEncoder().encode(secret));
+            return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+          }
+        } catch { /* invalid token, show login */ }
+      }
+      return NextResponse.next();
+    }
+
+    // All other admin routes — require auth
+    const adminToken = request.cookies.get('admin_session')?.value;
+    if (!adminToken) {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+    try {
+      const secret = process.env.ADMIN_JWT_SECRET;
+      if (!secret) throw new Error('No secret');
+      await jwtVerify(adminToken, new TextEncoder().encode(secret));
+      return NextResponse.next();
+    } catch {
+      const response = NextResponse.redirect(new URL('/admin/login', request.url));
+      response.cookies.delete('admin_session');
+      return response;
+    }
+  }
+  // ===== END ADMIN ROUTES =====
 
   // Public paths: run intl middleware and return immediately (no auth check)
   if (isPublicPath(pathname) || pathname.startsWith('/api')) {
