@@ -31,7 +31,22 @@ interface UserProfile {
   };
 }
 
-type TabType = 'generations' | 'transactions' | 'brand_kits' | 'assets';
+type TabType = 'generations' | 'transactions' | 'brand_kits' | 'assets' | 'timeline';
+
+interface TimelineEvent {
+  id: string;
+  type: string;
+  icon: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
+
+interface EngagementData {
+  total: number;
+  label: string;
+  breakdown: Record<string, number>;
+}
 
 const statusColors: Record<string, string> = {
   completed: 'bg-emerald-100 text-emerald-700',
@@ -153,6 +168,12 @@ export default function AdminUserDetailPage() {
   const [tabPage, setTabPage] = useState(1);
   const [tabTotal, setTabTotal] = useState(0);
 
+  // Timeline + Engagement
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [engagement, setEngagement] = useState<EngagementData | null>(null);
+  const [timelinePage, setTimelinePage] = useState(1);
+  const [timelineTotal, setTimelineTotal] = useState(0);
+
   // Modals
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
@@ -175,19 +196,29 @@ export default function AdminUserDetailPage() {
   const fetchTabData = useCallback(async () => {
     setTabLoading(true);
     try {
-      const params = new URLSearchParams({ tab: activeTab, page: String(tabPage) });
-      const res = await fetch(`/api/admin/users/${id}?${params}`);
-      const data = await res.json();
-      if (data.success) {
-        setTabData(data.data.tabData || []);
-        setTabTotal(data.data.pagination?.total || data.data.tabData?.length || 0);
+      if (activeTab === 'timeline') {
+        const res = await fetch(`/api/admin/users/${id}/timeline?page=${timelinePage}&limit=30`);
+        const data = await res.json();
+        if (data.success) {
+          setTimelineEvents(data.data.events || []);
+          setTimelineTotal(data.data.pagination?.total || 0);
+          if (data.data.engagement) setEngagement(data.data.engagement);
+        }
+      } else {
+        const params = new URLSearchParams({ tab: activeTab, page: String(tabPage) });
+        const res = await fetch(`/api/admin/users/${id}?${params}`);
+        const data = await res.json();
+        if (data.success) {
+          setTabData(data.data.tabData || []);
+          setTabTotal(data.data.pagination?.total || data.data.tabData?.length || 0);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch tab data:', err);
     } finally {
       setTabLoading(false);
     }
-  }, [id, activeTab, tabPage]);
+  }, [id, activeTab, tabPage, timelinePage]);
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
   useEffect(() => { fetchTabData(); }, [fetchTabData]);
@@ -244,13 +275,14 @@ export default function AdminUserDetailPage() {
   }
 
   const tabs: { key: TabType; label: string }[] = [
+    { key: 'timeline', label: 'Timeline' },
     { key: 'generations', label: 'Generations' },
     { key: 'transactions', label: 'Transactions' },
     { key: 'brand_kits', label: 'Brand Kits' },
     { key: 'assets', label: 'Assets' },
   ];
 
-  const tabColumnMap: Record<TabType, Column<Record<string, unknown>>[]> = {
+  const tabColumnMap: Partial<Record<TabType, Column<Record<string, unknown>>[]>> = {
     generations: generationColumns,
     transactions: transactionColumns,
     brand_kits: brandKitColumns,
@@ -309,7 +341,7 @@ export default function AdminUserDetailPage() {
               }`}
             >
               {tab.label}
-              {user.stats && (
+              {user.stats && tab.key !== 'timeline' && (
                 <span className="ms-1.5 text-xs text-slate-400">
                   ({user.stats[tab.key === 'brand_kits' ? 'brandKits' : tab.key] || 0})
                 </span>
@@ -319,17 +351,88 @@ export default function AdminUserDetailPage() {
         </div>
 
         <div className="mt-4">
-          <DataTable
-            columns={tabColumnMap[activeTab]}
-            data={tabData}
-            loading={tabLoading}
-            emptyMessage={`No ${activeTab.replace('_', ' ')} found`}
-            pagination={
-              ['generations', 'transactions'].includes(activeTab)
-                ? { page: tabPage, total: tabTotal, limit: 20, onPageChange: setTabPage }
-                : undefined
-            }
-          />
+          {activeTab === 'timeline' ? (
+            <div className="space-y-4">
+              {/* Engagement Score */}
+              {engagement && (
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-slate-300">Engagement Score</h4>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ring-1 ${
+                      engagement.label === 'power' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' :
+                      engagement.label === 'active' ? 'bg-blue-500/10 text-blue-400 ring-blue-500/20' :
+                      engagement.label === 'moderate' ? 'bg-amber-500/10 text-amber-400 ring-amber-500/20' :
+                      'bg-slate-500/10 text-slate-400 ring-slate-500/20'
+                    }`}>
+                      {engagement.total}/100 — {engagement.label}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        engagement.total >= 70 ? 'bg-emerald-500' :
+                        engagement.total >= 50 ? 'bg-blue-500' :
+                        engagement.total >= 30 ? 'bg-amber-500' : 'bg-slate-500'
+                      }`}
+                      style={{ width: `${engagement.total}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                    {Object.entries(engagement.breakdown).map(([key, val]) => (
+                      <div key={key} className="flex justify-between rounded-lg bg-white/[0.03] px-2 py-1.5">
+                        <span className="text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="font-medium text-slate-300">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline Events */}
+              {tabLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.03]" />
+                  ))}
+                </div>
+              ) : timelineEvents.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-600">No activity yet</p>
+              ) : (
+                <div className="space-y-1">
+                  {timelineEvents.map((event) => (
+                    <div key={event.id} className="flex items-start gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-white/[0.03]">
+                      <span className="mt-0.5 text-lg">{event.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-200">{event.title}</p>
+                        <p className="text-xs text-slate-500 truncate">{event.description}</p>
+                      </div>
+                      <span className="shrink-0 text-xs text-slate-600">{timeAgo(event.created_at)}</span>
+                    </div>
+                  ))}
+                  {timelineTotal > timelineEvents.length && (
+                    <button
+                      onClick={() => setTimelinePage(p => p + 1)}
+                      className="w-full rounded-lg py-2 text-center text-xs text-indigo-400 hover:bg-white/[0.03]"
+                    >
+                      Load more...
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <DataTable
+              columns={tabColumnMap[activeTab] || []}
+              data={tabData}
+              loading={tabLoading}
+              emptyMessage={`No ${activeTab.replace('_', ' ')} found`}
+              pagination={
+                ['generations', 'transactions'].includes(activeTab)
+                  ? { page: tabPage, total: tabTotal, limit: 20, onPageChange: setTabPage }
+                  : undefined
+              }
+            />
+          )}
         </div>
       </div>
 
