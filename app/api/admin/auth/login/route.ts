@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
 
   // Rate limit check
-  if (!checkLoginRateLimit(ip)) {
+  if (!(await checkLoginRateLimit(ip))) {
     return NextResponse.json(
       { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
       { status: 429 }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Success — create token and set cookie
-    resetLoginAttempts(ip);
+    await resetLoginAttempts(ip);
     const token = await createAdminToken();
 
     const response = NextResponse.json({ success: true });

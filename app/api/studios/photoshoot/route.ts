@@ -7,7 +7,7 @@ import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
@@ -36,10 +36,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check maintenance mode
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json(
-        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
-        { status: 503 }
-      );
+      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+    }
+    const studioConfig = await getStudioConfig();
+    if (!isStudioEnabled(studioConfig, 'photoshoot')) {
+      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
     }
 
     const body = await request.json();
