@@ -73,8 +73,44 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
   // ===== END ADMIN API ROUTES =====
 
+  // ===== API ROUTE AUTH (defense-in-depth) =====
+  if (pathname.startsWith('/api/')) {
+    const publicApiPaths = [
+      '/api/stripe/webhook',
+      '/api/public/',
+      '/api/admin/',
+    ];
+
+    const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));
+
+    if (!isPublicApi) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createServerClient(supabaseUrl, supabaseKey, {
+          cookies: {
+            getAll() { return request.cookies.getAll(); },
+            setAll(cookiesToSet) {
+              cookiesToSet.forEach(({ name, value }) => { request.cookies.set(name, value); });
+            },
+          },
+        });
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+          return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+        }
+      }
+    }
+
+    return NextResponse.next();
+  }
+  // ===== END API ROUTE AUTH =====
+
   // Public paths: run intl middleware and return immediately (no auth check)
-  if (isPublicPath(pathname) || pathname.startsWith('/api')) {
+  if (isPublicPath(pathname)) {
     const intlResponse = intlMiddleware(request);
     return intlResponse || NextResponse.next({ request });
   }
