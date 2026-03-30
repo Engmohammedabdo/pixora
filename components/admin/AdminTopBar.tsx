@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { LogOut, Shield } from 'lucide-react';
 import { useState } from 'react';
 
 const pageNames: Record<string, string> = {
@@ -17,14 +17,10 @@ const pageNames: Record<string, string> = {
 };
 
 function getBreadcrumb(pathname: string): string {
-  // Exact match
   if (pageNames[pathname]) return pageNames[pathname];
-
-  // Check prefix matches (e.g. /admin/users/[id])
   for (const [path, name] of Object.entries(pageNames)) {
     if (pathname.startsWith(path + '/')) return name;
   }
-
   return 'Admin';
 }
 
@@ -46,23 +42,24 @@ export default function AdminTopBar() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.06] bg-slate-950/50 px-6 backdrop-blur-md">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-400">Admin</span>
-        <span className="text-slate-300">/</span>
-        <span className="font-medium text-slate-900">{currentPage}</span>
+      <div className="flex items-center gap-2.5 text-sm">
+        <span className="text-slate-500">Admin</span>
+        <span className="text-slate-700">/</span>
+        <span className="font-semibold text-white">{currentPage}</span>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-3">
-        <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-          Admin
-        </span>
+        <div className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1 ring-1 ring-indigo-500/20">
+          <Shield className="h-3 w-3 text-indigo-400" />
+          <span className="text-xs font-semibold text-indigo-400">Admin</span>
+        </div>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
         >
           <LogOut className="h-3.5 w-3.5" />
           {loggingOut ? 'Logging out...' : 'Logout'}
