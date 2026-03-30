@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut, Shield } from 'lucide-react';
+import { LogOut, Shield, Search } from 'lucide-react';
 import { useState } from 'react';
 
 const pageNames: Record<string, string> = {
@@ -26,7 +26,11 @@ function getBreadcrumb(pathname: string): string {
   return 'Admin';
 }
 
-export default function AdminTopBar() {
+interface AdminTopBarProps {
+  onSearchClick?: () => void;
+}
+
+export default function AdminTopBar({ onSearchClick }: AdminTopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -53,7 +57,19 @@ export default function AdminTopBar() {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        {/* Search button */}
+        <button
+          onClick={onSearchClick}
+          className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-xs text-slate-500 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04] hover:text-slate-300"
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Search...</span>
+          <kbd className="hidden rounded border border-white/[0.1] bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium sm:inline-block">
+            ⌘K
+          </kbd>
+        </button>
+
         <div className="flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1 ring-1 ring-indigo-500/20">
           <Shield className="h-3 w-3 text-indigo-400" />
           <span className="text-xs font-semibold text-indigo-400">Admin</span>
