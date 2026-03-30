@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
-import { PLANS } from '@/lib/stripe/plans';
+import { PLANS, ANNUAL_PLANS } from '@/lib/stripe/plans';
 
 const InputSchema = z.object({
   planId: z.enum(['starter', 'pro', 'business', 'agency']),
+  billing: z.enum(['monthly', 'annual']).default('monthly'),
 });
 
 async function getOrCreateStripeCustomer(
@@ -46,12 +47,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body = await request.json();
-    const { planId } = InputSchema.parse(body);
+    const { planId, billing } = InputSchema.parse(body);
 
     const plan = PLANS[planId];
     if (!plan || !plan.priceId) {
       return NextResponse.json({ success: false, error: 'invalid_plan' }, { status: 400 });
     }
+
+    // Use annual price if billing=annual and annual plan exists
+    const priceId = billing === 'annual' && ANNUAL_PLANS[planId]
+      ? ANNUAL_PLANS[planId].annualPriceId
+      : plan.priceId;
 
     const customerId = await getOrCreateStripeCustomer(supabase, user.id, user.email || '');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: plan.priceId, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/${locale}/billing?success=true&plan=${planId}`,
       cancel_url: `${appUrl}/${locale}/billing`,
       metadata: {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { randomUUID } from 'crypto';
 
-const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -38,7 +38,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const ext = file.name.split('.').pop() || 'png';
+    // Derive extension from MIME type, NOT filename (prevents extension spoofing)
+    const mimeToExt: Record<string, string> = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+      'audio/mpeg': 'mp3',
+      'audio/wav': 'wav',
+      'video/mp4': 'mp4',
+    };
+    const ext = mimeToExt[file.type] || 'bin';
     const fileName = `${user.id}/${randomUUID()}.${ext}`;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

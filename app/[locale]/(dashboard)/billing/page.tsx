@@ -12,7 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { PlanCard } from '@/components/billing/PlanCard';
 import { TopupCard } from '@/components/billing/TopupCard';
 import { TransactionTable } from '@/components/billing/TransactionTable';
-import { PLANS, TOPUPS, getPlan } from '@/lib/stripe/plans';
+import { PLANS, ANNUAL_PLANS, TOPUPS, getPlan } from '@/lib/stripe/plans';
+import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Check, CreditCard, Coins, Sparkles, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ export default function BillingPage(): React.ReactElement {
   const { balance } = useCreditsStore();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [isAnnual, setIsAnnual] = useState(false);
 
   const success = searchParams.get('success');
   const currentPlanId = profile?.plan_id || 'free';
@@ -35,7 +37,7 @@ export default function BillingPage(): React.ReactElement {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, billing: isAnnual ? 'annual' : 'monthly' }),
       });
       const data = await res.json();
       if (data.success && data.data.url) {
@@ -140,17 +142,34 @@ export default function BillingPage(): React.ReactElement {
           <Sparkles className="h-5 w-5 text-primary-500" />
           <h2 className="text-xl font-bold font-cairo">{t('plansAndPricing')}</h2>
         </div>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <span className={cn('text-sm font-medium', !isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}>شهري</span>
+          <button
+            onClick={() => setIsAnnual(!isAnnual)}
+            className={cn('relative w-14 h-7 rounded-full transition-colors', isAnnual ? 'bg-primary-500' : 'bg-surface-2')}
+          >
+            <div className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', isAnnual ? 'end-0.5' : 'start-0.5')} />
+          </button>
+          <span className={cn('text-sm font-medium', isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}>
+            سنوي
+            <Badge variant="secondary" className="ms-1.5 text-[9px] text-green-600 dark:text-green-400">وفّر 18%</Badge>
+          </span>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {Object.values(PLANS).map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              isCurrentPlan={currentPlanId === plan.id}
-              onSelect={handleSubscribe}
-              loading={loading}
-              locale="ar"
-            />
-          ))}
+          {Object.values(PLANS).map((plan) => {
+            const annualInfo = isAnnual && ANNUAL_PLANS[plan.id] ? ANNUAL_PLANS[plan.id] : null;
+            const displayPlan = annualInfo ? { ...plan, price: annualInfo.annualMonthly } : plan;
+            return (
+              <PlanCard
+                key={plan.id}
+                plan={displayPlan}
+                isCurrentPlan={currentPlanId === plan.id}
+                onSelect={handleSubscribe}
+                loading={loading}
+                locale="ar"
+              />
+            );
+          })}
         </div>
       </section>
 

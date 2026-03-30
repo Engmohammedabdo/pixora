@@ -157,3 +157,17 @@ export function getCreditsForPlan(planId: string): number {
 export function getMaxResolution(planId: string): '1080p' | '2K' | '4K' {
   return getPlan(planId).resolution;
 }
+
+// Warn if placeholder price IDs are used in production
+if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
+  Object.entries(PLANS).forEach(([id, plan]) => {
+    if (plan.priceId?.includes('placeholder')) {
+      console.warn(`⚠️ Stripe price ID for "${id}" plan is a placeholder. Set STRIPE_${id.toUpperCase()}_PRICE_ID env var.`);
+    }
+  });
+  Object.entries(TOPUPS).forEach(([id, topup]) => {
+    if (topup.priceId?.includes('placeholder')) {
+      console.warn(`⚠️ Stripe top-up price ID for "${id}" is a placeholder. Set STRIPE_TOPUP_${id.toUpperCase()}_PRICE_ID env var.`);
+    }
+  });
+}

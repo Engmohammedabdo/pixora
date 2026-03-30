@@ -68,12 +68,23 @@ export default function AssetsPage(): React.ReactElement {
   };
 
   const handleDeleteSelected = async (): Promise<void> => {
-    const promises = Array.from(selectedIds).map((id) =>
-      fetch(`/api/assets/${id}`, { method: 'DELETE' })
-    );
-    await Promise.all(promises);
-    setSelectedIds(new Set());
-    fetchAssets();
+    try {
+      const res = await fetch('/api/assets/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`تم حذف ${selectedIds.size} ملف`);
+        setSelectedIds(new Set());
+        fetchAssets();
+      } else {
+        toast.error('فشل الحذف');
+      }
+    } catch {
+      toast.error('حدث خطأ في الحذف');
+    }
   };
 
   const handleDownloadSelected = (): void => {
