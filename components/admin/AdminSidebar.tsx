@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
+  TrendingUp,
   Users,
   Palette,
   CreditCard,
@@ -38,6 +39,7 @@ type NavItem = NavLink | NavSeparator;
 
 const navItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/analytics', label: 'Analytics', icon: TrendingUp },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/generations', label: 'Generations', icon: Palette },
   { href: '/admin/transactions', label: 'Transactions', icon: CreditCard },

@@ -317,6 +317,92 @@ export interface Database {
         };
         Relationships: [];
       };
+      subscription_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: string;
+          from_plan: string | null;
+          to_plan: string | null;
+          stripe_subscription_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_type: string;
+          from_plan?: string | null;
+          to_plan?: string | null;
+          stripe_subscription_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          event_type?: string;
+          from_plan?: string | null;
+          to_plan?: string | null;
+        };
+        Relationships: [];
+      };
+      user_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: string;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_type: string;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          event_type?: string;
+          metadata?: Record<string, unknown>;
+        };
+        Relationships: [];
+      };
+      daily_metrics: {
+        Row: {
+          date: string;
+          total_users: number;
+          new_signups: number;
+          active_users: number;
+          paying_users: number;
+          churned_users: number;
+          mrr_cents: number;
+          revenue_cents: number;
+          total_generations: number;
+          failed_generations: number;
+          credits_consumed: number;
+          credits_purchased: number;
+          created_at: string;
+        };
+        Insert: {
+          date: string;
+          total_users?: number;
+          new_signups?: number;
+          active_users?: number;
+          paying_users?: number;
+          churned_users?: number;
+          mrr_cents?: number;
+          revenue_cents?: number;
+          total_generations?: number;
+          failed_generations?: number;
+          credits_consumed?: number;
+          credits_purchased?: number;
+        };
+        Update: {
+          total_users?: number;
+          new_signups?: number;
+          active_users?: number;
+          paying_users?: number;
+          mrr_cents?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
