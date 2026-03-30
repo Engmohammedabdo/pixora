@@ -23,7 +23,7 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
 
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="text-sm font-medium">Resolution</label>
+      <label className="text-sm font-medium">دقة الصورة</label>
       <div className="flex gap-2">
         {resolutions.map((res) => (
           <button

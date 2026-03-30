@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 
 const STAGES = [
-  { label: 'تحليل البرومبت...', progress: 20 },
-  { label: 'توليد بالذكاء الاصطناعي...', progress: 60 },
-  { label: 'تحسين الجودة...', progress: 85 },
+  { label: 'بايرا تحلل طلبك... 🦊', progress: 20 },
+  { label: 'بايرا تشتغل على النتيجة...', progress: 60 },
+  { label: 'بايرا تحسّن الجودة...', progress: 85 },
   { label: 'جاري الانتهاء...', progress: 95 },
 ];
 
