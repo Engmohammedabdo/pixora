@@ -65,10 +65,10 @@ function timeAgo(dateStr: string): string {
 }
 
 const statusColors: Record<string, string> = {
-  completed: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-red-100 text-red-700',
-  pending: 'bg-amber-100 text-amber-700',
-  processing: 'bg-blue-100 text-blue-700',
+  completed: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
+  failed: 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
+  pending: 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20',
+  processing: 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
 };
 
 const generationColumns: Column<GenerationRow>[] = [
@@ -83,7 +83,7 @@ const generationColumns: Column<GenerationRow>[] = [
     key: 'status',
     label: 'Status',
     render: (row) => (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[row.status] || 'bg-slate-100 text-slate-700'}`}>
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[row.status] || 'bg-slate-100 text-slate-300'}`}>
         {row.status}
       </span>
     ),
@@ -127,7 +127,7 @@ const lowCreditColumns: Column<LowCreditRow>[] = [
     key: 'plan_id',
     label: 'Plan',
     render: (row) => (
-      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+      <span className="inline-flex items-center rounded-full bg-slate-500/10 px-2 py-0.5 text-xs font-medium text-slate-400 ring-1 ring-slate-500/20">
         {row.plan_id}
       </span>
     ),
@@ -209,7 +209,7 @@ export default function AdminDashboardPage() {
       {/* Page Header */}
       <div className="mb-6 flex items-center gap-3">
         <LayoutDashboard className="h-6 w-6 text-indigo-500" />
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
       </div>
 
       {/* KPI Cards */}

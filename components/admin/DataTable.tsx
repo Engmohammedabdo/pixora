@@ -45,6 +45,15 @@ export default function DataTable<T extends Record<string, unknown>>({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  }
+
   function handleExportCSV() {
     const exportColumns = columns.filter(c => c.key !== 'actions');
     const header = exportColumns.map(c => c.label).join(',');
@@ -67,15 +76,6 @@ export default function DataTable<T extends Record<string, unknown>>({
     URL.revokeObjectURL(url);
   }
 
-  function handleSort(key: string) {
-    if (sortKey === key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-  }
-
   const sortedData = sortKey
     ? [...data].sort((a, b) => {
         const aVal = a[sortKey];
@@ -90,11 +90,11 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        {title && <div className="border-b border-slate-200 px-5 py-3"><h3 className="text-sm font-semibold text-slate-700">{title}</h3></div>}
-        <div className="p-5 space-y-3">
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+        {title && <div className="border-b border-white/[0.06] px-5 py-3"><h3 className="text-sm font-semibold text-slate-300">{title}</h3></div>}
+        <div className="p-5 space-y-2.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-10 animate-pulse rounded bg-slate-100" />
+            <div key={i} className="h-10 animate-pulse rounded-lg bg-white/[0.03]" />
           ))}
         </div>
       </div>
@@ -104,18 +104,18 @@ export default function DataTable<T extends Record<string, unknown>>({
   const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
       {(title || exportable) && (
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          {title && <h3 className="text-sm font-semibold text-slate-700">{title}</h3>}
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+          {title && <h3 className="text-sm font-semibold text-slate-300">{title}</h3>}
           {exportable && data.length > 0 && (
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-500 transition-colors hover:bg-white/[0.04] hover:text-slate-300"
               title="Export to CSV"
             >
               <Download className="h-3.5 w-3.5" />
-              CSV
+              Export
             </button>
           )}
         </div>
@@ -123,11 +123,11 @@ export default function DataTable<T extends Record<string, unknown>>({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-white/[0.06]">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 text-left font-medium text-slate-600 ${col.sortable ? 'cursor-pointer select-none hover:text-slate-900' : ''}`}
+                  className={`px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 ${col.sortable ? 'cursor-pointer select-none transition-colors hover:text-slate-300' : ''}`}
                   style={col.width ? { width: col.width } : undefined}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
@@ -144,7 +144,7 @@ export default function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {sortedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={columns.length} className="px-5 py-12 text-center text-slate-600">
                   {emptyMessage}
                 </td>
               </tr>
@@ -153,9 +153,9 @@ export default function DataTable<T extends Record<string, unknown>>({
                 <>
                   <tr
                     key={rowIndex}
-                    className={`border-b border-slate-100 transition-colors ${
-                      onRowClick || expandable ? 'cursor-pointer hover:bg-slate-50' : ''
-                    } ${expandedRow === rowIndex ? 'bg-slate-50' : ''}`}
+                    className={`border-b border-white/[0.03] transition-colors ${
+                      onRowClick || expandable ? 'cursor-pointer hover:bg-white/[0.03]' : ''
+                    } ${expandedRow === rowIndex ? 'bg-white/[0.03]' : ''}`}
                     onClick={() => {
                       if (expandable) {
                         setExpandedRow(expandedRow === rowIndex ? null : rowIndex);
@@ -164,14 +164,14 @@ export default function DataTable<T extends Record<string, unknown>>({
                     }}
                   >
                     {columns.map((col) => (
-                      <td key={col.key} className="px-4 py-3 text-slate-700">
+                      <td key={col.key} className="px-5 py-3 text-slate-300">
                         {col.render ? col.render(row) : String(row[col.key] ?? '—')}
                       </td>
                     ))}
                   </tr>
                   {expandable && expandedRow === rowIndex && renderExpanded && (
                     <tr key={`expanded-${rowIndex}`}>
-                      <td colSpan={columns.length} className="bg-slate-50 px-4 py-3">
+                      <td colSpan={columns.length} className="bg-white/[0.02] px-5 py-4 border-b border-white/[0.03]">
                         {renderExpanded(row)}
                       </td>
                     </tr>
@@ -184,7 +184,7 @@ export default function DataTable<T extends Record<string, unknown>>({
       </div>
 
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
           <p className="text-xs text-slate-500">
             Page {pagination.page} of {totalPages} ({pagination.total} total)
           </p>
@@ -192,14 +192,14 @@ export default function DataTable<T extends Record<string, unknown>>({
             <button
               onClick={() => pagination.onPageChange(pagination.page - 1)}
               disabled={pagination.page <= 1}
-              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/[0.04] hover:text-slate-300 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               onClick={() => pagination.onPageChange(pagination.page + 1)}
               disabled={pagination.page >= totalPages}
-              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/[0.04] hover:text-slate-300 disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
