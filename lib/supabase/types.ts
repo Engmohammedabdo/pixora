@@ -18,6 +18,7 @@ export interface Database {
           onboarding_completed: boolean;
           onboarding_step: number;
           team_id: string | null;
+          payment_failed: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -36,6 +37,7 @@ export interface Database {
           stripe_subscription_id?: string | null;
           onboarding_completed?: boolean;
           onboarding_step?: number;
+          payment_failed?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -54,7 +56,25 @@ export interface Database {
           stripe_subscription_id?: string | null;
           onboarding_completed?: boolean;
           onboarding_step?: number;
+          payment_failed?: boolean;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      webhook_events: {
+        Row: {
+          event_id: string;
+          event_type: string;
+          processed_at: string;
+        };
+        Insert: {
+          event_id: string;
+          event_type: string;
+          processed_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          event_type?: string;
         };
         Relationships: [];
       };
