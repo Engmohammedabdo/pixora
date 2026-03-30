@@ -6,12 +6,14 @@ import { useState } from 'react';
 
 const pageNames: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
+  '/admin/analytics': 'Analytics',
   '/admin/users': 'Users',
   '/admin/generations': 'Generations',
   '/admin/transactions': 'Transactions',
   '/admin/studios': 'Studios',
   '/admin/models': 'AI Models',
   '/admin/prompts': 'Prompts',
+  '/admin/health': 'System Health',
   '/admin/settings': 'Settings',
   '/admin/logs': 'Logs',
 };

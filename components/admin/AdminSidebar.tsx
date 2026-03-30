@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Bot,
   FileText,
+  Activity,
   Settings,
   ScrollText,
   ChevronLeft,
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { href: '/admin/models', label: 'AI Models', icon: Bot },
   { href: '/admin/prompts', label: 'Prompts', icon: FileText },
   { type: 'separator', label: 'System' },
+  { href: '/admin/health', label: 'Health', icon: Activity },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
   { href: '/admin/logs', label: 'Logs', icon: ScrollText },
 ];
