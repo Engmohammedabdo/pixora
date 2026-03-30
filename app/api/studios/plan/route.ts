@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
-import { deductCredits } from '@/lib/credits/deduct';
-import { checkCredits } from '@/lib/credits/check';
+import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { buildPlanPrompt, getMockPlan } from '@/lib/ai/prompts/plan';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
@@ -42,15 +41,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const input = InputSchema.parse(body);
     const creditCost = CREDIT_COSTS.plan;
 
-    const creditCheck = await checkCredits({ supabase, userId: user.id, amount: creditCost });
-    if (!creditCheck.hasEnough) {
-      return NextResponse.json({ success: false, error: 'insufficient_credits', required: creditCost, available: creditCheck.currentBalance }, { status: 402 });
-    }
-
     const { data: generation } = await supabase.from('generations').insert({
       user_id: user.id, studio: 'plan', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
+    // Reserve credits (atomic check + deduct)
+    const reserveResult = await reserveCredits({
+      supabase, userId: user.id, amount: creditCost,
+      studio: 'plan', description: `Marketing Plan - ${input.businessName}`,
+      generationId: generation?.id,
+    });
+    if (!reserveResult.success) {
+      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      return NextResponse.json({
+        success: false,
+        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        required: creditCost,
+      }, { status: 402 });
+    }
+
+    try {
     const prompt = buildPlanPrompt({ ...input, duration: parseInt(input.duration, 10) });
     const result = await generateText({ prompt, maxTokens: 8192 });
 
@@ -60,20 +70,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       plan = jsonMatch ? JSON.parse(jsonMatch[0]) : getMockPlan();
     } catch { plan = getMockPlan(); }
 
-    const deductResult = await deductCredits({ supabase, userId: user.id, amount: creditCost, studio: 'plan', description: `Marketing Plan - ${input.businessName}`, generationId: generation?.id });
-
-    if (!deductResult.success) {
-      return NextResponse.json(
-        { success: false, error: 'credit_deduction_failed' },
-        { status: 402 }
-      );
-    }
-
     if (generation) {
       await supabase.from('generations').update({ output: { plan, mock: result.mock }, status: 'completed' }).eq('id', generation.id);
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: deductResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
+    } catch (genError) {
+      await refundCredits({
+        supabase, userId: user.id, amount: creditCost,
+        description: `Refund: plan generation failed`,
+        generationId: generation?.id,
+      });
+      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      throw genError;
+    }
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
     if (error instanceof PromptBlockedError) {
