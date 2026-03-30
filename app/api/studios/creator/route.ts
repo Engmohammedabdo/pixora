@@ -6,6 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateImage } from '@/lib/ai/router';
 import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt } from '@/lib/admin/settings';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { maybeWatermark } from '@/lib/image/watermark';
@@ -36,6 +37,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
+    // Check if studio is enabled via admin settings
+    const studioConfig = await getStudioConfig();
+    if (!isStudioEnabled(studioConfig, 'creator')) {
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
+    }
+
     const body = await request.json();
     const input = InputSchema.parse(body);
 
@@ -54,8 +61,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Calculate credit cost
-    const creditCost = CREDIT_COSTS.image[input.resolution];
+    // Calculate credit cost (use admin override if set)
+    const creditCost = getEffectiveCost(studioConfig, 'creator', input.resolution);
     const totalCost = creditCost * input.variations;
 
     // Check credits
@@ -89,8 +96,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandKit = data;
     }
 
-    // Build prompt
-    const fullPrompt = buildCreatorPrompt({
+    // Build prompt (check for admin override first)
+    const promptOverride = await getEffectivePrompt('creator');
+    const fullPrompt = promptOverride || buildCreatorPrompt({
       userPrompt: input.prompt,
       style: input.style,
       resolution: input.resolution,

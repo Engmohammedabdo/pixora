@@ -6,6 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt } from '@/lib/admin/settings';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -50,10 +51,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
+    // Check if studio is enabled via admin settings
+    const studioConfig = await getStudioConfig();
+    if (!isStudioEnabled(studioConfig, 'campaign')) {
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
+    }
+
     const body = await request.json();
     const input = InputSchema.parse(body);
 
-    const creditCost = CREDIT_COSTS.campaign; // 12 credits (includes image generation)
+    // Use admin-configured cost or default
+    const creditCost = getEffectiveCost(studioConfig, 'campaign');
 
     const creditCheck = await checkCredits({
       supabase,
@@ -80,8 +88,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandName = kit?.name;
     }
 
-    // Build prompt
-    const prompt = buildCampaignPrompt({
+    // Build prompt (check for admin override first)
+    const promptOverride = await getEffectivePrompt('campaign');
+    const prompt = promptOverride || buildCampaignPrompt({
       productDescription: input.productDescription,
       targetAudience: input.targetAudience,
       dialect: input.dialect,

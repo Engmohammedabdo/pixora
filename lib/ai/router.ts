@@ -1,7 +1,26 @@
 import { generateImage as geminiImage, generateText as geminiText } from './gemini';
 import { generateImage as openaiImage, generateText as openaiText } from './openai';
 import { generateFlux } from './replicate';
+import { getModelConfig, getEnabledModels, type ModelConfig } from '@/lib/admin/settings';
 import type { AIModel, Studio } from '@/types/studios';
+
+// Cached model config to avoid DB hit on every generation
+let modelConfigCache: { data: ModelConfig; fetchedAt: number } | null = null;
+const CACHE_TTL = 60_000; // 60 seconds
+
+async function getCachedModelConfig(): Promise<ModelConfig> {
+  if (modelConfigCache && Date.now() - modelConfigCache.fetchedAt < CACHE_TTL) {
+    return modelConfigCache.data;
+  }
+  try {
+    const config = await getModelConfig();
+    modelConfigCache = { data: config, fetchedAt: Date.now() };
+    return config;
+  } catch {
+    // If DB is unavailable, return defaults
+    return { enabled: ['gemini', 'gpt', 'flux'], fallback_order: ['gemini', 'gpt', 'flux'] };
+  }
+}
 
 interface ImageGenerationInput {
   prompt: string;
@@ -67,11 +86,14 @@ export function getDefaultModel(studio: Studio): AIModel {
 export async function generateImage(input: ImageGenerationInput): Promise<GenerationResult> {
   const preferredModel = input.model;
 
-  // Build fallback order starting with preferred model
-  const fallbackOrder = [
-    preferredModel,
-    ...IMAGE_FALLBACK_ORDER.filter((m) => m !== preferredModel),
-  ];
+  // Build fallback order using admin-configured enabled models
+  const modelConfig = await getCachedModelConfig();
+  const enabledModels = getEnabledModels(modelConfig) as AIModel[];
+  const adminOrder = enabledModels.length > 0 ? enabledModels : IMAGE_FALLBACK_ORDER;
+
+  const fallbackOrder = enabledModels.includes(preferredModel)
+    ? [preferredModel, ...adminOrder.filter((m) => m !== preferredModel)]
+    : [...adminOrder];
 
   let lastError: Error | null = null;
 
@@ -122,10 +144,14 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
 export async function generateText(input: TextGenerationInput): Promise<GenerationResult> {
   const preferredModel = input.model || 'gemini';
 
-  const fallbackOrder = [
-    preferredModel,
-    ...TEXT_FALLBACK_ORDER.filter((m) => m !== preferredModel),
-  ];
+  // Use admin-configured enabled models for text fallback
+  const modelConfig = await getCachedModelConfig();
+  const enabledTextModels = getEnabledModels(modelConfig).filter(m => TEXT_FALLBACK_ORDER.includes(m as AIModel)) as AIModel[];
+  const textOrder = enabledTextModels.length > 0 ? enabledTextModels : TEXT_FALLBACK_ORDER;
+
+  const fallbackOrder = textOrder.includes(preferredModel)
+    ? [preferredModel, ...textOrder.filter((m) => m !== preferredModel)]
+    : [...textOrder];
 
   let lastError: Error | null = null;
 
