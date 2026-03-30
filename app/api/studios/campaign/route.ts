@@ -6,7 +6,7 @@ import { checkCredits } from '@/lib/credits/check';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt } from '@/lib/admin/settings';
+import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -49,6 +49,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
+    }
+
+    // Check maintenance mode
+    const flags = await getCachedFeatureFlags();
+    if (flags.maintenance_mode) {
+      return NextResponse.json(
+        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
+        { status: 503 }
+      );
     }
 
     // Check if studio is enabled via admin settings

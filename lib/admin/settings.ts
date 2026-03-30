@@ -98,16 +98,34 @@ export interface FeatureFlags {
   daily_bonus_enabled: boolean;
 }
 
+const FEATURE_FLAGS_DEFAULTS: FeatureFlags = {
+  maintenance_mode: false,
+  registration_enabled: true,
+  free_plan_enabled: true,
+  referral_enabled: true,
+  daily_bonus_enabled: true,
+};
+
 export async function getFeatureFlags(): Promise<FeatureFlags> {
-  const defaults: FeatureFlags = {
-    maintenance_mode: false,
-    registration_enabled: true,
-    free_plan_enabled: true,
-    referral_enabled: true,
-    daily_bonus_enabled: true,
-  };
   const flags = await getSetting<Partial<FeatureFlags>>('feature_flags');
-  return { ...defaults, ...flags };
+  return { ...FEATURE_FLAGS_DEFAULTS, ...flags };
+}
+
+// Cached feature flags (60s TTL) to avoid DB hit on every request
+let featureFlagsCache: { data: FeatureFlags; fetchedAt: number } | null = null;
+const FLAGS_CACHE_TTL = 60_000;
+
+export async function getCachedFeatureFlags(): Promise<FeatureFlags> {
+  if (featureFlagsCache && Date.now() - featureFlagsCache.fetchedAt < FLAGS_CACHE_TTL) {
+    return featureFlagsCache.data;
+  }
+  try {
+    const flags = await getFeatureFlags();
+    featureFlagsCache = { data: flags, fetchedAt: Date.now() };
+    return flags;
+  } catch {
+    return FEATURE_FLAGS_DEFAULTS;
+  }
 }
 
 // ============ Rate Limits ============

@@ -26,6 +26,17 @@ export default function SignupPage(): React.ReactElement {
     setError('');
     setLoading(true);
 
+    // Check if registration is enabled
+    try {
+      const regCheck = await fetch('/api/public/registration-check');
+      const regData = await regCheck.json();
+      if (!regData.registration_enabled) {
+        setError('Registration is currently disabled. Please try again later.');
+        setLoading(false);
+        return;
+      }
+    } catch { /* proceed if check fails */ }
+
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
