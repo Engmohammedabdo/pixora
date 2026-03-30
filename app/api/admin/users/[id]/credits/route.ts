@@ -61,8 +61,8 @@ export async function POST(
   await supabase.from('credit_transactions').insert({
     user_id: id,
     amount,
-    type: amount > 0 ? 'refund' : 'usage',
-    description: `[Admin] ${reason}`,
+    type: 'admin_adjustment',
+    description: `[Admin ${amount > 0 ? 'Add' : 'Deduct'}] ${reason}`,
     balance_after: newBalance,
   });
 

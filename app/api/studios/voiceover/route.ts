@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { checkCredits } from '@/lib/credits/check';
 import { deductCredits } from '@/lib/credits/deduct';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { generateTTS } from '@/lib/ai/tts-router';
 import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
+    }
+
+    const flags = await getCachedFeatureFlags();
+    if (flags.maintenance_mode) {
+      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+    }
+    const studioConfig = await getStudioConfig();
+    if (!isStudioEnabled(studioConfig, 'voiceover')) {
+      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
     }
 
     const body = await req.json();

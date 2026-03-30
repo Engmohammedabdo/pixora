@@ -56,6 +56,23 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
   // ===== END ADMIN ROUTES =====
 
+  // ===== ADMIN API ROUTES — Defense-in-depth JWT check =====
+  if (pathname.startsWith('/api/admin') && !pathname.startsWith('/api/admin/auth/login')) {
+    const adminToken = request.cookies.get('admin_session')?.value;
+    if (!adminToken) {
+      return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+    try {
+      const secret = process.env.ADMIN_JWT_SECRET;
+      if (!secret) throw new Error('No secret');
+      await jwtVerify(adminToken, new TextEncoder().encode(secret));
+    } catch {
+      return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+    return NextResponse.next();
+  }
+  // ===== END ADMIN API ROUTES =====
+
   // Public paths: run intl middleware and return immediately (no auth check)
   if (isPublicPath(pathname) || pathname.startsWith('/api')) {
     const intlResponse = intlMiddleware(request);
@@ -114,5 +131,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ['/((?!_next|api|.*\\..*).*)'],
+  matcher: ['/((?!_next|.*\\..*).*)'],
 };

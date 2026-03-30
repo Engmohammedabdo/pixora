@@ -1,4 +1,5 @@
 import { createAdminClient } from './db';
+import { getStudioCost } from '@/lib/credits/costs';
 
 // ============ Generic Settings ============
 
@@ -53,7 +54,6 @@ export function getEffectiveCost(config: StudioConfig, studio: string, resolutio
     if (override['default'] !== undefined) return override['default'];
   }
   // Fall back to code defaults
-  const { getStudioCost } = require('@/lib/credits/costs');
   return getStudioCost(studio, resolution);
 }
 

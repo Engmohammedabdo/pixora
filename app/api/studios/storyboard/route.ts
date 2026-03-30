@@ -7,6 +7,7 @@ import { generateText } from '@/lib/ai/router';
 import { buildStoryboardPrompt, getMockStoryboard } from '@/lib/ai/prompts/storyboard';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
 const InputSchema = z.object({
@@ -25,6 +26,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!(await checkRateLimit(supabase, user.id))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
+    }
+
+    const flags = await getCachedFeatureFlags();
+    if (flags.maintenance_mode) {
+      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+    }
+    const studioConfig = await getStudioConfig();
+    if (!isStudioEnabled(studioConfig, 'storyboard')) {
+      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
     }
 
     const body = await request.json();
