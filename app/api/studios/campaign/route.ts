@@ -138,8 +138,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const arr = Array.isArray(parsed) ? parsed : [];
       posts = arr.map((p: unknown) => CampaignPostSchema.parse(p));
     } catch {
-      // If parsing fails, use the raw text result
-      posts = [];
+      // AI returned invalid JSON — treat as failure
+      if (generation) {
+        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      }
+      await refundCredits({
+        supabase, userId: user.id, amount: creditCost,
+        description: 'Refund: campaign parse failure',
+        generationId: generation?.id,
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'generation_parse_failed',
+        message: 'AI returned invalid response. Please try again.',
+      }, { status: 500 });
     }
 
     // Generate images for each post if requested (included in 12 credits)

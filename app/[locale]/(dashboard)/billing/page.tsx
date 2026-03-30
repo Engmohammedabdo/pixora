@@ -15,6 +15,7 @@ import { TransactionTable } from '@/components/billing/TransactionTable';
 import { PLANS, TOPUPS, getPlan } from '@/lib/stripe/plans';
 import { Separator } from '@/components/ui/separator';
 import { Check, CreditCard, Coins, Sparkles, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function BillingPage(): React.ReactElement {
   const t = useTranslations('billing');
@@ -40,7 +41,9 @@ export default function BillingPage(): React.ReactElement {
       if (data.success && data.data.url) {
         window.location.href = data.data.url;
       }
-    } catch { /* */ } finally { setLoading(false); }
+    } catch {
+      toast.error('حدث خطأ. حاول مرة أخرى.');
+    } finally { setLoading(false); }
   };
 
   const handleTopup = async (topupId: string): Promise<void> => {
@@ -55,7 +58,9 @@ export default function BillingPage(): React.ReactElement {
       if (data.success && data.data.url) {
         window.location.href = data.data.url;
       }
-    } catch { /* */ } finally { setLoading(false); }
+    } catch {
+      toast.error('حدث خطأ. حاول مرة أخرى.');
+    } finally { setLoading(false); }
   };
 
   const handleManageSubscription = async (): Promise<void> => {
@@ -66,7 +71,9 @@ export default function BillingPage(): React.ReactElement {
       if (data.success && data.data.url) {
         window.location.href = data.data.url;
       }
-    } catch { /* */ } finally { setLoading(false); }
+    } catch {
+      toast.error('حدث خطأ. حاول مرة أخرى.');
+    } finally { setLoading(false); }
   };
 
   return (

@@ -71,7 +71,9 @@ export default function OnboardingPage(): React.ReactElement {
 
   const handleNext = (): void => {
     if (isLast) {
-      // Mark onboarding as completed (would call API in production)
+      try {
+        fetch('/api/user/onboarding', { method: 'POST' });
+      } catch { /* Non-blocking */ }
       router.push('/dashboard');
       return;
     }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useRouter, usePathname } from '@/i18n/routing';
@@ -9,9 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { User, Globe, Sun, Moon, Monitor, LogOut, Shield, FileText } from 'lucide-react';
+import { User, Globe, Sun, Moon, Monitor, LogOut, Shield, FileText, Pencil } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { toast } from 'sonner';
 
 export default function SettingsPage(): React.ReactElement {
   const t = useTranslations('settings');
@@ -19,6 +22,33 @@ export default function SettingsPage(): React.ReactElement {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile?.name) setEditName(profile.name);
+  }, [profile]);
+
+  const handleSave = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      if (editName !== profile?.name) formData.append('name', editName);
+      const avatarInput = document.getElementById('avatar-upload') as HTMLInputElement;
+      if (avatarInput?.files?.[0]) formData.append('avatar', avatarInput.files[0]);
+
+      const res = await fetch('/api/user/profile', { method: 'PATCH', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('تم تحديث الملف الشخصي');
+        setEditing(false);
+        window.location.reload();
+      } else {
+        toast.error(data.error || 'فشل التحديث');
+      }
+    } catch { toast.error('حدث خطأ في الشبكة'); } finally { setSaving(false); }
+  };
 
   const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
   const switchLocale = currentLocale === 'ar' ? 'en' : 'ar';
@@ -42,6 +72,14 @@ export default function SettingsPage(): React.ReactElement {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <User className="h-4 w-4" /> {t('profile')}
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="ms-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -50,11 +88,36 @@ export default function SettingsPage(): React.ReactElement {
               <AvatarImage src={profile?.avatar_url || undefined} />
               <AvatarFallback className="text-lg">{initials}</AvatarFallback>
             </Avatar>
-            <div>
-              <p className="font-semibold text-lg">{profile?.name || '-'}</p>
-              <p className="text-sm text-[var(--color-text-secondary)]">{profile?.email || '-'}</p>
-              <Badge variant="secondary" className="mt-1">{profile?.plan_id || 'free'}</Badge>
-            </div>
+            {editing ? (
+              <div className="flex-1 space-y-3">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="الاسم"
+                  className="max-w-xs"
+                />
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="block text-sm text-[var(--color-text-secondary)] file:me-2 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium dark:file:bg-primary-900/30"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSave} disabled={saving}>
+                    {saving ? 'جاري الحفظ...' : 'حفظ'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
+                    إلغاء
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="font-semibold text-lg">{profile?.name || '-'}</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">{profile?.email || '-'}</p>
+                <Badge variant="secondary" className="mt-1">{profile?.plan_id || 'free'}</Badge>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -7,6 +7,7 @@ import { AssetCard } from '@/components/shared/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Download, Trash2, ImageIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Asset {
   id: string;
@@ -39,7 +40,7 @@ export default function AssetsPage(): React.ReactElement {
         setAssets(data.data || []);
       }
     } catch {
-      // Silent fail
+      toast.error('فشل تحميل الملفات. حاول مرة أخرى.');
     } finally {
       setLoading(false);
     }
