@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import DataTable, { Column } from '@/components/admin/DataTable';
 import FilterBar from '@/components/admin/FilterBar';
+import Image from 'next/image';
 import { Users, Eye } from 'lucide-react';
 
 interface UserRow extends Record<string, unknown> {
@@ -57,8 +58,7 @@ export default function AdminUsersPage() {
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600">
             {row.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={row.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+              <Image src={row.avatar_url} alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover" unoptimized />
             ) : (
               (row.name || 'U').charAt(0).toUpperCase()
             )}

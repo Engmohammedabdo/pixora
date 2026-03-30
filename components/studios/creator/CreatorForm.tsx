@@ -10,6 +10,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { Upload, X, Sparkles, Palette, Shuffle } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
 
@@ -120,8 +121,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
         <Label>{t('referenceImage')}</Label>
         {referenceImage ? (
           <div className="relative inline-block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={referenceImage} alt="" className="h-24 w-24 rounded-lg object-cover border" />
+            <Image src={referenceImage} alt="" width={96} height={96} className="h-24 w-24 rounded-lg object-cover border" unoptimized />
             <button
               type="button"
               onClick={() => setReferenceImage(null)}

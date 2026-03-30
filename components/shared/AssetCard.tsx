@@ -3,6 +3,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 import { Download, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,8 +43,9 @@ const AssetCardInner = function AssetCard({
     >
       {/* Image */}
       {type === 'image' ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="w-full aspect-square object-cover" />
+        <div className="relative w-full aspect-square">
+          <Image src={url} alt="" fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" unoptimized />
+        </div>
       ) : (
         <div className="w-full aspect-square bg-surface-2 flex items-center justify-center text-2xl">
           {type === 'video' ? '🎥' : '🎙️'}

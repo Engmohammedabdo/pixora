@@ -1,5 +1,3 @@
-'use client';
-
 import { Link } from '@/i18n/routing';
 
 const STUDIO_LINKS = [

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { Upload, X, Camera, Sparkles } from 'lucide-react';
 
 interface PhotoshootFormProps {
@@ -78,8 +79,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
         <Label>{t('productImage')} *</Label>
         {productImage ? (
           <div className="relative inline-block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={productImage} alt="" className="h-32 w-32 rounded-lg object-cover border" />
+            <Image src={productImage} alt="" width={128} height={128} className="h-32 w-32 rounded-lg object-cover border" unoptimized />
             <button
               type="button"
               onClick={() => setProductImage(null)}

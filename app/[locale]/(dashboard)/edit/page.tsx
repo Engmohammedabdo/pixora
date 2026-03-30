@@ -9,6 +9,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
 
 const EDIT_TYPES = [
@@ -54,8 +55,7 @@ export default function EditPage(): React.ReactElement {
         <Label>{tEdit('originalImage')} *</Label>
         {originalImage ? (
           <div className="relative inline-block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={originalImage} alt="" className="h-40 w-full rounded-lg object-cover border" />
+            <Image src={originalImage} alt="" width={400} height={160} className="h-40 w-full rounded-lg object-cover border" unoptimized />
             <button type="button" onClick={() => { setOriginalImage(null); setResultImage(null); }} className="absolute top-2 end-2 rounded-full bg-[var(--color-error)] p-1 text-white"><X className="h-3 w-3" /></button>
           </div>
         ) : (
@@ -94,8 +94,8 @@ export default function EditPage(): React.ReactElement {
   ) : (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && /* eslint-disable-next-line @next/next/no-img-element */ <img src={originalImage} alt="Original" className="w-full rounded-lg border" />}</div>
-        <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={resultImage} alt="Edited" className="w-full rounded-lg border" /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
+        <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && <Image src={originalImage} alt="Original" width={1024} height={1024} className="w-full rounded-lg border" unoptimized />}</div>
+        <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? <Image src={resultImage} alt="Edited" width={1024} height={1024} className="w-full rounded-lg border" unoptimized /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
       </div>
       {resultImage && (<Button onClick={() => { const a = document.createElement('a'); a.href = resultImage; a.download = 'pyrasuite-edit.png'; a.click(); }} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
     </div>

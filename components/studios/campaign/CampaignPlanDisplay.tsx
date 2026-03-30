@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import NextImage from 'next/image';
 import { Copy, Check, Download, Image, AlertTriangle, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { generateCampaignPdf, openPdfInNewTab } from '@/lib/export/pdf';
@@ -102,8 +103,9 @@ export function CampaignPlanDisplay({
           <Card key={index} className="overflow-hidden">
             {/* Image */}
             {post.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.imageUrl} alt="" className="w-full h-32 object-cover" />
+              <div className="relative w-full h-32">
+                <NextImage src={post.imageUrl} alt="" fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" unoptimized />
+              </div>
             ) : (
               <div className="w-full h-32 bg-surface-2 flex items-center justify-center">
                 <Link

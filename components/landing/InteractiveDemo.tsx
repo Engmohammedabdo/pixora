@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 const DEMO_PROMPTS = [
@@ -47,8 +48,7 @@ export function InteractiveDemo(): React.ReactElement {
         <AnimatePresence>
           {result && (
             <motion.div initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 0.6 }} className="max-w-md mx-auto">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={result} alt="Demo result" className="w-full rounded-2xl shadow-2xl" />
+              <Image src={result} alt="Demo result" width={600} height={600} className="w-full rounded-2xl shadow-2xl" unoptimized />
               <p className="text-center text-sm text-[var(--color-text-muted)] mt-4">سجّل مجاناً عشان تحفظ نتائجك وتستخدم كل الاستوديوهات</p>
             </motion.div>
           )}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image';
 import { Sparkles } from 'lucide-react';
 import type { AIModel } from '@/types/studios';
 
@@ -65,9 +66,8 @@ export function ModelComparison({ prompt, onSelect }: ModelComparisonProps): Rea
               {r?.loading ? (
                 <Skeleton className="aspect-square" />
               ) : r?.url ? (
-                <button onClick={() => onSelect?.(model.id, r.url)} className="w-full">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={r.url} alt={model.name} className="w-full aspect-square object-cover" />
+                <button onClick={() => onSelect?.(model.id, r.url)} className="w-full relative aspect-square">
+                  <Image src={r.url} alt={model.name} fill className="object-cover" sizes="(max-width: 768px) 33vw, 200px" unoptimized />
                 </button>
               ) : (
                 <div className="aspect-square bg-[var(--color-surface-2)] flex items-center justify-center text-2xl">

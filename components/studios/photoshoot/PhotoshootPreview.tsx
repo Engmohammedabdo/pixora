@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image';
 import { Download, AlertTriangle } from 'lucide-react';
 
 export interface PhotoshootShot {
@@ -89,8 +90,9 @@ export function PhotoshootPreview({
           <div key={shot.index} className="relative group rounded-lg overflow-hidden border">
             {shot.url ? (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={shot.url} alt={`Shot ${shot.index + 1}`} className="w-full aspect-square object-cover" />
+                <div className="relative w-full aspect-square">
+                  <Image src={shot.url} alt={`Shot ${shot.index + 1}`} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" unoptimized />
+                </div>
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                   <a
                     href={shot.url}

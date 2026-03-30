@@ -1,5 +1,3 @@
-'use client';
-
 import { NavBar } from '@/components/landing/NavBar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ValuePillars } from '@/components/landing/ValuePillars';

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface BeforeAfterSliderProps {
@@ -26,12 +27,10 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl, className }: BeforeAfte
       onMouseMove={(e) => { if (e.buttons === 1) handleMove(e.clientX); }}
       onTouchMove={(e) => handleMove(e.touches[0].clientX)}>
       {/* After (full) */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={afterUrl} alt="After" className="w-full h-auto" />
+      <Image src={afterUrl} alt="After" width={1024} height={1024} className="w-full h-auto" unoptimized />
       {/* Before (clipped) */}
       <div className="absolute inset-0 overflow-hidden" style={{ width: `${position}%` }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={beforeUrl} alt="Before" className="w-full h-auto" style={{ width: `${containerRef.current?.offsetWidth || 0}px` }} />
+        <Image src={beforeUrl} alt="Before" width={1024} height={1024} className="w-full h-auto" style={{ width: `${containerRef.current?.offsetWidth || 0}px` }} unoptimized />
       </div>
       {/* Divider */}
       <div className="absolute top-0 bottom-0" style={{ right: `${position}%` }}>

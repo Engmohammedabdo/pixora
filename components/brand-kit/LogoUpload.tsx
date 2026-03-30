@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import Image from 'next/image';
 import { Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -51,8 +52,7 @@ export function LogoUpload({ value, onChange }: LogoUploadProps): React.ReactEle
       <Label>{t('logo')}</Label>
       {value ? (
         <div className="relative inline-block">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="Logo" className="h-20 w-20 rounded-lg object-contain border p-2" />
+          <Image src={value} alt="Logo" width={80} height={80} className="h-20 w-20 rounded-lg object-contain border p-2" unoptimized />
           <button
             onClick={() => onChange(null)}
             className="absolute -top-2 -end-2 rounded-full bg-[var(--color-error)] p-1 text-white"
