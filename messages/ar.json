@@ -272,7 +272,12 @@
       "female_pro": "امرأة - احترافية",
       "male_youth": "رجل - شبابي",
       "female_youth": "امرأة - شبابية",
-      "male_formal": "رجل - رسمي"
+      "male_formal": "رجل - رسمي",
+      "el_arabic_male_1": "رجل عربي - احترافي 🌟",
+      "el_arabic_female_1": "امرأة عربية - احترافية 🌟",
+      "el_arabic_male_2": "رجل عربي - دافئ 🌟",
+      "el_arabic_female_2": "امرأة عربية - حماسية 🌟",
+      "el_arabic_formal": "راوي - فصحى 🌟"
     },
     "dialect": "اللهجة",
     "dialects": {

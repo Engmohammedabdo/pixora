@@ -272,7 +272,12 @@
       "female_pro": "Female - Professional",
       "male_youth": "Male - Youthful",
       "female_youth": "Female - Youthful",
-      "male_formal": "Male - Formal"
+      "male_formal": "Male - Formal",
+      "el_arabic_male_1": "Arabic Male - Professional 🌟",
+      "el_arabic_female_1": "Arabic Female - Professional 🌟",
+      "el_arabic_male_2": "Arabic Male - Warm 🌟",
+      "el_arabic_female_2": "Arabic Female - Energetic 🌟",
+      "el_arabic_formal": "Arabic Narrator - Formal 🌟"
     },
     "dialect": "Dialect",
     "dialects": {
