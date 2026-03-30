@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import AdminLayout from '@/components/admin/AdminLayout';
 import ModelConfigCard from '@/components/admin/ModelConfigCard';
 import { Bot, Save, Loader2 } from 'lucide-react';
@@ -78,7 +79,7 @@ export default function AdminModelsPage() {
   async function handleSave() {
     const enabledModels = models.filter(m => m.enabled).map(m => m.name);
     if (enabledModels.length === 0) {
-      alert('At least one model must be enabled');
+      toast.error('At least one model must be enabled');
       return;
     }
 
@@ -94,7 +95,7 @@ export default function AdminModelsPage() {
       });
       const data = await res.json();
       if (data.success) setDirty(false);
-      else if (data.error) alert(data.error);
+      else if (data.error) toast.error(data.error);
     } finally {
       setSaving(false);
     }
