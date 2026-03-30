@@ -10,41 +10,43 @@ interface KPICardProps {
 }
 
 const badgeStyles: Record<string, string> = {
-  green: 'bg-emerald-100 text-emerald-700',
-  red: 'bg-red-100 text-red-700',
-  blue: 'bg-blue-100 text-blue-700',
-  yellow: 'bg-amber-100 text-amber-700',
+  green: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20',
+  red: 'bg-red-500/10 text-red-400 ring-red-500/20',
+  blue: 'bg-indigo-500/10 text-indigo-400 ring-indigo-500/20',
+  yellow: 'bg-amber-500/10 text-amber-400 ring-amber-500/20',
 };
 
 export default function KPICard({ icon, label, value, badge, badgeColor = 'blue', loading }: KPICardProps) {
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
         <div className="flex items-start justify-between">
-          <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100" />
-          <div className="h-5 w-16 animate-pulse rounded-full bg-slate-100" />
+          <div className="h-10 w-10 animate-pulse rounded-xl bg-white/[0.04]" />
+          <div className="h-5 w-16 animate-pulse rounded-full bg-white/[0.04]" />
         </div>
-        <div className="mt-4 h-8 w-24 animate-pulse rounded bg-slate-100" />
-        <div className="mt-2 h-4 w-20 animate-pulse rounded bg-slate-100" />
+        <div className="mt-4 h-8 w-24 animate-pulse rounded-lg bg-white/[0.04]" />
+        <div className="mt-2 h-4 w-20 animate-pulse rounded bg-white/[0.04]" />
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-300 hover:border-white/[0.1] hover:bg-white/[0.04]">
       <div className="flex items-start justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-500/10 text-indigo-400 ring-1 ring-indigo-500/20">
           {icon}
         </div>
         {badge && (
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyles[badgeColor]}`}>
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${badgeStyles[badgeColor]}`}>
             {badge}
           </span>
         )}
       </div>
       <div className="mt-4">
-        <p className="text-2xl font-bold text-slate-900">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-        <p className="mt-1 text-sm text-slate-500">{label}</p>
+        <p className="text-2xl font-bold tracking-tight text-white">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
+        <p className="mt-1 text-[13px] text-slate-500">{label}</p>
       </div>
     </div>
   );
