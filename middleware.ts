@@ -79,7 +79,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       '/api/stripe/webhook',
       '/api/public/',
       '/api/admin/',
-      '/api/health',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));

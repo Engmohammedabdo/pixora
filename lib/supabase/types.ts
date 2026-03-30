@@ -65,16 +65,19 @@ export interface Database {
         Row: {
           event_id: string;
           event_type: string;
+          processed: boolean;
           processed_at: string;
         };
         Insert: {
           event_id: string;
           event_type: string;
+          processed?: boolean;
           processed_at?: string;
         };
         Update: {
           event_id?: string;
           event_type?: string;
+          processed?: boolean;
         };
         Relationships: [];
       };

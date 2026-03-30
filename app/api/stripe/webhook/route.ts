@@ -29,15 +29,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const supabase = await createServiceRoleClient();
 
-  // ═══ DB-BASED IDEMPOTENCY ═══
+  // ═══ DB-BASED IDEMPOTENCY (atomic) ═══
+  // Check if already processed successfully
   const { data: existing } = await supabase
     .from('webhook_events')
-    .select('event_id')
+    .select('event_id, processed')
     .eq('event_id', event.id)
     .single();
 
-  if (existing) {
+  if (existing?.processed) {
     return NextResponse.json({ received: true, skipped: 'duplicate' });
+  }
+
+  // Insert as "in progress" (processed=false) — if already exists but not processed, allow retry
+  if (!existing) {
+    await supabase.from('webhook_events').insert({
+      event_id: event.id,
+      event_type: event.type,
+      processed: false,
+    });
   }
 
   try {
@@ -242,11 +252,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
 
-  // Mark as processed AFTER business logic succeeds (atomic idempotency)
-  await supabase.from('webhook_events').insert({
-    event_id: event.id,
-    event_type: event.type,
-  });
+  // Mark as processed AFTER business logic succeeds
+  await supabase.from('webhook_events')
+    .update({ processed: true })
+    .eq('event_id', event.id);
 
   return NextResponse.json({ received: true });
 }

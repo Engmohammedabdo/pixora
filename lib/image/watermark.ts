@@ -89,13 +89,26 @@ async function urlToBuffer(imageUrl: string): Promise<Buffer> {
     throw new Error(`Host not allowed: ${url.hostname}`);
   }
 
-  // Fetch with 10s timeout
+  // Fetch with 10s timeout + 20MB size limit
+  const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const response = await fetch(imageUrl, { signal: controller.signal });
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
-    return Buffer.from(await response.arrayBuffer());
+
+    // Check Content-Length header if available
+    const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+    if (contentLength > MAX_IMAGE_SIZE) {
+      throw new Error(`Image too large: ${contentLength} bytes (max ${MAX_IMAGE_SIZE})`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > MAX_IMAGE_SIZE) {
+      throw new Error(`Image too large: ${buffer.length} bytes (max ${MAX_IMAGE_SIZE})`);
+    }
+
+    return buffer;
   } finally {
     clearTimeout(timeout);
   }
