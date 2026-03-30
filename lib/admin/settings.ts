@@ -135,11 +135,24 @@ export interface RateLimits {
   daily_generations: Record<string, number>;
 }
 
+export const RATE_LIMIT_DEFAULTS: RateLimits = {
+  requests_per_minute: 10,
+  daily_generations: { free: 10, starter: 50, pro: 100, business: 200, agency: 500 },
+};
+
 export async function getRateLimits(): Promise<RateLimits> {
-  const defaults: RateLimits = {
-    requests_per_minute: 10,
-    daily_generations: { free: 10, starter: 50, pro: 100, business: 200, agency: 500 },
-  };
   const limits = await getSetting<Partial<RateLimits>>('rate_limits');
-  return { ...defaults, ...limits };
+  return { ...RATE_LIMIT_DEFAULTS, ...limits };
 }
+
+// ============ App Config ============
+
+export interface AppConfig {
+  watermark_text: string;
+  default_locale: string;
+}
+
+export const APP_CONFIG_DEFAULTS: AppConfig = {
+  watermark_text: 'PyraSuite',
+  default_locale: 'ar',
+};

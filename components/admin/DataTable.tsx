@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 export interface Column<T> {
   key: string;
@@ -26,6 +26,7 @@ interface DataTableProps<T> {
   renderExpanded?: (row: T) => React.ReactNode;
   emptyMessage?: string;
   title?: string;
+  exportable?: boolean;
 }
 
 export default function DataTable<T extends Record<string, unknown>>({
@@ -38,10 +39,33 @@ export default function DataTable<T extends Record<string, unknown>>({
   renderExpanded,
   emptyMessage = 'No data available',
   title,
+  exportable,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  function handleExportCSV() {
+    const exportColumns = columns.filter(c => c.key !== 'actions');
+    const header = exportColumns.map(c => c.label).join(',');
+    const rows = data.map(row =>
+      exportColumns.map(col => {
+        const val = row[col.key];
+        const str = val == null ? '' : String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      }).join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title || 'export'}-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -81,9 +105,19 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {title && (
-        <div className="border-b border-slate-200 px-5 py-3">
-          <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+      {(title || exportable) && (
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          {title && <h3 className="text-sm font-semibold text-slate-700">{title}</h3>}
+          {exportable && data.length > 0 && (
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              title="Export to CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </button>
+          )}
         </div>
       )}
       <div className="overflow-x-auto">

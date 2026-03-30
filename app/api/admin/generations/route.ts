@@ -69,6 +69,17 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'ID required' }, { status: 400 });
   }
 
+  // Check generation exists
+  const { data: existing } = await supabase
+    .from('generations')
+    .select('id')
+    .eq('id', id)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Generation not found' }, { status: 404 });
+  }
+
   // Delete associated assets first
   await supabase.from('assets').delete().eq('generation_id', id);
 

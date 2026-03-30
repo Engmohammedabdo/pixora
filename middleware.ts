@@ -119,6 +119,20 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       const locale = pathname.split('/')[1] || 'ar';
       return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
     }
+
+    // Check if user is banned
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('banned')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.banned) {
+      // Sign out banned user and redirect to login
+      await supabase.auth.signOut();
+      const locale = pathname.split('/')[1] || 'ar';
+      return NextResponse.redirect(new URL(`/${locale}/login?error=banned`, request.url));
+    }
   }
 
   // Redirect non-logged-in users to login (protected pages only)

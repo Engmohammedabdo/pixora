@@ -118,10 +118,14 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // models
+  // models (last 90 days to keep query bounded)
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
+
   const { data } = await supabase
     .from('generations')
-    .select('model');
+    .select('model')
+    .gte('created_at', ninetyDaysAgo.toISOString());
 
   const byModel: Record<string, number> = {};
   data?.forEach((g) => {

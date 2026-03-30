@@ -24,12 +24,13 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10),
 
+    // Fetch users where either balance is low — filter combined total in JS
     supabase
       .from('profiles')
       .select('id, name, email, plan_id, credits_balance, purchased_credits')
-      .lt('credits_balance', 5)
+      .lt('credits_balance', 10) // wider fetch, narrow in JS
       .order('credits_balance', { ascending: true })
-      .limit(20),
+      .limit(50),
   ]);
 
   return NextResponse.json({
@@ -37,7 +38,9 @@ export async function GET(request: NextRequest) {
     data: {
       recentGenerations: recentGens.data || [],
       recentErrors: recentErrors.data || [],
-      lowCreditUsers: lowCreditUsers.data || [],
+      lowCreditUsers: (lowCreditUsers.data || [])
+        .filter(u => ((u.credits_balance as number) + ((u.purchased_credits as number) || 0)) < 5)
+        .slice(0, 20),
     },
   });
 }

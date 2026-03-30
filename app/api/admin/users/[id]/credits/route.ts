@@ -24,14 +24,15 @@ export async function POST(
 
   const { amount, reason } = body;
 
-  if (!amount || typeof amount !== 'number') {
-    return NextResponse.json({ success: false, error: 'Amount required (number)' }, { status: 400 });
+  if (!amount || typeof amount !== 'number' || !Number.isInteger(amount)) {
+    return NextResponse.json({ success: false, error: 'Amount required (integer)' }, { status: 400 });
   }
   if (!reason?.trim()) {
     return NextResponse.json({ success: false, error: 'Reason required' }, { status: 400 });
   }
 
-  // Get current balance
+  // Atomic update: use conditional update to prevent race conditions
+  // First get current balance for validation
   const { data: profile } = await supabase
     .from('profiles')
     .select('credits_balance')
@@ -42,23 +43,31 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
   }
 
-  const newBalance = profile.credits_balance + amount;
-  if (newBalance < 0) {
+  const expectedNewBalance = profile.credits_balance + amount;
+  if (expectedNewBalance < 0) {
     return NextResponse.json({ success: false, error: 'Would result in negative balance' }, { status: 400 });
   }
 
-  // Update balance
-  const { error: updateError } = await supabase
+  // Atomic conditional update: only succeeds if balance hasn't changed since read
+  const { data: updated, error: updateError } = await supabase
     .from('profiles')
-    .update({ credits_balance: newBalance })
-    .eq('id', id);
+    .update({ credits_balance: expectedNewBalance })
+    .eq('id', id)
+    .eq('credits_balance', profile.credits_balance) // Optimistic concurrency check
+    .select('credits_balance')
+    .single();
 
-  if (updateError) {
-    return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+  if (updateError || !updated) {
+    return NextResponse.json(
+      { success: false, error: 'Balance changed concurrently. Please retry.' },
+      { status: 409 }
+    );
   }
 
-  // Log transaction
-  await supabase.from('credit_transactions').insert({
+  const newBalance = updated.credits_balance;
+
+  // Log transaction — if this fails, balance is already updated but we log the error
+  const { error: txError } = await supabase.from('credit_transactions').insert({
     user_id: id,
     amount,
     type: 'admin_adjustment',
@@ -66,7 +75,12 @@ export async function POST(
     balance_after: newBalance,
   });
 
-  // Log admin action
+  if (txError) {
+    // Balance was updated but transaction log failed — log this critical issue
+    console.error('[CRITICAL] Credit transaction log failed after balance update:', txError);
+    await logAdminAction('credit_adjustment_tx_log_failed', 'user', id, { amount, reason, newBalance, error: txError.message }, getClientIP(request));
+  }
+
   await logAdminAction('credit_adjustment', 'user', id, { amount, reason, newBalance }, getClientIP(request));
 
   return NextResponse.json({ success: true, data: { newBalance } });
