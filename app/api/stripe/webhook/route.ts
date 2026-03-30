@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/client';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { getCreditsForPlan } from '@/lib/stripe/plans';
+import { getCreditsForPlan, PLANS } from '@/lib/stripe/plans';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -83,6 +83,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             description: `Subscription: ${planId} plan — ${credits} credits`,
             balance_after: credits,
           });
+
+          // Track subscription event for analytics
+          await supabase.from('subscription_events').insert({
+            user_id: userId,
+            event_type: 'subscribe',
+            to_plan: planId,
+            stripe_subscription_id: subscriptionId || null,
+          }); // non-critical, ignore errors
         }
 
         if (session.mode === 'payment') {
@@ -131,6 +139,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         const planId = subscription.metadata?.planId;
         if (planId) {
+          // Get previous plan for tracking
+          const { data: prevProfile } = await supabase
+            .from('profiles')
+            .select('plan_id')
+            .eq('id', userId)
+            .single();
+
+          const previousPlan = prevProfile?.plan_id || 'free';
           const credits = getCreditsForPlan(planId);
           await supabase
             .from('profiles')
@@ -144,6 +160,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             description: `Plan updated to ${planId} — ${credits} credits`,
             balance_after: credits,
           });
+
+          // Track plan change for analytics
+          const isUpgrade = (PLANS[planId]?.price || 0) > (PLANS[previousPlan]?.price || 0);
+          await supabase.from('subscription_events').insert({
+            user_id: userId,
+            event_type: isUpgrade ? 'upgrade' : 'downgrade',
+            from_plan: previousPlan,
+            to_plan: planId,
+            stripe_subscription_id: subscription.id,
+          }); // non-critical, ignore errors
         }
         break;
       }
@@ -156,9 +182,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         const { data: cancelProfile } = await supabase
           .from('profiles')
-          .select('purchased_credits')
+          .select('purchased_credits, plan_id')
           .eq('id', userId)
           .single();
+
+        const cancelledPlan = cancelProfile?.plan_id || 'unknown';
 
         await supabase
           .from('profiles')
@@ -177,6 +205,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: `Subscription cancelled — downgraded to Free (purchased: ${cancelProfile?.purchased_credits || 0} kept)`,
           balance_after: 25 + (cancelProfile?.purchased_credits || 0),
         });
+
+        // Track cancellation for churn analytics
+        await supabase.from('subscription_events').insert({
+          user_id: userId,
+          event_type: 'cancel',
+          from_plan: cancelledPlan,
+          to_plan: 'free',
+          stripe_subscription_id: subscription.id,
+        }); // non-critical, ignore errors
         break;
       }
 
