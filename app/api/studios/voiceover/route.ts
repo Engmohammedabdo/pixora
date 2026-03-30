@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
-import { checkCredits } from '@/lib/credits/check';
-import { deductCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
@@ -84,17 +83,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Calculate credit cost based on plan
     const creditCost = calculateVoiceoverCost(safeScript.length, parseFloat(input.speed), planId);
 
-    // Check credits
-    const creditCheck = await checkCredits({ supabase, userId: user.id, amount: creditCost });
-    if (!creditCheck.hasEnough) {
-      return NextResponse.json({
-        success: false,
-        error: 'insufficient_credits',
-        required: creditCost,
-        available: creditCheck.currentBalance,
-      }, { status: 402 });
-    }
-
     // Create generation record
     const { data: generation } = await supabase.from('generations').insert({
       user_id: user.id,
@@ -105,42 +93,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       credits_used: creditCost,
     }).select().single();
 
-    // Generate TTS via router (handles dialect/tone enhancement + provider routing)
-    const ttsResult = await generateTTS({
-      script: safeScript,
-      voice: input.voice,
-      dialect: input.dialect,
-      speed: input.speed,
-      tone: input.tone,
-      planId,
-    });
-
-    // Upload audio to storage
-    let audioUrl = '';
-    if (ttsResult.audioBuffer.length > 0) {
-      const fileName = `${user.id}/voiceover-${generation?.id ?? Date.now()}.mp3`;
-      const { error: uploadError } = await supabase.storage
-        .from('assets')
-        .upload(fileName, ttsResult.audioBuffer, { contentType: 'audio/mpeg', upsert: false });
-
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
-        audioUrl = urlData.publicUrl;
-      }
-    }
-
-    // Deduct credits
-    const deductResult = await deductCredits({
-      supabase,
-      userId: user.id,
-      amount: creditCost,
-      studio: 'voiceover',
-      description: `Voiceover (${config.provider}) - ${input.voice} - ${input.dialect} - ${estimatedDuration}s`,
+    // Reserve credits before generation
+    const reserveResult = await reserveCredits({
+      supabase, userId: user.id, amount: creditCost,
+      studio: 'voiceover', description: `Voiceover (${config.provider}) - ${input.voice} - ${input.dialect} - ${estimatedDuration}s`,
       generationId: generation?.id,
     });
+    if (!reserveResult.success) {
+      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      return NextResponse.json({ success: false, error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed', required: creditCost }, { status: 402 });
+    }
 
-    if (!deductResult.success) {
-      return NextResponse.json({ success: false, error: 'credit_deduction_failed' }, { status: 402 });
+    let ttsResult: Awaited<ReturnType<typeof generateTTS>>;
+    let audioUrl = '';
+    try {
+      // Generate TTS via router (handles dialect/tone enhancement + provider routing)
+      ttsResult = await generateTTS({
+        script: safeScript,
+        voice: input.voice,
+        dialect: input.dialect,
+        speed: input.speed,
+        tone: input.tone,
+        planId,
+      });
+
+      // Upload audio to storage
+      if (ttsResult.audioBuffer.length > 0) {
+        const fileName = `${user.id}/voiceover-${generation?.id ?? Date.now()}.mp3`;
+        const { error: uploadError } = await supabase.storage
+          .from('assets')
+          .upload(fileName, ttsResult.audioBuffer, { contentType: 'audio/mpeg', upsert: false });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
+          audioUrl = urlData.publicUrl;
+        }
+      }
+    } catch (genError) {
+      await refundCredits({ supabase, userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
+      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      throw genError;
     }
 
     // Update generation record
@@ -175,7 +167,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         enhanced: ttsResult.enhanced,
         mock: ttsResult.mock,
         creditsUsed: creditCost,
-        newBalance: deductResult.newBalance,
+        newBalance: reserveResult.newBalance,
       },
     });
   } catch (error) {

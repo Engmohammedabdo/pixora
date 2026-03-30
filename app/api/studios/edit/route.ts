@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
-import { checkCredits } from '@/lib/credits/check';
-import { deductCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { maybeWatermark } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -39,36 +38,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = await req.json();
     const input = InputSchema.parse(body);
 
-    const creditCheck = await checkCredits({ supabase, userId: user.id, amount: CREDIT_COST });
-    if (!creditCheck.hasEnough) {
-      return NextResponse.json({ success: false, error: 'insufficient_credits', required: CREDIT_COST }, { status: 402 });
-    }
-
     const { data: generation } = await supabase.from('generations').insert({
       user_id: user.id, studio: 'edit', model: 'gpt', status: 'processing',
       input: { imageUrl: input.imageUrl, editDescription: input.editDescription, editType: input.editType },
       credits_used: CREDIT_COST,
     }).select().single();
 
-    const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
-    const result = await generateImage({ prompt, model: 'gpt', resolution: '1080p', referenceImageUrl: input.imageUrl });
+    const reserveResult = await reserveCredits({
+      supabase, userId: user.id, amount: CREDIT_COST,
+      studio: 'edit', description: `Image edit - ${input.editType}`,
+      generationId: generation?.id,
+    });
+    if (!reserveResult.success) {
+      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      return NextResponse.json({ success: false, error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed', required: CREDIT_COST }, { status: 402 });
+    }
 
-    // Apply watermark for free plan users
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
-    const planId = profile?.plan_id || 'free';
-    result.url = (await maybeWatermark(result.url, planId)) || result.url;
+    let result: Awaited<ReturnType<typeof generateImage>>;
+    try {
+      const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
+      result = await generateImage({ prompt, model: 'gpt', resolution: '1080p', referenceImageUrl: input.imageUrl });
 
-    const deductResult = await deductCredits({ supabase, userId: user.id, amount: CREDIT_COST, studio: 'edit', description: `Image edit - ${input.editType}`, generationId: generation?.id });
-
-    if (!deductResult.success) {
-      return NextResponse.json(
-        { success: false, error: 'credit_deduction_failed' },
-        { status: 402 }
-      );
+      // Apply watermark for free plan users
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan_id')
+        .eq('id', user.id)
+        .single();
+      const planId = profile?.plan_id || 'free';
+      result.url = (await maybeWatermark(result.url, planId)) || result.url;
+    } catch (genError) {
+      await refundCredits({ supabase, userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
+      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      throw genError;
     }
 
     if (generation) {
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await supabase.from('assets').insert({ user_id: user.id, generation_id: generation.id, type: 'image', url: result.url || '' });
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, imageUrl: result.url, mock: result.mock, creditsUsed: CREDIT_COST, newBalance: deductResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, imageUrl: result.url, mock: result.mock, creditsUsed: CREDIT_COST, newBalance: reserveResult.newBalance } });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
     if (error instanceof PromptBlockedError) {

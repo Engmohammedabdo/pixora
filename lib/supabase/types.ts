@@ -330,6 +330,25 @@ export interface Database {
         };
         Returns: Record<string, unknown>;
       };
+      reserve_credits: {
+        Args: {
+          p_user_id: string;
+          p_amount: number;
+          p_studio: string;
+          p_description: string;
+          p_generation_id?: string;
+        };
+        Returns: Record<string, unknown>;
+      };
+      refund_credits: {
+        Args: {
+          p_user_id: string;
+          p_amount: number;
+          p_description: string;
+          p_generation_id?: string;
+        };
+        Returns: Record<string, unknown>;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
