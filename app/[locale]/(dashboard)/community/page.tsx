@@ -1,10 +1,12 @@
 'use client';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Heart, Copy, Check, Users, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
 const COMMUNITY_PROMPTS = [
   { id: '1', prompt: 'Professional flat lay of luxury watch on black marble, dramatic rim lighting, minimalist composition', author: 'أحمد', studio: 'creator', likes: 42, category: 'فاخر' },
@@ -20,13 +22,12 @@ export default function CommunityPage(): React.ReactElement {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
   const handleCopy = async (prompt: string, id: string): Promise<void> => {
-    await navigator.clipboard.writeText(prompt);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    toast.info('قريباً!');
+    return;
   };
 
   const toggleLike = (id: string): void => {
-    setLikedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    toast.info('قريباً!'); return;
   };
 
   return (
@@ -36,8 +37,10 @@ export default function CommunityPage(): React.ReactElement {
           <h1 className="text-2xl font-bold font-cairo flex items-center gap-2"><Users className="h-6 w-6 text-primary-500" /> مجتمع البرومبتات</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">اكتشف برومبتات مشاركة من مستخدمين آخرين</p>
         </div>
-        <Button className="gap-2"><Sparkles className="h-4 w-4" /> شارك برومبتك</Button>
+        <Button className="gap-2" onClick={() => toast.info('قريباً!')}><Sparkles className="h-4 w-4" /> شارك برومبتك</Button>
       </div>
+
+      <ComingSoonBanner featureName="Community" featureNameAr="المجتمع" description="Share and discover prompts" descriptionAr="شارك واكتشف برومبتات" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {COMMUNITY_PROMPTS.map(p => (

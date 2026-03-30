@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Separator } from '@/components/ui/separator';
 import { Users, UserPlus, Crown, Shield, User, Mail, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
 interface TeamMember {
   id: string;
@@ -53,10 +55,7 @@ export default function TeamPage(): React.ReactElement {
 
   const handleInvite = (): void => {
     if (!inviteEmail) return;
-    // UI-only: would call API in production
-    alert(tTeam('inviteAlert', { email: inviteEmail, role: tTeam(roleKeys[inviteRole]) }));
-    setInviteEmail('');
-    setShowInvite(false);
+    toast.info('دعوات الفريق قريباً!'); setShowInvite(false); return;
   };
 
   return (
@@ -71,6 +70,8 @@ export default function TeamPage(): React.ReactElement {
           {tTeam('inviteMember')}
         </Button>
       </div>
+
+      <ComingSoonBanner featureName="Team" featureNameAr="الفريق" description="Collaborate with your team" descriptionAr="تعاون مع فريقك" />
 
       {/* Team Info */}
       <Card>

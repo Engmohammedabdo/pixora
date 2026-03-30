@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
 import { Copy, Check, Gift, Users, Share2 } from 'lucide-react';
+import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
 export default function ReferralsPage(): React.ReactElement {
   const { profile } = useUser();
@@ -15,13 +17,11 @@ export default function ReferralsPage(): React.ReactElement {
   const referralLink = `https://pyrasuite.pyramedia.cloud/ar/signup?ref=${referralCode}`;
 
   const handleCopy = async (): Promise<void> => {
-    await navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    toast.info('برنامج الإحالة قريباً!'); return;
   };
 
   const handleWhatsApp = (): void => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(`جرّب PyraSuite — منصة تسويق بالذكاء الاصطناعي! استخدم رابطي وكل واحد فينا ياخذ 25 كريدت مجاناً\n${referralLink}`)}`, '_blank');
+    toast.info('برنامج الإحالة قريباً!'); return;
   };
 
   return (
@@ -30,6 +30,8 @@ export default function ReferralsPage(): React.ReactElement {
         <h1 className="text-2xl font-bold font-cairo">برنامج الإحالة</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">ادعُ أصدقاءك واكسب كريدت مجاني</p>
       </div>
+
+      <ComingSoonBanner featureName="Referrals" featureNameAr="الإحالات" description="Invite friends and earn credits" descriptionAr="ادعُ أصدقاءك واكسب كريدت" />
 
       {/* How it works */}
       <Card className="bg-gradient-to-br from-primary-50 to-accent-50/30 dark:from-primary-900/20 dark:to-accent-900/10 border-primary-200 dark:border-primary-800">

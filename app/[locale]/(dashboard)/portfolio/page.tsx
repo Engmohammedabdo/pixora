@@ -1,9 +1,11 @@
 'use client';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/useUser';
 import { Globe, Lock, Image, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
 export default function PortfolioPage(): React.ReactElement {
   const { profile } = useUser();
@@ -14,6 +16,8 @@ export default function PortfolioPage(): React.ReactElement {
         <h1 className="text-2xl font-bold font-cairo flex items-center gap-2"><Globe className="h-6 w-6 text-primary-500" /> معرض أعمالي</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">أنشئ صفحة عامة لعرض أعمالك المُنشأة بالذكاء الاصطناعي</p>
       </div>
+
+      <ComingSoonBanner featureName="Portfolio" featureNameAr="معرض الأعمال" description="Create a public page to showcase your work" descriptionAr="أنشئ صفحة عامة لعرض أعمالك" />
 
       <Card className="bg-gradient-to-br from-primary-50/50 to-accent-50/30 dark:from-primary-900/20 dark:to-accent-900/10">
         <CardContent className="p-8 text-center space-y-4">

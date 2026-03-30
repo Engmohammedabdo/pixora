@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, FolderOpen, Calendar } from 'lucide-react';
+import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
 interface Project {
   id: string;
@@ -25,9 +27,7 @@ export default function ProjectsPage(): React.ReactElement {
 
   const handleCreate = (): void => {
     if (!newName.trim()) return;
-    setProjects((prev) => [...prev, { id: crypto.randomUUID(), name: newName, generationCount: 0, createdAt: new Date().toISOString() }]);
-    setNewName('');
-    setShowCreate(false);
+    toast.info('إنشاء المشاريع قريباً!'); setShowCreate(false); return;
   };
 
   return (
@@ -36,6 +36,8 @@ export default function ProjectsPage(): React.ReactElement {
         <h1 className="text-2xl font-bold font-cairo">{t('nav.projects')}</h1>
         <Button onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 me-2" />{t('common.create')}</Button>
       </div>
+
+      <ComingSoonBanner featureName="Projects" featureNameAr="المشاريع" description="Organize your generations into projects" descriptionAr="نظّم أعمالك في مشاريع" />
 
       {projects.length === 0 ? (
         <div className="flex flex-col items-center py-24 text-[var(--color-text-muted)]">
