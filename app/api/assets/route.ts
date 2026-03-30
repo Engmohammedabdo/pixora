@@ -17,9 +17,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const limit = Math.min(parseInt(searchParams.get('limit') || '24', 10), 100);
     const offset = (page - 1) * limit;
 
+    // Simple query without join — generations join can fail if FK isn't set up in Supabase
     let query = supabase
       .from('assets')
-      .select('*, generations(studio, model, input)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);

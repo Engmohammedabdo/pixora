@@ -14,10 +14,21 @@ interface Asset {
   url: string;
   type: string;
   created_at: string;
-  generations?: { studio: string } | null;
+  generation_id?: string | null;
 }
 
-const STUDIOS = ['all', 'creator', 'photoshoot', 'campaign'] as const;
+const STUDIOS = ['all', 'creator', 'photoshoot', 'campaign', 'plan', 'storyboard', 'analysis', 'voiceover', 'edit'] as const;
+const STUDIO_LABELS: Record<string, string> = {
+  all: 'الكل',
+  creator: 'منشئ الصور',
+  photoshoot: 'تصوير',
+  campaign: 'حملات',
+  plan: 'خطط',
+  storyboard: 'ستوري بورد',
+  analysis: 'تحليل',
+  voiceover: 'صوت',
+  edit: 'تعديل',
+};
 
 export default function AssetsPage(): React.ReactElement {
   const t = useTranslations('assets');
@@ -38,6 +49,11 @@ export default function AssetsPage(): React.ReactElement {
 
       if (data.success) {
         setAssets(data.data || []);
+      } else if (data.error === 'unauthorized') {
+        // Not logged in — don't show error toast
+      } else {
+        // API returned error
+        console.error('Assets API error:', data.error);
       }
     } catch {
       toast.error('فشل تحميل الملفات. حاول مرة أخرى.');
@@ -129,7 +145,7 @@ export default function AssetsPage(): React.ReactElement {
                 : 'bg-surface-2 text-[var(--color-text-secondary)] hover:bg-surface-2/80'
             )}
           >
-            {s === 'all' ? t('all') : s}
+            {STUDIO_LABELS[s] || s}
           </button>
         ))}
 
@@ -164,7 +180,7 @@ export default function AssetsPage(): React.ReactElement {
               id={asset.id}
               url={asset.url}
               type={asset.type}
-              studio={asset.generations?.studio}
+              studio={undefined}
               createdAt={asset.created_at}
               selected={selectedIds.has(asset.id)}
               onSelect={handleSelect}
