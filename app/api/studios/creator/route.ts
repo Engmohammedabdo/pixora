@@ -169,6 +169,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let resultOriginalModel: string | undefined;
 
     if (input.variations === 4) {
+      // Generate 4 variations — track individual successes/failures
       const promises = Array.from({ length: 4 }, () =>
         generateImage({
           prompt: fullPrompt,
@@ -179,6 +180,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
 
       const results = await Promise.all(promises);
+      const successCount = results.filter((r) => r !== null).length;
+      const failedCount = 4 - successCount;
+
+      // If ALL failed → full refund + error
+      if (successCount === 0) {
+        await refundCredits({
+          supabase, userId: user.id, amount: totalCost,
+          description: 'Full refund: all 4 variations failed',
+          generationId: generation.id,
+        });
+        await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
+        return NextResponse.json({ success: false, error: 'All generation attempts failed. Credits refunded.' }, { status: 500 });
+      }
+
+      // Partial refund for failed variations
+      if (failedCount > 0) {
+        const refundAmount = failedCount * creditCost;
+        await refundCredits({
+          supabase, userId: user.id, amount: refundAmount,
+          description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
+          generationId: generation.id,
+        });
+      }
+
       const uploadPromises = results.map((r, i) =>
         r ? uploadImage(r.url || '', i) : Promise.resolve('')
       );
@@ -247,7 +272,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         mock: hasMock,
         usedFallback: hasUsedFallback,
         originalModel: resultOriginalModel,
-        creditsUsed: totalCost,
+        creditsUsed: imageUrls.length * creditCost,
+        totalReserved: totalCost,
+        refunded: (input.variations - imageUrls.length) * creditCost,
         newBalance: reserveResult.newBalance,
       },
     });
