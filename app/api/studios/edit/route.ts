@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
-import { maybeWatermark } from '@/lib/image/watermark';
+import { watermarkAndReupload } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -66,7 +66,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', user.id)
         .single();
       const planId = profile?.plan_id || 'free';
-      result.url = (await maybeWatermark(result.url, planId)) || result.url;
+      if (result.url) {
+        result.url = await watermarkAndReupload(result.url, planId, supabase);
+      }
     } catch (genError) {
       await refundCredits({ supabase, userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);

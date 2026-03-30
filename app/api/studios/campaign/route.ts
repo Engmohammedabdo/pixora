@@ -6,7 +6,7 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
-import { maybeWatermark } from '@/lib/image/watermark';
+import { watermarkAndReupload } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const planId = profile?.plan_id || 'free';
     postImages = await Promise.all(
       postImages.map(async (url) =>
-        url ? (await maybeWatermark(url, planId)) || url : null
+        url ? await watermarkAndReupload(url, planId, supabase) : null
       )
     );
 

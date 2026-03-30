@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
-import { maybeWatermark } from '@/lib/image/watermark';
+import { watermarkAndReupload } from '@/lib/image/watermark';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const shots = await Promise.all(
       results.map(async (r, i) => ({
         index: i,
-        url: r?.url ? (await maybeWatermark(r.url, planId)) || r.url : null,
+        url: r?.url ? await watermarkAndReupload(r.url, planId, supabase) : null,
         model: r?.model || 'flux',
         mock: r?.mock ?? true,
       }))

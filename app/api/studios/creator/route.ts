@@ -8,7 +8,7 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { maybeWatermark } from '@/lib/image/watermark';
+import { watermarkAndReupload } from '@/lib/image/watermark';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Apply watermark for free plan users
     const planId = profile?.plan_id || 'free';
     imageUrls = await Promise.all(
-      imageUrls.map((url) => maybeWatermark(url, planId).then((u) => u || url))
+      imageUrls.map((url) => watermarkAndReupload(url, planId, supabase))
     );
 
     // Update generation with result
