@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
+import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
 
 const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as const;
@@ -53,11 +54,11 @@ export default function PlanPage(): React.ReactElement {
         body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); return; }
+      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setPlan(data.data.plan);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError('Network error'); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance]);
+    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t]);
 
   const inputPanel = (
     <div className="space-y-4">
@@ -112,7 +113,7 @@ export default function PlanPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.plan')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tPlan('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>

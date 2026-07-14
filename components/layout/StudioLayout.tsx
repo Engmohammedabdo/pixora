@@ -16,15 +16,17 @@ export function StudioLayout({
   className,
 }: StudioLayoutProps): React.ReactElement {
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+      {/* Mobile: panels stack and the page scrolls as one (no nested scroll traps).
+          Desktop (lg+): fixed-height shell, each panel scrolls independently. */}
       <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
         {/* Input Panel - 40% */}
-        <div className="w-full lg:w-2/5 overflow-y-auto rounded-lg border bg-surface p-4">
+        <div className="w-full lg:w-2/5 lg:overflow-y-auto rounded-lg border bg-surface p-4">
           {inputPanel}
         </div>
 
         {/* Preview Panel - 60% */}
-        <div className="w-full lg:w-3/5 overflow-y-auto rounded-lg border bg-surface p-4">
+        <div className="w-full lg:w-3/5 lg:overflow-y-auto rounded-lg border bg-surface p-4">
           {previewPanel}
         </div>
       </div>

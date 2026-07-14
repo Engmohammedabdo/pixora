@@ -13,6 +13,7 @@ import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 'lucide-react';
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
+import { mapApiError } from '@/lib/studio-errors';
 
 // All voices — some locked per plan
 const ALL_VOICES = [
@@ -83,14 +84,14 @@ export default function VoiceOverPage(): React.ReactElement {
         body: JSON.stringify({ script, voice, dialect, speed, tone }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error === 'voice_not_available' ? 'هذا الصوت غير متاح في خطتك الحالية' : data.error === 'dialect_not_available' ? 'هذه اللهجة غير متاحة في خطتك الحالية' : data.error === 'duration_exceeded' ? `المدة القصوى لخطتك ${data.maxDuration} ثانية` : data.error); return; }
+      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setAudioUrl(data.data.audioUrl);
       setAudioDuration(data.data.duration || 0);
       setProvider(data.data.provider || '');
       setEnhanced(data.data.enhanced || false);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError('Network error'); } finally { setIsLoading(false); }
-  }, [isValid, script, voice, dialect, speed, tone, setBalance]);
+    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+  }, [isValid, script, voice, dialect, speed, tone, setBalance, t]);
 
   const dialectLabels: Record<string, string> = { saudi: tVo('dialects.saudi'), emirati: tVo('dialects.emirati'), egyptian: tVo('dialects.egyptian'), gulf: tVo('dialects.gulf'), formal: tVo('dialects.formal') };
   const toneLabels: Record<string, string> = { professional: tVo('tones.professional'), friendly: tVo('tones.friendly'), energetic: tVo('tones.energetic'), calm: tVo('tones.calm') };
@@ -265,7 +266,7 @@ export default function VoiceOverPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.voiceover')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tVo('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>

@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
+import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, FileText } from 'lucide-react';
 import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
@@ -55,11 +56,11 @@ export default function AnalysisPage(): React.ReactElement {
         body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); return; }
+      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setAnalysis(data.data.analysis);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError('Network error'); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance]);
+    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, t]);
 
   const inputPanel = (
     <div className="space-y-4">
@@ -127,7 +128,7 @@ export default function AnalysisPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.analysis')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tAn('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>

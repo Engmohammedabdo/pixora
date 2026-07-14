@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { cn } from '@/lib/utils';
+import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-react';
 import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
@@ -48,11 +49,11 @@ export default function StoryboardPage(): React.ReactElement {
         body: JSON.stringify({ concept, duration, style, platform }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); return; }
+      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setScenes(data.data.scenes || []);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError('Network error'); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, setBalance]);
+    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+  }, [isValid, concept, duration, style, platform, setBalance, t]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
@@ -117,7 +118,7 @@ export default function StoryboardPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.storyboard')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tSb('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>

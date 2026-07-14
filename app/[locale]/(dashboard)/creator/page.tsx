@@ -7,6 +7,7 @@ import { CreatorForm } from '@/components/studios/creator/CreatorForm';
 import { CreatorPreview } from '@/components/studios/creator/CreatorPreview';
 import { GenerationHistory, type HistoryItem } from '@/components/shared/GenerationHistory';
 import { useCreditsStore } from '@/store/credits';
+import { mapApiError } from '@/lib/studio-errors';
 import type { AIModel, Resolution } from '@/types/studios';
 
 interface CreatorInput {
@@ -21,6 +22,7 @@ interface CreatorInput {
 
 export default function CreatorPage(): React.ReactElement {
   const t = useTranslations('creator');
+  const tStudio = useTranslations('studio');
 
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +51,7 @@ export default function CreatorPage(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Generation failed');
+        setError(mapApiError(data.error, tStudio));
         return;
       }
 
@@ -75,11 +77,11 @@ export default function CreatorPage(): React.ReactElement {
         ...prev,
       ].slice(0, 5));
     } catch {
-      setError('Network error');
+      setError(mapApiError('network', tStudio));
     } finally {
       setIsLoading(false);
     }
-  }, [setBalance]);
+  }, [setBalance, tStudio]);
 
   const handleRegenerate = (): void => {
     if (lastInput) {
@@ -94,7 +96,7 @@ export default function CreatorPage(): React.ReactElement {
   };
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b">
         <h1 className="text-xl font-bold font-cairo">{t('title')}</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">{t('description')}</p>

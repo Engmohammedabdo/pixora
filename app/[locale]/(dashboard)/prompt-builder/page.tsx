@@ -126,7 +126,7 @@ export default function PromptBuilderPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b">
         <h1 className="text-xl font-bold font-cairo">{t('nav.promptBuilder')}</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">حوّل وصفك بالعربي لبرومبت احترافي بالإنجليزي — مجاناً</p>

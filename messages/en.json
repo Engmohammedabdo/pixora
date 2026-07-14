@@ -142,7 +142,25 @@
     "copyCaption": "Copy",
     "copied": "Copied!",
     "usedFallback": "Alternative model was used",
-    "brandKitApplied": "Brand Kit applied"
+    "brandKitApplied": "Brand Kit applied",
+    "errors": {
+      "insufficient_credits": "Not enough credits — top up from the Billing page",
+      "credit_reservation_failed": "Could not reserve credits. Please try again",
+      "rate_limited": "Too many requests — wait a minute and try again",
+      "generation_failed": "Pyra hit a snag while generating. Please try again 🦊",
+      "generation_parse_failed": "Pyra returned an incomplete result. Please try again",
+      "prompt_blocked": "Your text contains disallowed content. Edit it and retry",
+      "validation_error": "Invalid input — check the fields and try again",
+      "unauthorized": "Session expired — please sign in again",
+      "maintenance_mode": "The platform is under maintenance. Check back soon",
+      "studio_disabled": "This studio is currently unavailable",
+      "resolution_not_available": "This resolution isn't available on your plan — upgrade from Billing",
+      "duration_exceeded": "Your script exceeds your plan's duration limit",
+      "voice_not_available": "This voice isn't available on your current plan",
+      "dialect_not_available": "This dialect isn't available on your current plan",
+      "network": "Connection problem — check your internet and retry",
+      "fallback": "Something unexpected went wrong. Please try again"
+    }
   },
   "creator": {
     "title": "Image Creator",

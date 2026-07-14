@@ -18,6 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Menu, Coins, Globe, LogOut, Settings, User, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useLocale } from 'next-intl';
 import { AnimatedNumber } from '@/components/shared/AnimatedNumber';
 
 export function TopBar(): React.ReactElement {
@@ -39,7 +40,9 @@ export function TopBar(): React.ReactElement {
 
   const { theme, setTheme } = useTheme();
 
-  const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
+  // usePathname from i18n/routing strips the locale prefix, so read the
+  // active locale from next-intl directly (pathname.startsWith('/en') is always false)
+  const currentLocale = useLocale();
   const switchLocale = currentLocale === 'ar' ? 'en' : 'ar';
 
   const handleLocaleSwitch = (): void => {
@@ -47,7 +50,7 @@ export function TopBar(): React.ReactElement {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-surface px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-4 border-b bg-surface px-4 sm:px-6">
       {/* Mobile menu toggle */}
       <Button
         variant="ghost"
@@ -70,11 +73,6 @@ export function TopBar(): React.ReactElement {
         </Badge>
       </Link>
 
-      {/* Streak */}
-      <Badge variant="outline" className="gap-1 px-2 py-1 text-amber-500 border-amber-300 dark:border-amber-700">
-        🔥 <span className="text-xs font-medium">0</span>
-      </Badge>
-
       {/* Theme Toggle */}
       <Button
         variant="ghost"
@@ -86,12 +84,13 @@ export function TopBar(): React.ReactElement {
         <Moon className="h-4 w-4 block dark:hidden" />
       </Button>
 
-      {/* Language Switcher */}
+      {/* Language Switcher — hidden on small phones (also in user menu) */}
       <Button
         variant="ghost"
         size="icon"
         onClick={handleLocaleSwitch}
         aria-label="Switch language"
+        className="hidden sm:inline-flex"
       >
         <Globe className="h-4 w-4" />
       </Button>
@@ -125,6 +124,13 @@ export function TopBar(): React.ReactElement {
               <Settings className="h-4 w-4" />
               {t('nav.settings')}
             </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={handleLocaleSwitch}
+            className="flex items-center gap-2 cursor-pointer sm:hidden"
+          >
+            <Globe className="h-4 w-4" />
+            {currentLocale === 'ar' ? 'English' : 'العربية'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

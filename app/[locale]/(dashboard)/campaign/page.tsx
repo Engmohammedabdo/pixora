@@ -6,6 +6,7 @@ import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CampaignForm } from '@/components/studios/campaign/CampaignForm';
 import { CampaignPlanDisplay, type CampaignPost } from '@/components/studios/campaign/CampaignPlanDisplay';
 import { useCreditsStore } from '@/store/credits';
+import { mapApiError } from '@/lib/studio-errors';
 
 interface CampaignInput {
   productDescription: string;
@@ -19,6 +20,7 @@ interface CampaignInput {
 
 export default function CampaignPage(): React.ReactElement {
   const t = useTranslations('campaign');
+  const tStudio = useTranslations('studio');
 
   const [posts, setPosts] = useState<CampaignPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +44,7 @@ export default function CampaignPage(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Generation failed');
+        setError(mapApiError(data.error, tStudio));
         return;
       }
 
@@ -53,14 +55,14 @@ export default function CampaignPage(): React.ReactElement {
         setBalance(data.data.newBalance);
       }
     } catch {
-      setError('Network error');
+      setError(mapApiError('network', tStudio));
     } finally {
       setIsLoading(false);
     }
-  }, [setBalance]);
+  }, [setBalance, tStudio]);
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b">
         <h1 className="text-xl font-bold font-cairo">{t('title')}</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">{t('description')}</p>

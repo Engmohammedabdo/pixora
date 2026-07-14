@@ -9,6 +9,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { cn } from '@/lib/utils';
+import { mapApiError } from '@/lib/studio-errors';
 import Image from 'next/image';
 import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
 
@@ -43,11 +44,11 @@ export default function EditPage(): React.ReactElement {
         body: JSON.stringify({ imageUrl: originalImage, editDescription, editType }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); return; }
+      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError('Network error'); } finally { setIsLoading(false); }
-  }, [isValid, originalImage, editDescription, editType, setBalance]);
+    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+  }, [isValid, originalImage, editDescription, editType, setBalance, t]);
 
   const inputPanel = (
     <div className="space-y-4">
@@ -102,7 +103,7 @@ export default function EditPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.edit')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tEdit('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>
