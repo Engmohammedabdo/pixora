@@ -366,7 +366,8 @@
     "pyraVoice": "Pyra Voice 🦊",
     "pyraVoicePro": "🌟 Pyra Voice Pro",
     "enhanced": "Enhanced",
-    "maxDuration": "Max: {seconds}s"
+    "maxDuration": "Max: {seconds}s",
+    "proBadge": "🌟 Pro"
   },
   "edit": {
     "originalImage": "Original Image",

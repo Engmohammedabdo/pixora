@@ -366,7 +366,8 @@
     "pyraVoice": "صوت بايرا 🦊",
     "pyraVoicePro": "🌟 صوت بايرا برو",
     "enhanced": "محسّن",
-    "maxDuration": "الحد الأقصى: {seconds} ثانية"
+    "maxDuration": "الحد الأقصى: {seconds} ثانية",
+    "proBadge": "🌟 برو"
   },
   "edit": {
     "originalImage": "الصورة الأصلية",
