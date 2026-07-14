@@ -10,22 +10,25 @@ import { SocialProof } from '@/components/landing/SocialProof';
 import { FaqSection } from '@/components/landing/FaqSection';
 import { FinalCta } from '@/components/landing/FinalCta';
 import { Footer } from '@/components/landing/Footer';
+import { LandingMotionConfig } from '@/components/landing/LandingMotionConfig';
 
 export default function LandingPage(): React.ReactElement {
   return (
-    <div className="min-h-screen bg-[var(--color-bg)]">
-      <NavBar />
-      <HeroSection />
-      <ValuePillars />
-      <HowItWorks />
-      <InteractiveDemo />
-      <StudiosShowcase />
-      <StatsSection />
-      <PricingSection />
-      <SocialProof />
-      <FaqSection />
-      <FinalCta />
-      <Footer />
-    </div>
+    <LandingMotionConfig>
+      <div className="min-h-screen bg-[var(--color-bg)]">
+        <NavBar />
+        <HeroSection />
+        <ValuePillars />
+        <HowItWorks />
+        <InteractiveDemo />
+        <StudiosShowcase />
+        <StatsSection />
+        <PricingSection />
+        <SocialProof />
+        <FaqSection />
+        <FinalCta />
+        <Footer />
+      </div>
+    </LandingMotionConfig>
   );
 }
