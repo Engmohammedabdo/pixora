@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AssetCard } from '@/components/shared/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { downloadFiles } from '@/lib/download';
 import { Download, Trash2, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -105,12 +106,7 @@ export default function AssetsPage(): React.ReactElement {
 
   const handleDownloadSelected = (): void => {
     const selected = assets.filter((a) => selectedIds.has(a.id));
-    selected.forEach((asset) => {
-      const link = document.createElement('a');
-      link.href = asset.url;
-      link.download = `pyrasuite-${asset.id}.png`;
-      link.click();
-    });
+    void downloadFiles(selected.map((asset) => ({ url: asset.url, filename: `pyrasuite-${asset.id}.png` })));
   };
 
   return (
@@ -133,7 +129,7 @@ export default function AssetsPage(): React.ReactElement {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {STUDIOS.map((s) => (
           <button
             key={s}
