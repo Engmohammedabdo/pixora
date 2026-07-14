@@ -125,7 +125,7 @@ export default function VoiceOverPage(): React.ReactElement {
                 )}>
                 <span>{tVo(v.nameKey)}</span>
                 <div className="flex items-center gap-1">
-                  {isEL && <Badge variant="secondary" className="text-[8px] px-1">🌟 برو</Badge>}
+                  {isEL && <Badge variant="secondary" className="text-[8px] px-1">{tVo('proBadge')}</Badge>}
                   {!isAvailable && <Lock className="h-3 w-3 text-[var(--color-text-muted)]" />}
                 </div>
               </button>
