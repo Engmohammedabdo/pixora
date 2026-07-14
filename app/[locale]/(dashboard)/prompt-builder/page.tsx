@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CreditCost } from '@/components/shared/CreditCost';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
+import { mapApiError } from '@/lib/studio-errors';
 import { Link } from '@/i18n/routing';
-import { Sparkles, Copy, Check, ArrowRight, Lightbulb } from 'lucide-react';
+import { Sparkles, Copy, Check, ArrowRight, Lightbulb, AlertTriangle } from 'lucide-react';
 
 const OUTPUT_TYPES = ['image', 'video', 'copy', 'campaign'] as const;
 
@@ -22,15 +25,18 @@ interface PromptResult {
 
 export default function PromptBuilderPage(): React.ReactElement {
   const t = useTranslations();
+  const tPb = useTranslations('promptBuilder');
   const [description, setDescription] = useState('');
   const [outputType, setOutputType] = useState<string>('image');
   const [results, setResults] = useState<PromptResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (description.length < 5) return;
     setIsLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/studios/prompt-builder', {
         method: 'POST',
@@ -38,11 +44,17 @@ export default function PromptBuilderPage(): React.ReactElement {
         body: JSON.stringify({ description, outputType }),
       });
       const data = await res.json();
-      if (data.success) setResults(data.data.prompts);
-    } catch { /* */ } finally {
+      if (!res.ok || !data.success) {
+        setError(mapApiError(data.error, (k) => t(`studio.${k}`)));
+        return;
+      }
+      setResults(data.data.prompts);
+    } catch {
+      setError(mapApiError('network', (k) => t(`studio.${k}`)));
+    } finally {
       setIsLoading(false);
     }
-  }, [description, outputType]);
+  }, [description, outputType, t]);
 
   const handleCopy = async (text: string, idx: number): Promise<void> => {
     await navigator.clipboard.writeText(text);
@@ -52,14 +64,20 @@ export default function PromptBuilderPage(): React.ReactElement {
 
   const studioMap: Record<string, string> = { image: '/creator', campaign: '/campaign' };
 
+  const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
+  };
+
   const inputPanel = (
     <div className="space-y-5">
       <div className="space-y-2">
-        <Label>وصف ما تريد بالعربية</Label>
+        <Label htmlFor="prompt-builder-description">{tPb('descriptionLabel')}</Label>
         <textarea
+          id="prompt-builder-description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="مثال: صورة إعلانية لعطر فاخر على رخام مع إضاءة ناعمة..."
+          onKeyDown={handleSubmitKeyDown}
+          placeholder={tPb('descriptionPlaceholder')}
           rows={4}
           maxLength={500}
           className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none"
@@ -68,14 +86,15 @@ export default function PromptBuilderPage(): React.ReactElement {
       </div>
 
       <div className="space-y-2">
-        <Label>نوع المحتوى</Label>
+        <Label>{tPb('outputType')}</Label>
         <div className="grid grid-cols-2 gap-2">
           {OUTPUT_TYPES.map((type) => (
             <button key={type} type="button" onClick={() => setOutputType(type)}
-              className={cn('rounded-lg border px-3 py-2 text-sm capitalize transition-colors',
-                outputType === type ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300'
+              aria-pressed={outputType === type}
+              className={cn('rounded-lg border px-3 py-2 text-sm transition-colors',
+                outputType === type ? selectedChipClasses : unselectedChipClasses
               )}>
-              {type}
+              {tPb(`outputTypes.${type}`)}
             </button>
           ))}
         </div>
@@ -85,16 +104,27 @@ export default function PromptBuilderPage(): React.ReactElement {
         <CreditCost cost={0} />
         <Button onClick={handleGenerate} disabled={description.length < 5 || isLoading} className="gap-2">
           <Sparkles className="h-4 w-4" />
-          {isLoading ? t('studio.generating') : 'Build Prompt'}
+          {isLoading ? t('studio.generating') : tPb('build')}
         </Button>
       </div>
     </div>
   );
 
-  const previewPanel = results.length === 0 ? (
+  const previewPanel = isLoading ? (
+    <div className="space-y-4 py-6">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-32 rounded-lg" />
+      ))}
+    </div>
+  ) : error ? (
+    <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
+      <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
+      <p className="text-sm text-[var(--color-error)]">{error}</p>
+    </div>
+  ) : results.length === 0 ? (
     <div className="flex flex-col items-center justify-center h-full gap-2 py-12 text-[var(--color-text-muted)]">
       <Lightbulb className="h-12 w-12" />
-      <p className="text-sm mt-4">البرومبتات ستظهر هنا</p>
+      <p className="text-sm mt-4">{tPb('emptyState')}</p>
     </div>
   ) : (
     <div className="space-y-4">
@@ -110,8 +140,12 @@ export default function PromptBuilderPage(): React.ReactElement {
                 </Button>
                 {studioMap[outputType] && (
                   <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" asChild>
-                    <Link href={`${studioMap[outputType]}?prompt=${encodeURIComponent(r.prompt)}`}>
-                      <ArrowRight className="h-3 w-3" />
+                    <Link
+                      href={`${studioMap[outputType]}?prompt=${encodeURIComponent(r.prompt)}`}
+                      aria-label={tPb('openInStudio')}
+                      title={tPb('openInStudio')}
+                    >
+                      <ArrowRight className="h-3 w-3 rtl:rotate-180" />
                     </Link>
                   </Button>
                 )}
@@ -129,7 +163,7 @@ export default function PromptBuilderPage(): React.ReactElement {
     <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b">
         <h1 className="text-xl font-bold font-cairo">{t('nav.promptBuilder')}</h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">حوّل وصفك بالعربي لبرومبت احترافي بالإنجليزي — مجاناً</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">{tPb('description')}</p>
       </div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>

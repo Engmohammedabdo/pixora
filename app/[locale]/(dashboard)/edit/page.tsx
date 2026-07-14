@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GenerationProgress } from '@/components/shared/GenerationProgress';
 import { useCreditsStore } from '@/store/credits';
+import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
+import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
 
@@ -21,10 +25,13 @@ const EDIT_TYPES = [
   { id: 'style_transfer', key: 'style_transfer', emoji: '🔄' },
 ] as const;
 
-export default function EditPage(): React.ReactElement {
+function EditPageContent(): React.ReactElement {
   const t = useTranslations();
   const tEdit = useTranslations('edit');
-  const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // Preload an image handed off from another studio (e.g. Creator's edit shortcut)
+  const initialSrc = searchParams.get('src');
+  const [originalImage, setOriginalImage] = useState<string | null>(initialSrc || null);
   const [editDescription, setEditDescription] = useState('');
   const [editType, setEditType] = useState('background_replace');
   const [resultImage, setResultImage] = useState<string | null>(null);
@@ -50,6 +57,10 @@ export default function EditPage(): React.ReactElement {
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, originalImage, editDescription, editType, setBalance, t]);
 
+  const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
+  };
+
   const inputPanel = (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -73,21 +84,21 @@ export default function EditPage(): React.ReactElement {
       <div className="space-y-2">
         <Label>{tEdit('editType')}</Label>
         <div className="grid grid-cols-2 gap-2">{EDIT_TYPES.map((et) => (
-          <button key={et.id} type="button" onClick={() => setEditType(et.id)} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors', editType === et.id ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>
+          <button key={et.id} type="button" onClick={() => setEditType(et.id)} aria-pressed={editType === et.id} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors', editType === et.id ? selectedChipClasses : unselectedChipClasses)}>
             <span>{et.emoji}</span>{tEdit(`editTypes.${et.key}`)}
           </button>
         ))}</div>
       </div>
-      <div className="space-y-2"><Label>{tEdit('editDescription')}</Label><textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="مثال: غيّر الخلفية لمكتب حديث مع إضاءة طبيعية..." rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label htmlFor="edit-description">{tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit('editDescriptionPlaceholder')} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
       <div className="flex items-center justify-between pt-2">
-        <CreditCost cost={1} />
+        <CreditCost cost={CREDIT_COSTS.edit} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
       </div>
     </div>
   );
 
   const previewPanel = isLoading ? (
-    <div className="flex gap-4 py-6"><Skeleton className="flex-1 h-64 rounded-lg" /><Skeleton className="flex-1 h-64 rounded-lg" /></div>
+    <GenerationProgress isLoading />
   ) : error ? (
     <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
   ) : !resultImage && !originalImage ? (
@@ -98,7 +109,7 @@ export default function EditPage(): React.ReactElement {
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && <Image src={originalImage} alt="Original" width={1024} height={1024} className="w-full rounded-lg border" unoptimized />}</div>
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? <Image src={resultImage} alt="Edited" width={1024} height={1024} className="w-full rounded-lg border" unoptimized /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
       </div>
-      {resultImage && (<Button onClick={() => { const a = document.createElement('a'); a.href = resultImage; a.download = 'pyrasuite-edit.png'; a.click(); }} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
+      {resultImage && (<Button onClick={() => void downloadFile(resultImage, 'pyrasuite-edit.png')} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
     </div>
   );
 
@@ -107,5 +118,13 @@ export default function EditPage(): React.ReactElement {
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.edit')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tEdit('description')}</p></div>
       <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
     </div>
+  );
+}
+
+export default function EditPage(): React.ReactElement {
+  return (
+    <Suspense>
+      <EditPageContent />
+    </Suspense>
   );
 }

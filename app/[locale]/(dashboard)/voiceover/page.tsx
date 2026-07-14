@@ -83,14 +83,25 @@ export default function VoiceOverPage(): React.ReactElement {
   const dialectLabels: Record<string, string> = { saudi: tVo('dialects.saudi'), emirati: tVo('dialects.emirati'), egyptian: tVo('dialects.egyptian'), gulf: tVo('dialects.gulf'), formal: tVo('dialects.formal') };
   const toneLabels: Record<string, string> = { professional: tVo('tones.professional'), friendly: tVo('tones.friendly'), energetic: tVo('tones.energetic'), calm: tVo('tones.calm') };
 
+  // Stable decorative waveform heights — regenerated only per generated audio
+  const waveformBars = useMemo(
+    () => Array.from({ length: 20 }, () => 12 + Math.random() * 24),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [audioUrl]
+  );
+
+  const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
+  };
+
   const inputPanel = (
     <div className="space-y-4">
       {/* Script */}
       <div className="space-y-2">
-        <Label>{tVo('script')}</Label>
-        <textarea value={script} onChange={(e) => setScript(e.target.value)} placeholder="اكتب نص التعليق الصوتي هنا..." rows={5} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
+        <Label htmlFor="voiceover-script">{tVo('script')}</Label>
+        <textarea id="voiceover-script" value={script} onChange={(e) => setScript(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tVo('scriptPlaceholder')} rows={5} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
         <div className="flex justify-between text-xs text-[var(--color-text-muted)]">
-          <span>~{estimatedDuration}s تقريباً {estimatedDuration > config.maxDurationSeconds && <span className="text-[var(--color-error)]">(تجاوز الحد: {config.maxDurationSeconds}s)</span>}</span>
+          <span>{tVo('approxDuration', { seconds: estimatedDuration })} {estimatedDuration > config.maxDurationSeconds && <span className="text-[var(--color-error)]">{tVo('limitExceeded', { max: config.maxDurationSeconds })}</span>}</span>
           <span>{script.length}/2000</span>
         </div>
       </div>
@@ -112,7 +123,7 @@ export default function VoiceOverPage(): React.ReactElement {
                   !isAvailable && 'opacity-50 cursor-not-allowed',
                   voice === v.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-[var(--color-border)] hover:border-primary-300'
                 )}>
-                <span>{VOICE_NAMES[v.id] || v.id}</span>
+                <span>{tVo(v.nameKey)}</span>
                 <div className="flex items-center gap-1">
                   {isEL && <Badge variant="secondary" className="text-[8px] px-1">🌟 برو</Badge>}
                   {!isAvailable && <Lock className="h-3 w-3 text-[var(--color-text-muted)]" />}
@@ -196,10 +207,10 @@ export default function VoiceOverPage(): React.ReactElement {
       {/* Info badges */}
       <div className="flex flex-wrap gap-2 text-[10px]">
         <Badge variant="outline" className="gap-1">
-          {config.provider === 'elevenlabs' ? '🌟 صوت بايرا برو' : 'صوت بايرا 🦊'}
+          {config.provider === 'elevenlabs' ? tVo('pyraVoicePro') : tVo('pyraVoice')}
         </Badge>
         <Badge variant="outline">{config.quality === 'tts-1-hd' ? 'HD' : 'Standard'}</Badge>
-        <Badge variant="outline">Max: {config.maxDurationSeconds}s</Badge>
+        <Badge variant="outline">{tVo('maxDuration', { seconds: config.maxDurationSeconds })}</Badge>
       </div>
 
       {/* Submit */}
@@ -222,9 +233,9 @@ export default function VoiceOverPage(): React.ReactElement {
   ) : (
     <div className="flex flex-col items-center py-12 gap-6">
       <div className="flex items-center gap-2">
-        <Badge variant="outline">{audioDuration}s — التعليق الصوتي</Badge>
-        {provider && <Badge variant="secondary" className="text-[9px]">{provider === 'elevenlabs' ? '🌟 صوت بايرا برو' : 'صوت بايرا 🦊'}</Badge>}
-        {enhanced && <Badge variant="secondary" className="text-[9px] gap-0.5"><Info className="h-2.5 w-2.5" /> محسّن</Badge>}
+        <Badge variant="outline">{tVo('durationBadge', { seconds: audioDuration })}</Badge>
+        {provider && <Badge variant="secondary" className="text-[9px]">{provider === 'elevenlabs' ? tVo('pyraVoicePro') : tVo('pyraVoice')}</Badge>}
+        {enhanced && <Badge variant="secondary" className="text-[9px] gap-0.5"><Info className="h-2.5 w-2.5" /> {tVo('enhanced')}</Badge>}
       </div>
       <div className="w-full max-w-sm bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-4">
         <audio
@@ -236,9 +247,9 @@ export default function VoiceOverPage(): React.ReactElement {
           className="hidden"
         />
         <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-          <div className="flex gap-0.5">{Array.from({ length: 20 }).map((_, i) => (<div key={i} className={`w-1 rounded-full transition-all ${isPlaying ? 'bg-primary-500 animate-pulse' : 'bg-primary-300'}`} style={{ height: `${12 + Math.random() * 24}px` }} />))}</div>
+          <div className="flex gap-0.5">{waveformBars.map((height, i) => (<div key={i} className={`w-1 rounded-full transition-all ${isPlaying ? 'bg-primary-500 animate-pulse' : 'bg-primary-300'}`} style={{ height: `${height}px` }} />))}</div>
         </div>
-        <Button size="lg" variant="default" className="rounded-full h-14 w-14" onClick={() => {
+        <Button size="lg" variant="default" className="rounded-full h-14 w-14" aria-label={isPlaying ? tVo('pause') : tVo('play')} aria-pressed={isPlaying} onClick={() => {
           if (!audioRef.current) return;
           if (isPlaying) { audioRef.current.pause(); } else { audioRef.current.play(); }
         }}>
@@ -246,9 +257,9 @@ export default function VoiceOverPage(): React.ReactElement {
         </Button>
         <p className="text-xs text-[var(--color-text-muted)]">{audioDuration} {tVo('second')}</p>
       </div>
-      <a href={audioUrl} download={`pyrasuite-voiceover-${Date.now()}.mp3`}>
-        <Button variant="outline" className="gap-2"><Download className="h-4 w-4" />{tVo('downloadMp3')}</Button>
-      </a>
+      <Button variant="outline" className="gap-2" onClick={() => void downloadFile(audioUrl, `pyrasuite-voiceover-${Date.now()}.mp3`)}>
+        <Download className="h-4 w-4" />{tVo('downloadMp3')}
+      </Button>
     </div>
   );
 
