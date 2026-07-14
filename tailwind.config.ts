@@ -29,15 +29,14 @@ const config: Config = {
           500: '#06B6D4',
           600: '#0891B2',
         },
+        // Theme-aware: these CSS variables flip in .dark (globals.css),
+        // so bg-surface / bg-surface-2 / bg-background adapt automatically
         surface: {
-          DEFAULT: '#FFFFFF',
-          2: '#F1F5F9',
-          dark: '#1E293B',
-          'dark-2': '#334155',
+          DEFAULT: 'var(--color-surface)',
+          2: 'var(--color-surface-2)',
         },
         background: {
-          DEFAULT: '#F8FAFC',
-          dark: '#0F172A',
+          DEFAULT: 'var(--color-bg)',
         },
       },
       fontFamily: {

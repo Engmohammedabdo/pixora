@@ -126,7 +126,7 @@ export default function VoiceOverPage(): React.ReactElement {
                 )}>
                 <span>{VOICE_NAMES[v.id] || v.id}</span>
                 <div className="flex items-center gap-1">
-                  {isEL && <Badge variant="secondary" className="text-[8px] px-1">ElevenLabs</Badge>}
+                  {isEL && <Badge variant="secondary" className="text-[8px] px-1">🌟 برو</Badge>}
                   {!isAvailable && <Lock className="h-3 w-3 text-[var(--color-text-muted)]" />}
                 </div>
               </button>
@@ -208,7 +208,7 @@ export default function VoiceOverPage(): React.ReactElement {
       {/* Info badges */}
       <div className="flex flex-wrap gap-2 text-[10px]">
         <Badge variant="outline" className="gap-1">
-          {config.provider === 'elevenlabs' ? '🌟 ElevenLabs' : 'OpenAI TTS'}
+          {config.provider === 'elevenlabs' ? '🌟 صوت بايرا برو' : 'صوت بايرا 🦊'}
         </Badge>
         <Badge variant="outline">{config.quality === 'tts-1-hd' ? 'HD' : 'Standard'}</Badge>
         <Badge variant="outline">Max: {config.maxDurationSeconds}s</Badge>
@@ -235,7 +235,7 @@ export default function VoiceOverPage(): React.ReactElement {
     <div className="flex flex-col items-center py-12 gap-6">
       <div className="flex items-center gap-2">
         <Badge variant="outline">{audioDuration}s — التعليق الصوتي</Badge>
-        {provider && <Badge variant="secondary" className="text-[9px]">{provider === 'elevenlabs' ? '🌟 ElevenLabs' : 'OpenAI'}</Badge>}
+        {provider && <Badge variant="secondary" className="text-[9px]">{provider === 'elevenlabs' ? '🌟 صوت بايرا برو' : 'صوت بايرا 🦊'}</Badge>}
         {enhanced && <Badge variant="secondary" className="text-[9px] gap-0.5"><Info className="h-2.5 w-2.5" /> محسّن</Badge>}
       </div>
       <div className="w-full max-w-sm bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-4">
