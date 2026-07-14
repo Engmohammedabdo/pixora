@@ -1,19 +1,24 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 
 const NAV_LINKS = [
-  { label: 'المميزات', href: '#features' },
-  { label: 'الاستوديوهات', href: '#studios' },
-  { label: 'الأسعار', href: '#pricing' },
-];
+  { key: 'features', href: '#features' },
+  { key: 'studios', href: '#studios' },
+  { key: 'pricing', href: '#pricing' },
+] as const;
+
+const NAV_LINK_FOCUS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-md';
 
 export function NavBar(): React.ReactElement {
+  const t = useTranslations('landing');
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -22,6 +27,15 @@ export function NavBar(): React.ReactElement {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen]);
 
   return (
     <motion.nav
@@ -42,9 +56,9 @@ export function NavBar(): React.ReactElement {
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              className={`text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors ${NAV_LINK_FOCUS}`}
             >
-              {link.label}
+              {t(`nav.${link.key}`)}
             </a>
           ))}
         </div>
@@ -52,10 +66,10 @@ export function NavBar(): React.ReactElement {
         {/* Desktop auth buttons */}
         <div className="hidden md:flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/login">تسجيل الدخول</Link>
+            <Link href="/login">{t('nav.login')}</Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href="/signup">إنشاء حساب</Link>
+            <Link href="/signup">{t('nav.signup')}</Link>
           </Button>
         </div>
 
@@ -63,42 +77,48 @@ export function NavBar(): React.ReactElement {
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="md:hidden p-2 rounded-lg hover:bg-[var(--color-surface-2)] transition-colors"
-          aria-label="القائمة"
+          aria-label={t('nav.menuLabel')}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-menu"
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
       {/* Mobile dropdown */}
-      {mobileOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="md:hidden border-t border-[var(--color-surface-2)] bg-[var(--color-surface)]/95 backdrop-blur-xl"
-        >
-          <div className="px-4 py-4 space-y-3">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2"
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="flex items-center gap-3 pt-2 border-t border-[var(--color-surface-2)]">
-              <Button variant="ghost" size="sm" className="flex-1" asChild>
-                <Link href="/login">تسجيل الدخول</Link>
-              </Button>
-              <Button size="sm" className="flex-1" asChild>
-                <Link href="/signup">إنشاء حساب</Link>
-              </Button>
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            id="mobile-menu"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden overflow-hidden border-t border-[var(--color-surface-2)] bg-[var(--color-surface)]/95 backdrop-blur-xl"
+          >
+            <div className="px-4 py-4 space-y-3">
+              {NAV_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2 ${NAV_LINK_FOCUS}`}
+                >
+                  {t(`nav.${link.key}`)}
+                </a>
+              ))}
+              <div className="flex items-center gap-3 pt-2 border-t border-[var(--color-surface-2)]">
+                <Button variant="ghost" size="sm" className="flex-1" asChild>
+                  <Link href="/login">{t('nav.login')}</Link>
+                </Button>
+                <Button size="sm" className="flex-1" asChild>
+                  <Link href="/signup">{t('nav.signup')}</Link>
+                </Button>
+              </div>
             </div>
-          </div>
-        </motion.div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.nav>
   );
 }

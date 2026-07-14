@@ -2,31 +2,18 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { Pencil, Sparkles, Download } from 'lucide-react';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 
 const steps = [
-  {
-    number: 1,
-    icon: Pencil,
-    title: 'اكتب فكرتك بالعربي',
-    description: 'وصف بسيط يكفي — "أبي صورة لمنتج قهوة بخلفية صحراوية"',
-  },
-  {
-    number: 2,
-    icon: Sparkles,
-    title: 'Pyra AI تشتغل 🦊',
-    description: 'تختار الاستوديو المناسب، Pyra AI تفهم طلبك وتنفّذه بثواني',
-  },
-  {
-    number: 3,
-    icon: Download,
-    title: 'حمّل وانشر',
-    description: 'صور HD · PDF · حملات كاملة — جاهزة للنشر على أي منصة',
-  },
-];
+  { number: 1, icon: Pencil, titleKey: 'how.step1Title', descKey: 'how.step1Desc' },
+  { number: 2, icon: Sparkles, titleKey: 'how.step2Title', descKey: 'how.step2Desc' },
+  { number: 3, icon: Download, titleKey: 'how.step3Title', descKey: 'how.step3Desc' },
+] as const;
 
 export function HowItWorks(): React.ReactElement {
+  const t = useTranslations('landing');
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
@@ -34,10 +21,10 @@ export function HowItWorks(): React.ReactElement {
     <section className="bg-[var(--color-surface)] py-20 px-6">
       <div className="mx-auto max-w-5xl">
         <h2 className="mb-4 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
-          ثلاث خطوات وخلاص
+          {t('how.title')}
         </h2>
         <p className="mb-16 text-center text-[var(--color-text-secondary)]">
-          بدون تعقيد — بدون منحنى تعلّم
+          {t('how.subtitle')}
         </p>
 
         <motion.div
@@ -60,10 +47,10 @@ export function HowItWorks(): React.ReactElement {
                       <Icon className="h-8 w-8 text-primary-600 dark:text-primary-400" />
                     </div>
                     <h3 className="mb-2 font-semibold text-[var(--color-text-primary)]">
-                      {step.title}
+                      {t(step.titleKey)}
                     </h3>
                     <p className="max-w-[220px] text-sm text-[var(--color-text-secondary)]">
-                      {step.description}
+                      {t(step.descKey)}
                     </p>
                   </motion.div>
                 </div>

@@ -2,38 +2,51 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 
 const STATS = [
-  { value: 9, suffix: '', label: 'استوديو متخصص' },
-  { value: 25, suffix: '', label: 'كريدت مجاناً للبداية' },
-  { value: 5, suffix: '', label: 'باقات تناسب الجميع' },
-  { value: 10, suffix: ' دقائق', label: 'من الفكرة للحملة' },
-];
+  { value: 9, suffixKey: null, labelKey: 'stats.stat1Label' },
+  { value: 25, suffixKey: null, labelKey: 'stats.stat2Label' },
+  { value: 5, suffixKey: null, labelKey: 'stats.stat3Label' },
+  { value: 10, suffixKey: 'stats.stat4Suffix', labelKey: 'stats.stat4Label' },
+] as const;
 
 function AnimatedCounter({ target, suffix, inView }: { target: number; suffix: string; inView: boolean }) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!inView) return;
+
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      setCount(target);
+      return;
+    }
+
     const duration = 2000;
     const startTime = performance.now();
+    let frameId: number;
 
     function animate(currentTime: number) {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(eased * target));
-      if (progress < 1) requestAnimationFrame(animate);
+      if (progress < 1) frameId = requestAnimationFrame(animate);
     }
 
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [inView, target]);
 
   return <>{count}{suffix}</>;
 }
 
 export default function StatsSection() {
+  const t = useTranslations('landing');
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
@@ -48,14 +61,18 @@ export default function StatsSection() {
       >
         {STATS.map((stat) => (
           <motion.div
-            key={stat.label}
+            key={stat.labelKey}
             variants={fadeInUp}
             className="text-center"
           >
-            <div className="text-5xl font-bold text-white mb-2">
-              <AnimatedCounter target={stat.value} suffix={stat.suffix} inView={isInView} />
+            <div className="whitespace-nowrap text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-2">
+              <AnimatedCounter
+                target={stat.value}
+                suffix={stat.suffixKey ? t(stat.suffixKey) : ''}
+                inView={isInView}
+              />
             </div>
-            <div className="text-sm text-primary-200">{stat.label}</div>
+            <div className="text-sm text-primary-200">{t(stat.labelKey)}</div>
           </motion.div>
         ))}
       </motion.div>

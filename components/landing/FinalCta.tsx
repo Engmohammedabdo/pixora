@@ -1,12 +1,15 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { fadeInUp } from '@/lib/animations';
 
 export function FinalCta(): React.ReactElement {
+  const t = useTranslations('landing');
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-500 to-accent-500 py-24 px-6">
       {/* Floating background circles */}
@@ -31,11 +34,11 @@ export function FinalCta(): React.ReactElement {
           <span className="text-5xl mb-6 block">🦊</span>
 
           <h2 className="text-4xl font-bold font-cairo mb-4">
-            قول لبايرا إيش تبي — والباقي عليها
+            {t('cta.title')}
           </h2>
 
           <p className="text-lg text-white/80 mb-10 max-w-xl mx-auto">
-            25 كريدت مجاناً تنتظرك. بدون بطاقة ائتمان. سجّل بثانيتين وابدأ أول حملة لك.
+            {t('cta.subtitle')}
           </p>
 
           <motion.div
@@ -50,14 +53,14 @@ export function FinalCta(): React.ReactElement {
               asChild
             >
               <Link href="/signup">
-                ابدأ مجاناً الحين
-                <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+                {t('cta.button')}
+                <ArrowRight className="h-4 w-4 rtl:rotate-180" />
               </Link>
             </Button>
           </motion.div>
 
           <p className="mt-6 text-sm text-white/50">
-            أكثر من 9 استوديوهات جاهزة تنتظرك
+            {t('cta.studios')}
           </p>
         </motion.div>
       </div>

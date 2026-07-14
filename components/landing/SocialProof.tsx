@@ -2,50 +2,41 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { Star } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Rocket, Languages, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 
-const TESTIMONIALS = [
-  {
-    quote: 'كنت أقضي أسبوع على محتوى السوشال. الحين Pyra AI تخلصه بـ ساعة. مش مبالغة.',
-    name: 'سارة المهندي',
-    role: 'مديرة تسويق — شركة تقنية',
-    stars: 5,
-  },
-  {
-    quote: 'أخيراً أداة تفهم لما أكتب بالخليجي. المحتوى يطلع طبيعي — مش واضح إنه AI.',
-    name: 'خالد الحربي',
-    role: 'صاحب وكالة تسويق',
-    stars: 5,
-  },
-  {
-    quote: 'نظام الكريدت الشفاف هو اللي خلاني أشترك. أعرف بالضبط كم بصرف قبل ما أبدأ.',
-    name: 'نورة العتيبي',
-    role: 'فريلانسر — إدارة سوشال ميديا',
-    stars: 5,
-  },
+const VALUE_CARDS: { key: string; icon: LucideIcon }[] = [
+  { key: 'card1', icon: Rocket },
+  { key: 'card2', icon: Languages },
+  { key: 'card3', icon: LayoutGrid },
 ];
 
 export function SocialProof(): React.ReactElement {
+  const t = useTranslations('landing');
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
     <section className="py-20 px-6 bg-[var(--color-surface)]">
       <div className="mx-auto max-w-7xl">
-        {/* Trust message */}
-        <motion.p
+        {/* Early adopters headline */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mx-auto max-w-2xl text-center text-[var(--color-text-secondary)] leading-relaxed mb-16"
+          className="mx-auto max-w-2xl text-center mb-16"
         >
-          بنية تحتية سحابية مصممة لوكالات التسويق، الشركات الناشئة، والمسوّقين المستقلين —
-          سرعة واستقرار تقدر تعتمد عليهم.
-        </motion.p>
+          <h2 className="mb-4 font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
+            {t('social.title')}
+          </h2>
+          <p className="text-[var(--color-text-secondary)] leading-relaxed">
+            {t('social.subtitle')}
+          </p>
+        </motion.div>
 
-        {/* Testimonial cards */}
+        {/* Value cards */}
         <motion.div
           ref={ref}
           variants={staggerContainer}
@@ -53,40 +44,37 @@ export function SocialProof(): React.ReactElement {
           animate={isInView ? 'visible' : 'hidden'}
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
         >
-          {TESTIMONIALS.map((testimonial) => (
+          {VALUE_CARDS.map(({ key, icon: Icon }) => (
             <motion.div
-              key={testimonial.name}
+              key={key}
               variants={fadeInUp}
               className="rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)] p-6"
             >
-              <span className="block text-4xl text-primary-200 dark:text-primary-800 mb-4 leading-none select-none">
-                &ldquo;
-              </span>
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/40">
+                <Icon className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+              </div>
 
-              <p className="text-[var(--color-text-primary)] leading-relaxed mb-6">
-                {testimonial.quote}
+              <h3 className="font-semibold text-[var(--color-text-primary)] mb-2">
+                {t(`social.${key}Title`)}
+              </h3>
+
+              <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                {t(`social.${key}Desc`)}
               </p>
-
-              <div className="flex gap-1 mb-4">
-                {Array.from({ length: testimonial.stars }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className="h-4 w-4 fill-amber-400 text-amber-400"
-                  />
-                ))}
-              </div>
-
-              <div className="border-t border-[var(--color-border)]/50 pt-4">
-                <p className="font-semibold text-sm text-[var(--color-text-primary)]">
-                  {testimonial.name}
-                </p>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  {testimonial.role}
-                </p>
-              </div>
             </motion.div>
           ))}
         </motion.div>
+
+        {/* Trust message */}
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mx-auto max-w-2xl text-center text-sm text-[var(--color-text-muted)] leading-relaxed mt-12"
+        >
+          {t('social.trust')}
+        </motion.p>
       </div>
     </section>
   );

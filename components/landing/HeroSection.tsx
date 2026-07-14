@@ -1,11 +1,12 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   fadeInUp,
   slideInRight,
@@ -13,18 +14,12 @@ import {
   staggerContainer,
 } from '@/lib/animations';
 
-const TYPEWRITER_WORDS = [
-  'صورة تبيع',
-  'حملة تشتعل',
-  'خطة تسويق كاملة',
-  'تحليل ينافس الوكالات',
-  'صوت يمثّلك',
-];
+const TYPEWRITER_WORD_KEYS = ['word1', 'word2', 'word3', 'word4', 'word5'] as const;
 
 const FLOATING_CARDS = [
   {
     emoji: '🖼️',
-    label: 'منشئ الصور',
+    labelKey: 'card1',
     gradient: 'from-purple-500 to-pink-500',
     size: 'w-48 h-32',
     position: 'top-8 end-0',
@@ -32,7 +27,7 @@ const FLOATING_CARDS = [
   },
   {
     emoji: '📱',
-    label: 'مخطط الحملات',
+    labelKey: 'card2',
     gradient: 'from-amber-500 to-orange-500',
     size: 'w-56 h-36',
     position: 'top-36 end-24',
@@ -40,37 +35,30 @@ const FLOATING_CARDS = [
   },
   {
     emoji: '📊',
-    label: 'الخطة التسويقية',
+    labelKey: 'card3',
     gradient: 'from-blue-500 to-cyan-500',
     size: 'w-44 h-28',
     position: 'top-64 end-4',
     duration: 5,
   },
-];
+] as const;
 
 export function HeroSection(): React.ReactElement {
+  const t = useTranslations('landing');
   const [wordIndex, setWordIndex] = useState(0);
-  const [showCursor, setShowCursor] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setWordIndex((prev) => (prev + 1) % TYPEWRITER_WORDS.length);
+      setWordIndex((prev) => (prev + 1) % TYPEWRITER_WORD_KEYS.length);
     }, 2800);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const cursorInterval = setInterval(() => {
-      setShowCursor((prev) => !prev);
-    }, 530);
-    return () => clearInterval(cursorInterval);
   }, []);
 
   return (
     <section className="relative overflow-hidden min-h-[90vh] flex flex-col justify-center">
       {/* Background gradients */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,var(--color-primary-light,rgba(124,58,237,0.10)),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.10),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_80%,rgba(236,72,153,0.05),transparent)]" />
         <motion.div
           className="absolute top-20 start-10 w-72 h-72 rounded-full bg-primary-500/5 blur-3xl"
@@ -97,7 +85,7 @@ export function HeroSection(): React.ReactElement {
             <motion.div variants={slideInRight}>
               <Badge variant="secondary" className="mb-6 gap-1.5 px-4 py-1.5 text-sm">
                 <span>🦊</span>
-                مدعوم بمحرك Pyra AI
+                {t('hero.badge')}
               </Badge>
             </motion.div>
 
@@ -105,26 +93,33 @@ export function HeroSection(): React.ReactElement {
               variants={slideInRight}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold font-cairo leading-tight mb-6"
             >
-              قولها بالعربي...
+              {t('hero.titleLine1')}
               <br />
-              <span className="bg-gradient-to-l from-primary-500 to-accent-500 bg-clip-text text-transparent">
-                {TYPEWRITER_WORDS[wordIndex]}
+              <span className="inline-block min-w-[16ch] bg-gradient-to-l from-primary-500 to-accent-500 bg-clip-text text-transparent">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={wordIndex}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.3 }}
+                    className="inline-block"
+                  >
+                    {t(`hero.${TYPEWRITER_WORD_KEYS[wordIndex]}`)}
+                  </motion.span>
+                </AnimatePresence>
               </span>
-              <span
-                className={`text-primary-500 ${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-100`}
-              >
-                |
-              </span>
+              <span className="text-primary-500 animate-pulse">|</span>
             </motion.h1>
 
-            <motion.h2
+            <motion.p
               variants={slideInRight}
               className="text-lg sm:text-xl text-[var(--color-text-secondary)] max-w-2xl mb-10 mx-auto lg:mx-0 leading-relaxed"
             >
-              اكتب فكرتك — Pyra AI تحوّلها لحملة تسويقية كاملة.
+              {t('hero.subtitle1')}
               <br className="hidden sm:block" />
-              صور، فيديو، خطط، تحليلات، وتعليق صوتي. <strong>بالعربي من البداية.</strong>
-            </motion.h2>
+              {t('hero.subtitle2')} <strong>{t('hero.subtitleStrong')}</strong>
+            </motion.p>
 
             <motion.div
               variants={slideInRight}
@@ -132,12 +127,12 @@ export function HeroSection(): React.ReactElement {
             >
               <Button size="lg" className="text-base px-8 gap-2" asChild>
                 <Link href="/signup">
-                  ابدأ مجاناً — 25 كريدت هدية
-                  <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+                  {t('hero.ctaPrimary')}
+                  <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" className="text-base px-8" asChild>
-                <a href="#studios">شوف الاستوديوهات</a>
+                <a href="#studios">{t('hero.ctaSecondary')}</a>
               </Button>
             </motion.div>
 
@@ -145,7 +140,7 @@ export function HeroSection(): React.ReactElement {
               variants={slideInRight}
               className="text-xs text-[var(--color-text-muted)]"
             >
-              بدون بطاقة ائتمان · تسجيل بثانيتين · النتيجة فورية
+              {t('hero.microcopy')}
             </motion.p>
           </motion.div>
 
@@ -173,7 +168,7 @@ export function HeroSection(): React.ReactElement {
                 </div>
                 <div className="px-3 py-2">
                   <span className="text-xs font-medium text-[var(--color-text-secondary)]">
-                    {card.label}
+                    {t(`hero.${card.labelKey}`)}
                   </span>
                 </div>
               </motion.div>
@@ -190,7 +185,7 @@ export function HeroSection(): React.ReactElement {
           viewport={{ once: true }}
         >
           <div className="inline-flex items-center gap-4 bg-[var(--color-surface-2)] rounded-full px-6 py-3">
-            {['9 استوديوهات', 'محرك Pyra AI 🦊', '25 كريدت مجاناً'].map((stat, i) => (
+            {[t('hero.stat1'), t('hero.stat2'), t('hero.stat3')].map((stat, i) => (
               <span key={i} className="flex items-center gap-4">
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">
                   {stat}

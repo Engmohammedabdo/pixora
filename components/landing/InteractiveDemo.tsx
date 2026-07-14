@@ -1,58 +1,133 @@
 'use client';
-import { useState } from 'react';
+
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/routing';
 
-const DEMO_PROMPTS = [
-  { prompt: 'صورة إعلانية لعطر فاخر', result: 'https://placehold.co/600x600/6366F1/FFFFFF?text=PyraSuite+Demo' },
-  { prompt: 'تصميم لمنتج قهوة عربية', result: 'https://placehold.co/600x600/06B6D4/FFFFFF?text=Coffee+Brand' },
-  { prompt: 'إعلان عقاري لشقة مودرن', result: 'https://placehold.co/600x600/10B981/FFFFFF?text=Real+Estate' },
-];
+const EXAMPLES = [
+  { labelKey: 'demo.ex1', image: 'https://placehold.co/600x600/6366F1/FFFFFF?text=Specialty+Coffee' },
+  { labelKey: 'demo.ex2', image: 'https://placehold.co/600x600/06B6D4/FFFFFF?text=Skincare' },
+  { labelKey: 'demo.ex3', image: 'https://placehold.co/600x600/F59E0B/FFFFFF?text=Burger+House' },
+  { labelKey: 'demo.ex4', image: 'https://placehold.co/600x600/10B981/FFFFFF?text=Luxury+Perfume' },
+] as const;
+
+const SWITCH_DELAY_MS = 600;
 
 export function InteractiveDemo(): React.ReactElement {
-  const [input, setInput] = useState('');
-  const [result, setResult] = useState<string | null>(null);
+  const t = useTranslations('landing');
+  const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleGenerate = (): void => {
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleSelect = (index: number): void => {
+    if (index === activeIndex || loading) return;
     setLoading(true);
-    setResult(null);
-    const demo = DEMO_PROMPTS[Math.floor(Math.random() * DEMO_PROMPTS.length)];
-    setTimeout(() => {
-      setResult(demo.result);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setActiveIndex(index);
       setLoading(false);
-    }, 2000);
+    }, SWITCH_DELAY_MS);
   };
 
-  return (
-    <section className="py-20 bg-[var(--color-surface)]">
-      <div className="max-w-4xl mx-auto px-4">
-        <h2 className="text-3xl font-bold font-cairo text-center mb-3">جرّب بنفسك — بدون تسجيل</h2>
-        <p className="text-center text-[var(--color-text-secondary)] mb-8">اكتب وصف بسيط وشوف النتيجة</p>
+  const active = EXAMPLES[activeIndex];
 
-        <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto mb-8">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="مثال: صورة إعلانية لعطر فاخر على رخام..."
-            className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <Button onClick={handleGenerate} disabled={loading} className="gap-2 rounded-xl px-6">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? 'جاري التوليد...' : 'جرّب الآن'}
-          </Button>
+  return (
+    <section className="py-20 px-6">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-4 flex justify-center">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)]">
+            {t('demo.badge')}
+          </span>
+        </div>
+        <h2 className="mb-3 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
+          {t('demo.title')}
+        </h2>
+        <p className="mb-8 text-center text-[var(--color-text-secondary)]">
+          {t('demo.subtitle')}
+        </p>
+
+        <div
+          role="group"
+          aria-label={t('demo.examplesAria')}
+          className="mb-10 flex flex-wrap justify-center gap-3"
+        >
+          {EXAMPLES.map((example, index) => (
+            <button
+              key={example.labelKey}
+              type="button"
+              onClick={() => handleSelect(index)}
+              aria-pressed={index === activeIndex}
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                index === activeIndex
+                  ? 'border-transparent bg-primary-500 text-white'
+                  : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-primary-400 hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              {t(example.labelKey)}
+            </button>
+          ))}
         </div>
 
-        <AnimatePresence>
-          {result && (
-            <motion.div initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 0.6 }} className="max-w-md mx-auto">
-              <Image src={result} alt="Demo result" width={600} height={600} className="w-full rounded-2xl shadow-2xl" unoptimized />
-              <p className="text-center text-sm text-[var(--color-text-muted)] mt-4">سجّل مجاناً عشان تحفظ نتائجك وتستخدم كل الاستوديوهات</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="mx-auto max-w-md">
+          <div className="relative aspect-square w-full">
+            <AnimatePresence mode="wait">
+              {loading ? (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
+                >
+                  <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+                  <p className="text-sm text-[var(--color-text-secondary)]">{t('demo.loading')}</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={active.labelKey}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.25 }}
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={active.image}
+                    alt={t(active.labelKey)}
+                    width={600}
+                    height={600}
+                    className="h-full w-full rounded-2xl object-cover shadow-2xl"
+                    unoptimized
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <p className="mt-4 text-center text-sm text-[var(--color-text-muted)]">
+            {t('demo.caption')}
+          </p>
+
+          <div className="mt-6 flex justify-center">
+            <Button asChild className="gap-2 rounded-xl px-6">
+              <Link href="/signup">
+                <Sparkles className="h-4 w-4" />
+                {t('demo.cta')}
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
     </section>
   );
