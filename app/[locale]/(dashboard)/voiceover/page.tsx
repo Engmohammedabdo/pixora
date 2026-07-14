@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 'lucide-react';
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
 import { mapApiError } from '@/lib/studio-errors';
+import { downloadFile } from '@/lib/download';
 
 // All voices — some locked per plan
 const ALL_VOICES = [
@@ -32,20 +33,6 @@ const ALL_VOICES = [
 const ALL_DIALECTS = ['saudi', 'emirati', 'egyptian', 'gulf', 'formal'] as const;
 const ALL_SPEEDS = ['0.5', '0.75', '1', '1.25', '1.5'] as const;
 const TONES = ['professional', 'friendly', 'energetic', 'calm'] as const;
-
-// Voice name fallbacks for when i18n keys are missing
-const VOICE_NAMES: Record<string, string> = {
-  male_pro: 'رجل - احترافي',
-  female_pro: 'امرأة - احترافية',
-  male_youth: 'رجل - شبابي',
-  female_youth: 'امرأة - شبابية',
-  male_formal: 'رجل - رسمي',
-  el_arabic_male_1: 'رجل عربي - احترافي 🌟',
-  el_arabic_female_1: 'امرأة عربية - احترافية 🌟',
-  el_arabic_male_2: 'رجل عربي - دافئ 🌟',
-  el_arabic_female_2: 'امرأة عربية - حماسية 🌟',
-  el_arabic_formal: 'راوي - فصحى 🌟',
-};
 
 export default function VoiceOverPage(): React.ReactElement {
   const t = useTranslations();
