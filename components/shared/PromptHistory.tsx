@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FilterChip } from '@/components/shared/FilterChip';
 import { Star, Copy, Check, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +23,8 @@ interface PromptHistoryProps {
 }
 
 export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.ReactElement {
+  const t = useTranslations('shared.promptHistory');
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
@@ -55,17 +59,21 @@ export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.R
   return (
     <>
       <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1">
-        <History className="h-3 w-3" /> السجل
+        <History className="h-3 w-3" /> {t('button')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>سجل البرومبتات</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t('title')}</DialogTitle></DialogHeader>
           <div className="flex gap-2 mb-3">
-            <button onClick={() => setFilter('all')} className={cn('rounded-full px-3 py-1 text-xs', filter === 'all' ? 'bg-primary-500 text-white' : 'bg-surface-2')}>الكل ({prompts.length})</button>
-            <button onClick={() => setFilter('favorites')} className={cn('rounded-full px-3 py-1 text-xs', filter === 'favorites' ? 'bg-primary-500 text-white' : 'bg-surface-2')}>المفضلة</button>
+            <FilterChip selected={filter === 'all'} onClick={() => setFilter('all')}>
+              {t('all')} ({prompts.length})
+            </FilterChip>
+            <FilterChip selected={filter === 'favorites'} onClick={() => setFilter('favorites')}>
+              {t('favorites')}
+            </FilterChip>
           </div>
           {studioFiltered.length === 0 ? (
-            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">لا توجد برومبتات محفوظة بعد</p>
+            <p className="text-sm text-center text-[var(--color-text-muted)] py-8">{t('empty')}</p>
           ) : (
             <div className="space-y-2">
               {studioFiltered.map(p => (
@@ -74,12 +82,32 @@ export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.R
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       {p.studio && <Badge variant="secondary" className="text-[9px]">{p.studio}</Badge>}
-                      <span className="text-[10px] text-[var(--color-text-muted)]">{new Date(p.created_at).toLocaleDateString('ar-SA')}</span>
+                      <span className="text-[10px] text-[var(--color-text-muted)]">
+                        {new Date(p.created_at).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US')}
+                      </span>
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => toggleFavorite(p.id)} className={cn('p-1 rounded', p.is_favorite ? 'text-amber-500' : 'text-[var(--color-text-muted)]')}><Star className="h-3 w-3" fill={p.is_favorite ? 'currentColor' : 'none'} /></button>
-                      <button onClick={() => handleCopy(p.prompt, p.id)} className="p-1 rounded text-[var(--color-text-muted)]">{copied === p.id ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}</button>
-                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { onSelect(p.prompt); setOpen(false); }}>استخدم</Button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(p.id)}
+                        aria-label={p.is_favorite ? t('unfavorite') : t('favorite')}
+                        aria-pressed={p.is_favorite}
+                        className={cn(
+                          'p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+                          p.is_favorite ? 'text-amber-500' : 'text-[var(--color-text-muted)]'
+                        )}
+                      >
+                        <Star className="h-3 w-3" fill={p.is_favorite ? 'currentColor' : 'none'} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(p.prompt, p.id)}
+                        aria-label={t('copy')}
+                        className="p-1 rounded text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                      >
+                        {copied === p.id ? <Check className="h-3 w-3 text-[var(--color-success)]" /> : <Copy className="h-3 w-3" />}
+                      </button>
+                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { onSelect(p.prompt); setOpen(false); }}>{t('use')}</Button>
                     </div>
                   </div>
                 </div>

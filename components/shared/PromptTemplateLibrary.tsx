@@ -13,8 +13,8 @@ import {
   PROMPT_TEMPLATES,
   TEMPLATE_CATEGORIES,
 } from '@/lib/prompts/templates';
+import { FilterChip } from '@/components/shared/FilterChip';
 import { BookOpen } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface PromptTemplateLibraryProps {
   onSelect: (prompt: string, style: string) => void;
@@ -47,34 +47,24 @@ export function PromptTemplateLibrary({
             <DialogTitle>مكتبة القوالب</DialogTitle>
           </DialogHeader>
           <div className="flex flex-wrap gap-2 mb-4">
-            <button
+            <FilterChip
+              selected={!activeCategory}
               onClick={() => setActiveCategory(null)}
-              className={cn(
-                'rounded-full px-3 py-1 text-xs',
-                !activeCategory
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-surface-2'
-              )}
             >
               الكل
-            </button>
+            </FilterChip>
             {TEMPLATE_CATEGORIES.map((cat) => {
               const sample = PROMPT_TEMPLATES.find(
                 (t) => t.category === cat
               );
               return (
-                <button
+                <FilterChip
                   key={cat}
+                  selected={activeCategory === cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-xs',
-                    activeCategory === cat
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-surface-2'
-                  )}
                 >
                   {sample?.categoryAr || cat}
-                </button>
+                </FilterChip>
               );
             })}
           </div>

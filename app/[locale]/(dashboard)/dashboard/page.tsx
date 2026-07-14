@@ -18,12 +18,12 @@ import {
 } from 'lucide-react';
 
 const quickActions = [
-  { href: '/creator', labelKey: 'creator', icon: Image, color: 'bg-purple-100 text-purple-600' },
-  { href: '/photoshoot', labelKey: 'photoshoot', icon: Camera, color: 'bg-blue-100 text-blue-600' },
-  { href: '/campaign', labelKey: 'campaign', icon: LayoutGrid, color: 'bg-green-100 text-green-600' },
-  { href: '/plan', labelKey: 'plan', icon: Map, color: 'bg-amber-100 text-amber-600' },
-  { href: '/analysis', labelKey: 'analysis', icon: BarChart3, color: 'bg-rose-100 text-rose-600' },
-  { href: '/voiceover', labelKey: 'voiceover', icon: Mic, color: 'bg-cyan-100 text-cyan-600' },
+  { href: '/creator', labelKey: 'creator', icon: Image, color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' },
+  { href: '/photoshoot', labelKey: 'photoshoot', icon: Camera, color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300' },
+  { href: '/campaign', labelKey: 'campaign', icon: LayoutGrid, color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-300' },
+  { href: '/plan', labelKey: 'plan', icon: Map, color: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300' },
+  { href: '/analysis', labelKey: 'analysis', icon: BarChart3, color: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300' },
+  { href: '/voiceover', labelKey: 'voiceover', icon: Mic, color: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300' },
 ] as const;
 
 export default function DashboardPage(): React.ReactElement {
@@ -35,7 +35,9 @@ export default function DashboardPage(): React.ReactElement {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold font-cairo">
-          {t('dashboard.welcome')}، {profile?.name || ''}
+          {profile?.name
+            ? t('dashboard.welcomeUser', { name: profile.name })
+            : t('dashboard.welcome')}
         </h1>
         <p className="text-[var(--color-text-secondary)] mt-1">
           {t('dashboard.welcomeMessage')}

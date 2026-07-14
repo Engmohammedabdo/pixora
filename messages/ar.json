@@ -75,7 +75,15 @@
     "billing": "الفواتير",
     "community": "المجتمع",
     "referrals": "الإحالات",
-    "soon": "قريباً"
+    "soon": "قريباً",
+    "more": "المزيد",
+    "a11y": {
+      "toggleMenu": "فتح القائمة",
+      "toggleTheme": "تبديل المظهر",
+      "switchLanguage": "تغيير اللغة",
+      "closeSidebar": "إغلاق القائمة الجانبية",
+      "toggleSidebar": "طي القائمة الجانبية"
+    }
   },
   "credits": {
     "balance": "رصيد الكريدت",
@@ -90,7 +98,8 @@
     "usage": "استخدام",
     "subscription": "اشتراك",
     "topup": "شحن",
-    "refund": "استرداد"
+    "refund": "استرداد",
+    "creditsCount": "{count} كريدت"
   },
   "brandKit": {
     "title": "الهوية البصرية",
@@ -120,10 +129,12 @@
     "welcomeMessage": "ماذا تريد أن تنشئ اليوم؟",
     "quickActions": "إجراءات سريعة",
     "recentGenerations": "آخر الإنشاءات",
-    "noGenerations": "لم تقم بأي إنشاء بعد"
+    "noGenerations": "لم تقم بأي إنشاء بعد",
+    "welcomeUser": "مرحباً، {name}",
+    "generatedResult": "نتيجة مولّدة"
   },
   "studio": {
-    "model": "نموذج الذكاء الاصطناعي",
+    "model": "مسار بايرا 🦊",
     "speed": {
       "fast": "سريع",
       "medium": "متوسط",
@@ -135,13 +146,13 @@
       "creative": "إبداعي"
     },
     "generate": "توليد",
-    "generating": "جاري التوليد...",
+    "generating": "بايرا تشتغل... 🦊",
     "regenerate": "إعادة التوليد",
     "download": "تحميل",
     "downloadAll": "تحميل الكل",
     "copyCaption": "نسخ",
     "copied": "تم النسخ!",
-    "usedFallback": "تم استخدام نموذج بديل",
+    "usedFallback": "بايرا استخدمت مسار بديل للحصول على أفضل نتيجة",
     "brandKitApplied": "تم تطبيق الهوية البصرية",
     "errors": {
       "insufficient_credits": "رصيدك من الكريدت غير كافٍ — اشحن رصيدك من صفحة الفواتير",
@@ -160,6 +171,14 @@
       "dialect_not_available": "هذه اللهجة غير متاحة في خطتك الحالية",
       "network": "مشكلة في الاتصال — تأكد من الإنترنت وحاول مجدداً",
       "fallback": "حدث خطأ غير متوقع. حاول مرة أخرى"
+    },
+    "pyraPath": "مسار بايرا 🦊",
+    "failed": "فشل التوليد",
+    "progress": {
+      "stage1": "بايرا تحلل طلبك... 🦊",
+      "stage2": "بايرا تشتغل على النتيجة...",
+      "stage3": "بايرا تحسّن الجودة...",
+      "stage4": "جاري الانتهاء..."
     }
   },
   "creator": {
@@ -178,7 +197,10 @@
     "useBrandKit": "تطبيق الهوية البصرية",
     "variations": "التنويعات",
     "singleImage": "صورة واحدة",
-    "fourVariations": "4 تنويعات"
+    "fourVariations": "4 تنويعات",
+    "emptyState": "النتيجة ستظهر هنا",
+    "surpriseMe": "فاجئني بفكرة",
+    "editImage": "تعديل الصورة"
   },
   "photoshoot": {
     "title": "تصوير المنتجات",
@@ -197,7 +219,9 @@
     },
     "shots": "عدد اللقطات",
     "notes": "ملاحظات إضافية",
-    "notesPlaceholder": "أي تفاصيل إضافية عن التصوير..."
+    "notesPlaceholder": "أي تفاصيل إضافية عن التصوير...",
+    "emptyState": "الصور ستظهر هنا",
+    "downloadShot": "تحميل اللقطة {number}"
   },
   "campaign": {
     "title": "مخطط الحملات",
@@ -228,7 +252,9 @@
     "generateImage": "توليد صورة",
     "generateAllImages": "توليد كل الصور",
     "copyAll": "نسخ كل النصوص",
-    "exportPdf": "تصدير PDF"
+    "exportPdf": "تصدير PDF",
+    "emptyState": "الحملة ستظهر هنا",
+    "downloadImage": "تحميل صورة المنشور"
   },
   "assets": {
     "title": "ملفاتي",
@@ -238,7 +264,10 @@
     "all": "الكل",
     "selectAll": "تحديد الكل",
     "deleteSelected": "حذف المحدد",
-    "downloadSelected": "تحميل المحدد"
+    "downloadSelected": "تحميل المحدد",
+    "downloadAsset": "تحميل الملف",
+    "deleteAsset": "حذف الملف",
+    "assetAlt": "ملف مولّد"
   },
   "plan": {
     "businessName": "اسم العمل",
@@ -259,7 +288,11 @@
     "emptyState": "الخطة ستظهر هنا",
     "week": "الأسبوع",
     "totalBudget": "الميزانية الإجمالية",
-    "description": "خطة تسويقية شهرية مفصلة"
+    "description": "خطة تسويقية شهرية مفصلة",
+    "businessNamePlaceholder": "اسم شركتك أو مشروعك",
+    "industryPlaceholder": "مثال: مطاعم، عيادات، SaaS...",
+    "targetMarketPlaceholder": "مثال: رواد أعمال في السعودية",
+    "budgetPlaceholder": "$1,000 - $5,000"
   },
   "storyboard": {
     "videoConcept": "فكرة الفيديو",
@@ -280,7 +313,9 @@
     },
     "emptyState": "الستوري بورد سيظهر هنا",
     "exportPdf": "تصدير PDF",
-    "description": "ستوري بورد احترافي لفيديو تسويقي"
+    "description": "ستوري بورد احترافي لفيديو تسويقي",
+    "conceptPlaceholder": "وصف فكرة الفيديو التسويقي...",
+    "scene": "مشهد {number}"
   },
   "voiceover": {
     "script": "النص",
@@ -321,7 +356,17 @@
     "emptyState": "التعليق الصوتي سيظهر هنا",
     "downloadMp3": "تحميل MP3",
     "second": "ثانية",
-    "description": "توليد تعليق صوتي احترافي"
+    "description": "توليد تعليق صوتي احترافي",
+    "scriptPlaceholder": "اكتب نص التعليق الصوتي هنا...",
+    "approxDuration": "~{seconds} ثانية تقريباً",
+    "limitExceeded": "(تجاوز الحد: {max} ثانية)",
+    "play": "تشغيل",
+    "pause": "إيقاف مؤقت",
+    "durationBadge": "{seconds} ثانية — التعليق الصوتي",
+    "pyraVoice": "صوت بايرا 🦊",
+    "pyraVoicePro": "🌟 صوت بايرا برو",
+    "enhanced": "محسّن",
+    "maxDuration": "الحد الأقصى: {seconds} ثانية"
   },
   "edit": {
     "originalImage": "الصورة الأصلية",
@@ -339,7 +384,8 @@
     "afterEdit": "بعد التعديل",
     "pressGenerate": "اضغط توليد",
     "emptyState": "النتيجة ستظهر هنا",
-    "description": "عدّل صورك بالذكاء الاصطناعي"
+    "description": "عدّل صورك بالذكاء الاصطناعي",
+    "editDescriptionPlaceholder": "مثال: غيّر الخلفية لمكتب حديث مع إضاءة طبيعية..."
   },
   "analysis": {
     "businessName": "اسم العمل",
@@ -367,7 +413,21 @@
     "channels": "القنوات",
     "strength": "القوة",
     "weakness": "الضعف",
-    "description": "تحليل تسويقي شامل CMO-level"
+    "description": "تحليل تسويقي شامل CMO-level",
+    "industries": {
+      "restaurant": "مطاعم",
+      "clinic": "عيادات",
+      "retail": "تجزئة",
+      "saas": "SaaS",
+      "real_estate": "عقارات",
+      "education": "تعليم",
+      "other": "أخرى"
+    },
+    "businessNamePlaceholder": "مثال: PyraSuite",
+    "descriptionPlaceholder": "وصف مفصل عن عملك...",
+    "competitorPlaceholder": "منافس {number}",
+    "targetMarketPlaceholder": "مثال: شركات صغيرة ومتوسطة في السعودية",
+    "painPointsPlaceholder": "أبرز التحديات الحالية..."
   },
   "settings": {
     "title": "الإعدادات",
@@ -378,7 +438,15 @@
     "theme": "المظهر",
     "light": "فاتح",
     "dark": "داكن",
-    "system": "تلقائي"
+    "system": "تلقائي",
+    "saveSuccess": "تم تحديث الملف الشخصي",
+    "saveError": "فشل التحديث",
+    "networkError": "حدث خطأ في الشبكة",
+    "namePlaceholder": "الاسم",
+    "saving": "جاري الحفظ...",
+    "legal": "قانوني",
+    "privacyPolicy": "سياسة الخصوصية",
+    "termsOfUse": "شروط الاستخدام"
   },
   "billing": {
     "title": "الفواتير والاشتراك",
@@ -403,7 +471,14 @@
     "typeTopup": "شحن",
     "typeUsage": "استخدام",
     "typeRefund": "استرداد",
-    "typeReset": "إعادة ضبط"
+    "typeReset": "إعادة ضبط",
+    "monthly": "شهري",
+    "annual": "سنوي",
+    "save18": "وفّر 18%",
+    "billingCycle": "الفوترة السنوية",
+    "checkoutError": "تعذّر بدء عملية الدفع. حاول مرة أخرى.",
+    "portalError": "تعذّر فتح بوابة إدارة الاشتراك. حاول مرة أخرى.",
+    "networkError": "حدث خطأ. حاول مرة أخرى."
   },
   "onboarding": {
     "stepOf": "خطوة {current} من {total}",
@@ -423,7 +498,8 @@
     "step4Cta": "شوف الخطط",
     "step5Title": "مبروك! حصلت على 5 كريدت إضافية",
     "step5Description": "شكراً لإكمالك التعريف — أضفنا 5 كريدت مجانية لحسابك. ابدأ الإنشاء الآن!",
-    "step5Cta": "ابدأ الاستخدام"
+    "step5Cta": "ابدأ الاستخدام",
+    "next": "التالي"
   },
   "team": {
     "subtitle": "إدارة فريقك والصلاحيات",
@@ -641,5 +717,79 @@
       "button": "ابدأ مجاناً الحين",
       "studios": "9 استوديوهات جاهزة تنتظرك"
     }
+  },
+  "shared": {
+    "comingSoon": {
+      "soon": "قريباً"
+    },
+    "qualityRating": {
+      "question": "كيف النتيجة؟",
+      "good": "نتيجة جيدة",
+      "bad": "نتيجة سيئة",
+      "thanks": "شكراً!"
+    },
+    "promptHistory": {
+      "button": "السجل",
+      "title": "سجل البرومبتات",
+      "all": "الكل",
+      "favorites": "المفضلة",
+      "empty": "لا توجد برومبتات محفوظة بعد",
+      "use": "استخدم",
+      "favorite": "إضافة للمفضلة",
+      "unfavorite": "إزالة من المفضلة",
+      "copy": "نسخ"
+    },
+    "beforeAfter": {
+      "before": "قبل",
+      "after": "بعد"
+    },
+    "modelComparison": {
+      "compare": "قارن المسارات الثلاثة",
+      "pathSpeed": "سرعة",
+      "pathQuality": "جودة",
+      "pathCreative": "إبداع",
+      "descSpeed": "سريع",
+      "descQuality": "عالي الجودة",
+      "descCreative": "إبداعي"
+    }
+  },
+  "commandPalette": {
+    "placeholder": "ابحث عن استوديو أو صفحة...",
+    "empty": "لا توجد نتائج",
+    "groups": {
+      "studios": "الاستوديوهات",
+      "workspace": "مساحة العمل"
+    },
+    "items": {
+      "creator": "منشئ الصور",
+      "photoshoot": "تصوير المنتجات",
+      "campaign": "مخطط الحملات",
+      "plan": "الخطة التسويقية",
+      "storyboard": "ستوري بورد",
+      "analysis": "التحليل التسويقي",
+      "voiceover": "التعليق الصوتي",
+      "edit": "تعديل الصور",
+      "promptBuilder": "مساعد البرومبت",
+      "dashboard": "الرئيسية",
+      "brandKit": "الهوية البصرية",
+      "assets": "ملفاتي",
+      "settings": "الإعدادات",
+      "billing": "الفواتير"
+    }
+  },
+  "promptBuilder": {
+    "description": "حوّل وصفك بالعربي لبرومبت احترافي بالإنجليزي — مجاناً",
+    "descriptionLabel": "وصف ما تريد بالعربية",
+    "descriptionPlaceholder": "مثال: صورة إعلانية لعطر فاخر على رخام مع إضاءة ناعمة...",
+    "outputType": "نوع المحتوى",
+    "outputTypes": {
+      "image": "صورة",
+      "video": "فيديو",
+      "copy": "نص إعلاني",
+      "campaign": "حملة"
+    },
+    "build": "بناء البرومبت",
+    "emptyState": "البرومبتات ستظهر هنا",
+    "openInStudio": "افتح في الاستوديو"
   }
 }

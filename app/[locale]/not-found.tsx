@@ -10,22 +10,22 @@ export default function LocaleNotFound(): React.ReactElement {
   const isAr = locale === 'ar';
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center p-4">
       <div className="text-center max-w-md mx-auto">
-        <h1 className="text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500 mb-4">
+        <h1 className="text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-accent-500 mb-4">
           404
         </h1>
-        <h2 className="text-2xl font-semibold text-white mb-2">
+        <h2 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-2">
           {isAr ? 'الصفحة غير موجودة' : 'Page Not Found'}
         </h2>
-        <p className="text-gray-400 mb-8">
+        <p className="text-[var(--color-text-secondary)] mb-8">
           {isAr
             ? 'الصفحة اللي تدور عليها مش موجودة أو تم نقلها'
             : "The page you're looking for doesn't exist or has been moved"}
         </p>
         <Link
           href={`/${locale}/dashboard`}
-          className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium hover:from-orange-600 hover:to-amber-600 transition-all"
+          className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 text-white font-medium hover:from-primary-600 hover:to-accent-600 transition-all"
         >
           {isAr ? 'الصفحة الرئيسية' : 'Go to Dashboard'}
         </Link>

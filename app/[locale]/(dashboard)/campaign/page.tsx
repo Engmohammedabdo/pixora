@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CampaignForm } from '@/components/studios/campaign/CampaignForm';
@@ -18,9 +19,11 @@ interface CampaignInput {
   generateImages: boolean;
 }
 
-export default function CampaignPage(): React.ReactElement {
+function CampaignPageContent(): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
+  const searchParams = useSearchParams();
+  const initialDescription = searchParams.get('prompt') ?? undefined;
 
   const [posts, setPosts] = useState<CampaignPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +72,7 @@ export default function CampaignPage(): React.ReactElement {
       </div>
 
       <StudioLayout
-        inputPanel={<CampaignForm onSubmit={handleGenerate} isLoading={isLoading} />}
+        inputPanel={<CampaignForm onSubmit={handleGenerate} isLoading={isLoading} initialDescription={initialDescription} />}
         previewPanel={
           <CampaignPlanDisplay
             posts={posts}
@@ -80,5 +83,13 @@ export default function CampaignPage(): React.ReactElement {
         }
       />
     </div>
+  );
+}
+
+export default function CampaignPage(): React.ReactElement {
+  return (
+    <Suspense>
+      <CampaignPageContent />
+    </Suspense>
   );
 }

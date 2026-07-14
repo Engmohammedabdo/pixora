@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,13 +13,15 @@ interface ModelComparisonProps {
   onSelect?: (model: AIModel, url: string) => void;
 }
 
-const MODELS: { id: AIModel; name: string; description: string }[] = [
-  { id: 'gemini', name: 'Gemini', description: 'سريع' },
-  { id: 'gpt', name: 'GPT', description: 'عالي الجودة' },
-  { id: 'flux', name: 'Flux', description: 'إبداعي' },
+// Internal ids stay technical (gemini/gpt/flux); user-facing names are the branded Pyra paths
+const MODELS: { id: AIModel; nameKey: string; descKey: string }[] = [
+  { id: 'gemini', nameKey: 'pathSpeed', descKey: 'descSpeed' },
+  { id: 'gpt', nameKey: 'pathQuality', descKey: 'descQuality' },
+  { id: 'flux', nameKey: 'pathCreative', descKey: 'descCreative' },
 ];
 
 export function ModelComparison({ prompt, onSelect }: ModelComparisonProps): React.ReactElement {
+  const t = useTranslations('shared.modelComparison');
   const [results, setResults] = useState<Record<string, { url: string; loading: boolean }>>({
     gemini: { url: '', loading: false },
     gpt: { url: '', loading: false },
@@ -52,22 +55,25 @@ export function ModelComparison({ prompt, onSelect }: ModelComparisonProps): Rea
     <div className="space-y-4">
       <Button onClick={handleCompare} disabled={!prompt || prompt.length < 10} className="gap-2">
         <Sparkles className="h-4 w-4" />
-        قارن الثلاث نماذج
+        {t('compare')}
       </Button>
       <div className="grid grid-cols-3 gap-3">
         {MODELS.map((model) => {
           const r = results[model.id];
           return (
-            <div key={model.id} className="rounded-xl border overflow-hidden">
+            <div key={model.id} className="rounded-lg border overflow-hidden">
               <div className="p-2 flex items-center justify-between bg-[var(--color-surface-2)]">
-                <Badge variant="secondary" className="text-xs">{model.name}</Badge>
-                <span className="text-[10px] text-[var(--color-text-muted)]">{model.description}</span>
+                <Badge variant="secondary" className="text-xs">{t(model.nameKey)}</Badge>
+                <span className="text-[10px] text-[var(--color-text-muted)]">{t(model.descKey)}</span>
               </div>
               {r?.loading ? (
                 <Skeleton className="aspect-square" />
               ) : r?.url ? (
-                <button onClick={() => onSelect?.(model.id, r.url)} className="w-full relative aspect-square">
-                  <Image src={r.url} alt={model.name} fill className="object-cover" sizes="(max-width: 768px) 33vw, 200px" unoptimized />
+                <button
+                  onClick={() => onSelect?.(model.id, r.url)}
+                  className="w-full relative aspect-square focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                >
+                  <Image src={r.url} alt={t(model.nameKey)} fill className="object-cover" sizes="(max-width: 768px) 33vw, 200px" unoptimized />
                 </button>
               ) : (
                 <div className="aspect-square bg-[var(--color-surface-2)] flex items-center justify-center text-2xl">

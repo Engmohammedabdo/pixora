@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { Sparkles, Palette } from 'lucide-react';
@@ -22,16 +23,18 @@ interface CampaignFormProps {
     generateImages: boolean;
   }) => void;
   isLoading: boolean;
+  /** Prefill for the product description (e.g. from a ?prompt= cross-studio handoff) */
+  initialDescription?: string;
 }
 
 const DIALECTS = ['saudi', 'emirati', 'egyptian', 'gulf', 'formal'] as const;
 const PLATFORMS = ['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook'] as const;
 
-export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.ReactElement {
+export function CampaignForm({ onSubmit, isLoading, initialDescription }: CampaignFormProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
 
-  const [productDescription, setProductDescription] = useState('');
+  const [productDescription, setProductDescription] = useState(initialDescription ?? '');
   const [targetAudience, setTargetAudience] = useState('');
   const [dialect, setDialect] = useState<string>('saudi');
   const [platform, setPlatform] = useState<string>('instagram');
@@ -61,8 +64,9 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Product Description */}
       <div className="space-y-2">
-        <Label>{t('productDescription')}</Label>
+        <Label htmlFor="campaign-product-description">{t('productDescription')}</Label>
         <textarea
+          id="campaign-product-description"
           value={productDescription}
           onChange={(e) => setProductDescription(e.target.value)}
           placeholder={t('productDescriptionPlaceholder')}
@@ -70,6 +74,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
           maxLength={2000}
           className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
         />
+        <p className="text-xs text-end text-[var(--color-text-muted)]">{productDescription.length}/2000</p>
       </div>
 
       {/* Target Audience */}
@@ -95,9 +100,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
               aria-pressed={dialect === d}
               className={cn(
                 'rounded-lg border px-3 py-2 text-xs transition-colors',
-                dialect === d
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--color-border)] hover:border-primary-300'
+                dialect === d ? selectedChipClasses : unselectedChipClasses
               )}
             >
               {t(`dialects.${d}`)}
@@ -118,9 +121,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
               aria-pressed={platform === p}
               className={cn(
                 'rounded-lg border px-3 py-2 text-xs capitalize transition-colors',
-                platform === p
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--color-border)] hover:border-primary-300'
+                platform === p ? selectedChipClasses : unselectedChipClasses
               )}
             >
               {p === 'twitter' ? 'X / Twitter' : p}
@@ -148,9 +149,7 @@ export function CampaignForm({ onSubmit, isLoading }: CampaignFormProps): React.
           aria-pressed={useBrandKit}
           className={cn(
             'flex items-center gap-2 w-full rounded-lg border px-4 py-3 text-sm transition-colors',
-            useBrandKit
-              ? 'border-primary-500 bg-primary-50 text-primary-700'
-              : 'border-[var(--color-border)] hover:border-primary-300'
+            useBrandKit ? selectedChipClasses : unselectedChipClasses
           )}
         >
           <Palette className="h-4 w-4" />

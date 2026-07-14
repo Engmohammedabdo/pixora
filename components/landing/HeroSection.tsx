@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +45,14 @@ const FLOATING_CARDS = [
 
 export function HeroSection(): React.ReactElement {
   const t = useTranslations('landing');
+  const locale = useLocale();
   const [wordIndex, setWordIndex] = useState(0);
+
+  // slideInLeft/Right use physical x offsets — mirror them per direction so the
+  // text column always enters from its own side (right in RTL, left in LTR).
+  const isRtl = locale === 'ar';
+  const slideInTextSide = isRtl ? slideInRight : slideInLeft;
+  const slideInVisualSide = isRtl ? slideInLeft : slideInRight;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -82,7 +89,7 @@ export function HeroSection(): React.ReactElement {
             whileInView="visible"
             viewport={{ once: true }}
           >
-            <motion.div variants={slideInRight}>
+            <motion.div variants={slideInTextSide}>
               <Badge variant="secondary" className="mb-6 gap-1.5 px-4 py-1.5 text-sm">
                 <span>🦊</span>
                 {t('hero.badge')}
@@ -90,7 +97,7 @@ export function HeroSection(): React.ReactElement {
             </motion.div>
 
             <motion.h1
-              variants={slideInRight}
+              variants={slideInTextSide}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold font-cairo leading-tight mb-6"
             >
               {t('hero.titleLine1')}
@@ -113,7 +120,7 @@ export function HeroSection(): React.ReactElement {
             </motion.h1>
 
             <motion.p
-              variants={slideInRight}
+              variants={slideInTextSide}
               className="text-lg sm:text-xl text-[var(--color-text-secondary)] max-w-2xl mb-10 mx-auto lg:mx-0 leading-relaxed"
             >
               {t('hero.subtitle1')}
@@ -122,7 +129,7 @@ export function HeroSection(): React.ReactElement {
             </motion.p>
 
             <motion.div
-              variants={slideInRight}
+              variants={slideInTextSide}
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-4"
             >
               <Button size="lg" className="text-base px-8 gap-2" asChild>
@@ -137,7 +144,7 @@ export function HeroSection(): React.ReactElement {
             </motion.div>
 
             <motion.p
-              variants={slideInRight}
+              variants={slideInTextSide}
               className="text-xs text-[var(--color-text-muted)]"
             >
               {t('hero.microcopy')}
@@ -147,7 +154,7 @@ export function HeroSection(): React.ReactElement {
           {/* Visual side — hidden on mobile */}
           <motion.div
             className="flex-1 hidden lg:block relative min-h-[400px]"
-            variants={slideInLeft}
+            variants={slideInVisualSide}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}

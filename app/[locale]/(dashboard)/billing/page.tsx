@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useCreditsStore } from '@/store/credits';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,10 +20,12 @@ import { toast } from 'sonner';
 
 export default function BillingPage(): React.ReactElement {
   const t = useTranslations('billing');
+  const locale = useLocale();
   const { profile } = useUser();
   const { balance } = useCreditsStore();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
+  // Track WHICH card/action is loading so only the clicked one is disabled
+  const [loading, setLoading] = useState<string | null>(null);
   const [isAnnual, setIsAnnual] = useState(false);
 
   const success = searchParams.get('success');
@@ -32,7 +34,7 @@ export default function BillingPage(): React.ReactElement {
   const creditPercentage = Math.min((balance / currentPlan.credits) * 100, 100);
 
   const handleSubscribe = async (planId: string): Promise<void> => {
-    setLoading(true);
+    setLoading(planId);
     try {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
@@ -40,16 +42,18 @@ export default function BillingPage(): React.ReactElement {
         body: JSON.stringify({ planId, billing: isAnnual ? 'annual' : 'monthly' }),
       });
       const data = await res.json();
-      if (data.success && data.data.url) {
+      if (data.success && data.data?.url) {
         window.location.href = data.data.url;
+      } else {
+        toast.error(data.error || t('checkoutError'));
       }
     } catch {
-      toast.error('حدث خطأ. حاول مرة أخرى.');
-    } finally { setLoading(false); }
+      toast.error(t('networkError'));
+    } finally { setLoading(null); }
   };
 
   const handleTopup = async (topupId: string): Promise<void> => {
-    setLoading(true);
+    setLoading(topupId);
     try {
       const res = await fetch('/api/stripe/create-topup', {
         method: 'POST',
@@ -57,25 +61,29 @@ export default function BillingPage(): React.ReactElement {
         body: JSON.stringify({ topupId }),
       });
       const data = await res.json();
-      if (data.success && data.data.url) {
+      if (data.success && data.data?.url) {
         window.location.href = data.data.url;
+      } else {
+        toast.error(data.error || t('checkoutError'));
       }
     } catch {
-      toast.error('حدث خطأ. حاول مرة أخرى.');
-    } finally { setLoading(false); }
+      toast.error(t('networkError'));
+    } finally { setLoading(null); }
   };
 
   const handleManageSubscription = async (): Promise<void> => {
-    setLoading(true);
+    setLoading('portal');
     try {
       const res = await fetch('/api/stripe/portal', { method: 'POST' });
       const data = await res.json();
-      if (data.success && data.data.url) {
+      if (data.success && data.data?.url) {
         window.location.href = data.data.url;
+      } else {
+        toast.error(data.error || t('portalError'));
       }
     } catch {
-      toast.error('حدث خطأ. حاول مرة أخرى.');
-    } finally { setLoading(false); }
+      toast.error(t('networkError'));
+    } finally { setLoading(null); }
   };
 
   return (
@@ -98,7 +106,7 @@ export default function BillingPage(): React.ReactElement {
                 <div className="flex items-center gap-2 mb-1">
                   <CreditCard className="h-5 w-5 text-primary-500" />
                   <h2 className="text-lg font-semibold">{t('currentPlan')}</h2>
-                  <Badge variant="default">{currentPlan.nameAr}</Badge>
+                  <Badge variant="default">{locale === 'ar' ? currentPlan.nameAr : currentPlan.name}</Badge>
                 </div>
                 <p className="text-sm text-[var(--color-text-secondary)]">
                   {currentPlan.credits.toLocaleString()} {t('creditsPerMonth')} — {t('resolution')} {currentPlan.resolution}
@@ -106,7 +114,7 @@ export default function BillingPage(): React.ReactElement {
               </div>
               <div className="flex gap-2">
                 {currentPlanId !== 'free' && (
-                  <Button variant="outline" size="sm" onClick={handleManageSubscription} disabled={loading} className="gap-1">
+                  <Button variant="outline" size="sm" onClick={handleManageSubscription} disabled={loading === 'portal'} className="gap-1">
                     <ExternalLink className="h-3 w-3" />
                     {t('manageSubscription')}
                   </Button>
@@ -128,7 +136,7 @@ export default function BillingPage(): React.ReactElement {
               <Progress value={creditPercentage} className="h-2.5" />
               {profile?.credits_reset_date && (
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  {t('renewsAt')} {new Date(profile.credits_reset_date).toLocaleDateString('ar-SA', { month: 'long', day: 'numeric' })}
+                  {t('renewsAt')} {new Date(profile.credits_reset_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { month: 'long', day: 'numeric' })}
                 </p>
               )}
             </div>
@@ -143,17 +151,31 @@ export default function BillingPage(): React.ReactElement {
           <h2 className="text-xl font-bold font-cairo">{t('plansAndPricing')}</h2>
         </div>
         <div className="flex items-center justify-center gap-3 mb-6">
-          <span className={cn('text-sm font-medium', !isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}>شهري</span>
           <button
+            type="button"
+            onClick={() => setIsAnnual(false)}
+            className={cn('text-sm font-medium', !isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}
+          >
+            {t('monthly')}
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isAnnual}
+            aria-label={t('billingCycle')}
             onClick={() => setIsAnnual(!isAnnual)}
             className={cn('relative w-14 h-7 rounded-full transition-colors', isAnnual ? 'bg-primary-500' : 'bg-surface-2')}
           >
             <div className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', isAnnual ? 'end-0.5' : 'start-0.5')} />
           </button>
-          <span className={cn('text-sm font-medium', isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}>
-            سنوي
-            <Badge variant="secondary" className="ms-1.5 text-[9px] text-green-600 dark:text-green-400">وفّر 18%</Badge>
-          </span>
+          <button
+            type="button"
+            onClick={() => setIsAnnual(true)}
+            className={cn('text-sm font-medium', isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}
+          >
+            {t('annual')}
+            <Badge variant="secondary" className="ms-1.5 text-[9px] text-green-600 dark:text-green-400">{t('save18')}</Badge>
+          </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {Object.values(PLANS).map((plan) => {
@@ -165,8 +187,8 @@ export default function BillingPage(): React.ReactElement {
                 plan={displayPlan}
                 isCurrentPlan={currentPlanId === plan.id}
                 onSelect={handleSubscribe}
-                loading={loading}
-                locale="ar"
+                loading={loading === plan.id}
+                locale={locale}
               />
             );
           })}
@@ -186,7 +208,7 @@ export default function BillingPage(): React.ReactElement {
               key={topup.id}
               topup={topup}
               onSelect={handleTopup}
-              loading={loading}
+              loading={loading === topup.id}
               isBestValue={topup.id === 'large'}
             />
           ))}

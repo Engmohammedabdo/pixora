@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NextImage from 'next/image';
 import { Copy, Check, Download, Image, AlertTriangle, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
+import { downloadFile } from '@/lib/download';
 import { generateCampaignPdf, openPdfInNewTab } from '@/lib/export/pdf';
 
 export interface CampaignPost {
@@ -77,7 +78,7 @@ export function CampaignPlanDisplay({
         <div className="h-48 w-48 rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center">
           <span className="text-4xl">📋</span>
         </div>
-        <p className="text-sm mt-4">الحملة ستظهر هنا</p>
+        <p className="text-sm mt-4">{t('emptyState')}</p>
       </div>
     );
   }
@@ -86,7 +87,9 @@ export function CampaignPlanDisplay({
     <div className="space-y-4">
       {/* Top Actions */}
       <div className="flex gap-2 flex-wrap">
-        {mock && <Badge variant="outline" className="text-xs">Mock Response</Badge>}
+        {mock && process.env.NODE_ENV !== 'production' && (
+          <Badge variant="outline" className="text-xs">Mock Response</Badge>
+        )}
         <Button size="sm" variant="outline" onClick={handleCopyAll} className="gap-1">
           {copiedIndex === -1 ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copiedIndex === -1 ? tStudio('copied') : t('copyAll')}
@@ -153,10 +156,14 @@ export function CampaignPlanDisplay({
                   {copiedIndex === index ? tStudio('copied') : tStudio('copyCaption')}
                 </Button>
                 {post.imageUrl && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" asChild>
-                    <a href={post.imageUrl} download>
-                      <Download className="h-3 w-3" />
-                    </a>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    aria-label={t('downloadImage')}
+                    onClick={() => void downloadFile(post.imageUrl as string, `pyrasuite-campaign-post-${index + 1}.png`)}
+                  >
+                    <Download className="h-3 w-3" />
                   </Button>
                 )}
               </div>

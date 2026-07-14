@@ -75,7 +75,15 @@
     "billing": "Billing",
     "community": "Community",
     "referrals": "Referrals",
-    "soon": "Soon"
+    "soon": "Soon",
+    "more": "More",
+    "a11y": {
+      "toggleMenu": "Toggle menu",
+      "toggleTheme": "Toggle theme",
+      "switchLanguage": "Switch language",
+      "closeSidebar": "Close sidebar",
+      "toggleSidebar": "Collapse sidebar"
+    }
   },
   "credits": {
     "balance": "Credit Balance",
@@ -90,7 +98,8 @@
     "usage": "Usage",
     "subscription": "Subscription",
     "topup": "Top-up",
-    "refund": "Refund"
+    "refund": "Refund",
+    "creditsCount": "{count} credits"
   },
   "brandKit": {
     "title": "Brand Kit",
@@ -120,10 +129,12 @@
     "welcomeMessage": "What would you like to create today?",
     "quickActions": "Quick Actions",
     "recentGenerations": "Recent Generations",
-    "noGenerations": "No generations yet"
+    "noGenerations": "No generations yet",
+    "welcomeUser": "Welcome, {name}",
+    "generatedResult": "Generated result"
   },
   "studio": {
-    "model": "AI Model",
+    "model": "Pyra Path 🦊",
     "speed": {
       "fast": "Fast",
       "medium": "Medium",
@@ -135,13 +146,13 @@
       "creative": "Creative"
     },
     "generate": "Generate",
-    "generating": "Generating...",
+    "generating": "Pyra is working... 🦊",
     "regenerate": "Regenerate",
     "download": "Download",
     "downloadAll": "Download All",
     "copyCaption": "Copy",
     "copied": "Copied!",
-    "usedFallback": "Alternative model was used",
+    "usedFallback": "Pyra used an alternate path for the best result",
     "brandKitApplied": "Brand Kit applied",
     "errors": {
       "insufficient_credits": "Not enough credits — top up from the Billing page",
@@ -160,6 +171,14 @@
       "dialect_not_available": "This dialect isn't available on your current plan",
       "network": "Connection problem — check your internet and retry",
       "fallback": "Something unexpected went wrong. Please try again"
+    },
+    "pyraPath": "Pyra path 🦊",
+    "failed": "Generation failed",
+    "progress": {
+      "stage1": "Pyra is analyzing your request... 🦊",
+      "stage2": "Pyra is working on the result...",
+      "stage3": "Pyra is polishing the quality...",
+      "stage4": "Finishing up..."
     }
   },
   "creator": {
@@ -178,7 +197,10 @@
     "useBrandKit": "Apply Brand Kit",
     "variations": "Variations",
     "singleImage": "Single Image",
-    "fourVariations": "4 Variations"
+    "fourVariations": "4 Variations",
+    "emptyState": "The result will appear here",
+    "surpriseMe": "Surprise Me",
+    "editImage": "Edit image"
   },
   "photoshoot": {
     "title": "Product Photoshoot",
@@ -197,7 +219,9 @@
     },
     "shots": "Number of Shots",
     "notes": "Additional Notes",
-    "notesPlaceholder": "Any additional details about the shoot..."
+    "notesPlaceholder": "Any additional details about the shoot...",
+    "emptyState": "The photos will appear here",
+    "downloadShot": "Download shot {number}"
   },
   "campaign": {
     "title": "Campaign Planner",
@@ -228,7 +252,9 @@
     "generateImage": "Generate Image",
     "generateAllImages": "Generate All Images",
     "copyAll": "Copy All Captions",
-    "exportPdf": "Export PDF"
+    "exportPdf": "Export PDF",
+    "emptyState": "The campaign will appear here",
+    "downloadImage": "Download post image"
   },
   "assets": {
     "title": "My Assets",
@@ -238,7 +264,10 @@
     "all": "All",
     "selectAll": "Select All",
     "deleteSelected": "Delete Selected",
-    "downloadSelected": "Download Selected"
+    "downloadSelected": "Download Selected",
+    "downloadAsset": "Download asset",
+    "deleteAsset": "Delete asset",
+    "assetAlt": "Generated asset"
   },
   "plan": {
     "businessName": "Business Name",
@@ -259,7 +288,11 @@
     "emptyState": "The plan will appear here",
     "week": "Week",
     "totalBudget": "Total Budget",
-    "description": "Detailed monthly marketing plan"
+    "description": "Detailed monthly marketing plan",
+    "businessNamePlaceholder": "Your company or project name",
+    "industryPlaceholder": "Example: restaurants, clinics, SaaS...",
+    "targetMarketPlaceholder": "Example: entrepreneurs in Saudi Arabia",
+    "budgetPlaceholder": "$1,000 - $5,000"
   },
   "storyboard": {
     "videoConcept": "Video Concept",
@@ -280,7 +313,9 @@
     },
     "emptyState": "The storyboard will appear here",
     "exportPdf": "Export PDF",
-    "description": "Professional storyboard for marketing video"
+    "description": "Professional storyboard for marketing video",
+    "conceptPlaceholder": "Describe your marketing video idea...",
+    "scene": "Scene {number}"
   },
   "voiceover": {
     "script": "Script",
@@ -321,7 +356,17 @@
     "emptyState": "The voiceover will appear here",
     "downloadMp3": "Download MP3",
     "second": "second",
-    "description": "Generate professional voiceover"
+    "description": "Generate professional voiceover",
+    "scriptPlaceholder": "Write your voiceover script here...",
+    "approxDuration": "~{seconds}s approx.",
+    "limitExceeded": "(over the limit: {max}s)",
+    "play": "Play",
+    "pause": "Pause",
+    "durationBadge": "{seconds}s — Voiceover",
+    "pyraVoice": "Pyra Voice 🦊",
+    "pyraVoicePro": "🌟 Pyra Voice Pro",
+    "enhanced": "Enhanced",
+    "maxDuration": "Max: {seconds}s"
   },
   "edit": {
     "originalImage": "Original Image",
@@ -339,7 +384,8 @@
     "afterEdit": "After Edit",
     "pressGenerate": "Press Generate",
     "emptyState": "The result will appear here",
-    "description": "Edit your images with AI"
+    "description": "Edit your images with AI",
+    "editDescriptionPlaceholder": "Example: change the background to a modern office with natural light..."
   },
   "analysis": {
     "businessName": "Business Name",
@@ -367,7 +413,21 @@
     "channels": "Channels",
     "strength": "Strength",
     "weakness": "Weakness",
-    "description": "Comprehensive CMO-level marketing analysis"
+    "description": "Comprehensive CMO-level marketing analysis",
+    "industries": {
+      "restaurant": "Restaurant",
+      "clinic": "Clinic",
+      "retail": "Retail",
+      "saas": "SaaS",
+      "real_estate": "Real Estate",
+      "education": "Education",
+      "other": "Other"
+    },
+    "businessNamePlaceholder": "Example: PyraSuite",
+    "descriptionPlaceholder": "A detailed description of your business...",
+    "competitorPlaceholder": "Competitor {number}",
+    "targetMarketPlaceholder": "Example: SMBs in Saudi Arabia",
+    "painPointsPlaceholder": "Your biggest current challenges..."
   },
   "settings": {
     "title": "Settings",
@@ -378,7 +438,15 @@
     "theme": "Theme",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "saveSuccess": "Profile updated",
+    "saveError": "Update failed",
+    "networkError": "A network error occurred",
+    "namePlaceholder": "Name",
+    "saving": "Saving...",
+    "legal": "Legal",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfUse": "Terms of Use"
   },
   "billing": {
     "title": "Billing & Subscription",
@@ -403,7 +471,14 @@
     "typeTopup": "Top-up",
     "typeUsage": "Usage",
     "typeRefund": "Refund",
-    "typeReset": "Reset"
+    "typeReset": "Reset",
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "save18": "Save 18%",
+    "billingCycle": "Annual billing",
+    "checkoutError": "Could not start checkout. Please try again.",
+    "portalError": "Could not open the subscription portal. Please try again.",
+    "networkError": "Something went wrong. Please try again."
   },
   "onboarding": {
     "stepOf": "Step {current} of {total}",
@@ -423,7 +498,8 @@
     "step4Cta": "View Plans",
     "step5Title": "Congrats! You got 5 bonus credits",
     "step5Description": "Thanks for completing onboarding — we added 5 free credits to your account. Start creating now!",
-    "step5Cta": "Start Creating"
+    "step5Cta": "Start Creating",
+    "next": "Next"
   },
   "team": {
     "subtitle": "Manage your team and permissions",
@@ -641,5 +717,79 @@
       "button": "Start Free Now",
       "studios": "9 ready-to-use studios waiting for you"
     }
+  },
+  "shared": {
+    "comingSoon": {
+      "soon": "Coming Soon"
+    },
+    "qualityRating": {
+      "question": "How is the result?",
+      "good": "Good result",
+      "bad": "Bad result",
+      "thanks": "Thanks!"
+    },
+    "promptHistory": {
+      "button": "History",
+      "title": "Prompt History",
+      "all": "All",
+      "favorites": "Favorites",
+      "empty": "No saved prompts yet",
+      "use": "Use",
+      "favorite": "Add to favorites",
+      "unfavorite": "Remove from favorites",
+      "copy": "Copy"
+    },
+    "beforeAfter": {
+      "before": "Before",
+      "after": "After"
+    },
+    "modelComparison": {
+      "compare": "Compare all three paths",
+      "pathSpeed": "Speed",
+      "pathQuality": "Quality",
+      "pathCreative": "Creative",
+      "descSpeed": "Fast",
+      "descQuality": "High quality",
+      "descCreative": "Creative"
+    }
+  },
+  "commandPalette": {
+    "placeholder": "Search for a studio or page...",
+    "empty": "No results",
+    "groups": {
+      "studios": "Studios",
+      "workspace": "Workspace"
+    },
+    "items": {
+      "creator": "Image Creator",
+      "photoshoot": "Product Photoshoot",
+      "campaign": "Campaign Planner",
+      "plan": "Marketing Plan",
+      "storyboard": "Storyboard",
+      "analysis": "Marketing Analysis",
+      "voiceover": "Voice Over",
+      "edit": "Image Editor",
+      "promptBuilder": "Prompt Builder",
+      "dashboard": "Home",
+      "brandKit": "Brand Kit",
+      "assets": "My Files",
+      "settings": "Settings",
+      "billing": "Billing"
+    }
+  },
+  "promptBuilder": {
+    "description": "Turn your Arabic description into a professional English prompt — free",
+    "descriptionLabel": "Describe what you want",
+    "descriptionPlaceholder": "Example: an ad photo of a luxury perfume on marble with soft lighting...",
+    "outputType": "Content Type",
+    "outputTypes": {
+      "image": "Image",
+      "video": "Video",
+      "copy": "Ad Copy",
+      "campaign": "Campaign"
+    },
+    "build": "Build Prompt",
+    "emptyState": "Your prompts will appear here",
+    "openInStudio": "Open in studio"
   }
 }

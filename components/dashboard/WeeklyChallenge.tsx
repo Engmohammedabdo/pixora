@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/routing';
-import { Trophy, ArrowLeft } from 'lucide-react';
+import { Trophy, ArrowRight } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 const CHALLENGES = [
@@ -40,7 +40,7 @@ export function WeeklyChallenge(): React.ReactElement {
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-[var(--color-text-muted)]">{progress}/{challenge.target}</span>
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" asChild>
-            <Link href={challenge.studio}>ابدأ <ArrowLeft className="h-3 w-3 rtl:rotate-180" /></Link>
+            <Link href={challenge.studio}>ابدأ <ArrowRight className="h-3 w-3 rtl:rotate-180" /></Link>
           </Button>
         </div>
       </CardContent>

@@ -196,7 +196,7 @@ export default function AdminLogsPage() {
     <AdminLayout>
       <div className="mb-6 flex items-center gap-3">
         <ScrollText className="h-6 w-6 text-indigo-500" />
-        <h1 className="text-2xl font-bold text-slate-900">Logs</h1>
+        <h1 className="text-2xl font-bold text-white">Logs</h1>
         <span className="text-sm text-slate-500">({total} entries)</span>
       </div>
 

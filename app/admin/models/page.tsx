@@ -133,7 +133,7 @@ export default function AdminModelsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Bot className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold text-slate-900">AI Models</h1>
+          <h1 className="text-2xl font-bold text-white">AI Models</h1>
         </div>
         <button
           onClick={handleSave}

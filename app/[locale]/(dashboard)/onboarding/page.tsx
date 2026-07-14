@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -59,29 +59,54 @@ const STEPS: StepConfig[] = [
   },
 ];
 
+const STORAGE_KEY = 'pyrasuite-onboarding-step';
+
 export default function OnboardingPage(): React.ReactElement {
   const [step, setStep] = useState(0);
   const router = useRouter();
   const t = useTranslations('onboarding');
+
+  // Resume from the last persisted step so leaving mid-flow doesn't restart it
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(STORAGE_KEY));
+    if (Number.isInteger(saved) && saved > 0 && saved < STEPS.length) {
+      setStep(saved);
+    }
+  }, []);
 
   const currentStep = STEPS[step];
   const progress = ((step + 1) / STEPS.length) * 100;
   const isLast = step === STEPS.length - 1;
   const isFirst = step === 0;
 
+  const goToStep = (next: number): void => {
+    const clamped = Math.min(Math.max(next, 0), STEPS.length - 1);
+    setStep(clamped);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, String(clamped));
+    } catch { /* Non-blocking */ }
+  };
+
   const handleNext = (): void => {
     if (isLast) {
       try {
         fetch('/api/user/onboarding', { method: 'POST' });
+        window.localStorage.removeItem(STORAGE_KEY);
       } catch { /* Non-blocking */ }
       router.push('/dashboard');
       return;
     }
-    if (currentStep.action) {
-      router.push(currentStep.action);
-      return;
-    }
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    goToStep(step + 1);
+  };
+
+  // Secondary CTA: open the step's studio in the same tab, but persist
+  // progress first so returning to /onboarding resumes at the next step.
+  const handleTryAction = (): void => {
+    if (!currentStep.action) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, String(Math.min(step + 1, STEPS.length - 1)));
+    } catch { /* Non-blocking */ }
+    router.push(currentStep.action);
   };
 
   const handleSkip = (): void => {
@@ -130,36 +155,45 @@ export default function OnboardingPage(): React.ReactElement {
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between mt-10">
+          <div className="flex items-center justify-between gap-2 mt-10">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
+              onClick={() => goToStep(step - 1)}
               disabled={isFirst}
               className="gap-1"
             >
-              <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+              <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
               {t('previous')}
             </Button>
 
-            <Button onClick={handleNext} size="lg" className="gap-2 px-6">
-              {isLast ? (
-                <>
-                  <Check className="h-4 w-4" />
-                  {t(currentStep.ctaKey)}
-                </>
-              ) : currentStep.action ? (
-                <>
+            <div className="flex items-center gap-2">
+              {!isLast && currentStep.action && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleTryAction}
+                  className="gap-2"
+                >
                   <Sparkles className="h-4 w-4" />
                   {t(currentStep.ctaKey)}
-                </>
-              ) : (
-                <>
-                  {t(currentStep.ctaKey)}
-                  <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
-                </>
+                </Button>
               )}
-            </Button>
+
+              <Button onClick={handleNext} size="lg" className="gap-2 px-6">
+                {isLast ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    {t(currentStep.ctaKey)}
+                  </>
+                ) : (
+                  <>
+                    {currentStep.action ? t('next') : t(currentStep.ctaKey)}
+                    <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Step dots */}
@@ -167,7 +201,7 @@ export default function OnboardingPage(): React.ReactElement {
             {STEPS.map((_, i) => (
               <button
                 key={i}
-                onClick={() => setStep(i)}
+                onClick={() => goToStep(i)}
                 className={cn(
                   'h-2 rounded-full transition-all',
                   i === step ? 'w-6 bg-primary-500' : 'w-2 bg-[var(--color-border)]'

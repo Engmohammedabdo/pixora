@@ -16,7 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Menu, Coins, Globe, LogOut, Settings, User, Sun, Moon } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Menu, Coins, CreditCard, Globe, LogOut, Settings, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useLocale } from 'next-intl';
 import { AnimatedNumber } from '@/components/shared/AnimatedNumber';
@@ -25,7 +26,7 @@ export function TopBar(): React.ReactElement {
   const t = useTranslations();
   const { user, profile, signOut } = useUser();
   const { toggleSidebar } = useUIStore();
-  const { balance } = useCreditsStore();
+  const { balance, loading: creditsLoading } = useCreditsStore();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -57,7 +58,7 @@ export function TopBar(): React.ReactElement {
         size="icon"
         className="lg:hidden"
         onClick={toggleSidebar}
-        aria-label="Toggle menu"
+        aria-label={t('nav.a11y.toggleMenu')}
       >
         <Menu className="h-5 w-5" />
       </Button>
@@ -69,7 +70,11 @@ export function TopBar(): React.ReactElement {
       <Link href="/billing" className="flex items-center gap-1.5">
         <Badge variant="secondary" className="gap-1 px-3 py-1">
           <Coins className="h-3.5 w-3.5 text-primary-500" />
-          <AnimatedNumber value={balance} className="font-semibold" />
+          {creditsLoading ? (
+            <Skeleton className="h-5 w-10" />
+          ) : (
+            <AnimatedNumber value={balance} className="font-semibold" />
+          )}
         </Badge>
       </Link>
 
@@ -78,7 +83,7 @@ export function TopBar(): React.ReactElement {
         variant="ghost"
         size="icon"
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        aria-label="Toggle theme"
+        aria-label={t('nav.a11y.toggleTheme')}
       >
         <Sun className="h-4 w-4 hidden dark:block" />
         <Moon className="h-4 w-4 block dark:hidden" />
@@ -89,7 +94,7 @@ export function TopBar(): React.ReactElement {
         variant="ghost"
         size="icon"
         onClick={handleLocaleSwitch}
-        aria-label="Switch language"
+        aria-label={t('nav.a11y.switchLanguage')}
         className="hidden sm:inline-flex"
       >
         <Globe className="h-4 w-4" />
@@ -115,14 +120,14 @@ export function TopBar(): React.ReactElement {
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
-              <User className="h-4 w-4" />
-              {t('settings.profile')}
+              <Settings className="h-4 w-4" />
+              {t('nav.settings')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
-              <Settings className="h-4 w-4" />
-              {t('nav.settings')}
+            <Link href="/billing" className="flex items-center gap-2 cursor-pointer">
+              <CreditCard className="h-4 w-4" />
+              {t('nav.billing')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem

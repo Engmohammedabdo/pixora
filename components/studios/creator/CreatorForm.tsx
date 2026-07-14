@@ -9,6 +9,7 @@ import { ResolutionSelector } from '@/components/shared/ResolutionSelector';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Upload, X, Sparkles, Palette, Shuffle } from 'lucide-react';
@@ -25,6 +26,8 @@ interface CreatorFormProps {
     referenceImageUrl?: string;
   }) => void;
   isLoading: boolean;
+  /** Prefill for the prompt textarea (e.g. from a ?prompt= cross-studio handoff) */
+  initialPrompt?: string;
 }
 
 const RANDOM_PROMPTS = [
@@ -38,11 +41,11 @@ const RANDOM_PROMPTS = [
 
 const STYLES = ['photographic', 'illustrative', 'minimalist', 'bold'] as const;
 
-export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.ReactElement {
+export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormProps): React.ReactElement {
   const t = useTranslations('creator');
   const tStudio = useTranslations('studio');
 
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt ?? '');
   const [model, setModel] = useState<AIModel>('gemini');
   const [resolution, setResolution] = useState<Resolution>('1080p');
   const [style, setStyle] = useState<string>('photographic');
@@ -151,9 +154,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
               aria-pressed={style === s}
               className={cn(
                 'rounded-lg border px-3 py-2 text-sm transition-colors',
-                style === s
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--color-border)] hover:border-primary-300'
+                style === s ? selectedChipClasses : unselectedChipClasses
               )}
             >
               {t(`styles.${s}`)}
@@ -172,9 +173,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
             aria-pressed={variations === 1}
             className={cn(
               'rounded-lg border px-3 py-2 text-sm transition-colors',
-              variations === 1
-                ? 'border-primary-500 bg-primary-50 text-primary-700'
-                : 'border-[var(--color-border)] hover:border-primary-300'
+              variations === 1 ? selectedChipClasses : unselectedChipClasses
             )}
           >
             {t('singleImage')}
@@ -185,9 +184,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
             aria-pressed={variations === 4}
             className={cn(
               'rounded-lg border px-3 py-2 text-sm transition-colors',
-              variations === 4
-                ? 'border-primary-500 bg-primary-50 text-primary-700'
-                : 'border-[var(--color-border)] hover:border-primary-300'
+              variations === 4 ? selectedChipClasses : unselectedChipClasses
             )}
           >
             {t('fourVariations')}
@@ -209,9 +206,7 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
           aria-pressed={useBrandKit}
           className={cn(
             'flex items-center gap-2 w-full rounded-lg border px-4 py-3 text-sm transition-colors',
-            useBrandKit
-              ? 'border-primary-500 bg-primary-50 text-primary-700'
-              : 'border-[var(--color-border)] hover:border-primary-300'
+            useBrandKit ? selectedChipClasses : unselectedChipClasses
           )}
         >
           <Palette className="h-4 w-4" />
@@ -234,7 +229,8 @@ export function CreatorForm({ onSubmit, isLoading }: CreatorFormProps): React.Re
               const randomPrompt = RANDOM_PROMPTS[Math.floor(Math.random() * RANDOM_PROMPTS.length)];
               setPrompt(randomPrompt);
             }}
-            title="Surprise Me"
+            title={t('surpriseMe')}
+            aria-label={t('surpriseMe')}
           >
             <Shuffle className="h-4 w-4" />
           </Button>

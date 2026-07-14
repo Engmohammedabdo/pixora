@@ -312,7 +312,7 @@ export default function AdminUserDetailPage() {
       {/* Back button */}
       <button
         onClick={() => router.push('/admin/users')}
-        className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-900"
+        className="mb-4 flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-200"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Users

@@ -6,7 +6,8 @@ import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GenerationProgress } from '@/components/shared/GenerationProgress';
+import { downloadFile, downloadFiles } from '@/lib/download';
 import { Download, RefreshCw, AlertTriangle, Pencil, Info } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 
@@ -30,6 +31,7 @@ export function CreatorPreview({
   onRegenerate,
 }: CreatorPreviewProps): React.ReactElement {
   const t = useTranslations('studio');
+  const tCreator = useTranslations('creator');
   const [hasConfettied, setHasConfettied] = useState(false);
 
   useEffect(() => {
@@ -40,14 +42,7 @@ export function CreatorPreview({
   }, [imageUrls, hasConfettied]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
-        <Skeleton className="h-64 w-64 rounded-lg" />
-        <p className="text-sm text-[var(--color-text-muted)] animate-pulse">
-          {t('generating')}
-        </p>
-      </div>
-    );
+    return <GenerationProgress isLoading />;
   }
 
   if (error) {
@@ -69,20 +64,18 @@ export function CreatorPreview({
         <div className="h-48 w-48 rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center">
           <span className="text-4xl">🎨</span>
         </div>
-        <p className="text-sm mt-4">النتيجة ستظهر هنا</p>
+        <p className="text-sm mt-4">{tCreator('emptyState')}</p>
       </div>
     );
   }
 
   const handleDownload = (url: string, index: number): void => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `pyrasuite-${Date.now()}-${index}.png`;
-    link.click();
+    void downloadFile(url, `pyrasuite-${Date.now()}-${index}.png`);
   };
 
   const handleDownloadAll = (): void => {
-    imageUrls.forEach((url, i) => handleDownload(url, i));
+    const stamp = Date.now();
+    void downloadFiles(imageUrls.map((url, i) => ({ url, filename: `pyrasuite-${stamp}-${i}.png` })));
   };
 
   return (
@@ -91,11 +84,11 @@ export function CreatorPreview({
       {usedFallback && (
         <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           <Info className="h-4 w-4 flex-shrink-0" />
-          <span>بايرا استخدمت مسار بديل للحصول على أفضل نتيجة 🦊</span>
+          <span>{t('usedFallback')} 🦊</span>
         </div>
       )}
 
-      {mock && (
+      {mock && process.env.NODE_ENV !== 'production' && (
         <Badge variant="outline" className="text-xs">Mock Response</Badge>
       )}
 
@@ -134,9 +127,10 @@ export function CreatorPreview({
                 <button
                   type="button"
                   onClick={() => handleDownload(url, i)}
-                  className="absolute top-2 end-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label={t('download')}
+                  className="absolute top-2 end-2 rounded-full bg-black/50 p-2.5 text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                 </button>
               </div>
             </motion.div>
@@ -155,7 +149,11 @@ export function CreatorPreview({
           {t('regenerate')}
         </Button>
         <Button variant="ghost" asChild className="gap-2">
-          <Link href="/edit">
+          <Link
+            href={`/edit?src=${encodeURIComponent(imageUrls[0])}`}
+            aria-label={tCreator('editImage')}
+            title={tCreator('editImage')}
+          >
             <Pencil className="h-4 w-4" />
           </Link>
         </Button>

@@ -96,6 +96,7 @@ export default function LoginPage(): React.ReactElement {
               onChange={(e) => setEmail(e.target.value)}
               required
               dir="ltr"
+              className="rtl:placeholder-shown:text-right"
             />
           </div>
           <div className="space-y-2">
@@ -108,6 +109,7 @@ export default function LoginPage(): React.ReactElement {
               onChange={(e) => setPassword(e.target.value)}
               required
               dir="ltr"
+              className="rtl:placeholder-shown:text-right"
             />
             <div className="text-end">
               <Link href="/forgot-password" className="text-xs text-primary-500 hover:underline">
@@ -168,6 +170,7 @@ export default function LoginPage(): React.ReactElement {
               value={magicLinkEmail}
               onChange={(e) => setMagicLinkEmail(e.target.value)}
               dir="ltr"
+              className="rtl:placeholder-shown:text-right"
             />
             <Button
               variant="outline"

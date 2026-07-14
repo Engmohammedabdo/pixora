@@ -123,7 +123,7 @@ export default function AdminSettingsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Settings className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+          <h1 className="text-2xl font-bold text-white">Settings</h1>
         </div>
         <SaveButton />
       </div>

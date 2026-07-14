@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { AIModel } from '@/types/studios';
 import { Zap, Sparkles, Palette } from 'lucide-react';
@@ -26,10 +26,11 @@ const models: {
 
 export function ModelSelector({ value, onChange, className }: ModelSelectorProps): React.ReactElement {
   const t = useTranslations('studio');
+  const locale = useLocale();
 
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="text-sm font-medium">مسار بايرا 🦊</label>
+      <label className="text-sm font-medium">{t('pyraPath')}</label>
       <div className="grid grid-cols-3 gap-2">
         {models.map((model) => (
           <button
@@ -38,14 +39,14 @@ export function ModelSelector({ value, onChange, className }: ModelSelectorProps
             onClick={() => onChange(model.id)}
             aria-pressed={value === model.id}
             className={cn(
-              'flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors',
+              'flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
               value === model.id
                 ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
                 : 'border-[var(--color-border)] hover:border-primary-300 hover:bg-surface-2'
             )}
           >
             {model.icon}
-            <span className="font-medium">{model.nameAr}</span>
+            <span className="font-medium">{locale === 'ar' ? model.nameAr : model.nameEn}</span>
             <div className="flex gap-1 text-[10px] text-[var(--color-text-muted)]">
               <span>{t(`speed.${model.speed}`)}</span>
               <span>·</span>

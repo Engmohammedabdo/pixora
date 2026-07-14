@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Upload, X, Camera, Sparkles } from 'lucide-react';
@@ -37,6 +38,7 @@ const SHOT_OPTIONS: { count: 1 | 3 | 6; credits: number }[] = [
 export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): React.ReactElement {
   const t = useTranslations('photoshoot');
   const tStudio = useTranslations('studio');
+  const tCredits = useTranslations('credits');
 
   const [productImage, setProductImage] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<string>('white_studio');
@@ -113,9 +115,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
               aria-pressed={environment === env.id}
               className={cn(
                 'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',
-                environment === env.id
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--color-border)] hover:border-primary-300'
+                environment === env.id ? selectedChipClasses : unselectedChipClasses
               )}
             >
               <span>{env.emoji}</span>
@@ -137,13 +137,11 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
               aria-pressed={shots === option.count}
               className={cn(
                 'flex-1 flex flex-col items-center gap-1 rounded-lg border px-3 py-3 transition-colors',
-                shots === option.count
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-[var(--color-border)] hover:border-primary-300'
+                shots === option.count ? selectedChipClasses : unselectedChipClasses
               )}
             >
               <span className="text-lg font-bold">{option.count}</span>
-              <span className="text-[10px] text-[var(--color-text-muted)]">{option.credits} credits</span>
+              <span className="text-[10px] text-[var(--color-text-muted)]">{tCredits('creditsCount', { count: option.credits })}</span>
             </button>
           ))}
         </div>
@@ -151,8 +149,9 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
 
       {/* Notes */}
       <div className="space-y-2">
-        <Label>{t('notes')}</Label>
+        <Label htmlFor="photoshoot-notes">{t('notes')}</Label>
         <textarea
+          id="photoshoot-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder={t('notesPlaceholder')}
@@ -160,6 +159,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
           maxLength={500}
           className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
         />
+        <p className="text-xs text-end text-[var(--color-text-muted)]">{notes.length}/500</p>
       </div>
 
       {/* Submit */}

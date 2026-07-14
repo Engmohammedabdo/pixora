@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CreatorForm } from '@/components/studios/creator/CreatorForm';
@@ -20,9 +21,11 @@ interface CreatorInput {
   referenceImageUrl?: string;
 }
 
-export default function CreatorPage(): React.ReactElement {
+function CreatorPageContent(): React.ReactElement {
   const t = useTranslations('creator');
   const tStudio = useTranslations('studio');
+  const searchParams = useSearchParams();
+  const initialPrompt = searchParams.get('prompt') ?? undefined;
 
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,7 +106,7 @@ export default function CreatorPage(): React.ReactElement {
       </div>
 
       <StudioLayout
-        inputPanel={<CreatorForm onSubmit={handleGenerate} isLoading={isLoading} />}
+        inputPanel={<CreatorForm onSubmit={handleGenerate} isLoading={isLoading} initialPrompt={initialPrompt} />}
         previewPanel={
           <CreatorPreview
             imageUrls={imageUrls}
@@ -120,5 +123,13 @@ export default function CreatorPage(): React.ReactElement {
         }
       />
     </div>
+  );
+}
+
+export default function CreatorPage(): React.ReactElement {
+  return (
+    <Suspense>
+      <CreatorPageContent />
+    </Suspense>
   );
 }

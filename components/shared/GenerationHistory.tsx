@@ -33,18 +33,19 @@ export function GenerationHistory({ items, onSelect, className }: GenerationHist
 
   return (
     <div className={cn('flex gap-2 overflow-x-auto pb-1', className)}>
-      {items.slice(0, 5).map((item) => (
+      {items.slice(0, 5).map((item, index) => (
         <button
           key={item.id}
           type="button"
           onClick={() => onSelect?.(item)}
-          className="flex-shrink-0 group relative rounded-lg border overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all"
+          aria-label={`${t('generatedResult')} ${index + 1}`}
+          className="flex-shrink-0 group relative rounded-lg border overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         >
           {item.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={item.imageUrl}
-              alt=""
+              alt={`${t('generatedResult')} ${index + 1}`}
               className="h-16 w-16 object-cover"
             />
           ) : (

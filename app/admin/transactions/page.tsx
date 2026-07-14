@@ -187,7 +187,7 @@ export default function AdminTransactionsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <CreditCard className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+          <h1 className="text-2xl font-bold text-white">Transactions</h1>
           <span className="text-sm text-slate-500">({total} total)</span>
         </div>
         <div className="relative">

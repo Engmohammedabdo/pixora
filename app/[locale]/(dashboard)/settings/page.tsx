@@ -18,12 +18,15 @@ import { toast } from 'sonner';
 
 export default function SettingsPage(): React.ReactElement {
   const t = useTranslations('settings');
+  const tCommon = useTranslations('common');
+  const tAuth = useTranslations('auth');
   const { profile, signOut } = useUser();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -41,13 +44,15 @@ export default function SettingsPage(): React.ReactElement {
       const res = await fetch('/api/user/profile', { method: 'PATCH', body: formData });
       const data = await res.json();
       if (data.success) {
-        toast.success('تم تحديث الملف الشخصي');
+        toast.success(t('saveSuccess'));
+        // Update the UI in place — no full page reload
+        setDisplayName(editName);
         setEditing(false);
-        window.location.reload();
+        router.refresh();
       } else {
-        toast.error(data.error || 'فشل التحديث');
+        toast.error(data.error || t('saveError'));
       }
-    } catch { toast.error('حدث خطأ في الشبكة'); } finally { setSaving(false); }
+    } catch { toast.error(t('networkError')); } finally { setSaving(false); }
   };
 
   const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
@@ -64,7 +69,7 @@ export default function SettingsPage(): React.ReactElement {
   ] as const;
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="p-6 space-y-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold font-cairo">{t('title')}</h1>
 
       {/* Profile */}
@@ -75,7 +80,8 @@ export default function SettingsPage(): React.ReactElement {
             {!editing && (
               <button
                 onClick={() => setEditing(true)}
-                className="ms-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+                aria-label={tCommon('edit')}
+                className="ms-auto p-2.5 -m-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
               >
                 <Pencil className="h-4 w-4" />
               </button>
@@ -93,7 +99,7 @@ export default function SettingsPage(): React.ReactElement {
                 <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  placeholder="الاسم"
+                  placeholder={t('namePlaceholder')}
                   className="max-w-xs"
                 />
                 <input
@@ -104,16 +110,16 @@ export default function SettingsPage(): React.ReactElement {
                 />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleSave} disabled={saving}>
-                    {saving ? 'جاري الحفظ...' : 'حفظ'}
+                    {saving ? t('saving') : tCommon('save')}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
-                    إلغاء
+                    {tCommon('cancel')}
                   </Button>
                 </div>
               </div>
             ) : (
               <div>
-                <p className="font-semibold text-lg">{profile?.name || '-'}</p>
+                <p className="font-semibold text-lg">{displayName ?? profile?.name ?? '-'}</p>
                 <p className="text-sm text-[var(--color-text-secondary)]">{profile?.email || '-'}</p>
                 <Badge variant="secondary" className="mt-1">{profile?.plan_id || 'free'}</Badge>
               </div>
@@ -184,12 +190,12 @@ export default function SettingsPage(): React.ReactElement {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" /> قانوني
+            <FileText className="h-4 w-4" /> {t('legal')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Link href="/privacy" className="block text-sm text-primary-500 hover:underline">سياسة الخصوصية</Link>
-          <Link href="/terms" className="block text-sm text-primary-500 hover:underline">شروط الاستخدام</Link>
+          <Link href="/privacy" className="block text-sm text-primary-500 hover:underline">{t('privacyPolicy')}</Link>
+          <Link href="/terms" className="block text-sm text-primary-500 hover:underline">{t('termsOfUse')}</Link>
         </CardContent>
       </Card>
 
@@ -198,7 +204,7 @@ export default function SettingsPage(): React.ReactElement {
       {/* Logout */}
       <Button variant="destructive" onClick={signOut} className="gap-2 w-full">
         <LogOut className="h-4 w-4" />
-        تسجيل الخروج
+        {tAuth('logout')}
       </Button>
     </div>
   );

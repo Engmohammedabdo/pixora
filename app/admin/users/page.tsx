@@ -63,7 +63,7 @@ export default function AdminUsersPage() {
               (row.name || 'U').charAt(0).toUpperCase()
             )}
           </div>
-          <span className="font-medium text-slate-900">{row.name || 'Unnamed'}</span>
+          <span className="font-medium text-slate-100">{row.name || 'Unnamed'}</span>
         </div>
       ),
     },
@@ -161,7 +161,7 @@ export default function AdminUsersPage() {
     <AdminLayout>
       <div className="mb-6 flex items-center gap-3">
         <Users className="h-6 w-6 text-indigo-500" />
-        <h1 className="text-2xl font-bold text-slate-900">Users</h1>
+        <h1 className="text-2xl font-bold text-white">Users</h1>
         <span className="text-sm text-slate-500">({total} total)</span>
       </div>
 

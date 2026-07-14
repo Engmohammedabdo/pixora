@@ -32,10 +32,10 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
             onClick={() => onChange(res.id)}
             aria-pressed={value === res.id}
             className={cn(
-              'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors',
+              'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
               value === res.id
-                ? 'border-primary-500 bg-primary-50 text-primary-700'
-                : 'border-[var(--color-border)] hover:border-primary-300'
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                : 'border-[var(--color-border)] hover:border-primary-300 hover:bg-surface-2'
             )}
           >
             <span className="font-medium">{res.label}</span>

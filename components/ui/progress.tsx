@@ -13,9 +13,10 @@ const Progress = React.forwardRef<
     className={cn('relative h-4 w-full overflow-hidden rounded-full bg-surface-2', className)}
     {...props}
   >
+    {/* Width-based fill anchors to the inline-start edge, so it is correct in both RTL and LTR */}
     <ProgressPrimitive.Indicator
-      className="h-full w-full flex-1 bg-primary-500 transition-all"
-      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+      className="h-full bg-primary-500 transition-all"
+      style={{ width: `${value || 0}%` }}
     />
   </ProgressPrimitive.Root>
 ));

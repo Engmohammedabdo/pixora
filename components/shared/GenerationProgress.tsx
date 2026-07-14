@@ -1,21 +1,22 @@
 'use client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Sparkles } from 'lucide-react';
 
 const STAGES = [
-  { label: 'بايرا تحلل طلبك... 🦊', progress: 20 },
-  { label: 'بايرا تشتغل على النتيجة...', progress: 60 },
-  { label: 'بايرا تحسّن الجودة...', progress: 85 },
-  { label: 'جاري الانتهاء...', progress: 95 },
-];
+  { key: 'stage1', progress: 20 },
+  { key: 'stage2', progress: 60 },
+  { key: 'stage3', progress: 85 },
+  { key: 'stage4', progress: 95 },
+] as const;
 
 interface GenerationProgressProps {
   isLoading: boolean;
-  model?: string;
 }
 
-export function GenerationProgress({ isLoading, model }: GenerationProgressProps): React.ReactElement | null {
+export function GenerationProgress({ isLoading }: GenerationProgressProps): React.ReactElement | null {
+  const t = useTranslations('studio');
   const [stageIndex, setStageIndex] = useState(0);
 
   useEffect(() => {
@@ -38,10 +39,9 @@ export function GenerationProgress({ isLoading, model }: GenerationProgressProps
         </div>
         <AnimatePresence mode="wait">
           <motion.p key={stageIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-sm text-center text-[var(--color-text-secondary)]">
-            {stage.label}
+            {t(`progress.${stage.key}`)}
           </motion.p>
         </AnimatePresence>
-        {model && <p className="text-xs text-center text-[var(--color-text-muted)]">Model: {model}</p>}
       </div>
     </div>
   );

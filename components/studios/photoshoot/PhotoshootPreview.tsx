@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { GenerationProgress } from '@/components/shared/GenerationProgress';
+import { downloadFile, downloadFiles } from '@/lib/download';
 import Image from 'next/image';
 import { Download, AlertTriangle } from 'lucide-react';
 
@@ -25,18 +26,12 @@ export function PhotoshootPreview({
   shots,
   isLoading,
   error,
-  expectedCount,
 }: PhotoshootPreviewProps): React.ReactElement {
   const t = useTranslations('studio');
+  const tShoot = useTranslations('photoshoot');
 
   if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 py-6">
-        {Array.from({ length: expectedCount }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square rounded-lg" />
-        ))}
-      </div>
-    );
+    return <GenerationProgress isLoading />;
   }
 
   if (error) {
@@ -54,25 +49,22 @@ export function PhotoshootPreview({
         <div className="h-48 w-48 rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center">
           <span className="text-4xl">📸</span>
         </div>
-        <p className="text-sm mt-4">الصور ستظهر هنا</p>
+        <p className="text-sm mt-4">{tShoot('emptyState')}</p>
       </div>
     );
   }
 
   const handleDownloadAll = (): void => {
-    shots.forEach((shot, i) => {
-      if (shot.url) {
-        const link = document.createElement('a');
-        link.href = shot.url;
-        link.download = `pyrasuite-photoshoot-${i + 1}.png`;
-        link.click();
-      }
-    });
+    void downloadFiles(
+      shots
+        .filter((shot) => shot.url)
+        .map((shot, i) => ({ url: shot.url as string, filename: `pyrasuite-photoshoot-${i + 1}.png` }))
+    );
   };
 
   return (
     <div className="space-y-4">
-      {shots.some((s) => s.mock) && (
+      {shots.some((s) => s.mock) && process.env.NODE_ENV !== 'production' && (
         <Badge variant="outline" className="text-xs">Mock Response</Badge>
       )}
 
@@ -93,21 +85,21 @@ export function PhotoshootPreview({
                 <div className="relative w-full aspect-square">
                   <Image src={shot.url} alt={`Shot ${shot.index + 1}`} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" unoptimized />
                 </div>
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <a
-                    href={shot.url}
-                    download={`photoshoot-${shot.index + 1}.png`}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                <div className="absolute inset-0 bg-black/0 lg:group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    aria-label={tShoot('downloadShot', { number: shot.index + 1 })}
+                    onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.png`)}
                   >
-                    <Button size="sm" variant="secondary" className="gap-1">
-                      <Download className="h-3 w-3" />
-                    </Button>
-                  </a>
+                    <Download className="h-4 w-4" />
+                  </Button>
                 </div>
               </>
             ) : (
               <div className="w-full aspect-square bg-surface-2 flex items-center justify-center text-sm text-[var(--color-text-muted)]">
-                Failed
+                {t('failed')}
               </div>
             )}
             <Badge variant="secondary" className="absolute top-2 start-2 text-[10px]">

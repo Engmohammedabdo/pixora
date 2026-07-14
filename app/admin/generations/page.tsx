@@ -181,7 +181,7 @@ export default function AdminGenerationsPage() {
     <AdminLayout>
       <div className="mb-6 flex items-center gap-3">
         <Palette className="h-6 w-6 text-indigo-500" />
-        <h1 className="text-2xl font-bold text-slate-900">Generations</h1>
+        <h1 className="text-2xl font-bold text-white">Generations</h1>
         <span className="text-sm text-slate-500">({total} total)</span>
       </div>
 

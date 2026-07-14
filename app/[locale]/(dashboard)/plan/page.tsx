@@ -12,6 +12,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
@@ -60,24 +61,28 @@ export default function PlanPage(): React.ReactElement {
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t]);
 
+  const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
+  };
+
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>{tPlan('businessName')}</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="اسم شركتك أو مشروعك" /></div>
-      <div className="space-y-2"><Label>{tPlan('industry')}</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="مثال: مطاعم، عيادات، SaaS..." /></div>
+      <div className="space-y-2"><Label htmlFor="plan-business-name">{tPlan('businessName')}</Label><Input id="plan-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('businessNamePlaceholder')} /></div>
+      <div className="space-y-2"><Label htmlFor="plan-industry">{tPlan('industry')}</Label><Input id="plan-industry" value={industry} onChange={(e) => setIndustry(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('industryPlaceholder')} /></div>
       <div className="space-y-2">
         <Label>{tPlan('goals')}</Label>
         <div className="flex flex-wrap gap-2">{GOALS.map((g) => (
-          <button key={g} type="button" onClick={() => toggleGoal(g)} className={cn('rounded-full px-3 py-1.5 text-xs transition-colors', goals.includes(g) ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}>
+          <button key={g} type="button" onClick={() => toggleGoal(g)} aria-pressed={goals.includes(g)} className={cn('rounded-full px-3 py-1.5 text-xs transition-colors', goals.includes(g) ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}>
             {g === 'brand_awareness' ? tPlan('brandAwareness') : g === 'lead_generation' ? tPlan('leadGeneration') : g === 'sales' ? tPlan('sales') : tPlan('retention')}
           </button>
         ))}</div>
       </div>
-      <div className="space-y-2"><Label>{tPlan('targetMarket')}</Label><Input value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} placeholder="مثال: رواد أعمال في السعودية" /></div>
-      <div className="space-y-2"><Label>{tPlan('monthlyBudget')}</Label><Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="$1,000 - $5,000" dir="ltr" /></div>
+      <div className="space-y-2"><Label htmlFor="plan-target-market">{tPlan('targetMarket')}</Label><Input id="plan-target-market" value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('targetMarketPlaceholder')} /></div>
+      <div className="space-y-2"><Label htmlFor="plan-budget">{tPlan('monthlyBudget')}</Label><Input id="plan-budget" value={budget} onChange={(e) => setBudget(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('budgetPlaceholder')} dir="ltr" /></div>
       <div className="space-y-2">
         <Label>{tPlan('duration')}</Label>
         <div className="flex gap-2">{DURATIONS.map((d) => (
-          <button key={d} type="button" onClick={() => setDuration(d)} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>
+          <button key={d} type="button" onClick={() => setDuration(d)} aria-pressed={duration === d} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? selectedChipClasses : unselectedChipClasses)}>
             {d} {tPlan('day')}
           </button>
         ))}</div>

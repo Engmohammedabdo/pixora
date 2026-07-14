@@ -74,12 +74,36 @@ export function Sidebar(): React.ReactElement {
   const tCredits = useTranslations('credits');
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleCollapsed } = useUIStore();
-  const { balance } = useCreditsStore();
+  const { balance, loading: creditsLoading } = useCreditsStore();
   const { profile } = useUser();
   const planCredits = getPlan(profile?.plan_id || 'free').credits;
 
   const renderNavItem = (item: NavItem): React.ReactElement => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+
+    // "Soon" items: non-interactive, not keyboard-focusable, disabled semantics
+    if (item.soon) {
+      return (
+        <span
+          key={item.href}
+          aria-disabled="true"
+          title={sidebarCollapsed ? t(item.labelKey) : undefined}
+          className={cn(
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm select-none',
+            sidebarCollapsed && 'justify-center px-2',
+            'text-[var(--color-text-secondary)] opacity-50 cursor-not-allowed'
+          )}
+        >
+          {item.icon}
+          {!sidebarCollapsed && <span className="flex-1">{t(item.labelKey)}</span>}
+          {!sidebarCollapsed && (
+            <span className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded-full">
+              {t('soon')}
+            </span>
+          )}
+        </span>
+      );
+    }
 
     return (
       <Link
@@ -91,18 +115,12 @@ export function Sidebar(): React.ReactElement {
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
           sidebarCollapsed && 'justify-center px-2',
           isActive
-            ? 'bg-primary-50 text-primary-600 font-medium'
-            : 'text-[var(--color-text-secondary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]',
-          item.soon && 'opacity-50 pointer-events-none'
+            ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300 font-medium'
+            : 'text-[var(--color-text-secondary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
         )}
       >
         {item.icon}
         {!sidebarCollapsed && <span className="flex-1">{t(item.labelKey)}</span>}
-        {!sidebarCollapsed && item.soon && (
-          <span className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded-full">
-            {t('soon')}
-          </span>
-        )}
       </Link>
     );
   };
@@ -127,15 +145,15 @@ export function Sidebar(): React.ReactElement {
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="lg:hidden p-1 rounded-md hover:bg-surface-2"
-          aria-label="Close sidebar"
+          className="lg:hidden p-2 rounded-md hover:bg-surface-2"
+          aria-label={t('a11y.closeSidebar')}
         >
           <X className="h-5 w-5" />
         </button>
         <button
           onClick={toggleCollapsed}
-          className="hidden lg:flex p-1 rounded-md hover:bg-surface-2"
-          aria-label="Toggle sidebar"
+          className="hidden lg:flex p-2 rounded-md hover:bg-surface-2"
+          aria-label={t('a11y.toggleSidebar')}
         >
           {sidebarCollapsed ? <ChevronRight className="h-4 w-4 rtl:rotate-180" /> : <ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
         </button>
@@ -160,7 +178,11 @@ export function Sidebar(): React.ReactElement {
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-1" title={tCredits('balance')}>
             <Coins className="h-4 w-4 text-primary-500" />
-            <span className="text-xs font-bold text-primary-600">{balance}</span>
+            {creditsLoading ? (
+              <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
+            ) : (
+              <span className="text-xs font-bold text-primary-600">{balance}</span>
+            )}
           </div>
         ) : (
           <>
@@ -169,9 +191,13 @@ export function Sidebar(): React.ReactElement {
                 <Coins className="h-4 w-4 text-primary-500" />
                 <span className="font-medium">{tCredits('balance')}</span>
               </div>
-              <span className="font-bold text-primary-600">{balance}</span>
+              {creditsLoading ? (
+                <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
+              ) : (
+                <span className="font-bold text-primary-600">{balance}</span>
+              )}
             </div>
-            <Progress value={Math.min((balance / planCredits) * 100, 100)} className="h-2" />
+            <Progress value={creditsLoading ? 0 : Math.min((balance / planCredits) * 100, 100)} className="h-2" />
             <Link
               href="/billing"
               className="block text-center text-xs text-primary-500 hover:underline"

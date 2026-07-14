@@ -115,6 +115,7 @@ export default function SignupPage(): React.ReactElement {
               onChange={(e) => setEmail(e.target.value)}
               required
               dir="ltr"
+              className="rtl:placeholder-shown:text-right"
             />
           </div>
           <div className="space-y-2">
@@ -128,6 +129,7 @@ export default function SignupPage(): React.ReactElement {
               required
               minLength={6}
               dir="ltr"
+              className="rtl:placeholder-shown:text-right"
             />
           </div>
 

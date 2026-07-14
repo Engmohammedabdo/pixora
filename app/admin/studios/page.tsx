@@ -97,7 +97,7 @@ export default function AdminStudiosPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <SlidersHorizontal className="h-6 w-6 text-indigo-500" />
-          <h1 className="text-2xl font-bold text-slate-900">Studios</h1>
+          <h1 className="text-2xl font-bold text-white">Studios</h1>
         </div>
         <button
           onClick={handleSave}

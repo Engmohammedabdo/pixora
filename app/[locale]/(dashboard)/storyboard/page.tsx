@@ -11,6 +11,7 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-react';
@@ -58,20 +59,24 @@ export default function StoryboardPage(): React.ReactElement {
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
 
+  const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
+  };
+
   const inputPanel = (
     <div className="space-y-4">
-      <div className="space-y-2"><Label>{tSb('videoConcept')}</Label><textarea value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="وصف فكرة الفيديو التسويقي..." rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /></div>
+      <div className="space-y-2"><Label htmlFor="storyboard-concept">{tSb('videoConcept')}</Label><textarea id="storyboard-concept" value={concept} onChange={(e) => setConcept(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tSb('conceptPlaceholder')} rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{concept.length}/1000</p></div>
       <div className="space-y-2">
         <Label>{tSb('duration')}</Label>
-        <div className="flex gap-2">{DURATIONS.map((d) => (<button key={d} type="button" onClick={() => setDuration(d)} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{d}s</button>))}</div>
+        <div className="flex gap-2">{DURATIONS.map((d) => (<button key={d} type="button" onClick={() => setDuration(d)} aria-pressed={duration === d} className={cn('flex-1 rounded-lg border px-3 py-2 text-sm transition-colors', duration === d ? selectedChipClasses : unselectedChipClasses)}>{d}s</button>))}</div>
       </div>
       <div className="space-y-2">
         <Label>{tSb('style')}</Label>
-        <div className="grid grid-cols-2 gap-2">{STYLES.map((s) => (<button key={s} type="button" onClick={() => setStyle(s)} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', style === s ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{styleLabels[s]}</button>))}</div>
+        <div className="grid grid-cols-2 gap-2">{STYLES.map((s) => (<button key={s} type="button" onClick={() => setStyle(s)} aria-pressed={style === s} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', style === s ? selectedChipClasses : unselectedChipClasses)}>{styleLabels[s]}</button>))}</div>
       </div>
       <div className="space-y-2">
         <Label>{tSb('platform')}</Label>
-        <div className="grid grid-cols-2 gap-2">{PLATFORMS.map((p) => (<button key={p} type="button" onClick={() => setPlatform(p)} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', platform === p ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-[var(--color-border)] hover:border-primary-300')}>{platformLabels[p]}</button>))}</div>
+        <div className="grid grid-cols-2 gap-2">{PLATFORMS.map((p) => (<button key={p} type="button" onClick={() => setPlatform(p)} aria-pressed={platform === p} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', platform === p ? selectedChipClasses : unselectedChipClasses)}>{platformLabels[p]}</button>))}</div>
       </div>
       <div className="flex items-center justify-between pt-2">
         <CreditCost cost={CREDIT_COSTS.storyboard} />
@@ -99,7 +104,7 @@ export default function StoryboardPage(): React.ReactElement {
           <div className="h-24 bg-surface-2 flex items-center justify-center text-2xl">🎬</div>
           <CardHeader className="pb-1 px-3 pt-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs">Scene {scene.scene_number}</CardTitle>
+              <CardTitle className="text-xs">{tSb('scene', { number: scene.scene_number })}</CardTitle>
               <Badge variant="secondary" className="text-[9px]">{scene.duration_seconds}s</Badge>
             </div>
           </CardHeader>

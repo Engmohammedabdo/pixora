@@ -57,44 +57,44 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={loading ? undefined : onCancel} />
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <div className="absolute inset-0 bg-black/60" onClick={loading ? undefined : onCancel} />
+      <div className="relative w-full max-w-md rounded-xl border border-white/[0.08] bg-slate-900/95 p-6 shadow-xl">
         <div className="flex items-start gap-3">
           {confirmVariant === 'danger' && (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10 ring-1 ring-red-500/20">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
             </div>
           )}
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
+            <h3 className="text-lg font-semibold text-white">{title}</h3>
+            <p className="mt-1 text-sm text-slate-400">{description}</p>
           </div>
         </div>
 
         {requireInput && (
           <div className="mt-4">
-            <label className="mb-1 block text-sm text-slate-600">
-              Type <span className="font-mono font-semibold text-slate-900">{requireInput}</span> to confirm
+            <label className="mb-1 block text-sm text-slate-400">
+              Type <span className="font-mono font-semibold text-slate-200">{requireInput}</span> to confirm
             </label>
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               placeholder={requireInput}
             />
           </div>
         )}
 
         {error && (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+          <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400 ring-1 ring-red-500/20">{error}</div>
         )}
 
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-white/[0.08] px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.04] disabled:opacity-50"
           >
             Cancel
           </button>

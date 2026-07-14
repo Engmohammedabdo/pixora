@@ -1,38 +1,60 @@
 import type { Metadata } from 'next';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { notFound } from 'next/navigation';
+import { DirectionProvider } from '@radix-ui/react-direction';
 import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import '../globals.css';
 
-export const metadata: Metadata = {
-  title: {
-    default: 'PyraSuite — منصة التسويق بالذكاء الاصطناعي',
-    template: '%s | PyraSuite',
-  },
-  description: 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات، نماذج AI متعددة، واجهة عربية.',
-  keywords: ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI'],
-  authors: [{ name: 'PyraSuite' }],
-  openGraph: {
-    type: 'website',
-    siteName: 'PyraSuite',
-    title: 'PyraSuite — منصة التسويق بالذكاء الاصطناعي',
-    description: 'حوّل أي فكرة لحملة تسويقية احترافية في دقائق — 9 استوديوهات AI، واجهة عربية، نظام كريدت شفاف.',
-    locale: 'ar_SA',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'PyraSuite — AI Marketing Platform',
-    description: 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي',
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  manifest: '/manifest.json',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const isAr = locale === 'ar';
+
+  return {
+    title: {
+      default: isAr
+        ? 'PyraSuite — منصة التسويق بالذكاء الاصطناعي'
+        : 'PyraSuite — AI Marketing Platform',
+      template: '%s | PyraSuite',
+    },
+    description: isAr
+      ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات، نماذج AI متعددة، واجهة عربية.'
+      : 'Turn any idea into a complete marketing campaign in minutes — 9 AI studios powered by the Pyra AI engine, with a transparent credit system.',
+    keywords: isAr
+      ? ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI']
+      : ['AI marketing', 'PyraSuite', 'marketing campaigns', 'AI images', 'ad design', 'Pyra AI', 'Arabic marketing'],
+    authors: [{ name: 'PyraSuite' }],
+    openGraph: {
+      type: 'website',
+      siteName: 'PyraSuite',
+      title: isAr
+        ? 'PyraSuite — منصة التسويق بالذكاء الاصطناعي'
+        : 'PyraSuite — AI Marketing Platform',
+      description: isAr
+        ? 'حوّل أي فكرة لحملة تسويقية احترافية في دقائق — 9 استوديوهات AI، واجهة عربية، نظام كريدت شفاف.'
+        : 'Turn any idea into a professional marketing campaign in minutes — 9 AI studios and a transparent credit system.',
+      locale: isAr ? 'ar_SA' : 'en_US',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'PyraSuite — AI Marketing Platform',
+      description: isAr
+        ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي'
+        : 'The Arabic-first AI marketing platform',
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+    manifest: '/manifest.json',
+  };
+}
 
 interface RootLayoutProps {
   children: React.ReactNode;
@@ -56,12 +78,14 @@ export default async function RootLayout({
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <body className="min-h-screen antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider>
-            <QueryProvider>
-              {children}
-              <ToastProvider />
-            </QueryProvider>
-          </ThemeProvider>
+          <DirectionProvider dir={dir}>
+            <ThemeProvider>
+              <QueryProvider>
+                {children}
+                <ToastProvider />
+              </QueryProvider>
+            </ThemeProvider>
+          </DirectionProvider>
         </NextIntlClientProvider>
       </body>
     </html>

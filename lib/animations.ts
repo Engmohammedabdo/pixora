@@ -16,6 +16,9 @@ export const scaleUp: Variants = {
   visible: { scale: 1, opacity: 1, transition: { duration: 0.5, ease: 'easeOut' } },
 };
 
+// NOTE: slideInRight/slideInLeft use PHYSICAL x offsets — they do not flip with
+// the document direction. In RTL-sensitive contexts, pick the variant based on
+// the active locale (see components/landing/HeroSection.tsx).
 export const slideInRight: Variants = {
   hidden: { x: 60, opacity: 0 },
   visible: { x: 0, opacity: 1, transition: { duration: 0.7, ease: 'easeOut' } },

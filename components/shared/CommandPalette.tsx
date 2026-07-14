@@ -2,6 +2,7 @@
 
 import { Command } from 'cmdk';
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
@@ -23,44 +24,46 @@ import {
 import type { LucideIcon } from 'lucide-react';
 
 interface CommandItemDef {
-  label: string;
+  labelKey: string;
   href: string;
   icon: LucideIcon;
 }
 
 interface CommandGroup {
-  group: string;
+  groupKey: string;
   items: CommandItemDef[];
 }
 
 const COMMANDS: CommandGroup[] = [
   {
-    group: 'الاستوديوهات',
+    groupKey: 'groups.studios',
     items: [
-      { label: 'منشئ الصور', href: '/creator', icon: Image },
-      { label: 'تصوير المنتجات', href: '/photoshoot', icon: Camera },
-      { label: 'مخطط الحملات', href: '/campaign', icon: LayoutGrid },
-      { label: 'الخطة التسويقية', href: '/plan', icon: Map },
-      { label: 'ستوري بورد', href: '/storyboard', icon: Film },
-      { label: 'التحليل التسويقي', href: '/analysis', icon: BarChart3 },
-      { label: 'التعليق الصوتي', href: '/voiceover', icon: Mic },
-      { label: 'تعديل الصور', href: '/edit', icon: Pencil },
-      { label: 'مساعد البرومبت', href: '/prompt-builder', icon: Lightbulb },
+      { labelKey: 'items.creator', href: '/creator', icon: Image },
+      { labelKey: 'items.photoshoot', href: '/photoshoot', icon: Camera },
+      { labelKey: 'items.campaign', href: '/campaign', icon: LayoutGrid },
+      { labelKey: 'items.plan', href: '/plan', icon: Map },
+      { labelKey: 'items.storyboard', href: '/storyboard', icon: Film },
+      { labelKey: 'items.analysis', href: '/analysis', icon: BarChart3 },
+      { labelKey: 'items.voiceover', href: '/voiceover', icon: Mic },
+      { labelKey: 'items.edit', href: '/edit', icon: Pencil },
+      { labelKey: 'items.promptBuilder', href: '/prompt-builder', icon: Lightbulb },
     ],
   },
   {
-    group: 'مساحة العمل',
+    groupKey: 'groups.workspace',
     items: [
-      { label: 'الرئيسية', href: '/dashboard', icon: Home },
-      { label: 'الهوية البصرية', href: '/brand-kit', icon: Palette },
-      { label: 'ملفاتي', href: '/assets', icon: FolderOpen },
-      { label: 'الإعدادات', href: '/settings', icon: Settings },
-      { label: 'الفواتير', href: '/billing', icon: CreditCard },
+      { labelKey: 'items.dashboard', href: '/dashboard', icon: Home },
+      { labelKey: 'items.brandKit', href: '/brand-kit', icon: Palette },
+      { labelKey: 'items.assets', href: '/assets', icon: FolderOpen },
+      { labelKey: 'items.settings', href: '/settings', icon: Settings },
+      { labelKey: 'items.billing', href: '/billing', icon: CreditCard },
     ],
   },
 ];
 
 export function CommandPalette(): React.ReactElement {
+  const t = useTranslations('commandPalette');
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -83,19 +86,19 @@ export function CommandPalette(): React.ReactElement {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0 max-w-lg overflow-hidden">
-        <Command className="rounded-lg" dir="rtl">
+        <Command className="rounded-lg" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
           <Command.Input
-            placeholder="ابحث عن استوديو أو صفحة..."
+            placeholder={t('placeholder')}
             className="h-12 text-sm w-full border-b px-4 outline-none bg-transparent"
           />
           <Command.List className="max-h-80 overflow-y-auto p-2">
             <Command.Empty className="py-6 text-center text-sm text-[var(--color-text-muted)]">
-              لا توجد نتائج
+              {t('empty')}
             </Command.Empty>
             {COMMANDS.map((group) => (
               <Command.Group
-                key={group.group}
-                heading={group.group}
+                key={group.groupKey}
+                heading={t(group.groupKey)}
                 className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-[var(--color-text-muted)]"
               >
                 {group.items.map((item) => (
@@ -105,7 +108,7 @@ export function CommandPalette(): React.ReactElement {
                     className="flex items-center gap-3 px-4 py-2.5 cursor-pointer rounded-md text-sm aria-selected:bg-surface-2"
                   >
                     <item.icon className="h-4 w-4 text-[var(--color-text-muted)]" />
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey)}</span>
                   </Command.Item>
                 ))}
               </Command.Group>

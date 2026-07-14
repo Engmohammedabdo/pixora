@@ -74,7 +74,7 @@ export default function AdminPromptsPage() {
     <AdminLayout>
       <div className="mb-6 flex items-center gap-3">
         <FileText className="h-6 w-6 text-indigo-500" />
-        <h1 className="text-2xl font-bold text-slate-900">System Prompts</h1>
+        <h1 className="text-2xl font-bold text-white">System Prompts</h1>
         {overriddenCount > 0 && (
           <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
             {overriddenCount} overridden
