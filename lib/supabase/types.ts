@@ -499,6 +499,15 @@ export interface Database {
         };
         Returns: Record<string, unknown>;
       };
+      // Migration 027. SECURITY DEFINER, EXECUTE granted to service_role only —
+      // must be called with createServiceRoleClient(), never the user client.
+      grant_onboarding_bonus: {
+        Args: {
+          p_user_id: string;
+          p_credits: number;
+        };
+        Returns: Record<string, unknown>;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

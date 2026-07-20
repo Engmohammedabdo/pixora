@@ -169,10 +169,12 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
     }
 
-    // Check if user is banned
+    // Check ban + onboarding status in the same query — a second `profiles`
+    // select here would double the per-navigation round trip this block
+    // already makes.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('banned')
+      .select('banned, onboarding_completed')
       .eq('id', user.id)
       .single();
 
@@ -181,6 +183,28 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       await supabase.auth.signOut();
       const locale = pathname.split('/')[1] || 'ar';
       return NextResponse.redirect(new URL(`/${locale}/login?error=banned`, request.url));
+    }
+
+    // Force onboarding for any signed-in, non-banned user who has not
+    // completed it. This is the only path that catches an email/password
+    // signup or login: today login/page.tsx navigates straight to /dashboard
+    // and never sees onboarding at all, while OAuth/magic-link users get a
+    // one-time redirect from callback/route.ts on sign-in only. Checking the
+    // flag here, on every navigation, closes the "closed the tab mid-flow"
+    // gap for the password flow too.
+    //
+    // Redirect-loop guard: only fires when the target is not already
+    // /onboarding itself. Public paths (login/signup/callback/privacy/terms/
+    // forgot-password/reset-password, plus the bare locale root) never reach
+    // this line — isPublicPath() above returns before this block runs. API
+    // routes (/api/*) are handled in their own early-return branch further up
+    // and also never reach here.
+    if (!profile?.onboarding_completed) {
+      const pathIsOnboarding = pathWithoutLocale.startsWith('/onboarding');
+      if (!pathIsOnboarding) {
+        const locale = pathname.split('/')[1] || 'ar';
+        return NextResponse.redirect(new URL(`/${locale}/onboarding`, request.url));
+      }
     }
   }
 
