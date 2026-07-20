@@ -20,9 +20,13 @@
     --color-surface-2: #F1F5F9;
     --color-border: #E2E8F0;
 
+    /* Text tiers are chosen so each one clears WCAG AA (4.5:1) against ALL
+       three light backgrounds — surface #FFFFFF, bg #F8FAFC and surface-2
+       #F1F5F9 — with surface-2 the binding constraint. Measured worst case:
+       primary 16.30, secondary 6.92, muted 4.95. */
     --color-text-primary: #0F172A;
     --color-text-secondary: #475569;
-    --color-text-muted: #64748B;
+    --color-text-muted: #5E6B7D;
 
     --color-success: #10B981;
     --color-warning: #F59E0B;
@@ -38,9 +42,14 @@
     --color-surface-2: #334155;
     --color-border: #475569;
 
+    /* Dark surface-2 (#334155) is the binding constraint here. Note secondary
+       and muted were previously BOTH #94A3B8 — the two tiers were literally
+       the same colour, so the hierarchy did not exist, and both measured
+       4.04 on surface-2. Measured worst case now: primary 9.90,
+       secondary 6.97, muted 4.60. */
     --color-text-primary: #F8FAFC;
-    --color-text-secondary: #94A3B8;
-    --color-text-muted: #94A3B8;
+    --color-text-secondary: #CBD5E1;
+    --color-text-muted: #A0AEC2;
   }
 
   [lang='ar'] {
