@@ -28,8 +28,15 @@ const RESOLUTION_ORDER: Resolution[] = ['1080p', '2K', '4K'];
 
 export function ResolutionSelector({ value, onChange, className }: ResolutionSelectorProps): React.ReactElement {
   const t = useTranslations('credits');
-  const { profile } = useUser();
+  const { profile, loading, isError } = useUser();
   const planId = profile?.plan_id ?? 'free';
+  // Only lock a resolution once the plan is actually known. Defaulting to
+  // 'free' above is fine for computing maxResIndex, but gating the UI on that
+  // default while the profile is still loading (or failed to load) would
+  // show a Pro user a Lock + upgrade prompt for a plan they already pay for —
+  // the server still enforces the real limit (403 resolution_not_available),
+  // so failing open here costs nothing.
+  const planKnown = !loading && !isError && !!profile;
   // free -> 1080p, starter -> 2K, pro/business/agency -> 4K (lib/stripe/plans.ts).
   const maxResIndex = RESOLUTION_ORDER.indexOf(getMaxResolution(planId));
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -43,7 +50,7 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
           // generation, and only then learn the server rejects it (403
           // resolution_not_available). Locking it here — same limits the route
           // enforces — surfaces the upgrade path before any credits are spent.
-          const isLocked = RESOLUTION_ORDER.indexOf(res.id) > maxResIndex;
+          const isLocked = planKnown && RESOLUTION_ORDER.indexOf(res.id) > maxResIndex;
           return (
             <button
               key={res.id}
