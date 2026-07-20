@@ -102,7 +102,17 @@
     "subscription": "اشتراك",
     "topup": "شحن",
     "refund": "استرداد",
-    "creditsCount": "{count} كريدت"
+    "creditsCount": "{count} كريدت",
+    "txType": {
+      "usage": "استخدام",
+      "subscription": "اشتراك",
+      "topup": "شحن رصيد",
+      "refund": "استرداد",
+      "reset": "تجديد شهري",
+      "referral": "مكافأة دعوة",
+      "admin_adjustment": "تعديل إداري",
+      "onboarding": "مكافأة ترحيب"
+    }
   },
   "brandKit": {
     "title": "الهوية البصرية",

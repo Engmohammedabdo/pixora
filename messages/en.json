@@ -102,7 +102,17 @@
     "subscription": "Subscription",
     "topup": "Top-up",
     "refund": "Refund",
-    "creditsCount": "{count} credits"
+    "creditsCount": "{count} credits",
+    "txType": {
+      "usage": "Usage",
+      "subscription": "Subscription",
+      "topup": "Top-up",
+      "refund": "Refund",
+      "reset": "Monthly reset",
+      "referral": "Referral bonus",
+      "admin_adjustment": "Admin adjustment",
+      "onboarding": "Welcome bonus"
+    }
   },
   "brandKit": {
     "title": "Brand Kit",

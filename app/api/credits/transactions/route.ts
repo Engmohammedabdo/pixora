@@ -17,7 +17,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const { data, error, count } = await supabase
       .from('credit_transactions')
-      .select('*', { count: 'exact' })
+      // credit_transactions has no studio column; the studio lives on the
+      // generation this transaction paid for. Rows with no generation
+      // (subscription, topup, reset, referral, admin_adjustment) join to null
+      // and fall back to a transaction-type label in the UI.
+      .select('*, generations(studio)', { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
