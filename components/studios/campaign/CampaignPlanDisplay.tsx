@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import NextImage from 'next/image';
-import { Copy, Check, Download, Image, AlertTriangle, FileText } from 'lucide-react';
+import { Copy, Check, Download, Image as ImageIcon, AlertTriangle, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { downloadFile } from '@/lib/download';
 import { generateCampaignPdf, openPdfInNewTab } from '@/lib/export/pdf';
@@ -115,7 +115,7 @@ export function CampaignPlanDisplay({
                   href={`/creator?prompt=${encodeURIComponent(post.scenario)}`}
                   className="flex items-center gap-1 text-xs text-[var(--color-link)] hover:underline"
                 >
-                  <Image className="h-4 w-4" />
+                  <ImageIcon className="h-4 w-4" />
                   {t('generateImage')}
                 </Link>
               </div>

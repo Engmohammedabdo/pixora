@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/useUser';
-import { Globe, Lock, Image, ExternalLink } from 'lucide-react';
+import { Globe, Lock, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ComingSoonBanner } from '@/components/ui/coming-soon-banner';
 
@@ -22,7 +22,7 @@ export default function PortfolioPage(): React.ReactElement {
       <Card className="bg-gradient-to-br from-primary-50/50 to-accent-50/30 dark:from-primary-900/20 dark:to-accent-900/10">
         <CardContent className="p-8 text-center space-y-4">
           <div className="h-16 w-16 rounded-2xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mx-auto">
-            <Image className="h-8 w-8 text-primary-500" />
+            <ImageIcon className="h-8 w-8 text-primary-500" />
           </div>
           <h2 className="text-xl font-bold font-cairo">معرضك الشخصي قريباً!</h2>
           <p className="text-sm text-[var(--color-text-secondary)] max-w-md mx-auto">

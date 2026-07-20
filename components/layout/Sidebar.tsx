@@ -11,7 +11,7 @@ import { useUser } from '@/hooks/useUser';
 import { getPlan } from '@/lib/stripe/plans';
 import {
   Home,
-  Image,
+  Image as PhotoIcon,
   Camera,
   LayoutGrid,
   Map,
@@ -44,7 +44,7 @@ interface NavItem {
 }
 
 const studioItems: NavItem[] = [
-  { href: '/creator', labelKey: 'creator', icon: <Image className="h-4 w-4" /> },
+  { href: '/creator', labelKey: 'creator', icon: <PhotoIcon className="h-4 w-4" /> },
   { href: '/photoshoot', labelKey: 'photoshoot', icon: <Camera className="h-4 w-4" /> },
   { href: '/campaign', labelKey: 'campaign', icon: <LayoutGrid className="h-4 w-4" /> },
   { href: '/plan', labelKey: 'plan', icon: <Map className="h-4 w-4" /> },
