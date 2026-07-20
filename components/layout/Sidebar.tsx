@@ -84,12 +84,19 @@ export function Sidebar(): React.ReactElement {
   // what make it behave like the modal it already looks like.
   useEffect(() => {
     if (!sidebarOpen) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setSidebarOpen(false);
-    };
+    const mq = window.matchMedia('(min-width: 1024px)');
+    // The drawer, its scrim and the hamburger are all lg:hidden. If the viewport
+    // crosses lg while the drawer is open, every affordance that could close it
+    // vanishes but the scroll lock stays — leaving the page frozen with nothing
+    // on screen to explain it.
+    const close = (): void => { if (mq.matches) setSidebarOpen(false); };
+    close();
+    mq.addEventListener('change', close);
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setSidebarOpen(false); };
     document.addEventListener('keydown', onKey);
     document.body.classList.add('overflow-hidden');
     return () => {
+      mq.removeEventListener('change', close);
       document.removeEventListener('keydown', onKey);
       document.body.classList.remove('overflow-hidden');
     };
