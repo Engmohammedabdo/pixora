@@ -202,7 +202,7 @@ export function Sidebar(): React.ReactElement {
       <div className="border-t p-4 space-y-2">
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-1" title={tCredits('balance')}>
-            <Coins className="h-4 w-4 text-primary-500" />
+            <Coins className="h-4 w-4 text-[var(--color-brand)]" />
             {creditsStatus === 'loading' ? (
               <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
             ) : creditsStatus === 'error' ? (
@@ -223,7 +223,7 @@ export function Sidebar(): React.ReactElement {
           <>
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
-                <Coins className="h-4 w-4 text-primary-500" />
+                <Coins className="h-4 w-4 text-[var(--color-brand)]" />
                 <span className="font-medium">{tCredits('balance')}</span>
               </div>
               {creditsStatus === 'loading' ? (

@@ -59,7 +59,7 @@ export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): Re
     <div className={cn('rounded-lg border p-4 space-y-3', className)}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Coins className={cn('h-5 w-5', isLow ? 'text-[var(--color-warning)]' : 'text-primary-500')} />
+          <Coins className={cn('h-5 w-5', isLow ? 'text-[var(--color-warning)]' : 'text-[var(--color-brand)]')} />
           <span className="text-sm font-medium">{t('balance')}</span>
         </div>
         <span className={cn('text-lg font-bold', isLow ? 'text-[var(--color-warning)]' : 'text-[var(--color-brand)]')}>

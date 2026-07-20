@@ -55,12 +55,12 @@ export function UpgradePrompt({
       description: t('insufficientCreditsDescription', { required: requiredCredits ?? 0, available: availableCredits ?? 0 }),
     },
     feature_locked: {
-      icon: <Lock className="h-10 w-10 text-primary-500" />,
+      icon: <Lock className="h-10 w-10 text-[var(--color-brand)]" />,
       title: t('featureLocked'),
       description: t('featureLockedDescription', { feature: feature || '', plan: planDisplayName(requiredPlan || 'pro') }),
     },
     resolution_locked: {
-      icon: <Sparkles className="h-10 w-10 text-primary-500" />,
+      icon: <Sparkles className="h-10 w-10 text-[var(--color-brand)]" />,
       title: t('resolutionLocked'),
       description: t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: currentPlan === 'free' ? '1080p' : '2K' }),
     },
@@ -79,7 +79,7 @@ export function UpgradePrompt({
 
         <div className="flex items-center justify-center gap-2 mt-2">
           <Badge variant="outline">{t('yourPlan')} {planDisplayName(currentPlan)}</Badge>
-          {requiredCredits && availableCredits !== undefined && (
+          {requiredCredits != null && requiredCredits > 0 && availableCredits !== undefined && (
             <Badge variant="secondary">
               {t('creditsRatio', { available: availableCredits, required: requiredCredits })}
             </Badge>

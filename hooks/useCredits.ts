@@ -50,7 +50,9 @@ export function useCredits({ poll = false }: UseCreditsOptions = {}): UseCredits
 
   useEffect(() => {
     if (!query.data) return;
-    if (query.data.startedAt < useCreditsStore.getState().updatedAt) return;
+    // <= (not <): on a same-millisecond collision, favor the write that's
+    // already in the store over the polled value that raced it.
+    if (query.data.startedAt <= useCreditsStore.getState().updatedAt) return;
     setBalance(query.data.balance);
   }, [query.data, setBalance]);
 
