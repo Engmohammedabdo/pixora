@@ -90,20 +90,25 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       if (supabaseUrl && supabaseKey) {
         // getUser() can rotate the refresh token. Both the outgoing request AND
         // the response must carry the new values, or the browser keeps a token
-        // the server has already consumed and its next refresh fails. The page
-        // branch below already does this; this branch did not — it wrote only
-        // to request.cookies and discarded `options`, so rotated cookies never
-        // reached the browser and the next refresh attempt failed.
-        const response = NextResponse.next({ request });
+        // the server has already consumed and its next refresh fails.
+        //
+        // The response must be RECREATED inside setAll, after request.cookies
+        // is mutated — not built once beforehand. NextResponse.next({ request })
+        // snapshots request.headers into the `x-middleware-request-*` headers
+        // at CONSTRUCTION time, so a `response` built before setAll runs would
+        // carry a pre-mutation snapshot of the request and the downstream route
+        // handler would never observe the rotated cookie, even though the
+        // browser (which reads response.cookies, set further below) does
+        // receive it correctly.
+        let response = NextResponse.next({ request });
 
         const supabase = createServerClient(supabaseUrl, supabaseKey, {
           cookies: {
             getAll() { return request.cookies.getAll(); },
             setAll(cookiesToSet) {
-              cookiesToSet.forEach(({ name, value, options }) => {
-                request.cookies.set(name, value);
-                response.cookies.set(name, value, options);
-              });
+              cookiesToSet.forEach(({ name, value }) => { request.cookies.set(name, value); });
+              response = NextResponse.next({ request });
+              cookiesToSet.forEach(({ name, value, options }) => { response.cookies.set(name, value, options); });
             },
           },
         });
