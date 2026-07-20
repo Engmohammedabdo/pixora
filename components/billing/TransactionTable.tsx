@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -32,6 +32,7 @@ const typeKeys: Record<string, string> = {
 
 export function TransactionTable(): React.ReactElement {
   const t = useTranslations('billing');
+  const format = useFormatter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +70,7 @@ export function TransactionTable(): React.ReactElement {
           {transactions.map((tx) => (
             <tr key={tx.id} className="border-b hover:bg-surface-2/50">
               <td className="py-2 px-3 text-xs">
-                {new Date(tx.created_at).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {format.dateTime(new Date(tx.created_at), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </td>
               <td className="py-2 px-3">
                 <Badge variant={typeColors[tx.type] || 'secondary'} className="text-[10px]">

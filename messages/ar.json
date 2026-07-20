@@ -112,7 +112,8 @@
       "referral": "مكافأة دعوة",
       "admin_adjustment": "تعديل إداري",
       "onboarding": "مكافأة ترحيب"
-    }
+    },
+    "resolutionLabel": "دقة الصورة"
   },
   "brandKit": {
     "title": "الهوية البصرية",
@@ -281,7 +282,11 @@
     "downloadSelected": "تحميل المحدد",
     "downloadAsset": "تحميل الملف",
     "deleteAsset": "حذف الملف",
-    "assetAlt": "ملف مولّد"
+    "assetAlt": "ملف مولّد",
+    "loadFailed": "فشل تحميل الملفات. حاول مرة أخرى.",
+    "deleted": "تم حذف {count} ملف",
+    "deleteFailed": "فشل الحذف",
+    "deleteError": "حدث خطأ في الحذف"
   },
   "plan": {
     "businessName": "اسم العمل",

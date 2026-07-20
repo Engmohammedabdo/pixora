@@ -20,20 +20,10 @@ interface Asset {
 }
 
 const STUDIOS = ['all', 'creator', 'photoshoot', 'campaign', 'plan', 'storyboard', 'analysis', 'voiceover', 'edit'] as const;
-const STUDIO_LABELS: Record<string, string> = {
-  all: 'الكل',
-  creator: 'منشئ الصور',
-  photoshoot: 'تصوير',
-  campaign: 'حملات',
-  plan: 'خطط',
-  storyboard: 'ستوري بورد',
-  analysis: 'تحليل',
-  voiceover: 'صوت',
-  edit: 'تعديل',
-};
 
 export default function AssetsPage(): React.ReactElement {
   const t = useTranslations('assets');
+  const tNav = useTranslations('nav');
 
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,11 +50,11 @@ export default function AssetsPage(): React.ReactElement {
         console.error('Assets API error:', data.error);
       }
     } catch {
-      toast.error('فشل تحميل الملفات. حاول مرة أخرى.');
+      toast.error(t('loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [studioFilter, projectFilter]);
+  }, [studioFilter, projectFilter, t]);
 
   // Selection must not survive a filter change: the ids stay selected while a
   // different client's files are displayed, so a bulk delete would destroy work
@@ -103,14 +93,14 @@ export default function AssetsPage(): React.ReactElement {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`تم حذف ${selectedIds.size} ملف`);
+        toast.success(t('deleted', { count: selectedIds.size }));
         setSelectedIds(new Set());
         fetchAssets();
       } else {
-        toast.error('فشل الحذف');
+        toast.error(t('deleteFailed'));
       }
     } catch {
-      toast.error('حدث خطأ في الحذف');
+      toast.error(t('deleteError'));
     }
   };
 
@@ -152,7 +142,7 @@ export default function AssetsPage(): React.ReactElement {
                 : 'bg-surface-2 text-[var(--color-text-secondary)] hover:bg-surface-2/80'
             )}
           >
-            {STUDIO_LABELS[s] || s}
+            {s === 'all' ? t('all') : tNav(s)}
           </button>
         ))}
 

@@ -112,7 +112,8 @@
       "referral": "Referral bonus",
       "admin_adjustment": "Admin adjustment",
       "onboarding": "Welcome bonus"
-    }
+    },
+    "resolutionLabel": "Image resolution"
   },
   "brandKit": {
     "title": "Brand Kit",
@@ -281,7 +282,11 @@
     "downloadSelected": "Download Selected",
     "downloadAsset": "Download asset",
     "deleteAsset": "Delete asset",
-    "assetAlt": "Generated asset"
+    "assetAlt": "Generated asset",
+    "loadFailed": "Could not load your files. Please try again.",
+    "deleted": "Deleted {count} file(s)",
+    "deleteFailed": "Delete failed",
+    "deleteError": "Something went wrong while deleting"
   },
   "plan": {
     "businessName": "Business Name",
