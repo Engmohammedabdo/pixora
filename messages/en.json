@@ -146,7 +146,8 @@
     "recentGenerations": "Recent Generations",
     "noGenerations": "No generations yet",
     "welcomeUser": "Welcome, {name}",
-    "generatedResult": "Generated result"
+    "generatedResult": "Generated result",
+    "activityShots": "{count, plural, one{1 shot} other{# shots}}"
   },
   "studio": {
     "model": "Pyra Path 🦊",
@@ -285,7 +286,7 @@
     "deleteAsset": "Delete asset",
     "assetAlt": "Generated asset",
     "loadFailed": "Could not load your files. Please try again.",
-    "deleted": "Deleted {count} file(s)",
+    "deleted": "{count, plural, one{Deleted 1 file} other{Deleted # files}}",
     "deleteFailed": "Delete failed",
     "deleteError": "Something went wrong while deleting"
   },

@@ -146,7 +146,8 @@
     "recentGenerations": "آخر الإنشاءات",
     "noGenerations": "لم تقم بأي إنشاء بعد",
     "welcomeUser": "مرحباً، {name}",
-    "generatedResult": "نتيجة مولّدة"
+    "generatedResult": "نتيجة مولّدة",
+    "activityShots": "{count, plural, one{لقطة واحدة} two{لقطتان} few{# لقطات} many{# لقطة} other{# لقطة}}"
   },
   "studio": {
     "model": "مسار بايرا 🦊",
@@ -285,7 +286,7 @@
     "deleteAsset": "حذف الملف",
     "assetAlt": "ملف مولّد",
     "loadFailed": "فشل تحميل الملفات. حاول مرة أخرى.",
-    "deleted": "تم حذف {count} ملف",
+    "deleted": "{count, plural, zero{لم يُحذف أي ملف} one{تم حذف ملف واحد} two{تم حذف ملفين} few{تم حذف # ملفات} many{تم حذف # ملفًا} other{تم حذف # ملف}}",
     "deleteFailed": "فشل الحذف",
     "deleteError": "حدث خطأ في الحذف"
   },
