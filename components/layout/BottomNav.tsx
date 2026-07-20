@@ -19,7 +19,7 @@ export function BottomNav(): React.ReactElement {
   const { toggleSidebar } = useUIStore();
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-[var(--color-surface)] border-t pb-[env(safe-area-inset-bottom)] lg:hidden">
+    <nav className="fixed bottom-0 inset-x-0 z-nav bg-[var(--color-surface)] border-t pb-[env(safe-area-inset-bottom)] lg:hidden">
       <div className="flex items-center justify-around h-14">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');

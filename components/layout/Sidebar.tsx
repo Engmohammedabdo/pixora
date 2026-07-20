@@ -215,7 +215,7 @@ export function Sidebar(): React.ReactElement {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-scrim bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -223,7 +223,7 @@ export function Sidebar(): React.ReactElement {
       {/* Mobile drawer */}
       <aside
         className={cn(
-          'fixed inset-y-0 start-0 z-50 w-64 bg-surface border-e transition-transform duration-300 lg:hidden',
+          'fixed inset-y-0 start-0 z-drawer w-64 bg-surface border-e transition-transform duration-300 lg:hidden',
           sidebarOpen ? 'translate-x-0 rtl:-translate-x-0' : '-translate-x-full rtl:translate-x-full'
         )}
       >
