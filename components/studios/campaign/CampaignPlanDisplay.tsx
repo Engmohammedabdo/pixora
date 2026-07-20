@@ -134,7 +134,7 @@ export function CampaignPlanDisplay({
 
             <CardContent className="px-4 pb-4 space-y-2">
               {/* Hook */}
-              <p className="text-xs font-semibold text-primary-600">{post.tov}</p>
+              <p className="text-xs font-semibold text-[var(--color-brand)]">{post.tov}</p>
 
               {/* Caption */}
               <p className="text-xs leading-relaxed">{post.caption}</p>

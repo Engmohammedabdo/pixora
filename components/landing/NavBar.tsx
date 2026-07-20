@@ -48,7 +48,7 @@ export function NavBar(): React.ReactElement {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
         {/* Logo */}
-        <span className="text-2xl font-bold text-primary-600 font-cairo">PyraSuite</span>
+        <span className="text-2xl font-bold text-[var(--color-brand)] font-cairo">PyraSuite</span>
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-6">

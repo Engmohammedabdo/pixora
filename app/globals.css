@@ -41,6 +41,15 @@
        4.08 on surface-2 as TEXT — under the 4.5:1 AA floor. This token is for
        text a user reads or clicks as a link; icon/fill uses keep primary-500. */
     --color-link: #4F46E5;
+
+    /* Theme-aware brand text colour: for primary-coloured TEXT the user reads
+       (headings, credit/KPI figures, the wordmark) — NOT for backgrounds,
+       borders, rings or icon fills. text-primary-600 (#4F46E5) is a fixed
+       Tailwind hex that cannot flip with the theme; it measures 6.29 on white
+       and 5.74 on surface-2 here (light, fine) but only 2.33 on dark surface,
+       2.84 on dark bg and 1.65 on dark surface-2 — all AA failures. Use this
+       token instead of text-primary-600 for text. */
+    --color-brand: #4F46E5;
   }
 
   .dark {
@@ -70,6 +79,10 @@
     --color-error: #FCA5A5;
 
     --color-link: #A5B4FC;
+
+    /* Brand text, dark override: 7.34 on surface, 8.96 on bg, 5.19 on
+       surface-2 — clears AA on every dark background. */
+    --color-brand: #A5B4FC;
   }
 
   [lang='ar'] {

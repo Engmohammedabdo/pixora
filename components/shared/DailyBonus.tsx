@@ -21,7 +21,7 @@ export function DailyBonus({ open, onClose, credits }: DailyBonusProps): React.R
                 <Gift className="h-8 w-8 text-amber-500" />
               </motion.div>
               <h2 className="text-xl font-bold font-cairo">مكافأة يومية!</h2>
-              <div className="flex items-center gap-2 text-2xl font-bold text-primary-600">
+              <div className="flex items-center gap-2 text-2xl font-bold text-[var(--color-brand)]">
                 <Coins className="h-6 w-6" />
                 <span>+{credits}</span>
               </div>

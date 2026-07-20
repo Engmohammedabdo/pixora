@@ -112,7 +112,7 @@ export default function SignupPage(): React.ReactElement {
     return (
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl text-primary-600">
+          <CardTitle className="text-xl text-[var(--color-brand)]">
             {t('checkEmailTitle')}
           </CardTitle>
           <CardDescription>
@@ -131,7 +131,7 @@ export default function SignupPage(): React.ReactElement {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-primary-600">
+        <CardTitle className="text-2xl font-bold text-[var(--color-brand)]">
           {t('signupTitle')}
         </CardTitle>
         <CardDescription>{t('signupSubtitle')}</CardDescription>

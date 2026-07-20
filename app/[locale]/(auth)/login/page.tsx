@@ -79,7 +79,7 @@ export default function LoginPage(): React.ReactElement {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-primary-600">
+        <CardTitle className="text-2xl font-bold text-[var(--color-brand)]">
           {t('loginTitle')}
         </CardTitle>
         <CardDescription>{t('loginSubtitle')}</CardDescription>

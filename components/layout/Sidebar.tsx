@@ -164,7 +164,7 @@ export function Sidebar(): React.ReactElement {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-4">
-        <Link href="/dashboard" className="text-xl font-bold text-primary-600 font-cairo">
+        <Link href="/dashboard" className="text-xl font-bold text-[var(--color-brand)] font-cairo">
           {sidebarCollapsed ? 'P' : 'PyraSuite'}
         </Link>
         <button
@@ -205,7 +205,7 @@ export function Sidebar(): React.ReactElement {
             {creditsLoading ? (
               <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
             ) : (
-              <span className="text-xs font-bold text-primary-600">{balance}</span>
+              <span className="text-xs font-bold text-[var(--color-brand)]">{balance}</span>
             )}
           </div>
         ) : (
@@ -218,7 +218,7 @@ export function Sidebar(): React.ReactElement {
               {creditsLoading ? (
                 <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
               ) : (
-                <span className="font-bold text-primary-600">{balance}</span>
+                <span className="font-bold text-[var(--color-brand)]">{balance}</span>
               )}
             </div>
             <Progress value={creditsLoading ? 0 : Math.min((balance / planCredits) * 100, 100)} className="h-2" />

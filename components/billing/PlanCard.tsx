@@ -41,7 +41,7 @@ const PlanCardInner = function PlanCard({ plan, isCurrentPlan, onSelect, loading
           <span className="text-3xl font-bold">${plan.price}</span>
           {!isFree && <span className="text-sm text-[var(--color-text-muted)]">/{isAr ? 'شهر' : 'mo'}</span>}
         </div>
-        <p className="text-sm text-primary-600 font-medium mt-1">
+        <p className="text-sm text-[var(--color-brand)] font-medium mt-1">
           {plan.credits.toLocaleString()} {isAr ? 'كريدت' : 'credits'}
         </p>
       </CardHeader>

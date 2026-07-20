@@ -74,7 +74,7 @@ export default function ResetPasswordPage(): React.ReactElement {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-primary-600">
+        <CardTitle className="text-2xl font-bold text-[var(--color-brand)]">
           {t('resetPassword')}
         </CardTitle>
         <CardDescription>{t('resetPasswordSubtitle')}</CardDescription>

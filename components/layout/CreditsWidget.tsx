@@ -41,7 +41,7 @@ export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): Re
           <Coins className={cn('h-5 w-5', isLow ? 'text-[var(--color-warning)]' : 'text-primary-500')} />
           <span className="text-sm font-medium">{t('balance')}</span>
         </div>
-        <span className={cn('text-lg font-bold', isLow ? 'text-[var(--color-warning)]' : 'text-primary-600')}>
+        <span className={cn('text-lg font-bold', isLow ? 'text-[var(--color-warning)]' : 'text-[var(--color-brand)]')}>
           {balance}
         </span>
       </div>

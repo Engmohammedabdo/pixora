@@ -131,7 +131,7 @@ export default function ReferralsPage(): React.ReactElement {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div><p className="text-2xl font-bold text-green-600">{loading ? '…' : stats?.totalReferred ?? 0}</p><p className="text-xs text-[var(--color-text-muted)]">{t('successfulSignups')}</p></div>
             <div><p className="text-2xl font-bold text-amber-600">{loading ? '…' : stats?.creditsEarned ?? 0}</p><p className="text-xs text-[var(--color-text-muted)]">{t('creditsEarned')}</p></div>
-            <div><p className="text-2xl font-bold text-primary-600">{CREDITS_PER_REFERRAL}</p><p className="text-xs text-[var(--color-text-muted)]">{t('creditsPerInvite')}</p></div>
+            <div><p className="text-2xl font-bold text-[var(--color-brand)]">{CREDITS_PER_REFERRAL}</p><p className="text-xs text-[var(--color-text-muted)]">{t('creditsPerInvite')}</p></div>
           </div>
         </CardContent>
       </Card>

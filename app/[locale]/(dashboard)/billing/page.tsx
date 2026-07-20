@@ -132,7 +132,7 @@ export default function BillingPage(): React.ReactElement {
                   <Coins className="h-4 w-4 text-primary-500" />
                   {t('creditBalance')}
                 </span>
-                <span className="font-bold text-primary-600">{balance} / {currentPlan.credits}</span>
+                <span className="font-bold text-[var(--color-brand)]">{balance} / {currentPlan.credits}</span>
               </div>
               <Progress value={creditPercentage} className="h-2.5" />
               {profile?.credits_reset_date && (
