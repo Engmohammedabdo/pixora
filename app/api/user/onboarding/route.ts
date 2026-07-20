@@ -52,47 +52,87 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: true, skipped: true });
     }
 
-    // grant_onboarding_bonus() is REVOKEd from anon/authenticated (027) and
-    // GRANTed to service_role only, so it must be called through the
-    // service-role client, not the session client above.
-    const serviceClient = await createServiceRoleClient();
-    const { data, error } = await serviceClient.rpc('grant_onboarding_bonus', {
-      p_user_id: user.id,
-      p_credits: ONBOARDING_BONUS_CREDITS,
-    });
-
-    if (error) {
-      console.error('Onboarding bonus RPC error:', error.message);
-      return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });
-    }
-
-    const result = data as unknown as GrantOnboardingBonusResult | null;
-
-    if (!result) {
-      console.error('Onboarding bonus RPC returned no data');
-      return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });
-    }
-
-    if (!result.success) {
-      // 'already_granted' is the expected outcome on every repeat completion
-      // (double-submit, back button, a second device) — the user already
-      // holds their bonus, so this is a normal success-shaped response, not
-      // an error. Any OTHER rejection (e.g. 'profile_not_found') is a genuine
-      // server-side problem and must stay visible as one rather than being
-      // silently folded into "success".
-      if (result.error === 'already_granted') {
-        return NextResponse.json({ success: true, alreadyGranted: true });
+    // Releases the user from the middleware's onboarding redirect regardless
+    // of what happens to the credit payout below. Uses the SESSION client —
+    // 022:57 grants authenticated users column-level UPDATE on exactly this
+    // column, so no service-role privilege is needed just to flip the flag.
+    // A credit-payout problem (RPC down, migration 027 not yet applied on
+    // this environment, a thrown service-role client, ...) must never become
+    // a lockout: the middleware redirects /dashboard -> /onboarding forever
+    // whenever onboarding_completed is false, and Skip would be the only
+    // remaining escape for every affected user.
+    const releaseUser = async (): Promise<void> => {
+      const { error: releaseError } = await supabase
+        .from('profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', user.id);
+      if (releaseError) {
+        console.error('Onboarding release update error:', releaseError.message);
       }
-      console.error('Onboarding bonus rejected:', result.error);
-      return NextResponse.json({ success: false, error: result.error ?? 'grant_failed' }, { status: 500 });
-    }
+    };
 
-    return NextResponse.json({
-      success: true,
-      alreadyGranted: false,
-      creditsAwarded: result.credits_awarded,
-      newBalance: result.new_balance,
-    });
+    try {
+      // grant_onboarding_bonus() is REVOKEd from anon/authenticated (027) and
+      // GRANTed to service_role only, so it must be called through the
+      // service-role client, not the session client above.
+      const serviceClient = await createServiceRoleClient();
+      const { data, error } = await serviceClient.rpc('grant_onboarding_bonus', {
+        p_user_id: user.id,
+        p_credits: ONBOARDING_BONUS_CREDITS,
+      });
+
+      if (error) {
+        console.error('Onboarding bonus RPC error:', error.message);
+        await releaseUser();
+        return NextResponse.json({ success: true, bonusGranted: false });
+      }
+
+      const result = data as unknown as GrantOnboardingBonusResult | null;
+
+      if (!result) {
+        console.error('Onboarding bonus RPC returned no data');
+        await releaseUser();
+        return NextResponse.json({ success: true, bonusGranted: false });
+      }
+
+      if (!result.success) {
+        // 'already_granted' is the expected outcome on every repeat completion
+        // (double-submit, back button, a second device) — the user already
+        // holds their bonus, so this is a normal success-shaped response, not
+        // an error. The flag itself is already released by this point:
+        // migration 027's exception handler re-sets onboarding_completed=TRUE
+        // in the outer transaction before returning 'already_granted', so no
+        // extra release call is needed here.
+        //
+        // Any OTHER rejection (e.g. 'profile_not_found') is a genuine
+        // server-side problem, but it must still release the user rather than
+        // trap them behind the onboarding redirect — the response stays
+        // success-shaped with bonusGranted:false so the failure is visible
+        // without blocking access.
+        if (result.error === 'already_granted') {
+          return NextResponse.json({ success: true, alreadyGranted: true, bonusGranted: false });
+        }
+        console.error('Onboarding bonus rejected:', result.error);
+        await releaseUser();
+        return NextResponse.json({ success: true, bonusGranted: false });
+      }
+
+      return NextResponse.json({
+        success: true,
+        alreadyGranted: false,
+        bonusGranted: true,
+        creditsAwarded: result.credits_awarded,
+        newBalance: result.new_balance,
+      });
+    } catch (grantError) {
+      // A throw here (e.g. createServiceRoleClient() failing on missing env
+      // vars, or the RPC call itself throwing rather than resolving with
+      // `error`) is a server-side infra problem, not something the user did —
+      // same treatment as the RPC-error branch above: release, don't lock out.
+      console.error('Onboarding bonus grant threw:', grantError);
+      await releaseUser();
+      return NextResponse.json({ success: true, bonusGranted: false });
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'validation_error' }, { status: 400 });

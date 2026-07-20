@@ -87,6 +87,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS credit_tx_one_onboarding_per_user
 -- that empty-of-effect subtransaction commits as part of the outer call —
 -- so a re-claim attempt grants nothing and leaves the profile row exactly as
 -- it was, rather than 500ing or double-crediting.
+--
+-- ⚠ That rollback also unwinds onboarding_completed = TRUE, which is exactly
+--   the flag the app's middleware gates /dashboard access on. Left alone,
+--   'already_granted' would leave the flag FALSE — and since 022:57 grants
+--   authenticated users UPDATE on this exact column, anyone whose flag gets
+--   flipped back to false (a stale client write, a second device, a manual
+--   reset) would hit this branch on every retry and could never complete
+--   onboarding again. The fix is the UPDATE inside the EXCEPTION handler
+--   below: the handler BODY executes after the rollback-to-savepoint has
+--   already happened and runs in the OUTER (still-open) transaction, not
+--   inside the subtransaction that just got unwound — so that UPDATE is a
+--   normal statement in the outer transaction and commits with it. This
+--   re-releases the user without re-granting credits or writing a second
+--   credit_transactions row.
 -- ───────────────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.grant_onboarding_bonus(p_user_id UUID, p_credits INTEGER)
@@ -118,6 +132,12 @@ EXCEPTION WHEN unique_violation THEN
   -- reset of onboarding_completed back to false — is a normal outcome, not
   -- a 500. See the transaction-semantics note above for why the profile
   -- update above is guaranteed to have been rolled back by this point.
+  --
+  -- Re-release the user WITHOUT paying out again: this UPDATE runs in the
+  -- outer transaction (see the header note above) and so, unlike the one
+  -- earlier in this function, it actually commits. Without it,
+  -- onboarding_completed stays false forever on every repeat claim.
+  UPDATE public.profiles SET onboarding_completed = TRUE WHERE id = p_user_id;
   RETURN jsonb_build_object('success', false, 'error', 'already_granted');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { useCreditsStore } from '@/store/credits';
 import {
   Sparkles, Palette, Image, ArrowLeft, ArrowRight, Check, Gift,
   Rocket, X, CreditCard,
@@ -87,12 +88,22 @@ export default function OnboardingPage(): React.ReactElement {
     } catch { /* Non-blocking */ }
   };
 
-  const handleNext = (): void => {
+  const handleNext = async (): Promise<void> => {
     if (isLast) {
       try {
-        fetch('/api/user/onboarding', { method: 'POST' });
+        // Awaited so the middleware's onboarding redirect (which reads
+        // onboarding_completed from the same profiles row this POST writes)
+        // never wins the race against an in-flight, un-awaited request — see
+        // the finding this fixes for the exact sequencing.
+        const res = await fetch('/api/user/onboarding', { method: 'POST' });
+        const data = await res.json() as { success: boolean; newBalance?: number };
+        if (data.success && typeof data.newBalance === 'number') {
+          // Apply the bonus locally so the credits widget reflects it
+          // immediately, without waiting for the next poll/refetch.
+          useCreditsStore.getState().setBalance(data.newBalance);
+        }
         window.localStorage.removeItem(STORAGE_KEY);
-      } catch { /* Non-blocking */ }
+      } catch { /* Non-blocking — the middleware still gates on the server-side flag */ }
       router.push('/dashboard');
       return;
     }
