@@ -41,7 +41,19 @@ type TxType =
   | 'usage' | 'subscription' | 'topup' | 'refund'
   | 'reset' | 'referral' | 'admin_adjustment' | 'onboarding';
 
-type GenerationInput = Record<string, unknown>;
+/**
+ * The route projects individual JSONB keys out of `generations.input` rather
+ * than the whole object, so the raw prompt text never reaches the client.
+ * PostgREST's `->>` operator always yields text, hence `shots: string | null`.
+ */
+interface GenerationDetail {
+  studio: string;
+  resolution: string | null;
+  editType: string | null;
+  shots: string | null;
+  dialect: string | null;
+  businessName: string | null;
+}
 
 interface Activity {
   id: string;
@@ -49,9 +61,8 @@ interface Activity {
   amount: number | null;
   created_at: string;
   // Supabase returns an embedded object for a to-one relation; it is null when
-  // generation_id is null. `input` is JSONB and always an object when present
-  // (never null per the generations table schema), but we still guard below.
-  generations: { studio: string; input: GenerationInput | null } | null;
+  // generation_id is null.
+  generations: GenerationDetail | null;
 }
 
 /**
@@ -62,37 +73,34 @@ interface Activity {
  */
 function getActivityDetail(
   t: ReturnType<typeof useTranslations>,
-  studio: string | undefined,
-  input: GenerationInput | null | undefined
+  gen: GenerationDetail | null | undefined
 ): string | null {
-  if (!studio || !input) return null;
+  if (!gen) return null;
 
-  switch (studio) {
+  switch (gen.studio) {
     case 'creator': {
-      const resolution = input.resolution;
-      if (typeof resolution !== 'string' || !resolution) return null;
-      return `${t('credits.resolutionLabel')}: ${resolution}`;
+      if (!gen.resolution) return null;
+      return `${t('credits.resolutionLabel')}: ${gen.resolution}`;
     }
     case 'edit': {
-      const editType = input.editType;
-      if (typeof editType !== 'string' || !KNOWN_EDIT_TYPES.includes(editType)) return null;
-      return t(`edit.editTypes.${editType}`);
+      if (!gen.editType || !KNOWN_EDIT_TYPES.includes(gen.editType)) return null;
+      return t(`edit.editTypes.${gen.editType}`);
     }
     case 'photoshoot': {
-      const shots = input.shots;
-      if (typeof shots !== 'number') return null;
+      // `->>` gives text; reject anything that is not a real number so a
+      // schema drift renders no detail rather than "NaN shots".
+      const shots = Number(gen.shots);
+      if (gen.shots === null || !Number.isFinite(shots)) return null;
       return t('dashboard.activityShots', { count: shots });
     }
     case 'voiceover': {
-      const dialect = input.dialect;
-      if (typeof dialect !== 'string' || !KNOWN_DIALECTS.includes(dialect)) return null;
-      return t(`voiceover.dialects.${dialect}`);
+      if (!gen.dialect || !KNOWN_DIALECTS.includes(gen.dialect)) return null;
+      return t(`voiceover.dialects.${gen.dialect}`);
     }
     case 'plan':
     case 'analysis': {
-      const businessName = input.businessName;
-      if (typeof businessName !== 'string' || !businessName.trim()) return null;
-      return businessName;
+      if (!gen.businessName?.trim()) return null;
+      return gen.businessName;
     }
     // storyboard's only distinguishing field is `concept`, which is long
     // free text unsuited to a compact detail line — intentionally skipped.
@@ -144,7 +152,7 @@ export function ActivityTimeline(): React.ReactElement {
         // renewals, referral bonuses) names its transaction type.
         const navKey = studio ? STUDIO_NAV_KEY[studio] : undefined;
         const label = navKey ? t(`nav.${navKey}`) : t(`credits.txType.${a.type}`);
-        const detail = getActivityDetail(t, studio, a.generations?.input);
+        const detail = getActivityDetail(t, a.generations);
         return (
           <div
             key={a.id}

@@ -21,7 +21,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // generation this transaction paid for. Rows with no generation
       // (subscription, topup, reset, referral, admin_adjustment) join to null
       // and fall back to a transaction-type label in the UI.
-      .select('*, generations(studio, input)', { count: 'exact' })
+      // Project only the five JSONB keys the activity feed actually renders.
+      // Selecting the whole `input` object shipped the user's raw prompt AND
+      // the constructed fullPrompt to the client for every row — tens of KB per
+      // page of data nothing displays. `->>` yields text, so numeric fields
+      // arrive as strings and are parsed at the render site.
+      .select(
+        '*, generations(studio,resolution:input->>resolution,editType:input->>editType,shots:input->>shots,dialect:input->>dialect,businessName:input->>businessName)',
+        { count: 'exact' }
+      )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
