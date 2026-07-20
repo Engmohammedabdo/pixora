@@ -22,7 +22,7 @@
 
     --color-text-primary: #0F172A;
     --color-text-secondary: #475569;
-    --color-text-muted: #94A3B8;
+    --color-text-muted: #64748B;
 
     --color-success: #10B981;
     --color-warning: #F59E0B;
@@ -40,7 +40,7 @@
 
     --color-text-primary: #F8FAFC;
     --color-text-secondary: #94A3B8;
-    --color-text-muted: #64748B;
+    --color-text-muted: #94A3B8;
   }
 
   [lang='ar'] {
