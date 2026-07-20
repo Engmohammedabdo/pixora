@@ -729,7 +729,14 @@
       "perMonth": "/mo",
       "credits": "{count} credits",
       "startFree": "Start Free",
-      "subscribe": "Subscribe Now"
+      "subscribe": "Subscribe Now",
+      "features": {
+        "free": ["25 credits/month", "1080p resolution", "Watermark on images", "1 Brand Kit"],
+        "starter": ["200 credits/month", "2K resolution", "No watermark", "3 Brand Kits"],
+        "pro": ["600 credits/month", "4K resolution", "No watermark", "10 Brand Kits"],
+        "business": ["1,500 credits/month", "4K resolution", "No watermark", "25 Brand Kits"],
+        "agency": ["5,000 credits/month", "4K resolution", "No watermark", "100 Brand Kits"]
+      }
     },
     "social": {
       "title": "Join Pyra's early adopters 🦊",
@@ -767,6 +774,37 @@
       "subtitle": "25 free credits are waiting for you. No credit card required. Sign up in seconds and launch your first campaign.",
       "button": "Start Free Now",
       "studios": "9 ready-to-use studios waiting for you"
+    }
+  },
+  "pricingPage": {
+    "meta": {
+      "title": "Pricing — A Transparent Credit System",
+      "description": "See exactly what every plan, and every generation, costs in credits before you sign up. No credit card, no surprises."
+    },
+    "hero": {
+      "badge": "Full transparency",
+      "title": "Clear pricing, no hidden fees",
+      "subtitle": "Every plan, and every generation, has a known credit cost — see the full breakdown before you even create an account.",
+      "refundNote": "If a generation fails, Pyra refunds your credits automatically — no request needed."
+    },
+    "costTable": {
+      "title": "Credit cost per studio",
+      "subtitle": "These are the real per-action costs — the same numbers you see inside the product",
+      "studioHeader": "Studio",
+      "costHeader": "Cost",
+      "creditUnit": "credits",
+      "creditsCount": "{count, plural, one {# credit} other {# credits}}",
+      "imageNote": "Varies by the resolution you pick — 1080p / 2K / 4K",
+      "voiceoverNote": "Free & Starter plans: 1 credit per 15 seconds · Pro and above: 3 credits per 20 seconds, higher quality",
+      "freeLabel": "Free"
+    },
+    "topups": {
+      "title": "Need extra credits?",
+      "subtitle": "Top up anytime without changing your plan — top-up credits stay valid for 12 months",
+      "creditsSuffix": "credits",
+      "perCreditSuffix": "per credit",
+      "bestValueBadge": "Best Value",
+      "cta": "Sign up to start"
     }
   },
   "shared": {

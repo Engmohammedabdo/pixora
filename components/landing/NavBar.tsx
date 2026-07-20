@@ -8,10 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 
+// "features" and "studios" stay in-page anchors — those sections only exist
+// on the landing page. "pricing" now points at the dedicated /pricing route
+// (not the #pricing anchor): it's a real, linkable, indexable page with the
+// full per-action credit cost table, which is the whole point of closing
+// this gap — the anchor version can't show that without overwhelming the
+// landing page. The embedded PricingSection (#pricing) still lives on the
+// landing page for anyone scrolling past it organically.
 const NAV_LINKS = [
   { key: 'features', href: '#features' },
   { key: 'studios', href: '#studios' },
-  { key: 'pricing', href: '#pricing' },
+  { key: 'pricing', href: '/pricing' },
 ] as const;
 
 const NAV_LINK_FOCUS =
@@ -52,15 +59,18 @@ export function NavBar(): React.ReactElement {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className={`text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors ${NAV_LINK_FOCUS}`}
-            >
-              {t(`nav.${link.key}`)}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const className = `text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors ${NAV_LINK_FOCUS}`;
+            return link.href.startsWith('#') ? (
+              <a key={link.href} href={link.href} className={className}>
+                {t(`nav.${link.key}`)}
+              </a>
+            ) : (
+              <Link key={link.href} href={link.href} className={className}>
+                {t(`nav.${link.key}`)}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Desktop auth buttons */}
@@ -97,16 +107,28 @@ export function NavBar(): React.ReactElement {
             className="md:hidden overflow-hidden border-t border-[var(--color-surface-2)] bg-[var(--color-surface)]/95 backdrop-blur-xl"
           >
             <div className="px-4 py-4 space-y-3">
-              {NAV_LINKS.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2 ${NAV_LINK_FOCUS}`}
-                >
-                  {t(`nav.${link.key}`)}
-                </a>
-              ))}
+              {NAV_LINKS.map((link) => {
+                const className = `block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2 ${NAV_LINK_FOCUS}`;
+                return link.href.startsWith('#') ? (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={className}
+                  >
+                    {t(`nav.${link.key}`)}
+                  </a>
+                ) : (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={className}
+                  >
+                    {t(`nav.${link.key}`)}
+                  </Link>
+                );
+              })}
               <div className="flex items-center gap-3 pt-2 border-t border-[var(--color-surface-2)]">
                 <Button variant="ghost" size="sm" className="flex-1" asChild>
                   <Link href="/login">{t('nav.login')}</Link>

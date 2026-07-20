@@ -9,7 +9,7 @@ const STUDIO_LINKS = [
 ] as const;
 
 const SUPPORT_LINKS = [
-  { key: 'pricing', href: '/#pricing' },
+  { key: 'pricing', href: '/pricing' },
   { key: 'faq', href: '/#faq' },
 ] as const;
 

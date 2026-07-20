@@ -76,7 +76,10 @@ export default function PricingSection() {
             const isPro = plan.id === 'pro';
             const annualInfo = isAnnual && ANNUAL_PLANS[plan.id] ? ANNUAL_PLANS[plan.id] : null;
             const displayPrice = annualInfo ? annualInfo.annualMonthly : plan.price;
-            const features = locale === 'ar' ? plan.featuresAr : plan.features;
+            // Sourced from next-intl (messages/*.json → landing.pricing.features), not
+            // plan.features/plan.featuresAr — those are hardcoded bilingual literals in
+            // lib/stripe/plans.ts that bypass the project's i18n convention entirely.
+            const features = t.raw(`pricing.features.${plan.id}`) as string[];
             return (
               <motion.div
                 key={plan.id}

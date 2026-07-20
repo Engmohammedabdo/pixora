@@ -54,7 +54,10 @@ export async function generateMetadata({
       template: '%s | PyraSuite',
     },
     description: isAr
-      ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات، نماذج AI متعددة، واجهة عربية.'
+      // Was "نماذج AI متعددة" ("multiple AI models") — broke the Pyra persona rule in
+      // CLAUDE.md (never name models to the user) on the very first sentence Google
+      // shows. Now mirrors the English description's "transparent credit system" line.
+      ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات بقوة بايرا 🦊، ونظام كريدت شفاف.'
       : 'Turn any idea into a complete marketing campaign in minutes — 9 AI studios powered by the Pyra AI engine, with a transparent credit system.',
     keywords: isAr
       ? ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI']
