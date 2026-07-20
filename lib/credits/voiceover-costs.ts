@@ -9,7 +9,6 @@ export interface VoiceoverCostConfig {
   unitSeconds: number;
   maxDurationSeconds: number;
   provider: 'openai' | 'elevenlabs';
-  quality: 'tts-1' | 'tts-1-hd';
   dialectsAvailable: string[];
   voicesAvailable: string[];
   toneEnabled: boolean;
@@ -23,7 +22,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     unitSeconds: 15,
     maxDurationSeconds: 30,
     provider: 'openai',
-    quality: 'tts-1',
     dialectsAvailable: ['formal'],
     voicesAvailable: ['male_pro', 'female_pro'],
     toneEnabled: false,
@@ -35,7 +33,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     unitSeconds: 15,
     maxDurationSeconds: 60,
     provider: 'openai',
-    quality: 'tts-1-hd',
     dialectsAvailable: ['formal', 'saudi'],
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal'],
     toneEnabled: false,
@@ -47,7 +44,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     unitSeconds: 20,
     maxDurationSeconds: 120,
     provider: 'elevenlabs',
-    quality: 'tts-1-hd',
     dialectsAvailable: ['formal', 'saudi', 'emirati', 'egyptian', 'gulf'],
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal'],
     toneEnabled: true,
@@ -59,7 +55,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     unitSeconds: 20,
     maxDurationSeconds: 300,
     provider: 'elevenlabs',
-    quality: 'tts-1-hd',
     dialectsAvailable: ['formal', 'saudi', 'emirati', 'egyptian', 'gulf'],
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,
@@ -71,7 +66,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     unitSeconds: 20,
     maxDurationSeconds: 600,
     provider: 'elevenlabs',
-    quality: 'tts-1-hd',
     dialectsAvailable: ['formal', 'saudi', 'emirati', 'egyptian', 'gulf'],
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,

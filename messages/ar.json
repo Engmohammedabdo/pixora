@@ -821,5 +821,27 @@
     "build": "بناء البرومبت",
     "emptyState": "البرومبتات ستظهر هنا",
     "openInStudio": "افتح في الاستوديو"
+  },
+  "referrals": {
+    "title": "برنامج الإحالة",
+    "subtitle": "ادعُ أصدقاءك واكسب كريدت مجاني",
+    "howTitle": "كيف يشتغل؟",
+    "howSubtitle": "3 خطوات بسيطة",
+    "step1": "شارك رابطك",
+    "step2": "صديقك يسجّل",
+    "step3": "كلكم تاخذون {credits} كريدت!",
+    "linkTitle": "رابط الإحالة الخاص بك",
+    "loadingLink": "جاري التحميل…",
+    "copyAria": "نسخ رابط الإحالة",
+    "copy": "نسخ الرابط",
+    "shareWhatsApp": "شارك عبر WhatsApp",
+    "codeLabel": "كود الإحالة:",
+    "copied": "تم نسخ الرابط",
+    "copyFailed": "تعذّر النسخ — انسخ الرابط يدوياً",
+    "statsTitle": "إحصائيات الإحالة",
+    "successfulSignups": "تسجيلات ناجحة",
+    "creditsEarned": "كريدت مكتسب",
+    "creditsPerInvite": "كريدت لكل دعوة",
+    "shareMessage": "جرّب PyraSuite — منصة عربية تحوّل فكرتك لحملة تسويقية كاملة.\nسجّل من رابطي وكلانا ياخد {credits} كريدت مجاني:\n{link}"
   }
 }

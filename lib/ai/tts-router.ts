@@ -158,12 +158,12 @@ async function generateWithElevenLabs(
 
     if (result.mock) {
       // ElevenLabs not configured — fallback to OpenAI
-      return generateWithOpenAI(script, input, { ...config, quality: 'tts-1-hd' }, enhanced);
+      return generateWithOpenAI(script, input, config, enhanced);
     }
 
     return { audioBuffer: result.audioBuffer, provider: 'elevenlabs', mock: false, enhanced };
   } catch {
     // ElevenLabs failed — fallback to OpenAI
-    return generateWithOpenAI(script, input, { ...config, quality: 'tts-1-hd' }, enhanced);
+    return generateWithOpenAI(script, input, config, enhanced);
   }
 }

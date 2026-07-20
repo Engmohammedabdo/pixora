@@ -137,7 +137,16 @@ REVOKE INSERT, UPDATE, DELETE ON public.projects FROM anon, authenticated;
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- Record this migration as applied.
+--
+-- The ledger is created in 023. Guard it so a hand-run recovery that applies
+-- this file out of order fails on something legible instead of a bare 42P01.
 -- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+  version     TEXT PRIMARY KEY,
+  description TEXT,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 INSERT INTO public.schema_migrations (version, description)
 VALUES ('024', 'Fix 42P17 recursive team RLS; lock down direct writes on projects')
 ON CONFLICT (version) DO UPDATE SET applied_at = NOW();

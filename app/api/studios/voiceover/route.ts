@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { generateTTS } from '@/lib/ai/tts-router';
+import { MODELS } from '@/lib/ai/models';
 import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { resolveProjectId } from '@/lib/projects/verify';
 
@@ -97,7 +98,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
       user_id: user.id, project_id: projectId,
       studio: 'voiceover',
-      model: config.provider === 'elevenlabs' ? 'elevenlabs' : config.quality,
+      // Record what actually ran. This used to write config.quality ('tts-1-hd'),
+      // but generateWithOpenAI always calls MODELS.openaiTts — so every OpenAI
+      // voiceover was filed under a model that never produced it.
+      model: config.provider === 'elevenlabs' ? MODELS.elevenlabs : MODELS.openaiTts,
       status: 'processing',
       input: { ...input, planId, provider: config.provider },
       credits_used: creditCost,
@@ -173,6 +177,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (generation) {
       await supabase.from('generations').update({
         status: 'completed',
+        // Correct the model now that the provider is known. The row was inserted
+        // before generation from the PLAN's provider, but tts-router falls back
+        // to OpenAI when ElevenLabs is unconfigured or fails — so a Pro user's
+        // OpenAI audio would otherwise stay filed under eleven_v3 forever.
+        model: ttsResult.provider === 'elevenlabs' ? MODELS.elevenlabs : MODELS.openaiTts,
         output: {
           audioUrl,
           duration: estimatedDuration,

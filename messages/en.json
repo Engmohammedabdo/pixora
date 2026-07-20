@@ -821,5 +821,27 @@
     "build": "Build Prompt",
     "emptyState": "Your prompts will appear here",
     "openInStudio": "Open in studio"
+  },
+  "referrals": {
+    "title": "Referral program",
+    "subtitle": "Invite friends and earn free credits",
+    "howTitle": "How it works",
+    "howSubtitle": "Three simple steps",
+    "step1": "Share your link",
+    "step2": "Your friend signs up",
+    "step3": "You both get {credits} credits!",
+    "linkTitle": "Your referral link",
+    "loadingLink": "Loading…",
+    "copyAria": "Copy referral link",
+    "copy": "Copy link",
+    "shareWhatsApp": "Share on WhatsApp",
+    "codeLabel": "Referral code:",
+    "copied": "Link copied",
+    "copyFailed": "Copy failed — copy the link manually",
+    "statsTitle": "Referral stats",
+    "successfulSignups": "Successful signups",
+    "creditsEarned": "Credits earned",
+    "creditsPerInvite": "Credits per invite",
+    "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}"
   }
 }

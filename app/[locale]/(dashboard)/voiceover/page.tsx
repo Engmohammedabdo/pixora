@@ -214,7 +214,6 @@ export default function VoiceOverPage(): React.ReactElement {
         <Badge variant="outline" className="gap-1">
           {config.provider === 'elevenlabs' ? tVo('pyraVoicePro') : tVo('pyraVoice')}
         </Badge>
-        <Badge variant="outline">{config.quality === 'tts-1-hd' ? 'HD' : 'Standard'}</Badge>
         <Badge variant="outline">{tVo('maxDuration', { seconds: config.maxDurationSeconds })}</Badge>
       </div>
 

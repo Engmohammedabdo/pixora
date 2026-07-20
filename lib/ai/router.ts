@@ -169,8 +169,14 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
         url: result.url,
         model,
         mock: result.mock,
-        usedFallback: i > 0,
-        originalModel: i > 0 ? preferredModel : undefined,
+        // Compare against the requested model, NOT the loop index. The
+        // reference-image guard above REPLACES fallbackOrder with the capable
+        // subset, so a re-route can land at index 0 — `i > 0` then reported no
+        // fallback, the "بايرا استخدمت مسار بديل" notice never rendered, and
+        // generations.model recorded a path that never ran. The same applies
+        // when the admin disables the requested model.
+        usedFallback: model !== preferredModel,
+        originalModel: model !== preferredModel ? preferredModel : undefined,
       };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -225,8 +231,11 @@ export async function generateText(input: TextGenerationInput): Promise<Generati
         text: result.text,
         model,
         mock: result.mock,
-        usedFallback: i > 0,
-        originalModel: i > 0 ? preferredModel : undefined,
+        // Index-based detection misses the case where the requested model is not
+        // in the admin-enabled set: fallbackOrder then starts at a different
+        // model and `i > 0` wrongly reports no fallback.
+        usedFallback: model !== preferredModel,
+        originalModel: model !== preferredModel ? preferredModel : undefined,
       };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));

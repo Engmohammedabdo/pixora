@@ -55,9 +55,12 @@ CREATE TRIGGER generations_project_owner
   BEFORE INSERT OR UPDATE OF project_id, user_id ON public.generations
   FOR EACH ROW EXECUTE FUNCTION public.assert_generation_project_owner();
 
--- The UPDATE policy had USING but no WITH CHECK, so a row could be re-keyed to
--- another user_id on update. Postgres only reuses USING as the check for ALL and
--- UPDATE when WITH CHECK is omitted — state it explicitly rather than rely on that.
+-- The UPDATE policy had USING but no WITH CHECK. Postgres reuses USING as the
+-- check when WITH CHECK is omitted, so re-keying a row to another user_id was
+-- already blocked — this is not a hole being closed, it is the implicit rule
+-- being written down. It matters because the policy is about to sit next to a
+-- trigger that validates project_id, and a reader must not have to remember
+-- which half is implicit.
 DROP POLICY IF EXISTS "Users update own generations" ON public.generations;
 CREATE POLICY "Users update own generations"
   ON public.generations FOR UPDATE
@@ -122,7 +125,16 @@ CREATE INDEX IF NOT EXISTS idx_generations_user_project
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- Record this migration as applied.
+--
+-- The ledger is created in 023. Guard it so a hand-run recovery that applies
+-- this file out of order fails on something legible instead of a bare 42P01.
 -- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+  version     TEXT PRIMARY KEY,
+  description TEXT,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 INSERT INTO public.schema_migrations (version, description)
 VALUES ('025', 'Trigger validating generations.project_id; atomic create_project with quota')
 ON CONFLICT (version) DO UPDATE SET applied_at = NOW();
