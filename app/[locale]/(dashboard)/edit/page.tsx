@@ -10,10 +10,12 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { GenerationProgress } from '@/components/shared/GenerationProgress';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
@@ -41,13 +43,16 @@ function EditPageContent(): React.ReactElement {
   const [editType, setEditType] = useState('background_replace');
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = !!originalImage && editDescription.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.edit > balance;
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -58,10 +63,10 @@ function EditPageContent(): React.ReactElement {
         body: JSON.stringify({ imageUrl: originalImage, editDescription, editType, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
+      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, originalImage, editDescription, editType, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
@@ -110,8 +115,17 @@ function EditPageContent(): React.ReactElement {
 
   const previewPanel = isLoading ? (
     <GenerationProgress isLoading />
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+    />
   ) : error ? (
-    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
+    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error.message}</p></div>
   ) : !resultImage && !originalImage ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><span className="text-5xl">✏️</span><p className="text-sm mt-4">{tEdit('emptyState')}</p></div>
   ) : (

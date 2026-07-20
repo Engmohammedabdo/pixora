@@ -11,10 +11,12 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-react';
 import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
@@ -45,12 +47,15 @@ export default function StoryboardPage(): React.ReactElement {
   const [platform, setPlatform] = useState('instagram_reel');
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = concept.length >= 10;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.storyboard > balance;
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -61,10 +66,10 @@ export default function StoryboardPage(): React.ReactElement {
         body: JSON.stringify({ concept, duration, style, platform, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
+      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
       setScenes(data.data.scenes || []);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, concept, duration, style, platform, setBalance, t, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
@@ -102,8 +107,17 @@ export default function StoryboardPage(): React.ReactElement {
 
   const previewPanel = isLoading ? (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-6">{Array.from({ length: 9 }).map((_, i) => (<Skeleton key={i} className="h-40 rounded-lg" />))}</div>
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+    />
   ) : error ? (
-    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
+    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error.message}</p></div>
   ) : scenes.length === 0 ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Film className="h-12 w-12" /><p className="text-sm mt-4">{tSb('emptyState')}</p></div>
   ) : (

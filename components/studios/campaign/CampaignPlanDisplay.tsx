@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
+import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
+import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import NextImage from 'next/image';
 import { Copy, Check, Download, Image as ImageIcon, AlertTriangle, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
@@ -24,7 +28,8 @@ export interface CampaignPost {
 interface CampaignPlanDisplayProps {
   posts: CampaignPost[];
   isLoading: boolean;
-  error: string | null;
+  error: StudioError | null;
+  onDismissError: () => void;
   mock: boolean;
 }
 
@@ -32,11 +37,16 @@ export function CampaignPlanDisplay({
   posts,
   isLoading,
   error,
+  onDismissError,
   mock,
 }: CampaignPlanDisplayProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const { balance, status: creditsStatus } = useCredits();
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const handleCopy = async (text: string, index: number): Promise<void> => {
     await navigator.clipboard.writeText(text);
@@ -63,11 +73,24 @@ export function CampaignPlanDisplay({
     );
   }
 
+  if (upgradeVariant) {
+    return (
+      <UpgradePrompt
+        open
+        onClose={onDismissError}
+        variant={upgradeVariant}
+        currentPlan={planId}
+        requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+        availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+      />
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
         <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
-        <p className="text-sm text-[var(--color-error)]">{error}</p>
+        <p className="text-sm text-[var(--color-error)]">{error.message}</p>
       </div>
     );
   }

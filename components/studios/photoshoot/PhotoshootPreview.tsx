@@ -4,6 +4,10 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GenerationProgress } from '@/components/shared/GenerationProgress';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
+import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
+import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
 import Image from 'next/image';
 import { Download, AlertTriangle } from 'lucide-react';
@@ -18,7 +22,8 @@ export interface PhotoshootShot {
 interface PhotoshootPreviewProps {
   shots: PhotoshootShot[];
   isLoading: boolean;
-  error: string | null;
+  error: StudioError | null;
+  onDismissError: () => void;
   expectedCount: number;
 }
 
@@ -26,19 +31,37 @@ export function PhotoshootPreview({
   shots,
   isLoading,
   error,
+  onDismissError,
 }: PhotoshootPreviewProps): React.ReactElement {
   const t = useTranslations('studio');
   const tShoot = useTranslations('photoshoot');
+  const { balance, status: creditsStatus } = useCredits();
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   if (isLoading) {
     return <GenerationProgress isLoading />;
+  }
+
+  if (upgradeVariant) {
+    return (
+      <UpgradePrompt
+        open
+        onClose={onDismissError}
+        variant={upgradeVariant}
+        currentPlan={planId}
+        requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+        availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+      />
+    );
   }
 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
         <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
-        <p className="text-sm text-[var(--color-error)]">{error}</p>
+        <p className="text-sm text-[var(--color-error)]">{error.message}</p>
       </div>
     );
   }

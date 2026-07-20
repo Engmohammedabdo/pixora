@@ -8,7 +8,7 @@ import { CreatorForm } from '@/components/studios/creator/CreatorForm';
 import { CreatorPreview } from '@/components/studios/creator/CreatorPreview';
 import { GenerationHistory, type HistoryItem } from '@/components/shared/GenerationHistory';
 import { useCreditsStore } from '@/store/credits';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, type StudioError } from '@/lib/studio-errors';
 import type { AIModel, Resolution } from '@/types/studios';
 
 interface CreatorInput {
@@ -30,7 +30,7 @@ function CreatorPageContent(): React.ReactElement {
 
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
   const [originalModel, setOriginalModel] = useState<string | undefined>();
   const [mock, setMock] = useState(false);
@@ -55,7 +55,7 @@ function CreatorPageContent(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(mapApiError(data.error, tStudio));
+        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined));
         return;
       }
 
@@ -81,7 +81,7 @@ function CreatorPageContent(): React.ReactElement {
         ...prev,
       ].slice(0, 5));
     } catch {
-      setError(mapApiError('network', tStudio));
+      setError(toStudioError('network', tStudio));
     } finally {
       setIsLoading(false);
     }
@@ -113,6 +113,7 @@ function CreatorPageContent(): React.ReactElement {
             imageUrls={imageUrls}
             isLoading={isLoading}
             error={error}
+            onDismissError={() => setError(null)}
             usedFallback={usedFallback}
             originalModel={originalModel}
             mock={mock}

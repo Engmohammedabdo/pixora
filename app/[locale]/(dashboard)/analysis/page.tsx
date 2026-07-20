@@ -12,10 +12,12 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, FileText } from 'lucide-react';
 import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
@@ -47,13 +49,16 @@ export default function AnalysisPage(): React.ReactElement {
   const [painPoints, setPainPoints] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [activeTab, setActiveTab] = useState('swot');
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = businessName.length >= 2 && industry && description.length >= 10 && targetMarket.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.analysis > balance;
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -64,10 +69,10 @@ export default function AnalysisPage(): React.ReactElement {
         body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
+      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
       setAnalysis(data.data.analysis);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
@@ -125,8 +130,17 @@ export default function AnalysisPage(): React.ReactElement {
 
   const previewPanel = isLoading ? (
     <div className="space-y-4 py-6">{Array.from({ length: 4 }).map((_, i) => (<Skeleton key={i} className="h-32 rounded-lg" />))}</div>
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+    />
   ) : error ? (
-    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
+    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error.message}</p></div>
   ) : !analysis ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><BarChart3 className="h-12 w-12" /><p className="text-sm mt-4">{tAn('emptyState')}</p></div>
   ) : (

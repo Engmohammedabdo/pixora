@@ -12,10 +12,12 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
@@ -48,12 +50,15 @@ export default function PlanPage(): React.ReactElement {
   const [duration, setDuration] = useState<Duration>('30');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [activeTab, setActiveTab] = useState('objectives');
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.plan > balance;
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
   const isValid = businessName.length >= 2 && goals.length > 0 && targetMarket.length >= 5;
@@ -67,10 +72,10 @@ export default function PlanPage(): React.ReactElement {
         body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
+      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
       setPlan(data.data.plan);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
@@ -119,8 +124,17 @@ export default function PlanPage(): React.ReactElement {
 
   const previewPanel = isLoading ? (
     <div className="space-y-4 py-6">{Array.from({ length: 4 }).map((_, i) => (<Skeleton key={i} className="h-24 rounded-lg" />))}</div>
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+    />
   ) : error ? (
-    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
+    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error.message}</p></div>
   ) : !plan ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Calendar className="h-12 w-12" /><p className="text-sm mt-4">{tPlan('emptyState')}</p></div>
   ) : (

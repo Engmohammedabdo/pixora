@@ -577,6 +577,7 @@
   "upgrade": {
     "insufficientCredits": "Insufficient Credits",
     "insufficientCreditsDescription": "You need {required} credits but only have {available}. Top up credits or upgrade your plan.",
+    "creditsRatio": "{available} / {required} credits",
     "featureLocked": "Feature Not Available",
     "featureLockedDescription": "{feature} is available on {plan} plan and above. Upgrade to access.",
     "resolutionLocked": "Higher Resolution Requires Upgrade",

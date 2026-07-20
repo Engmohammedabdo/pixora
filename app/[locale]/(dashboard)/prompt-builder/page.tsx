@@ -11,9 +11,11 @@ import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
 import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { Sparkles, Copy, Check, ArrowRight, Lightbulb, AlertTriangle } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
@@ -35,12 +37,15 @@ export default function PromptBuilderPage(): React.ReactElement {
   const [outputType, setOutputType] = useState<string>('image');
   const [results, setResults] = useState<PromptResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   // prompt-builder is free (CREDIT_COSTS.prompt === 0), so this is always false —
   // wired for consistency with the other 8 studios rather than because it can fire.
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.prompt > balance;
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (description.length < 5) return;
@@ -54,12 +59,12 @@ export default function PromptBuilderPage(): React.ReactElement {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setError(mapApiError(data.error, (k) => t(`studio.${k}`)));
+        setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined));
         return;
       }
       setResults(data.data.prompts);
     } catch {
-      setError(mapApiError('network', (k) => t(`studio.${k}`)));
+      setError(toStudioError('network', (k) => t(`studio.${k}`)));
     } finally {
       setIsLoading(false);
     }
@@ -133,10 +138,19 @@ export default function PromptBuilderPage(): React.ReactElement {
         <Skeleton key={i} className="h-32 rounded-lg" />
       ))}
     </div>
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+    />
   ) : error ? (
     <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
       <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
-      <p className="text-sm text-[var(--color-error)]">{error}</p>
+      <p className="text-sm text-[var(--color-error)]">{error.message}</p>
     </div>
   ) : results.length === 0 ? (
     <div className="flex flex-col items-center justify-center h-full gap-2 py-12 text-[var(--color-text-muted)]">

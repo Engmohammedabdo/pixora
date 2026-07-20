@@ -65,7 +65,7 @@ export function UpgradePrompt({
           <Badge variant="outline">{t('yourPlan')} {currentPlan}</Badge>
           {requiredCredits && availableCredits !== undefined && (
             <Badge variant="secondary">
-              {availableCredits} / {requiredCredits} credits
+              {t('creditsRatio', { available: availableCredits, required: requiredCredits })}
             </Badge>
           )}
         </div>

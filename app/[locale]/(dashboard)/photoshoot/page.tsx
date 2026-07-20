@@ -6,7 +6,7 @@ import { StudioLayout } from '@/components/layout/StudioLayout';
 import { PhotoshootForm } from '@/components/studios/photoshoot/PhotoshootForm';
 import { PhotoshootPreview, type PhotoshootShot } from '@/components/studios/photoshoot/PhotoshootPreview';
 import { useCreditsStore } from '@/store/credits';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, type StudioError } from '@/lib/studio-errors';
 
 interface PhotoshootInput {
   productImageUrl: string;
@@ -23,7 +23,7 @@ export default function PhotoshootPage(): React.ReactElement {
 
   const [shots, setShots] = useState<PhotoshootShot[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [expectedCount, setExpectedCount] = useState(6);
 
   const setBalance = useCreditsStore((s) => s.setBalance);
@@ -44,7 +44,7 @@ export default function PhotoshootPage(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(mapApiError(data.error, tStudio));
+        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined));
         return;
       }
 
@@ -54,7 +54,7 @@ export default function PhotoshootPage(): React.ReactElement {
         setBalance(data.data.newBalance);
       }
     } catch {
-      setError(mapApiError('network', tStudio));
+      setError(toStudioError('network', tStudio));
     } finally {
       setIsLoading(false);
     }
@@ -74,6 +74,7 @@ export default function PhotoshootPage(): React.ReactElement {
             shots={shots}
             isLoading={isLoading}
             error={error}
+            onDismissError={() => setError(null)}
             expectedCount={expectedCount}
           />
         }

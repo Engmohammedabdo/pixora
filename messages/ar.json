@@ -577,6 +577,7 @@
   "upgrade": {
     "insufficientCredits": "رصيدك غير كافي",
     "insufficientCreditsDescription": "تحتاج {required} كريدت لكن عندك {available} فقط. اشحن كريدت أو ترقّى لخطة أعلى.",
+    "creditsRatio": "{available} / {required} كريدت",
     "featureLocked": "هذه الميزة غير متاحة",
     "featureLockedDescription": "{feature} متاحة في خطة {plan} وأعلى. ترقّى للاستفادة.",
     "resolutionLocked": "دقة أعلى تحتاج ترقية",

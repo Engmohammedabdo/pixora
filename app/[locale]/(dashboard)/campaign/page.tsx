@@ -7,7 +7,7 @@ import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CampaignForm } from '@/components/studios/campaign/CampaignForm';
 import { CampaignPlanDisplay, type CampaignPost } from '@/components/studios/campaign/CampaignPlanDisplay';
 import { useCreditsStore } from '@/store/credits';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, type StudioError } from '@/lib/studio-errors';
 
 interface CampaignInput {
   productDescription: string;
@@ -28,7 +28,7 @@ function CampaignPageContent(): React.ReactElement {
 
   const [posts, setPosts] = useState<CampaignPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [mock, setMock] = useState(false);
 
   const setBalance = useCreditsStore((s) => s.setBalance);
@@ -48,7 +48,7 @@ function CampaignPageContent(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(mapApiError(data.error, tStudio));
+        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined));
         return;
       }
 
@@ -59,7 +59,7 @@ function CampaignPageContent(): React.ReactElement {
         setBalance(data.data.newBalance);
       }
     } catch {
-      setError(mapApiError('network', tStudio));
+      setError(toStudioError('network', tStudio));
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +79,7 @@ function CampaignPageContent(): React.ReactElement {
             posts={posts}
             isLoading={isLoading}
             error={error}
+            onDismissError={() => setError(null)}
             mock={mock}
           />
         }

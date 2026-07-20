@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils';
 import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 'lucide-react';
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
-import { mapApiError } from '@/lib/studio-errors';
+import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { downloadFile } from '@/lib/download';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
@@ -55,7 +56,7 @@ export default function VoiceOverPage(): React.ReactElement {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<StudioError | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [provider, setProvider] = useState<string>('');
   const [enhanced, setEnhanced] = useState(false);
@@ -68,6 +69,11 @@ export default function VoiceOverPage(): React.ReactElement {
   const isValid = script.length >= 1 && estimatedDuration <= config.maxDurationSeconds;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && creditCost > balance;
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
+  // voice_not_available/dialect_not_available are only reachable if the UI's own
+  // lock icons below were bypassed (e.g. a stale selection surviving a plan
+  // downgrade) — the feature name still needs to name the right one.
+  const upgradeFeature = error?.code === 'voice_not_available' ? tVo('voice') : tVo('dialect');
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -79,13 +85,13 @@ export default function VoiceOverPage(): React.ReactElement {
         body: JSON.stringify({ script, voice, dialect, speed, tone, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
+      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
       setAudioUrl(data.data.audioUrl);
       setAudioDuration(data.data.duration || 0);
       setProvider(data.data.provider || '');
       setEnhanced(data.data.enhanced || false);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
   }, [isValid, script, voice, dialect, speed, tone, setBalance, t, projectId]);
 
   const dialectLabels: Record<string, string> = { saudi: tVo('dialects.saudi'), emirati: tVo('dialects.emirati'), egyptian: tVo('dialects.egyptian'), gulf: tVo('dialects.gulf'), formal: tVo('dialects.formal') };
@@ -241,8 +247,19 @@ export default function VoiceOverPage(): React.ReactElement {
 
   const previewPanel = isLoading ? (
     <div className="flex flex-col items-center py-12 gap-4"><Skeleton className="h-20 w-full max-w-md rounded-lg" /><Skeleton className="h-8 w-32 rounded" /></div>
+  ) : upgradeVariant ? (
+    <UpgradePrompt
+      open
+      onClose={() => setError(null)}
+      variant={upgradeVariant}
+      currentPlan={planId}
+      requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+      availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+      feature={upgradeVariant === 'feature_locked' ? upgradeFeature : undefined}
+      requiredPlan={upgradeVariant === 'feature_locked' ? 'pro' : undefined}
+    />
   ) : error ? (
-    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
+    <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error.message}</p></div>
   ) : !audioUrl ? (
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Mic className="h-12 w-12" /><p className="text-sm mt-4">{tVo('emptyState')}</p></div>
   ) : (

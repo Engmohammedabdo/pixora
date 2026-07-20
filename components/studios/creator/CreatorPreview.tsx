@@ -7,6 +7,10 @@ import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GenerationProgress } from '@/components/shared/GenerationProgress';
+import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
+import { useCredits } from '@/hooks/useCredits';
+import { useUser } from '@/hooks/useUser';
+import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
 import { Download, RefreshCw, AlertTriangle, Pencil, Info } from 'lucide-react';
 import { Link } from '@/i18n/routing';
@@ -14,7 +18,8 @@ import { Link } from '@/i18n/routing';
 interface CreatorPreviewProps {
   imageUrls: string[];
   isLoading: boolean;
-  error: string | null;
+  error: StudioError | null;
+  onDismissError: () => void;
   usedFallback: boolean;
   originalModel?: string;
   mock: boolean;
@@ -25,6 +30,7 @@ export function CreatorPreview({
   imageUrls,
   isLoading,
   error,
+  onDismissError,
   usedFallback,
   originalModel,
   mock,
@@ -33,6 +39,10 @@ export function CreatorPreview({
   const t = useTranslations('studio');
   const tCreator = useTranslations('creator');
   const [hasConfettied, setHasConfettied] = useState(false);
+  const { balance, status: creditsStatus } = useCredits();
+  const { profile } = useUser();
+  const planId = profile?.plan_id ?? 'free';
+  const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   useEffect(() => {
     if (imageUrls.length > 0 && !hasConfettied) {
@@ -45,11 +55,24 @@ export function CreatorPreview({
     return <GenerationProgress isLoading />;
   }
 
+  if (upgradeVariant) {
+    return (
+      <UpgradePrompt
+        open
+        onClose={onDismissError}
+        variant={upgradeVariant}
+        currentPlan={planId}
+        requiredCredits={upgradeVariant === 'insufficient_credits' ? error?.required : undefined}
+        availableCredits={upgradeVariant === 'insufficient_credits' ? balance : undefined}
+      />
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
         <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
-        <p className="text-sm text-[var(--color-error)]">{error}</p>
+        <p className="text-sm text-[var(--color-error)]">{error.message}</p>
         <Button variant="outline" onClick={onRegenerate} className="gap-2">
           <RefreshCw className="h-4 w-4" />
           {t('regenerate')}
