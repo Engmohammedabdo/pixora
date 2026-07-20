@@ -7,7 +7,10 @@ import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
+import { OG_CONTENT } from '@/lib/seo/og-content';
 import '../globals.css';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
 
 // Self-hosted via next/font — fetched and served from our own origin at
 // build time, so there is no runtime request to the Google Fonts CDN, and
@@ -42,12 +45,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const isAr = locale === 'ar';
+  const og = isAr ? OG_CONTENT.ar : OG_CONTENT.en;
 
   return {
+    metadataBase: new URL(APP_URL),
     title: {
-      default: isAr
-        ? 'PyraSuite — منصة التسويق بالذكاء الاصطناعي'
-        : 'PyraSuite — AI Marketing Platform',
+      default: og.title,
       template: '%s | PyraSuite',
     },
     description: isAr
@@ -60,20 +63,14 @@ export async function generateMetadata({
     openGraph: {
       type: 'website',
       siteName: 'PyraSuite',
-      title: isAr
-        ? 'PyraSuite — منصة التسويق بالذكاء الاصطناعي'
-        : 'PyraSuite — AI Marketing Platform',
-      description: isAr
-        ? 'حوّل أي فكرة لحملة تسويقية احترافية في دقائق — 9 استوديوهات AI، واجهة عربية، نظام كريدت شفاف.'
-        : 'Turn any idea into a professional marketing campaign in minutes — 9 AI studios and a transparent credit system.',
+      title: og.title,
+      description: og.description,
       locale: isAr ? 'ar_SA' : 'en_US',
     },
     twitter: {
       card: 'summary_large_image',
-      title: 'PyraSuite — AI Marketing Platform',
-      description: isAr
-        ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي'
-        : 'The Arabic-first AI marketing platform',
+      title: og.title,
+      description: og.description,
     },
     robots: {
       index: true,

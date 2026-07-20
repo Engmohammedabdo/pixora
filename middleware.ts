@@ -6,7 +6,7 @@ import { jwtVerify } from 'jose';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/forgot-password', '/reset-password'];
+const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/forgot-password', '/reset-password', '/opengraph-image'];
 
 function isPublicPath(pathname: string): boolean {
   // Root path (before locale redirect)
