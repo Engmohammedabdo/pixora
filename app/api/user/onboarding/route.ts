@@ -1,9 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 
 // Matches the "أضفنا 5 كريدت مجانية لحسابك" promise on onboarding step 5
 // (messages/ar.json: onboarding.step5Description). Keep in sync with that copy.
 const ONBOARDING_BONUS_CREDITS = 5;
+
+// Body is optional. Normal completion sends none (or `{}`); the Skip control
+// sends `{ skipped: true }` to release the user from the middleware's
+// onboarding redirect WITHOUT paying out the completion bonus.
+const BodySchema = z.object({
+  skipped: z.boolean().optional(),
+}).strict();
 
 interface GrantOnboardingBonusResult {
   success: boolean;
@@ -12,7 +20,7 @@ interface GrantOnboardingBonusResult {
   new_balance?: number;
 }
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Auth check FIRST, via the cookie-authenticated session client. The user
     // id below comes only from the verified session — never from the request
@@ -21,6 +29,28 @@ export async function POST(): Promise<NextResponse> {
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+
+    const rawBody = await request.text();
+    const { skipped } = rawBody ? BodySchema.parse(JSON.parse(rawBody)) : { skipped: undefined };
+
+    if (skipped === true) {
+      // Skip must still release the user from the middleware's onboarding
+      // redirect, but must NOT grant the completion bonus. Only flip the
+      // flag, via the session client — 022 grants authenticated users UPDATE
+      // on this exact column, so no service-role client / RPC is needed and
+      // no credit_transactions row is written.
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('Onboarding skip update error:', updateError.message);
+        return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, skipped: true });
+    }
 
     // grant_onboarding_bonus() is REVOKEd from anon/authenticated (027) and
     // GRANTed to service_role only, so it must be called through the
@@ -64,6 +94,9 @@ export async function POST(): Promise<NextResponse> {
       newBalance: result.new_balance,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ success: false, error: 'validation_error' }, { status: 400 });
+    }
     console.error('Onboarding save error:', error);
     return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });
   }

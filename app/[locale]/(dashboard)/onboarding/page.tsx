@@ -109,7 +109,19 @@ export default function OnboardingPage(): React.ReactElement {
     router.push(currentStep.action);
   };
 
-  const handleSkip = (): void => {
+  // Skip must still mark onboarding as complete server-side (without the
+  // completion bonus — see app/api/user/onboarding/route.ts) or the
+  // middleware's onboarding redirect bounces the user straight back here,
+  // turning Skip into a dead control.
+  const handleSkip = async (): Promise<void> => {
+    try {
+      await fetch('/api/user/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skipped: true }),
+      });
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch { /* Non-blocking — user still proceeds to /dashboard */ }
     router.push('/dashboard');
   };
 
