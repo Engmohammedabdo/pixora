@@ -88,11 +88,22 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       if (supabaseUrl && supabaseKey) {
+        // getUser() can rotate the refresh token. Both the outgoing request AND
+        // the response must carry the new values, or the browser keeps a token
+        // the server has already consumed and its next refresh fails. The page
+        // branch below already does this; this branch did not — it wrote only
+        // to request.cookies and discarded `options`, so rotated cookies never
+        // reached the browser and the next refresh attempt failed.
+        const response = NextResponse.next({ request });
+
         const supabase = createServerClient(supabaseUrl, supabaseKey, {
           cookies: {
             getAll() { return request.cookies.getAll(); },
             setAll(cookiesToSet) {
-              cookiesToSet.forEach(({ name, value }) => { request.cookies.set(name, value); });
+              cookiesToSet.forEach(({ name, value, options }) => {
+                request.cookies.set(name, value);
+                response.cookies.set(name, value, options);
+              });
             },
           },
         });
@@ -102,6 +113,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         if (!user) {
           return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
         }
+
+        return response;
       }
     }
 
