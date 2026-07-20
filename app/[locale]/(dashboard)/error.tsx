@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { reportClientError } from '@/lib/report-client-error';
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -15,9 +16,18 @@ export default function DashboardError({ error, reset }: ErrorProps): React.Reac
   const locale = (params?.locale as string) || 'ar';
   const isAr = locale === 'ar';
 
+  // Ref (not state) survives React StrictMode's dev-only double effect
+  // invocation without re-reporting the same error, while still firing
+  // again for a genuinely new error object after a retry.
+  const reportedErrorRef = useRef<Error | null>(null);
+
   useEffect(() => {
+    if (reportedErrorRef.current === error) return;
+    reportedErrorRef.current = error;
+
     // Log for diagnostics — never shown to the user
     console.error(error);
+    reportClientError(error);
   }, [error]);
 
   return (

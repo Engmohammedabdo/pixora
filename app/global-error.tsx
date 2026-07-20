@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { reportClientError } from '@/lib/report-client-error';
 
 export default function GlobalError({
   error,
@@ -11,6 +13,17 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }): React.ReactElement {
+  // Ref (not state) survives React StrictMode's dev-only double effect
+  // invocation without re-running for the same error, while still firing
+  // again for a genuinely new error object after a retry.
+  const reportedErrorRef = useRef<Error | null>(null);
+
+  useEffect(() => {
+    if (reportedErrorRef.current === error) return;
+    reportedErrorRef.current = error;
+    reportClientError(error);
+  }, [error]);
+
   return (
     <html lang="ar" dir="rtl">
       <body className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] p-6">

@@ -18,6 +18,16 @@
 >
 > Font loading and the activity-payload leak referenced here were fixed before
 > this report was finalised (commits efd38f8 and f4ec015).
+>
+> **Gap 9 / §5 step 5's "un-gate `/portfolio` and `/community`" recommendation is
+> WRONG — do not implement it as written.** Both
+> `app/[locale]/(dashboard)/portfolio/page.tsx` and
+> `app/[locale]/(dashboard)/community/page.tsx` currently render a
+> `ComingSoonBanner`, not a gallery of real work. Un-gating them today would
+> publish two public "coming soon" pages, not social proof — the opposite of
+> the intended effect. The idea is still sound (a public gallery of real
+> generated output would be credible social proof), but it requires building
+> the actual gallery content first; un-gating alone accomplishes nothing.
 
 
 

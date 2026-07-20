@@ -79,6 +79,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       '/api/stripe/webhook',
       '/api/public/',
       '/api/admin/',
+      // Errors on the login page or before hydration are exactly the ones
+      // worth seeing — this route does its own validation, rate limiting
+      // and newline-stripping, and attaches a user id when a session
+      // happens to exist, but must never require one.
+      '/api/client-errors',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));
