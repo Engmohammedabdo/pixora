@@ -98,7 +98,7 @@ export function ProjectSelector({ value, onChange, className }: Props): React.Re
           const picked = projects.find((p) => p.id === id);
           onChange(id, picked?.brandKitId ?? null);
         }}
-        className="mt-2 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="mt-2 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       >
         <option value="">{t('unassigned')}</option>
         {projects.map((p) => (

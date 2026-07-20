@@ -262,7 +262,7 @@ export default function ProjectsPage(): React.ReactElement {
                   id="project-brand-kit"
                   value={newBrandKitId}
                   onChange={(e) => setNewBrandKitId(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
                   <option value="">{tProjects('noBrandKit')}</option>
                   {brandKits.map((k) => (

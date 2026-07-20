@@ -81,7 +81,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
           placeholder={t('productDescriptionPlaceholder')}
           rows={3}
           maxLength={2000}
-          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
+          className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 resize-none"
         />
         <p className="text-xs text-end text-[var(--color-text-muted)]">{productDescription.length}/2000</p>
       </div>

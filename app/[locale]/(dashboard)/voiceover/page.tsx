@@ -104,7 +104,7 @@ export default function VoiceOverPage(): React.ReactElement {
       {/* Script */}
       <div className="space-y-2">
         <Label htmlFor="voiceover-script">{tVo('script')}</Label>
-        <textarea id="voiceover-script" value={script} onChange={(e) => setScript(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tVo('scriptPlaceholder')} rows={5} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
+        <textarea id="voiceover-script" value={script} onChange={(e) => setScript(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tVo('scriptPlaceholder')} rows={5} maxLength={2000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
         <div className="flex justify-between text-xs text-[var(--color-text-muted)]">
           <span>{tVo('approxDuration', { seconds: estimatedDuration })} {estimatedDuration > config.maxDurationSeconds && <span className="text-[var(--color-error)]">{tVo('limitExceeded', { max: config.maxDurationSeconds })}</span>}</span>
           <span>{script.length}/2000</span>

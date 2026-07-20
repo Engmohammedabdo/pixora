@@ -107,7 +107,7 @@ export default function ReferralsPage(): React.ReactElement {
         <CardHeader><CardTitle className="text-base">{t('linkTitle')}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
-            <Input value={loading ? t('loadingLink') : referralLink} readOnly dir="ltr" className="text-xs font-mono" />
+            <Input value={loading ? t('loadingLink') : referralLink} readOnly dir="ltr" className="text-base sm:text-xs font-mono" />
             <Button onClick={handleCopy} disabled={!referralLink} aria-label={t('copyAria')} variant="outline" size="icon" className="flex-shrink-0">
               {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
             </Button>
