@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/routing';
 
@@ -15,28 +15,19 @@ const EXAMPLES = [
   { labelKey: 'demo.ex4', image: 'https://placehold.co/600x600/10B981/FFFFFF?text=Luxury+Perfume' },
 ] as const;
 
-const SWITCH_DELAY_MS = 600;
-
 export function InteractiveDemo(): React.ReactElement {
   const t = useTranslations('landing');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
+  // This switcher previously ran a 600ms setTimeout and showed a spinner reading
+  // "بايرا تشتغل…" while it waited. Nothing was being generated — the images are
+  // pre-existing illustrative examples, which the badge and caption already say
+  // plainly. Simulating generation work that is not happening is the one part of
+  // this section that misled the visitor, so the delay and the spinner are gone
+  // and switching is now instant. The honest framing in the copy stays.
   const handleSelect = (index: number): void => {
-    if (index === activeIndex || loading) return;
-    setLoading(true);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setActiveIndex(index);
-      setLoading(false);
-    }, SWITCH_DELAY_MS);
+    if (index === activeIndex) return;
+    setActiveIndex(index);
   };
 
   const active = EXAMPLES[activeIndex];
@@ -81,37 +72,23 @@ export function InteractiveDemo(): React.ReactElement {
         <div className="mx-auto max-w-md">
           <div className="relative aspect-square w-full">
             <AnimatePresence mode="wait">
-              {loading ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
-                >
-                  <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">{t('demo.loading')}</p>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key={active.labelKey}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute inset-0"
-                >
-                  <Image
-                    src={active.image}
-                    alt={t(active.labelKey)}
-                    width={600}
-                    height={600}
-                    className="h-full w-full rounded-2xl object-cover shadow-2xl"
-                    unoptimized
-                  />
-                </motion.div>
-              )}
+              <motion.div
+                key={active.labelKey}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.25 }}
+                className="absolute inset-0"
+              >
+                <Image
+                  src={active.image}
+                  alt={t(active.labelKey)}
+                  width={600}
+                  height={600}
+                  className="h-full w-full rounded-2xl object-cover shadow-2xl"
+                  unoptimized
+                />
+              </motion.div>
             </AnimatePresence>
           </div>
 

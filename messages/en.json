@@ -677,7 +677,6 @@
       "ex2": "Skincare product",
       "ex3": "Burger restaurant",
       "ex4": "Luxury perfume",
-      "loading": "Pyra is working... 🦊",
       "caption": "Illustrative example — actual results depend on your description",
       "cta": "Try it now with your free account"
     },
@@ -731,11 +730,36 @@
       "startFree": "Start Free",
       "subscribe": "Subscribe Now",
       "features": {
-        "free": ["25 credits/month", "1080p resolution", "Watermark on images", "1 Brand Kit"],
-        "starter": ["200 credits/month", "2K resolution", "No watermark", "3 Brand Kits"],
-        "pro": ["600 credits/month", "4K resolution", "No watermark", "10 Brand Kits"],
-        "business": ["1,500 credits/month", "4K resolution", "No watermark", "25 Brand Kits"],
-        "agency": ["5,000 credits/month", "4K resolution", "No watermark", "100 Brand Kits"]
+        "free": [
+          "25 credits/month",
+          "1080p resolution",
+          "Watermark on images",
+          "1 Brand Kit"
+        ],
+        "starter": [
+          "200 credits/month",
+          "2K resolution",
+          "No watermark",
+          "3 Brand Kits"
+        ],
+        "pro": [
+          "600 credits/month",
+          "4K resolution",
+          "No watermark",
+          "10 Brand Kits"
+        ],
+        "business": [
+          "1,500 credits/month",
+          "4K resolution",
+          "No watermark",
+          "25 Brand Kits"
+        ],
+        "agency": [
+          "5,000 credits/month",
+          "4K resolution",
+          "No watermark",
+          "100 Brand Kits"
+        ]
       }
     },
     "social": {
