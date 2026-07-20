@@ -114,7 +114,11 @@
       "admin_adjustment": "Admin adjustment",
       "onboarding": "Welcome bonus"
     },
-    "resolutionLabel": "Image resolution"
+    "resolutionLabel": "Image resolution",
+    "loadFailed": "Couldn't load your balance",
+    "loadFailedHint": "Your credits are safe — this is a display problem only.",
+    "retry": "Try again",
+    "unavailable": "Unavailable"
   },
   "brandKit": {
     "title": "Brand Kit",

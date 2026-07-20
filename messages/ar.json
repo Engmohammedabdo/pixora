@@ -114,7 +114,11 @@
       "admin_adjustment": "تعديل إداري",
       "onboarding": "مكافأة ترحيب"
     },
-    "resolutionLabel": "دقة الصورة"
+    "resolutionLabel": "دقة الصورة",
+    "loadFailed": "تعذّر تحميل رصيدك",
+    "loadFailedHint": "رصيدك محفوظ — دي مشكلة في العرض بس.",
+    "retry": "إعادة المحاولة",
+    "unavailable": "غير متاح"
   },
   "brandKit": {
     "title": "الهوية البصرية",

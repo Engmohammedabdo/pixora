@@ -6,7 +6,7 @@ import { usePathname } from '@/i18n/routing';
 import { Link } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getPlan } from '@/lib/stripe/plans';
 import {
@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Gift,
+  RefreshCw,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
@@ -75,7 +76,7 @@ export function Sidebar(): React.ReactElement {
   const tCredits = useTranslations('credits');
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleCollapsed } = useUIStore();
-  const { balance, loading: creditsLoading } = useCreditsStore();
+  const { balance, status: creditsStatus, refetch: refetchCredits } = useCredits();
   const { profile } = useUser();
   const planCredits = getPlan(profile?.plan_id || 'free').credits;
 
@@ -202,8 +203,18 @@ export function Sidebar(): React.ReactElement {
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-1" title={tCredits('balance')}>
             <Coins className="h-4 w-4 text-primary-500" />
-            {creditsLoading ? (
+            {creditsStatus === 'loading' ? (
               <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
+            ) : creditsStatus === 'error' ? (
+              <button
+                type="button"
+                onClick={refetchCredits}
+                title={tCredits('loadFailed')}
+                aria-label={tCredits('retry')}
+                className="text-[var(--color-error)]"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
             ) : (
               <span className="text-xs font-bold text-[var(--color-brand)]">{balance}</span>
             )}
@@ -215,13 +226,22 @@ export function Sidebar(): React.ReactElement {
                 <Coins className="h-4 w-4 text-primary-500" />
                 <span className="font-medium">{tCredits('balance')}</span>
               </div>
-              {creditsLoading ? (
+              {creditsStatus === 'loading' ? (
                 <span className="h-3 w-6 animate-pulse rounded bg-surface-2" />
+              ) : creditsStatus === 'error' ? (
+                <button
+                  type="button"
+                  onClick={refetchCredits}
+                  className="flex items-center gap-1 text-xs text-[var(--color-error)] hover:underline"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {tCredits('retry')}
+                </button>
               ) : (
                 <span className="font-bold text-[var(--color-brand)]">{balance}</span>
               )}
             </div>
-            <Progress value={creditsLoading ? 0 : Math.min((balance / planCredits) * 100, 100)} className="h-2" />
+            <Progress value={creditsStatus === 'ready' ? Math.min((balance / planCredits) * 100, 100) : 0} className="h-2" />
             <Link
               href="/billing"
               className="block text-center text-xs text-[var(--color-link)] hover:underline"

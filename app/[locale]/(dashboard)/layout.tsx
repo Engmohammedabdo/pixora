@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -8,23 +7,18 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { LowCreditsBanner } from '@/components/shared/LowCreditsBanner';
 import { CommandPalette } from '@/components/shared/CommandPalette';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useUser } from '@/hooks/useUser';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps): React.ReactElement {
-  const { profile } = useUser();
-  const setBalance = useCreditsStore((s) => s.setBalance);
   useKeyboardShortcuts();
-
-  useEffect(() => {
-    if (profile) {
-      setBalance(profile.credits_balance + (profile.purchased_credits || 0));
-    }
-  }, [profile, setBalance]);
+  // The server route is cookie-authenticated and is the same path that already
+  // works for every other dashboard fetch, so the balance no longer depends on
+  // the browser Supabase client's profile read succeeding.
+  useCredits({ poll: true });
 
   return (
     <div className="flex min-h-screen">

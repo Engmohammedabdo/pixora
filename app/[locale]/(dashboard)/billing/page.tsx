@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale, useFormatter } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +20,11 @@ import { toast } from 'sonner';
 
 export default function BillingPage(): React.ReactElement {
   const t = useTranslations('billing');
+  const tCredits = useTranslations('credits');
   const locale = useLocale();
   const format = useFormatter();
   const { profile } = useUser();
-  const { balance } = useCreditsStore();
+  const { balance, status: creditsStatus } = useCredits();
   const searchParams = useSearchParams();
   // Track WHICH card/action is loading so only the clicked one is disabled
   const [loading, setLoading] = useState<string | null>(null);
@@ -32,7 +33,10 @@ export default function BillingPage(): React.ReactElement {
   const success = searchParams.get('success');
   const currentPlanId = profile?.plan_id || 'free';
   const currentPlan = getPlan(currentPlanId);
-  const creditPercentage = Math.min((balance / currentPlan.credits) * 100, 100);
+  const creditPercentage =
+    creditsStatus === 'ready' && currentPlan.credits > 0
+      ? Math.min((balance / currentPlan.credits) * 100, 100)
+      : 0;
 
   const handleSubscribe = async (planId: string): Promise<void> => {
     setLoading(planId);
@@ -132,7 +136,9 @@ export default function BillingPage(): React.ReactElement {
                   <Coins className="h-4 w-4 text-primary-500" />
                   {t('creditBalance')}
                 </span>
-                <span className="font-bold text-[var(--color-brand)]">{balance} / {currentPlan.credits}</span>
+                <span className="font-bold text-[var(--color-brand)]">
+                  {creditsStatus === 'ready' ? `${balance} / ${currentPlan.credits}` : tCredits('unavailable')}
+                </span>
               </div>
               <Progress value={creditPercentage} className="h-2.5" />
               {profile?.credits_reset_date && (

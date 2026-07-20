@@ -2,15 +2,16 @@
 
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { AlertTriangle, XCircle, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function LowCreditsBanner(): React.ReactElement | null {
-  const { balance, loading } = useCreditsStore();
+  const { balance, status } = useCredits();
   const t = useTranslations('lowCredits');
 
-  if (loading || balance > 5) return null;
+  // Only assert "you are low" when we actually know the number.
+  if (status !== 'ready' || balance > 5) return null;
 
   const isEmpty = balance <= 0;
 

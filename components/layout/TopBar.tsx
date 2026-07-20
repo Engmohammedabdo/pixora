@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useUIStore } from '@/store/ui';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { Link, usePathname, useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,9 +24,10 @@ import { AnimatedNumber } from '@/components/shared/AnimatedNumber';
 
 export function TopBar(): React.ReactElement {
   const t = useTranslations();
+  const tCredits = useTranslations('credits');
   const { user, profile, signOut } = useUser();
   const { toggleSidebar } = useUIStore();
-  const { balance, loading: creditsLoading } = useCreditsStore();
+  const { balance, status: creditsStatus } = useCredits();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -70,8 +71,10 @@ export function TopBar(): React.ReactElement {
       <Link href="/billing" className="flex items-center gap-1.5">
         <Badge variant="secondary" className="gap-1 px-3 py-1">
           <Coins className="h-3.5 w-3.5 text-primary-500" />
-          {creditsLoading ? (
+          {creditsStatus === 'loading' ? (
             <Skeleton className="h-5 w-10" />
+          ) : creditsStatus === 'error' ? (
+            <span className="text-xs">{tCredits('unavailable')}</span>
           ) : (
             <AnimatedNumber value={balance} className="font-semibold" />
           )}

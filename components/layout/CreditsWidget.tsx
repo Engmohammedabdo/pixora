@@ -1,13 +1,13 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getPlan } from '@/lib/stripe/plans';
 import { Link } from '@/i18n/routing';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Coins, AlertTriangle } from 'lucide-react';
+import { Coins, AlertTriangle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreditsWidgetProps {
@@ -17,7 +17,7 @@ interface CreditsWidgetProps {
 
 export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): React.ReactElement {
   const t = useTranslations('credits');
-  const { balance, loading } = useCreditsStore();
+  const { balance, status, refetch } = useCredits();
   const { profile } = useUser();
   const planCredits = getPlan(profile?.plan_id || 'free').credits;
   const effectiveMax = maxCredits ?? planCredits;
@@ -25,11 +25,32 @@ export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): Re
   const percentage = Math.min((balance / effectiveMax) * 100, 100);
   const isLow = percentage < 20;
 
-  if (loading) {
+  if (status === 'loading') {
     return (
-      <div className={cn('rounded-lg border p-4 space-y-3', className)}>
-        <div className="h-4 w-24 animate-pulse rounded bg-surface-2" />
+      <div className={cn('rounded-lg border p-4 space-y-3 min-h-[150px]', className)}>
+        <div className="flex items-center justify-between">
+          <div className="h-5 w-24 animate-pulse rounded bg-surface-2" />
+          <div className="h-6 w-12 animate-pulse rounded bg-surface-2" />
+        </div>
         <div className="h-2 w-full animate-pulse rounded bg-surface-2" />
+        <div className="h-4 w-20 animate-pulse rounded bg-surface-2" />
+        <div className="h-9 w-full animate-pulse rounded bg-surface-2" />
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className={cn('rounded-lg border p-4 space-y-3 min-h-[150px]', className)}>
+        <div className="flex items-center gap-2 text-sm text-[var(--color-error)]">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{t('loadFailed')}</span>
+        </div>
+        <p className="text-xs text-[var(--color-text-muted)]">{t('loadFailedHint')}</p>
+        <Button size="sm" variant="outline" className="w-full" onClick={refetch}>
+          <RefreshCw className="h-3 w-3 me-1" />
+          {t('retry')}
+        </Button>
       </div>
     );
   }
