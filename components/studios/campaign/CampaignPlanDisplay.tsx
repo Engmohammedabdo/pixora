@@ -113,7 +113,7 @@ export function CampaignPlanDisplay({
               <div className="w-full h-32 bg-surface-2 flex items-center justify-center">
                 <Link
                   href={`/creator?prompt=${encodeURIComponent(post.scenario)}`}
-                  className="flex items-center gap-1 text-xs text-primary-500 hover:underline"
+                  className="flex items-center gap-1 text-xs text-[var(--color-link)] hover:underline"
                 >
                   <Image className="h-4 w-4" />
                   {t('generateImage')}

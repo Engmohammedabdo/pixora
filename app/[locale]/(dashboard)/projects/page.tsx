@@ -271,7 +271,7 @@ export default function ProjectsPage(): React.ReactElement {
                 </select>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {brandKits.length === 0 ? (
-                    <Link href="/brand-kit" className="text-primary-500 hover:underline">{tProjects('createBrandKitFirst')}</Link>
+                    <Link href="/brand-kit" className="text-[var(--color-link)] hover:underline">{tProjects('createBrandKitFirst')}</Link>
                   ) : tProjects('brandKitHint')}
                 </p>
               </div>

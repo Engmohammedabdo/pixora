@@ -120,7 +120,7 @@ export default function SignupPage(): React.ReactElement {
           </CardDescription>
         </CardHeader>
         <CardFooter className="justify-center">
-          <Link href="/login" className="text-sm text-primary-500 hover:underline">
+          <Link href="/login" className="text-sm text-[var(--color-link)] hover:underline">
             {t('backToLogin')}
           </Link>
         </CardFooter>
@@ -213,7 +213,7 @@ export default function SignupPage(): React.ReactElement {
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">
           {t('hasAccount')}{' '}
-          <Link href="/login" className="text-primary-500 hover:underline">
+          <Link href="/login" className="text-[var(--color-link)] hover:underline">
             {t('login')}
           </Link>
         </p>

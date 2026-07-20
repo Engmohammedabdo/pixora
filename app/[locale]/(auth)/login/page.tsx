@@ -112,7 +112,7 @@ export default function LoginPage(): React.ReactElement {
               className="rtl:placeholder-shown:text-right"
             />
             <div className="text-end">
-              <Link href="/forgot-password" className="text-xs text-primary-500 hover:underline">
+              <Link href="/forgot-password" className="text-xs text-[var(--color-link)] hover:underline">
                 {t('forgotPassword')}
               </Link>
             </div>
@@ -187,7 +187,7 @@ export default function LoginPage(): React.ReactElement {
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">
           {t('noAccount')}{' '}
-          <Link href="/signup" className="text-primary-500 hover:underline">
+          <Link href="/signup" className="text-[var(--color-link)] hover:underline">
             {t('signup')}
           </Link>
         </p>

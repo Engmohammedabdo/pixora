@@ -28,9 +28,19 @@
     --color-text-secondary: #475569;
     --color-text-muted: #5E6B7D;
 
-    --color-success: #10B981;
-    --color-warning: #F59E0B;
-    --color-error: #EF4444;
+    /* Status text tiers are solved against surface-2 (the binding background)
+       in each theme — same method as the text tiers above. This governs TEXT
+       only: form-error copy, success/warning labels, etc. Saturated fills,
+       badges and icons using these tokens as a background or stroke colour
+       are unaffected by the 4.5:1 rule and are not what these values are for. */
+    --color-success: #047857;
+    --color-warning: #B45309;
+    --color-error: #B91C1C;
+
+    /* Theme-aware link colour: text-primary-500 measured 4.47 on white and
+       4.08 on surface-2 as TEXT — under the 4.5:1 AA floor. This token is for
+       text a user reads or clicks as a link; icon/fill uses keep primary-500. */
+    --color-link: #4F46E5;
   }
 
   .dark {
@@ -50,6 +60,16 @@
     --color-text-primary: #F8FAFC;
     --color-text-secondary: #CBD5E1;
     --color-text-muted: #A0AEC2;
+
+    /* Same text tiers, dark values — solved against dark surface-2 (#334155),
+       the binding background here too. Measured worst case (this file's
+       report has the full table): error 2.75 unfixed -> passes fixed;
+       success/warning were light-only before this override existed at all. */
+    --color-success: #34D399;
+    --color-warning: #FBBF24;
+    --color-error: #FCA5A5;
+
+    --color-link: #A5B4FC;
   }
 
   [lang='ar'] {

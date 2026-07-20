@@ -224,7 +224,7 @@ export function Sidebar(): React.ReactElement {
             <Progress value={creditsLoading ? 0 : Math.min((balance / planCredits) * 100, 100)} className="h-2" />
             <Link
               href="/billing"
-              className="block text-center text-xs text-primary-500 hover:underline"
+              className="block text-center text-xs text-[var(--color-link)] hover:underline"
             >
               {tCredits('add')}
             </Link>

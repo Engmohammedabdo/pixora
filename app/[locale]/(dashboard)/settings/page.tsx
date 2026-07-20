@@ -194,8 +194,8 @@ export default function SettingsPage(): React.ReactElement {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Link href="/privacy" className="block text-sm text-primary-500 hover:underline">{t('privacyPolicy')}</Link>
-          <Link href="/terms" className="block text-sm text-primary-500 hover:underline">{t('termsOfUse')}</Link>
+          <Link href="/privacy" className="block text-sm text-[var(--color-link)] hover:underline">{t('privacyPolicy')}</Link>
+          <Link href="/terms" className="block text-sm text-[var(--color-link)] hover:underline">{t('termsOfUse')}</Link>
         </CardContent>
       </Card>
 

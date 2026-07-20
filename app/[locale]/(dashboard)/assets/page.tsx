@@ -149,7 +149,7 @@ export default function AssetsPage(): React.ReactElement {
         {assets.length > 0 && (
           <button
             onClick={handleSelectAll}
-            className="ms-auto text-xs text-primary-500 hover:underline"
+            className="ms-auto text-xs text-[var(--color-link)] hover:underline"
           >
             {t('selectAll')}
           </button>

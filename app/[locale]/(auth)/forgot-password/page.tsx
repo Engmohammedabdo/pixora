@@ -82,7 +82,7 @@ export default function ForgotPasswordPage(): React.ReactElement {
             </Button>
 
             <div className="text-center">
-              <Link href="/login" className="text-sm text-primary-500 hover:underline">
+              <Link href="/login" className="text-sm text-[var(--color-link)] hover:underline">
                 {t('login')}
               </Link>
             </div>
