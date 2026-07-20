@@ -52,7 +52,7 @@ export function AssetProjectFilter({ value, onChange }: Props): React.ReactEleme
         id="asset-project-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-base sm:text-sm text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       >
         <option value="all">{t('allProjects')}</option>
         <option value="unassigned">{t('unassigned')}</option>

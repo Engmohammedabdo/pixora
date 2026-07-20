@@ -85,7 +85,7 @@ export function CommandPalette(): React.ReactElement {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="p-0 max-w-lg overflow-hidden">
+      <DialogContent className="p-0 sm:p-0 max-w-lg overflow-hidden">
         <Command className="rounded-lg" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
           <Command.Input
             placeholder={t('placeholder')}

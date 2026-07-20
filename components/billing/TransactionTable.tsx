@@ -22,16 +22,11 @@ const typeColors: Record<string, 'default' | 'secondary' | 'success' | 'destruct
   reset: 'destructive',
 };
 
-const typeKeys: Record<string, string> = {
-  subscription: 'typeSubscription',
-  topup: 'typeTopup',
-  usage: 'typeUsage',
-  refund: 'typeRefund',
-  reset: 'typeReset',
-};
-
 export function TransactionTable(): React.ReactElement {
   const t = useTranslations('billing');
+  // credits.txType covers all 8 tx types (typeKeys above only covered 5, so
+  // referral/admin_adjustment/onboarding rendered as raw English snake_case).
+  const tCredits = useTranslations('credits');
   const format = useFormatter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +69,7 @@ export function TransactionTable(): React.ReactElement {
               </td>
               <td className="py-2 px-3">
                 <Badge variant={typeColors[tx.type] || 'secondary'} className="text-[10px]">
-                  {typeKeys[tx.type] ? t(typeKeys[tx.type]) : tx.type}
+                  {tCredits(`txType.${tx.type}`)}
                 </Badge>
               </td>
               <td className="py-2 px-3 text-xs max-w-[200px] truncate">{tx.description || '-'}</td>

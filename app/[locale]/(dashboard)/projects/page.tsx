@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ interface Project {
 export default function ProjectsPage(): React.ReactElement {
   const t = useTranslations();
   const tProjects = useTranslations('projects');
-  const locale = useLocale();
+  const format = useFormatter();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [limit, setLimit] = useState<number | null>(null);
@@ -234,7 +234,7 @@ export default function ProjectsPage(): React.ReactElement {
                 )}
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  {new Date(project.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-AE' : 'en-AE')}
+                  {format.dateTime(new Date(project.createdAt))}
                 </span>
               </CardContent>
             </Card>

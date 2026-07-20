@@ -246,9 +246,13 @@ export function Sidebar(): React.ReactElement {
       )}
 
       {/* Mobile drawer */}
+      {/* No focus trap, initial focus, or focus return is implemented here, so
+          this must not claim to be a modal dialog (aria-modal + role="dialog"
+          would tell AT users it traps focus when it does not — a keyboard user
+          could tab straight past it into the dimmed page behind). `inert` when
+          closed, the Escape handler and the scroll lock still apply. */}
       <aside
-        role="dialog"
-        aria-modal="true"
+        role="navigation"
         aria-label={t('a11y.mainNav')}
         inert={!sidebarOpen || undefined}
         className={cn(

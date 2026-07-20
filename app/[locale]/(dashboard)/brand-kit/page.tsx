@@ -159,7 +159,7 @@ export default function BrandKitPage(): React.ReactElement {
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('create')}</DialogTitle>
           </DialogHeader>
@@ -169,7 +169,7 @@ export default function BrandKitPage(): React.ReactElement {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingKit} onOpenChange={() => setEditingKit(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingKit?.name}</DialogTitle>
           </DialogHeader>

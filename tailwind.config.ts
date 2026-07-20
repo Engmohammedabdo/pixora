@@ -53,6 +53,15 @@ const config: Config = {
       // opened from inside a Dialog must paint over it. (Before this scale
       // existed both were z-50 and the later-mounted one won by tie-break,
       // which happened to work; an explicit tier makes it deliberate.)
+      //
+      // No `toast` tier: sonner's <Toaster> injects its own stylesheet with
+      // the toaster container hardcoded to z-index:999999999 — not a CSS
+      // variable, so it cannot be pointed at this scale. The `--z-index` CSS
+      // var sonner does expose is set per-toast internally for stacking one
+      // toast above another, not for the toaster's position on the page, so
+      // passing a value through it would not touch the hardcoded 999999999
+      // either. Keeping a documented `toast` tier here that reality ignores
+      // is worse than having none.
       zIndex: {
         header: '30',
         nav: '35',
@@ -60,7 +69,6 @@ const config: Config = {
         drawer: '50',
         modal: '60',
         popover: '65',
-        toast: '70',
       },
     },
   },

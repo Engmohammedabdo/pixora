@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -30,8 +30,8 @@ const AssetCardInner = function AssetCard({
   onDelete,
 }: AssetCardProps): React.ReactElement {
   const t = useTranslations('assets');
-  const locale = useLocale();
-  const date = new Date(createdAt).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', {
+  const format = useFormatter();
+  const date = format.dateTime(new Date(createdAt), {
     month: 'short',
     day: 'numeric',
   });

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations, useLocale, useFormatter } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useCreditsStore } from '@/store/credits';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 export default function BillingPage(): React.ReactElement {
   const t = useTranslations('billing');
   const locale = useLocale();
+  const format = useFormatter();
   const { profile } = useUser();
   const { balance } = useCreditsStore();
   const searchParams = useSearchParams();
@@ -136,7 +137,7 @@ export default function BillingPage(): React.ReactElement {
               <Progress value={creditPercentage} className="h-2.5" />
               {profile?.credits_reset_date && (
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  {t('renewsAt')} {new Date(profile.credits_reset_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { month: 'long', day: 'numeric' })}
+                  {t('renewsAt')} {format.dateTime(new Date(profile.credits_reset_date), { month: 'long', day: 'numeric' })}
                 </p>
               )}
             </div>

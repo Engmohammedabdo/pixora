@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,7 +24,7 @@ interface PromptHistoryProps {
 
 export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.ReactElement {
   const t = useTranslations('shared.promptHistory');
-  const locale = useLocale();
+  const format = useFormatter();
   const [open, setOpen] = useState(false);
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
@@ -62,7 +62,7 @@ export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.R
         <History className="h-3 w-3" /> {t('button')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{t('title')}</DialogTitle></DialogHeader>
           <div className="flex gap-2 mb-3">
             <FilterChip selected={filter === 'all'} onClick={() => setFilter('all')}>
@@ -83,7 +83,7 @@ export function PromptHistory({ onSelect, studio }: PromptHistoryProps): React.R
                     <div className="flex items-center gap-1">
                       {p.studio && <Badge variant="secondary" className="text-[9px]">{p.studio}</Badge>}
                       <span className="text-[10px] text-[var(--color-text-muted)]">
-                        {new Date(p.created_at).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US')}
+                        {format.dateTime(new Date(p.created_at))}
                       </span>
                     </div>
                     <div className="flex gap-1">
