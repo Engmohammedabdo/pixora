@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import { Progress } from '@/components/ui/progress';
@@ -6,13 +7,14 @@ import { Check, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
-  { key: 'profile', labelAr: 'إنشاء حساب', check: () => true },
-  { key: 'brandKit', labelAr: 'إضافة هوية بصرية', check: (ctx: { brandKits: number }) => ctx.brandKits > 0 },
-  { key: 'generation', labelAr: 'أول إنشاء', check: (ctx: { onboardingStep: number }) => ctx.onboardingStep >= 3 },
-  { key: 'billing', labelAr: 'اختيار خطة', check: (ctx: { planId: string }) => ctx.planId !== 'free' },
+  { key: 'profile', labelKey: 'stepProfile', check: () => true },
+  { key: 'brandKit', labelKey: 'stepBrandKit', check: (ctx: { brandKits: number }) => ctx.brandKits > 0 },
+  { key: 'generation', labelKey: 'stepGeneration', check: (ctx: { onboardingStep: number }) => ctx.onboardingStep >= 3 },
+  { key: 'billing', labelKey: 'stepBilling', check: (ctx: { planId: string }) => ctx.planId !== 'free' },
 ];
 
 export function ProfileCompletion(): React.ReactElement | null {
+  const t = useTranslations('widgets');
   const { profile } = useUser();
   const { brandKits } = useBrandKits();
 
@@ -27,7 +29,7 @@ export function ProfileCompletion(): React.ReactElement | null {
   return (
     <div className="rounded-xl border bg-[var(--color-surface)] p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">أكمل ملفك الشخصي</h3>
+        <h3 className="text-sm font-semibold">{t('completeProfile')}</h3>
         <span className="text-xs text-[var(--color-text-muted)]">{completed}/{STEPS.length}</span>
       </div>
       <Progress value={percentage} className="h-2" />
@@ -36,8 +38,8 @@ export function ProfileCompletion(): React.ReactElement | null {
           const done = step.check(ctx as never);
           return (
             <div key={step.key} className={cn('flex items-center gap-2 text-xs', done ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]')}>
-              {done ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-              {step.labelAr}
+              {done ? <Check className="h-3 w-3 shrink-0" /> : <Circle className="h-3 w-3 shrink-0" />}
+              {t(step.labelKey)}
             </div>
           );
         })}

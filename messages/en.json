@@ -859,5 +859,14 @@
     "creditsEarned": "Credits earned",
     "creditsPerInvite": "Credits per invite",
     "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}"
+  },
+  "widgets": {
+    "completeProfile": "Complete your profile",
+    "stepProfile": "Create account",
+    "stepBrandKit": "Add a brand kit",
+    "stepGeneration": "First creation",
+    "stepBilling": "Choose a plan",
+    "studioUsage": "Studio usage",
+    "usageEmpty": "Create something to see your stats here"
   }
 }

@@ -859,5 +859,14 @@
     "creditsEarned": "كريدت مكتسب",
     "creditsPerInvite": "كريدت لكل دعوة",
     "shareMessage": "جرّب PyraSuite — منصة عربية تحوّل فكرتك لحملة تسويقية كاملة.\nسجّل من رابطي وكلانا ياخد {credits} كريدت مجاني:\n{link}"
+  },
+  "widgets": {
+    "completeProfile": "أكمل ملفك الشخصي",
+    "stepProfile": "إنشاء حساب",
+    "stepBrandKit": "إضافة هوية بصرية",
+    "stepGeneration": "أول إنشاء",
+    "stepBilling": "اختيار خطة",
+    "studioUsage": "استخدام الاستوديوهات",
+    "usageEmpty": "ابدأ بإنشاء محتوى لتظهر الإحصائيات"
   }
 }
