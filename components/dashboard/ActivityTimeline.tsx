@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { useTranslations, useFormatter } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import {
-  Image, Camera, LayoutGrid, BarChart3, Clock, Map, Film, Mic, Pencil, Lightbulb,
+  Image as ImageIcon, Camera, LayoutGrid, BarChart3, Clock, Map, Film, Mic, Pencil, Lightbulb,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // All 9 studios. The previous map had 4, but it was keyed on a field that was
 // always undefined, so every row fell back to Clock regardless.
 const STUDIO_ICONS: Record<string, LucideIcon> = {
-  creator: Image,
+  creator: ImageIcon,
   photoshoot: Camera,
   campaign: LayoutGrid,
   plan: Map,
@@ -30,9 +30,18 @@ const STUDIO_NAV_KEY: Record<string, string> = {
   voiceover: 'voiceover', edit: 'edit', 'prompt-builder': 'promptBuilder',
 };
 
+// Enums stored raw in generations.input. Only values in these lists have a
+// translation key (edit.editTypes.* / voiceover.dialects.*) — anything else
+// (schema drift, a future value) falls back to no detail line rather than
+// printing the raw enum.
+const KNOWN_EDIT_TYPES: string[] = ['background_replace', 'object_remove', 'color_change', 'text_add', 'style_transfer'];
+const KNOWN_DIALECTS: string[] = ['formal', 'saudi', 'emirati', 'egyptian', 'gulf'];
+
 type TxType =
   | 'usage' | 'subscription' | 'topup' | 'refund'
   | 'reset' | 'referral' | 'admin_adjustment' | 'onboarding';
+
+type GenerationInput = Record<string, unknown>;
 
 interface Activity {
   id: string;
@@ -40,8 +49,56 @@ interface Activity {
   amount: number | null;
   created_at: string;
   // Supabase returns an embedded object for a to-one relation; it is null when
-  // generation_id is null.
-  generations: { studio: string } | null;
+  // generation_id is null. `input` is JSONB and always an object when present
+  // (never null per the generations table schema), but we still guard below.
+  generations: { studio: string; input: GenerationInput | null } | null;
+}
+
+/**
+ * A short, de-emphasized second line per activity row — e.g. resolution for
+ * an image, edit type for an edit, dialect for a voiceover. Returns null
+ * (render nothing) whenever the expected field is missing or of an
+ * unrecognized shape, rather than throwing or printing `undefined`/raw enums.
+ */
+function getActivityDetail(
+  t: ReturnType<typeof useTranslations>,
+  studio: string | undefined,
+  input: GenerationInput | null | undefined
+): string | null {
+  if (!studio || !input) return null;
+
+  switch (studio) {
+    case 'creator': {
+      const resolution = input.resolution;
+      if (typeof resolution !== 'string' || !resolution) return null;
+      return `${t('credits.resolutionLabel')}: ${resolution}`;
+    }
+    case 'edit': {
+      const editType = input.editType;
+      if (typeof editType !== 'string' || !KNOWN_EDIT_TYPES.includes(editType)) return null;
+      return t(`edit.editTypes.${editType}`);
+    }
+    case 'photoshoot': {
+      const shots = input.shots;
+      if (typeof shots !== 'number') return null;
+      return t('dashboard.activityShots', { count: shots });
+    }
+    case 'voiceover': {
+      const dialect = input.dialect;
+      if (typeof dialect !== 'string' || !KNOWN_DIALECTS.includes(dialect)) return null;
+      return t(`voiceover.dialects.${dialect}`);
+    }
+    case 'plan':
+    case 'analysis': {
+      const businessName = input.businessName;
+      if (typeof businessName !== 'string' || !businessName.trim()) return null;
+      return businessName;
+    }
+    // storyboard's only distinguishing field is `concept`, which is long
+    // free text unsuited to a compact detail line — intentionally skipped.
+    default:
+      return null;
+  }
 }
 
 export function ActivityTimeline(): React.ReactElement {
@@ -87,6 +144,7 @@ export function ActivityTimeline(): React.ReactElement {
         // renewals, referral bonuses) names its transaction type.
         const navKey = studio ? STUDIO_NAV_KEY[studio] : undefined;
         const label = navKey ? t(`nav.${navKey}`) : t(`credits.txType.${a.type}`);
+        const detail = getActivityDetail(t, studio, a.generations?.input);
         return (
           <div
             key={a.id}
@@ -97,6 +155,9 @@ export function ActivityTimeline(): React.ReactElement {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs truncate">{label}</p>
+              {detail && (
+                <p className="text-[10px] text-[var(--color-text-secondary)] truncate">{detail}</p>
+              )}
               <p className="text-[10px] text-[var(--color-text-muted)]">
                 {format.dateTime(new Date(a.created_at), {
                   month: 'short',

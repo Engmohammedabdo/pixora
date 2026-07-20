@@ -21,7 +21,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // generation this transaction paid for. Rows with no generation
       // (subscription, topup, reset, referral, admin_adjustment) join to null
       // and fall back to a transaction-type label in the UI.
-      .select('*, generations(studio)', { count: 'exact' })
+      .select('*, generations(studio, input)', { count: 'exact' })
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
