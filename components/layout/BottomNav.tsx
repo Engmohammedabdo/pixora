@@ -24,7 +24,9 @@ export function BottomNav(): React.ReactElement {
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
-            <Link key={item.href} href={item.href} className={cn('flex flex-col items-center gap-0.5 px-3 py-1', isActive ? 'text-primary-500' : 'text-[var(--color-text-muted)]')}>
+            // The active colour must be theme-aware: primary-500 is a fixed hex
+            // and measured 3.27 on the dark surface behind this 10px label.
+            <Link key={item.href} href={item.href} className={cn('flex flex-col items-center gap-0.5 px-3 py-1', isActive ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-muted)]')}>
               <item.icon className="h-5 w-5" />
               <span className="text-[10px]">{t(item.labelKey)}</span>
             </Link>
