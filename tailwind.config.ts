@@ -44,12 +44,19 @@ const config: Config = {
         tajawal: ['Tajawal', 'sans-serif'],
         inter: ['Inter', 'sans-serif'],
       },
+      // Radix portals dialogs, dropdowns and tooltips to document.body, so
+      // their painting order is decided purely by z-index, not by nesting.
+      // `popover` sits ABOVE `modal` on purpose: a DropdownMenu or Select
+      // opened from inside a Dialog must paint over it. (Before this scale
+      // existed both were z-50 and the later-mounted one won by tie-break,
+      // which happened to work; an explicit tier makes it deliberate.)
       zIndex: {
         header: '30',
         nav: '35',
         scrim: '40',
         drawer: '50',
         modal: '60',
+        popover: '65',
         toast: '70',
       },
     },

@@ -42,7 +42,7 @@ export function NavBar(): React.ReactElement {
       variants={fadeIn}
       initial="hidden"
       animate="visible"
-      className={`sticky top-0 z-50 bg-[var(--color-surface)]/70 backdrop-blur-xl transition-[border-color] duration-300 ${
+      className={`sticky top-0 z-header bg-[var(--color-surface)]/70 backdrop-blur-xl transition-[border-color] duration-300 ${
         scrolled ? 'border-b border-[var(--color-surface-2)]' : 'border-b border-transparent'
       }`}
     >

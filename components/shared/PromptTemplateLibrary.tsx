@@ -42,7 +42,10 @@ export function PromptTemplateLibrary({
         <BookOpen className="h-3 w-3" /> القوالب
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        {/* Height and scrolling now come from DialogContent's base, which uses
+            dvh — vh is wrong on mobile, where browser chrome shrinks the
+            visual viewport and an 80vh box can still overflow the screen. */}
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>مكتبة القوالب</DialogTitle>
           </DialogHeader>
