@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname } from '@/i18n/routing';
 import { Link } from '@/i18n/routing';
@@ -77,6 +78,22 @@ export function Sidebar(): React.ReactElement {
   const { balance, loading: creditsLoading } = useCreditsStore();
   const { profile } = useUser();
   const planCredits = getPlan(profile?.plan_id || 'free').credits;
+
+  // The closed drawer is only translated off-screen, so without `inert` its
+  // ~18 links stay in the tab order on mobile. Escape and the scroll lock are
+  // what make it behave like the modal it already looks like.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('overflow-hidden');
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [sidebarOpen, setSidebarOpen]);
 
   const renderNavItem = (item: NavItem): React.ReactElement => {
     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -217,13 +234,18 @@ export function Sidebar(): React.ReactElement {
         <div
           className="fixed inset-0 z-scrim bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Mobile drawer */}
       <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('a11y.mainNav')}
+        inert={!sidebarOpen || undefined}
         className={cn(
-          'fixed inset-y-0 start-0 z-drawer w-64 bg-surface border-e transition-transform duration-300 lg:hidden',
+          'fixed inset-y-0 start-0 z-drawer w-64 max-w-[85vw] bg-surface border-e transition-transform duration-300 lg:hidden',
           sidebarOpen ? 'translate-x-0 rtl:-translate-x-0' : '-translate-x-full rtl:translate-x-full'
         )}
       >

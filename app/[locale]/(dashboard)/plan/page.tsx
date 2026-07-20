@@ -95,7 +95,7 @@ export default function PlanPage(): React.ReactElement {
           </button>
         ))}</div>
       </div>
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.plan} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
       </div>

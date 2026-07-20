@@ -218,7 +218,7 @@ export default function VoiceOverPage(): React.ReactElement {
       </div>
 
       {/* Submit */}
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={creditCost} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2">
           <Sparkles className="h-4 w-4" />

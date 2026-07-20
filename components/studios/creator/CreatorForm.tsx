@@ -233,7 +233,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       )}
 
       {/* Submit */}
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={creditCost} />
         <div className="flex items-center gap-2">
           <Button

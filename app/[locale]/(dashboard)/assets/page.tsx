@@ -111,11 +111,11 @@ export default function AssetsPage(): React.ReactElement {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold font-cairo">{t('title')}</h1>
 
         {selectedIds.size > 0 && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={handleDownloadSelected} className="gap-1">
               <Download className="h-3 w-3" />
               {t('downloadSelected')} ({selectedIds.size})

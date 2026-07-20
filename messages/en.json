@@ -85,7 +85,8 @@
       "toggleTheme": "Toggle theme",
       "switchLanguage": "Switch language",
       "closeSidebar": "Close sidebar",
-      "toggleSidebar": "Collapse sidebar"
+      "toggleSidebar": "Collapse sidebar",
+      "mainNav": "Main navigation"
     }
   },
   "credits": {

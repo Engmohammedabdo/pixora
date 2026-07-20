@@ -89,7 +89,7 @@ export default function AnalysisPage(): React.ReactElement {
       <div className="space-y-2"><Label htmlFor="analysis-competitor-1">{tAn('competitors')}</Label>{competitors.map((c, i) => (<Input key={i} id={`analysis-competitor-${i + 1}`} value={c} onChange={(e) => { const n = [...competitors]; n[i] = e.target.value; setCompetitors(n); }} onKeyDown={handleSubmitKeyDown} placeholder={tAn('competitorPlaceholder', { number: i + 1 })} className="mb-1" />))}</div>
       <div className="space-y-2"><Label htmlFor="analysis-target-market">{tAn('targetMarket')}</Label><Input id="analysis-target-market" value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tAn('targetMarketPlaceholder')} /></div>
       <div className="space-y-2"><Label htmlFor="analysis-pain-points">{tAn('painPoints')}</Label><Input id="analysis-pain-points" value={painPoints} onChange={(e) => setPainPoints(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tAn('painPointsPlaceholder')} /></div>
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.analysis} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
       </div>

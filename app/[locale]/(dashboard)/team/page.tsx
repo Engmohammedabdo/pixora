@@ -60,7 +60,7 @@ export default function TeamPage(): React.ReactElement {
 
   return (
     <div className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold font-cairo">{t('nav.team')}</h1>
           <p className="text-sm text-[var(--color-text-secondary)]">{tTeam('subtitle')}</p>

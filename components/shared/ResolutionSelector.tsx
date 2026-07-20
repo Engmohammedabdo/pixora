@@ -24,7 +24,7 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
   return (
     <div className={cn('space-y-2', className)}>
       <label className="text-sm font-medium">{t('resolutionLabel')}</label>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {resolutions.map((res) => (
           <button
             key={res.id}
@@ -32,15 +32,15 @@ export function ResolutionSelector({ value, onChange, className }: ResolutionSel
             onClick={() => onChange(res.id)}
             aria-pressed={value === res.id}
             className={cn(
-              'flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+              'flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
               value === res.id
                 ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
                 : 'border-[var(--color-border)] hover:border-primary-300 hover:bg-surface-2'
             )}
           >
             <span className="font-medium">{res.label}</span>
-            <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)]">
-              <Coins className="h-3 w-3" />
+            <span className="flex items-center gap-0.5 text-[11px] text-[var(--color-text-muted)]">
+              <Coins className="h-3 w-3 shrink-0" />
               {CREDIT_COSTS.image[res.id]} {t('cost')}
             </span>
           </button>

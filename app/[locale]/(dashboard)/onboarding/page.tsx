@@ -155,7 +155,7 @@ export default function OnboardingPage(): React.ReactElement {
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between gap-2 mt-10">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-10">
             <Button
               variant="ghost"
               size="sm"

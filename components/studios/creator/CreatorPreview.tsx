@@ -139,7 +139,7 @@ export function CreatorPreview({
       )}
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button onClick={handleDownloadAll} className="gap-2">
           <Download className="h-4 w-4" />
           {imageUrls.length > 1 ? t('downloadAll') : t('download')}

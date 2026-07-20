@@ -94,7 +94,7 @@ function EditPageContent(): React.ReactElement {
         ))}</div>
       </div>
       <div className="space-y-2"><Label htmlFor="edit-description">{tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit('editDescriptionPlaceholder')} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
       </div>
@@ -109,7 +109,7 @@ function EditPageContent(): React.ReactElement {
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><span className="text-5xl">✏️</span><p className="text-sm mt-4">{tEdit('emptyState')}</p></div>
   ) : (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && <Image src={originalImage} alt="Original" width={1024} height={1024} className="w-full rounded-lg border" unoptimized />}</div>
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? <Image src={resultImage} alt="Edited" width={1024} height={1024} className="w-full rounded-lg border" unoptimized /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
       </div>

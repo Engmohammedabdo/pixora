@@ -86,7 +86,7 @@ export default function StoryboardPage(): React.ReactElement {
         <Label>{tSb('platform')}</Label>
         <div className="grid grid-cols-2 gap-2">{PLATFORMS.map((p) => (<button key={p} type="button" onClick={() => setPlatform(p)} aria-pressed={platform === p} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', platform === p ? selectedChipClasses : unselectedChipClasses)}>{platformLabels[p]}</button>))}</div>
       </div>
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.storyboard} />
         <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
       </div>
@@ -94,7 +94,7 @@ export default function StoryboardPage(): React.ReactElement {
   );
 
   const previewPanel = isLoading ? (
-    <div className="grid grid-cols-3 gap-3 py-6">{Array.from({ length: 9 }).map((_, i) => (<Skeleton key={i} className="h-40 rounded-lg" />))}</div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-6">{Array.from({ length: 9 }).map((_, i) => (<Skeleton key={i} className="h-40 rounded-lg" />))}</div>
   ) : error ? (
     <div className="flex flex-col items-center py-12 gap-4"><AlertTriangle className="h-12 w-12 text-[var(--color-error)]" /><p className="text-sm text-[var(--color-error)]">{error}</p></div>
   ) : scenes.length === 0 ? (

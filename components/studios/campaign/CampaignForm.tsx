@@ -178,7 +178,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       </label>
 
       {/* Submit */}
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.campaign} />
         <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
           <Sparkles className="h-4 w-4" />
