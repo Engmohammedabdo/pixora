@@ -105,7 +105,7 @@ export default function PromptEditor({
                 value={editValue}
                 onChange={(e) => { setEditValue(e.target.value); setEditing(true); }}
                 rows={8}
-                className="w-full rounded-lg border border-slate-200 p-3 text-xs font-mono text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-slate-200 p-3 text-base sm:text-xs font-mono text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 placeholder="Enter custom prompt override..."
               />
               <div className="mt-2 flex gap-2">

@@ -103,7 +103,7 @@ export default function CreditAdjustModal({
               type="number"
               value={amount || ''}
               onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               placeholder="Enter amount (positive to add, negative to subtract)"
             />
           </div>
@@ -143,7 +143,7 @@ export default function CreditAdjustModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               placeholder="Reason for adjustment..."
               required
             />

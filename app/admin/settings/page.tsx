@@ -184,7 +184,7 @@ export default function AdminSettingsPage() {
               max={100}
               value={rateLimits.requests_per_minute}
               onChange={(e) => setRateLimits({ ...rateLimits, requests_per_minute: parseInt(e.target.value) || 10 })}
-              className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-right text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-right text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
           </div>
 
@@ -202,7 +202,7 @@ export default function AdminSettingsPage() {
                       ...rateLimits,
                       daily_generations: { ...rateLimits.daily_generations, [plan]: parseInt(e.target.value) || 0 },
                     })}
-                    className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-right text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-right text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               ))}
@@ -224,7 +224,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={appConfig.watermark_text}
                 onChange={(e) => setAppConfig({ ...appConfig, watermark_text: e.target.value })}
-                className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
             </div>
 
@@ -236,7 +236,7 @@ export default function AdminSettingsPage() {
               <select
                 value={appConfig.default_locale}
                 onChange={(e) => setAppConfig({ ...appConfig, default_locale: e.target.value })}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="ar">Arabic (ar)</option>
                 <option value="en">English (en)</option>

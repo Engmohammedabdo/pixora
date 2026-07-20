@@ -469,7 +469,7 @@ export default function AdminUserDetailPage() {
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
                   rows={2}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-base sm:text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   placeholder="Reason for banning this user..."
                   required
                 />
