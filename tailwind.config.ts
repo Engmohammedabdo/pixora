@@ -43,9 +43,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        cairo: ['Cairo', 'sans-serif'],
-        tajawal: ['Tajawal', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
+        cairo: ['var(--font-cairo)', 'sans-serif'],
+        tajawal: ['var(--font-tajawal)', 'sans-serif'],
+        inter: ['var(--font-inter)', 'sans-serif'],
       },
       // Radix portals dialogs, dropdowns and tooltips to document.body, so
       // their painting order is decided purely by z-index, not by nesting.

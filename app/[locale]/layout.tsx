@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Cairo, Tajawal, Inter } from 'next/font/google';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { notFound } from 'next/navigation';
 import { DirectionProvider } from '@radix-ui/react-direction';
@@ -7,6 +8,32 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import '../globals.css';
+
+// Self-hosted via next/font — fetched and served from our own origin at
+// build time, so there is no runtime request to the Google Fonts CDN, and
+// next/font auto-generates a size-adjusted fallback so there is no layout
+// shift when the real face swaps in. Weights match the previous @import
+// exactly so no typography regresses.
+const cairo = Cairo({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-cairo',
+});
+
+const tajawal = Tajawal({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '700'],
+  display: 'swap',
+  variable: '--font-tajawal',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export async function generateMetadata({
   params,
@@ -75,7 +102,12 @@ export default async function RootLayout({
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (
-    <html lang={locale} dir={dir} suppressHydrationWarning>
+    <html
+      lang={locale}
+      dir={dir}
+      suppressHydrationWarning
+      className={`${cairo.variable} ${tajawal.variable} ${inter.variable}`}
+    >
       <body className="min-h-screen antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <DirectionProvider dir={dir}>
