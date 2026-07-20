@@ -118,7 +118,11 @@
     "loadFailed": "Couldn't load your balance",
     "loadFailedHint": "Your credits are safe — this is a display problem only.",
     "retry": "Try again",
-    "unavailable": "Unavailable"
+    "unavailable": "Unavailable",
+    "free": "Free",
+    "youHave": "You have {balance}",
+    "notEnough": "Not enough",
+    "topUpShort": "Top up"
   },
   "brandKit": {
     "title": "Brand Kit",

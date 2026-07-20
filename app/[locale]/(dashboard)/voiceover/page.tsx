@@ -9,8 +9,10 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
+import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 'lucide-react';
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
 import { mapApiError } from '@/lib/studio-errors';
@@ -64,6 +66,8 @@ export default function VoiceOverPage(): React.ReactElement {
   const estimatedDuration = estimateVoiceoverDuration(script.length, parseFloat(speed));
   const creditCost = calculateVoiceoverCost(script.length, parseFloat(speed), planId);
   const isValid = script.length >= 1 && estimatedDuration <= config.maxDurationSeconds;
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && creditCost > balance;
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -220,10 +224,17 @@ export default function VoiceOverPage(): React.ReactElement {
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={creditCost} />
-        <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          {isLoading ? t('studio.generating') : t('studio.generate')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (
+            <Button asChild variant="default" size="sm">
+              <Link href="/billing">{t('credits.topUpShort')}</Link>
+            </Button>
+          )}
+          <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            {isLoading ? t('studio.generating') : t('studio.generate')}
+          </Button>
+        </div>
       </div>
     </div>
   );

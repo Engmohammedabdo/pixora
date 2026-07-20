@@ -8,9 +8,11 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { Link } from '@/i18n/routing';
 import { Upload, X, Camera, Sparkles } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { useCredits } from '@/hooks/useCredits';
 
 interface PhotoshootFormProps {
   onSubmit: (input: {
@@ -53,6 +55,8 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
 
   const selectedShotOption = SHOT_OPTIONS.find((o) => o.count === shots)!;
   const isValid = !!productImage;
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
@@ -175,10 +179,17 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={selectedShotOption.credits} />
-        <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          {isLoading ? tStudio('generating') : tStudio('generate')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (
+            <Button asChild variant="default" size="sm">
+              <Link href="/billing">{tCredits('topUpShort')}</Link>
+            </Button>
+          )}
+          <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            {isLoading ? tStudio('generating') : tStudio('generate')}
+          </Button>
+        </div>
       </div>
     </form>
   );

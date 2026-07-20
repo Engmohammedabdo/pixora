@@ -10,9 +10,11 @@ import { useBrandKits } from '@/hooks/useBrandKit';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { Link } from '@/i18n/routing';
 import { Sparkles, Palette } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { useCredits } from '@/hooks/useCredits';
 
 interface CampaignFormProps {
   onSubmit: (input: {
@@ -36,6 +38,7 @@ const PLATFORMS = ['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook'] as 
 export function CampaignForm({ onSubmit, isLoading, initialDescription }: CampaignFormProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
+  const tCredits = useTranslations('credits');
 
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productDescription, setProductDescription] = useState(initialDescription ?? '');
@@ -52,6 +55,8 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
 
   const isValid = productDescription.length >= 10 && targetAudience.length >= 5;
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.campaign > balance;
 
   const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -180,10 +185,17 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.campaign} />
-        <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          {isLoading ? tStudio('generating') : t('generateCampaign')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (
+            <Button asChild variant="default" size="sm">
+              <Link href="/billing">{tCredits('topUpShort')}</Link>
+            </Button>
+          )}
+          <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            {isLoading ? tStudio('generating') : t('generateCampaign')}
+          </Button>
+        </div>
       </div>
     </form>
   );

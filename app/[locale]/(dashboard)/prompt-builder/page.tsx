@@ -13,6 +13,8 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Link } from '@/i18n/routing';
+import { useCredits } from '@/hooks/useCredits';
+import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { Sparkles, Copy, Check, ArrowRight, Lightbulb, AlertTriangle } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
@@ -35,6 +37,10 @@ export default function PromptBuilderPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  // prompt-builder is free (CREDIT_COSTS.prompt === 0), so this is always false —
+  // wired for consistency with the other 8 studios rather than because it can fire.
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.prompt > balance;
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (description.length < 5) return;
@@ -106,10 +112,17 @@ export default function PromptBuilderPage(): React.ReactElement {
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={0} />
-        <Button onClick={handleGenerate} disabled={description.length < 5 || isLoading} className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          {isLoading ? t('studio.generating') : tPb('build')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (
+            <Button asChild variant="default" size="sm">
+              <Link href="/billing">{t('credits.topUpShort')}</Link>
+            </Button>
+          )}
+          <Button onClick={handleGenerate} disabled={description.length < 5 || isLoading || cannotAfford} className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            {isLoading ? t('studio.generating') : tPb('build')}
+          </Button>
+        </div>
       </div>
     </div>
   );

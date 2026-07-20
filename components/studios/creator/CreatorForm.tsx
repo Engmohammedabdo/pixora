@@ -10,10 +10,12 @@ import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { useCredits } from '@/hooks/useCredits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { Link } from '@/i18n/routing';
 import { Upload, X, Sparkles, Palette, Shuffle } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
 
@@ -47,6 +49,7 @@ const STYLES = ['photographic', 'illustrative', 'minimalist', 'bold'] as const;
 export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormProps): React.ReactElement {
   const t = useTranslations('creator');
   const tStudio = useTranslations('studio');
+  const tCredits = useTranslations('credits');
 
   const [prompt, setPrompt] = useState(initialPrompt ?? '');
   const [model, setModel] = useState<AIModel>('gemini');
@@ -73,6 +76,8 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
 
   const creditCost = CREDIT_COSTS.image[resolution] * variations;
   const isValid = prompt.length >= 10;
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && creditCost > balance;
 
   const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -249,7 +254,12 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
           >
             <Shuffle className="h-4 w-4" />
           </Button>
-          <Button type="submit" disabled={!isValid || isLoading} className="gap-2">
+          {cannotAfford && (
+            <Button asChild variant="default" size="sm">
+              <Link href="/billing">{tCredits('topUpShort')}</Link>
+            </Button>
+          )}
+          <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? tStudio('generating') : tStudio('generate')}
           </Button>

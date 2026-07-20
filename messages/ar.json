@@ -118,7 +118,11 @@
     "loadFailed": "تعذّر تحميل رصيدك",
     "loadFailedHint": "رصيدك محفوظ — دي مشكلة في العرض بس.",
     "retry": "إعادة المحاولة",
-    "unavailable": "غير متاح"
+    "unavailable": "غير متاح",
+    "free": "مجاناً",
+    "youHave": "لديك {balance}",
+    "notEnough": "غير كافٍ",
+    "topUpShort": "اشحن رصيدك"
   },
   "brandKit": {
     "title": "الهوية البصرية",

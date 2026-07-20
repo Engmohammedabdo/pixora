@@ -11,10 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
+import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
@@ -49,6 +51,9 @@ export default function PlanPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('objectives');
   const setBalance = useCreditsStore((s) => s.setBalance);
+
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.plan > balance;
 
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
   const isValid = businessName.length >= 2 && goals.length > 0 && targetMarket.length >= 5;
@@ -97,7 +102,10 @@ export default function PlanPage(): React.ReactElement {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.plan} />
-        <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (<Button asChild variant="default" size="sm"><Link href="/billing">{t('credits.topUpShort')}</Link></Button>)}
+          <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
+        </div>
       </div>
     </div>
   );

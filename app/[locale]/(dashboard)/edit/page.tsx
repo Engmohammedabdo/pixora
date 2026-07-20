@@ -9,12 +9,14 @@ import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { GenerationProgress } from '@/components/shared/GenerationProgress';
 import { useCreditsStore } from '@/store/credits';
+import { useCredits } from '@/hooks/useCredits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
+import { Link } from '@/i18n/routing';
 import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
@@ -44,6 +46,8 @@ function EditPageContent(): React.ReactElement {
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = !!originalImage && editDescription.length >= 5;
+  const { balance, status: creditsStatus } = useCredits();
+  const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.edit > balance;
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -96,7 +100,10 @@ function EditPageContent(): React.ReactElement {
       <div className="space-y-2"><Label htmlFor="edit-description">{tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit('editDescriptionPlaceholder')} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
-        <Button onClick={handleGenerate} disabled={!isValid || isLoading} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
+        <div className="flex items-center gap-2">
+          {cannotAfford && (<Button asChild variant="default" size="sm"><Link href="/billing">{t('credits.topUpShort')}</Link></Button>)}
+          <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
+        </div>
       </div>
     </div>
   );
