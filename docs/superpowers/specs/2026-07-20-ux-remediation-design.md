@@ -142,7 +142,9 @@ focus is legible in dark mode.
 | File:line | Change |
 |---|---|
 | `components/dashboard/ActivityTimeline.tsx:78` | `toLocaleDateString('ar-SA', …)` → `useFormatter().dateTime(…)`. Verified in Node: the current call renders `٢٩ مارس، ١١:٥١ م` on the EN page. |
-| `components/dashboard/ActivityTimeline.tsx:75` | `{a.description \|\| a.type}` → `t('nav.' + a.studio)`. `description` is an English sentence frozen at insert time by the studio routes (e.g. `app/api/studios/edit/route.ts:70` writes `Image edit - style_transfer`), so it is unlocalizable by design. The row already carries `studio`, used for the icon at line 64. The `nav.*` keys exist and are fully translated. |
+| `app/api/credits/transactions/route.ts:20` | `.select('*', …)` → `.select('*, generations(studio)', …)`. **See §3.2.1 — the row does not carry `studio` today.** |
+| `components/dashboard/ActivityTimeline.tsx:75` | `{a.description \|\| a.type}` → studio name from the joined `generations.studio`, falling back to a type label. `description` is an English sentence frozen at insert time by the studio routes (e.g. `app/api/studios/edit/route.ts:70` writes `Image edit - style_transfer`), so it is unlocalizable by design. |
+| `components/dashboard/ActivityTimeline.tsx:64` | `STUDIO_ICONS[a.studio]` → same joined value; also extend the map to all 9 studios (it currently has 4). |
 | `components/dashboard/ActivityTimeline.tsx:56` | Hardcoded Arabic empty state → translation key. |
 | `app/[locale]/(dashboard)/assets/page.tsx:23-32,155` | Delete the Arabic-only `STUDIO_LABELS` map; use `t('nav.' + s)`. |
 | `app/[locale]/(dashboard)/assets/page.tsx:63,106,110,113` | Four hardcoded Arabic toasts → keys. |
@@ -154,10 +156,54 @@ focus is legible in dark mode.
 the locale threaded through from its three call sites. **Deferred to Spec 2 Phase 2.3**, which
 already touches the studio pages that call it.
 
-**New message keys required:** `dashboard.noActivity`, `assets.loadFailed`, `assets.deleted`,
-`assets.deleteFailed`, `assets.deleteError`, `credits.resolutionLabel`. Added to **both** locales.
+#### 3.2.1 `credit_transactions` has no `studio` column — correction
 
-**Acceptance:** `/en` dashboard shows Latin-digit dates and English studio names; `/ar` unchanged.
+Discovered while planning; it invalidates the obvious fix and must be handled first.
+
+`supabase/migrations/004_credit_transactions.sql:3-13` defines the table with
+`user_id, amount, type, description, generation_id, stripe_payment_intent_id, balance_after,
+created_at`. There is **no `studio` column**, and `app/api/credits/transactions/route.ts:20`
+selects `'*'`.
+
+Consequences in currently-shipped code:
+
+- `ActivityTimeline.tsx:64` — `STUDIO_ICONS[a.studio]` is always `undefined`, so every row falls
+  back to the `Clock` icon. This is visible in the reported screenshot: five rows, five identical
+  clock icons.
+- `UsageStats.tsx:32` — `tx.description.match(/^(\w[\w-]*)/)` captures the first English word of the
+  frozen description (`Image`, `Photoshoot`, `Marketing`), never a studio slug, so every
+  `STUDIO_LABELS` lookup at `:59` misses and the chart labels render English fragments. **Mounting
+  `UsageStats` unchanged would ship visible garbage.**
+- A naive `t('nav.' + a.studio)` would evaluate to `t('nav.undefined')`.
+
+**Fix — join through the existing foreign key.** `credit_transactions.generation_id` references
+`generations`, and `generations.studio TEXT NOT NULL` exists
+(`supabase/migrations/003_generations_assets.sql:6`) with an index at `:32`. `generations` RLS
+allows `SELECT` on own rows (`003:18-20`), so the join resolves under the user's own session with no
+schema change and no migration.
+
+```ts
+// app/api/credits/transactions/route.ts:19-23
+const { data, error, count } = await supabase
+  .from('credit_transactions')
+  .select('*, generations(studio)', { count: 'exact' })
+  .eq('user_id', user.id)
+  .order('created_at', { ascending: false })
+  .range(offset, offset + limit - 1);
+```
+
+Not every transaction has a generation: `subscription`, `topup`, `reset`, `referral`, and
+`admin_adjustment` rows have `generation_id IS NULL`. Those must fall back to a type label rather
+than rendering blank. Both `ActivityTimeline` and `UsageStats` consume the same shape.
+
+**New message keys required (both locales):** `dashboard.noActivity`, `assets.loadFailed`,
+`assets.deleted`, `assets.deleteFailed`, `assets.deleteError`, `credits.resolutionLabel`,
+and a `credits.txType.*` group covering all seven transaction types for the null-generation
+fallback.
+
+**Acceptance:** `/en` dashboard shows Latin-digit dates and English studio names; `/ar` unchanged;
+each activity row shows its own studio's icon rather than a uniform clock; a topup row renders a
+type label instead of a blank.
 
 ### Phase 1.3 — Mobile and layout foundations
 
@@ -191,8 +237,13 @@ below the scrim when the drawer is open.
 ~55% of a 1080p screen empty. `ActivityTimeline` is the only import from `components/dashboard/`.
 
 1. Mount `ProfileCompletion` (self-hides at 100%, `:25`) above `CreditsWidget`; mount `UsageStats`
-   below Quick Actions. **Both contain hardcoded Arabic** (`ProfileCompletion` 5 strings,
-   `UsageStats` 5) — translate as part of this phase, not before.
+   below Quick Actions. Two prerequisites, both inside this phase:
+   - **Both contain hardcoded Arabic** (`ProfileCompletion` 5 strings, `UsageStats` 5) — translate
+     them as part of this phase.
+   - **`UsageStats` aggregation is broken** and must be rewritten onto the §3.2.1 join before it is
+     mounted. Replace the `description` regex at `:30-35` with a count keyed on
+     `tx.generations?.studio`, skipping rows where it is null. Without this it renders English
+     fragments as labels.
 2. Add `items-start` to the grid at `:47` so the short right column stops stretching.
 3. Quick Actions: add the 3 missing studios (`storyboard`, `edit`, `prompt-builder`) to the array
    at `:20-27`; grid `grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 xl:grid-cols-4`.
