@@ -7,10 +7,13 @@ import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { watermarkAndReupload } from '@/lib/image/watermark';
+import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   productDescription: z.string().min(10).max(2000),
   targetAudience: z.string().min(5).max(500),
   dialect: z.enum(['saudi', 'emirati', 'egyptian', 'gulf', 'formal']),
@@ -68,6 +71,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
+
     // Use admin-configured cost or default
     const creditCost = getEffectiveCost(studioConfig, 'campaign');
 
@@ -98,7 +109,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: generation, error: genError } = await supabase
       .from('generations')
       .insert({
-        user_id: user.id,
+        user_id: user.id, project_id: projectId,
         studio: 'campaign',
         model: 'gemini',
         input: { ...input, fullPrompt: prompt },
@@ -114,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: creditCost,
+      userId: user.id, amount: creditCost,
       studio: 'campaign', description: `Campaign - 9 posts${input.generateImages ? ' with images' : ''}`,
       generationId: generation?.id,
     });
@@ -143,7 +154,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
       }
       await refundCredits({
-        supabase, userId: user.id, amount: creditCost,
+        userId: user.id, amount: creditCost,
         description: 'Refund: campaign parse failure',
         generationId: generation?.id,
       });
@@ -179,10 +190,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('id', user.id)
       .single();
     const planId = profile?.plan_id || 'free';
+    // Persist before watermarking. Gemini returns data: URLs and
+    // watermarkAndReupload() skips non-http URLs, so without this a nine-post
+    // campaign wrote nine base64 images into one generations.output row AND lost
+    // the free-plan watermark entirely.
     postImages = await Promise.all(
-      postImages.map(async (url) =>
-        url ? await watermarkAndReupload(url, planId, supabase) : null
-      )
+      postImages.map(async (url, i) => {
+        if (!url) return null;
+        const stored = await persistGeneratedImage(supabase, url, {
+          userId: user.id, generationId: generation.id, index: i,
+        });
+        return watermarkAndReupload(stored, planId, supabase);
+      })
     );
 
     // Combine posts with images
@@ -213,7 +232,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     } catch (genError) {
       await refundCredits({
-        supabase, userId: user.id, amount: creditCost,
+        userId: user.id, amount: creditCost,
         description: `Refund: campaign generation failed`,
         generationId: generation?.id,
       });

@@ -56,6 +56,8 @@ const studioItems: NavItem[] = [
 ];
 
 const workspaceItems: NavItem[] = [
+  // Stays hidden until 025_project_integrity.sql is applied — POST /api/projects
+  // calls the create_project RPC, which only exists in that migration.
   { href: '/projects', labelKey: 'projects', icon: <FolderOpen className="h-4 w-4" />, soon: true },
   { href: '/assets', labelKey: 'assets', icon: <ImageIcon className="h-4 w-4" /> },
   { href: '/brand-kit', labelKey: 'brandKit', icon: <Palette className="h-4 w-4" /> },

@@ -1,5 +1,6 @@
 import type { AIModel } from '@/types/studios';
 import { isValidApiKey } from './utils';
+import { MODELS, geminiImageSize } from './models';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -31,6 +32,54 @@ function getMockImageUrl(): string {
   return MOCK_IMAGE_URLS[Math.floor(Math.random() * MOCK_IMAGE_URLS.length)];
 }
 
+/**
+ * Fetch a user-supplied reference image for multimodal generation.
+ *
+ * The URL originates from user input, so this is an SSRF sink: without a host
+ * allowlist the server could be made to fetch internal addresses (cloud metadata
+ * endpoints, localhost services) and the bytes would be handed to the model.
+ * Mirrors the protections already applied in lib/image/watermark.ts.
+ */
+const REFERENCE_IMAGE_ALLOWED_HOSTS = [
+  '.supabase.co', '.supabase.in', '.pyramedia.cloud',
+  'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery',
+];
+const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
+
+async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
+  if (imageUrl.startsWith('data:')) {
+    const [header, data] = imageUrl.split(',');
+    if (!data) throw new Error('invalid data URL');
+    return { mimeType: header.slice(5).split(';')[0] || 'image/png', base64: data };
+  }
+
+  const url = new URL(imageUrl);
+  if (url.protocol !== 'https:') throw new Error('only HTTPS URLs allowed');
+  if (!REFERENCE_IMAGE_ALLOWED_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(h))) {
+    throw new Error(`host not allowed: ${url.hostname}`);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(imageUrl, { signal: controller.signal });
+    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+
+    const declared = parseInt(res.headers.get('content-length') || '0', 10);
+    if (declared > MAX_REFERENCE_IMAGE_BYTES) throw new Error('image too large');
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_REFERENCE_IMAGE_BYTES) throw new Error('image too large');
+
+    return {
+      mimeType: res.headers.get('content-type') || 'image/png',
+      base64: buf.toString('base64'),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function generateImage(options: GenerateImageOptions): Promise<AIResult> {
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
 
@@ -43,23 +92,24 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   const requestParts: Array<Record<string, unknown>> = [{ text: options.prompt }];
   if (options.referenceImageUrl) {
     try {
-      const imgRes = await fetch(options.referenceImageUrl);
-      if (imgRes.ok) {
-        const buf = Buffer.from(await imgRes.arrayBuffer());
-        requestParts.push({
-          inlineData: {
-            mimeType: imgRes.headers.get('content-type') || 'image/png',
-            data: buf.toString('base64'),
-          },
-        });
-      }
-    } catch {
-      // Reference image fetch failed — proceed with text-only prompt
+      const { mimeType, base64 } = await fetchReferenceImage(options.referenceImageUrl);
+      requestParts.push({ inlineData: { mimeType, data: base64 } });
+    } catch (e) {
+      // The photoshoot and edit studios are meaningless without the user's image:
+      // generating "something else" would silently bill for the wrong result.
+      throw new Error(`Reference image could not be loaded: ${e instanceof Error ? e.message : 'unknown error'}`);
     }
   }
 
+  const imageSize = geminiImageSize(options.resolution);
+
+  // 4K/2K are billed at a premium, so the request must actually ask for them.
+  // Previously `options.resolution` was accepted and never sent, so every plan
+  // received a 1K image while 4K was charged at 4x.
+  const model = imageSize === '4K' ? MODELS.geminiImagePro : MODELS.geminiImage;
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,6 +117,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
         contents: [{ parts: requestParts }],
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: { imageSize },
         },
       }),
     }
@@ -103,7 +154,7 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.geminiText}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

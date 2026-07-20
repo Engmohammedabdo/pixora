@@ -19,6 +19,9 @@ export interface Database {
           onboarding_step: number;
           team_id: string | null;
           payment_failed: boolean;
+          // Added in 014 (code) and 023 (referred_by + auto-generation).
+          referral_code: string | null;
+          referred_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -136,10 +139,13 @@ export interface Database {
           credits_used: number;
           status: 'pending' | 'processing' | 'completed' | 'failed';
           error: string | null;
+          // Added by migration 011 — links a generation to its client workspace.
+          project_id: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
+          project_id?: string | null;
           user_id: string;
           studio: string;
           model: string;
@@ -163,12 +169,37 @@ export interface Database {
         };
         Relationships: [];
       };
+      // Migration 023. Writes go exclusively through the claim_referral RPC —
+      // INSERT/UPDATE/DELETE are revoked for anon and authenticated.
+      referrals: {
+        Row: {
+          id: string;
+          referrer_id: string;
+          referee_id: string;
+          code_used: string;
+          credits_each: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          referrer_id: string;
+          referee_id: string;
+          code_used: string;
+          credits_each: number;
+          created_at?: string;
+        };
+        Update: {
+          credits_each?: number;
+        };
+        Relationships: [];
+      };
       credit_transactions: {
         Row: {
           id: string;
           user_id: string;
           amount: number;
-          type: 'subscription' | 'topup' | 'usage' | 'refund' | 'reset';
+          // 'referral' and 'admin_adjustment' allowed by migration 023.
+          type: 'subscription' | 'topup' | 'usage' | 'refund' | 'reset' | 'referral' | 'admin_adjustment';
           description: string | null;
           generation_id: string | null;
           stripe_payment_intent_id: string | null;
@@ -409,6 +440,26 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      // Migration 025. Atomic: locks the caller's profile row, re-counts, then
+      // inserts — so concurrent creates cannot both pass the quota check.
+      // service_role only; the caller supplies p_user_id and p_limit.
+      create_project: {
+        Args: {
+          p_user_id: string;
+          p_name: string;
+          p_brand_kit_id: string | null;
+          p_limit: number;
+        };
+        Returns: {
+          id: string;
+          user_id: string;
+          team_id: string | null;
+          name: string;
+          brand_kit_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
       deduct_credits: {
         Args: {
           p_user_id: string;
@@ -435,6 +486,16 @@ export interface Database {
           p_amount: number;
           p_description: string;
           p_generation_id?: string;
+        };
+        Returns: Record<string, unknown>;
+      };
+      // Migration 023. SECURITY DEFINER, EXECUTE granted to service_role only —
+      // must be called with createServiceRoleClient(), never the user client.
+      claim_referral: {
+        Args: {
+          p_referee_id: string;
+          p_code: string;
+          p_credits?: number;
         };
         Returns: Record<string, unknown>;
       };

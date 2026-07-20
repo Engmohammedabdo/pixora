@@ -9,6 +9,8 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Upload, X, Camera, Sparkles } from 'lucide-react';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 interface PhotoshootFormProps {
   onSubmit: (input: {
@@ -16,6 +18,8 @@ interface PhotoshootFormProps {
     environment: string;
     shots: 1 | 3 | 6;
     notes?: string;
+    projectId?: string;
+    brandKitId?: string;
   }) => void;
   isLoading: boolean;
 }
@@ -40,6 +44,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const tStudio = useTranslations('studio');
   const tCredits = useTranslations('credits');
 
+  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productImage, setProductImage] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<string>('white_studio');
   const [shots, setShots] = useState<1 | 3 | 6>(6);
@@ -71,11 +76,16 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       environment,
       shots,
       notes: notes || undefined,
+      projectId: projectId ?? undefined,
+      // Without this the chosen client's identity is ignored even though the
+      // route accepts brandKitId — one client's look would appear on another's shoot.
+      brandKitId: projectBrandKitId ?? undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       {/* Product Image */}
       <div className="space-y-2">
         <Label>{t('productImage')} *</Label>

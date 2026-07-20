@@ -12,10 +12,12 @@ import { watermarkAndReupload } from '@/lib/image/watermark';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
   prompt: z.string().min(10).max(1000),
   model: z.enum(['gemini', 'gpt', 'flux']),
+  projectId: z.string().uuid().optional(),
   resolution: z.enum(['1080p', '2K', '4K']),
   style: z.string().default('photographic'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
@@ -73,6 +75,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const creditCost = getEffectiveCost(studioConfig, 'creator', input.resolution);
     const totalCost = creditCost * input.variations;
 
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
+
     // Fetch brand kit if provided
     let brandKit = null;
     if (input.brandKitId) {
@@ -101,6 +110,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: user.id,
         studio: 'creator',
         model: input.model,
+        // Verified above — this is the resolved id, never the raw client value.
+        project_id: projectId,
         input: { ...input, fullPrompt },
         credits_used: totalCost,
         status: 'processing',
@@ -117,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: totalCost,
+      userId: user.id, amount: totalCost,
       studio: 'creator', description: `Image generation - ${input.resolution} x${input.variations}`,
       generationId: generation?.id,
     });
@@ -186,7 +197,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // If ALL failed → full refund + error
       if (successCount === 0) {
         await refundCredits({
-          supabase, userId: user.id, amount: totalCost,
+          userId: user.id, amount: totalCost,
           description: 'Full refund: all 4 variations failed',
           generationId: generation.id,
         });
@@ -198,7 +209,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (failedCount > 0) {
         const refundAmount = failedCount * creditCost;
         await refundCredits({
-          supabase, userId: user.id, amount: refundAmount,
+          userId: user.id, amount: refundAmount,
           description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
           generationId: generation.id,
         });
@@ -239,11 +250,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       imageUrls.map((url) => watermarkAndReupload(url, planId, supabase))
     );
 
-    // Update generation with result
+    // Update generation with result. `credits_used` MUST be rewritten here: it was
+    // inserted as the full reservation, but failed variations are partially
+    // refunded above — leaving the original figure makes the ledger disagree with
+    // the credits the user actually kept, and every admin revenue number derived
+    // from `generations.credits_used` overstates income.
     await supabase
       .from('generations')
       .update({
         output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
+        credits_used: imageUrls.length * creditCost,
         status: 'completed',
       })
       .eq('id', generation.id);
@@ -280,7 +296,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     } catch (genError) {
       await refundCredits({
-        supabase, userId: user.id, amount: totalCost,
+        userId: user.id, amount: totalCost,
         description: `Refund: creator generation failed`,
         generationId: generation?.id,
       });

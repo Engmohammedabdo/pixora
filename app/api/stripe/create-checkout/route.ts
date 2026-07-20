@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { PLANS, ANNUAL_PLANS } from '@/lib/stripe/plans';
 
@@ -29,7 +29,12 @@ async function getOrCreateStripeCustomer(
     metadata: { userId },
   });
 
-  await supabase
+  // stripe_customer_id is server-authoritative: migration 022 revokes UPDATE on it
+  // from `authenticated`, so this write must use the service-role client. (Letting a
+  // user set their own stripe_customer_id would also let them point it at another
+  // customer and open that customer's billing portal.)
+  const admin = await createServiceRoleClient();
+  await admin
     .from('profiles')
     .update({ stripe_customer_id: customer.id })
     .eq('id', userId);

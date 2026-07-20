@@ -17,6 +17,7 @@ interface CampaignInput {
   occasion?: string;
   brandKitId?: string;
   generateImages: boolean;
+  projectId?: string;
 }
 
 function CampaignPageContent(): React.ReactElement {

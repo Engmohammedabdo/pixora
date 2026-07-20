@@ -16,6 +16,8 @@ import { mapApiError } from '@/lib/studio-errors';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 const EDIT_TYPES = [
   { id: 'background_replace', key: 'background_replace', emoji: '🖼️' },
@@ -31,6 +33,7 @@ function EditPageContent(): React.ReactElement {
   const searchParams = useSearchParams();
   // Preload an image handed off from another studio (e.g. Creator's edit shortcut)
   const initialSrc = searchParams.get('src');
+  const { projectId, onProjectChange } = useProjectSelection();
   const [originalImage, setOriginalImage] = useState<string | null>(initialSrc || null);
   const [editDescription, setEditDescription] = useState('');
   const [editType, setEditType] = useState('background_replace');
@@ -48,14 +51,14 @@ function EditPageContent(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/edit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: originalImage, editDescription, editType }),
+        body: JSON.stringify({ imageUrl: originalImage, editDescription, editType, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
-  }, [isValid, originalImage, editDescription, editType, setBalance, t]);
+  }, [isValid, originalImage, editDescription, editType, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -63,6 +66,7 @@ function EditPageContent(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2">
         <Label>{tEdit('originalImage')} *</Label>
         {originalImage ? (

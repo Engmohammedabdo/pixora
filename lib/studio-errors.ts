@@ -14,6 +14,7 @@ const KNOWN_ERROR_CODES = new Set([
   'voice_not_available',
   'dialect_not_available',
   'network',
+  'project_not_found',
 ]);
 
 type Translator = (key: string) => string;

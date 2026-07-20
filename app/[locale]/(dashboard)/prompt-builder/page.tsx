@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Link } from '@/i18n/routing';
 import { Sparkles, Copy, Check, ArrowRight, Lightbulb, AlertTriangle } from 'lucide-react';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 const OUTPUT_TYPES = ['image', 'video', 'copy', 'campaign'] as const;
 
@@ -26,6 +28,7 @@ interface PromptResult {
 export default function PromptBuilderPage(): React.ReactElement {
   const t = useTranslations();
   const tPb = useTranslations('promptBuilder');
+  const { projectId, onProjectChange } = useProjectSelection();
   const [description, setDescription] = useState('');
   const [outputType, setOutputType] = useState<string>('image');
   const [results, setResults] = useState<PromptResult[]>([]);
@@ -41,7 +44,7 @@ export default function PromptBuilderPage(): React.ReactElement {
       const res = await fetch('/api/studios/prompt-builder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, outputType }),
+        body: JSON.stringify({ description, outputType, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -54,7 +57,7 @@ export default function PromptBuilderPage(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [description, outputType, t]);
+  }, [description, outputType, t, projectId]);
 
   const handleCopy = async (text: string, idx: number): Promise<void> => {
     await navigator.clipboard.writeText(text);
@@ -70,6 +73,7 @@ export default function PromptBuilderPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-5">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2">
         <Label htmlFor="prompt-builder-description">{tPb('descriptionLabel')}</Label>
         <textarea

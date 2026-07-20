@@ -1,3 +1,4 @@
+import { MODELS } from './models';
 import { isValidApiKey } from './utils';
 
 /**
@@ -18,16 +19,42 @@ interface ElevenLabsResult {
   mock: boolean;
 }
 
-// Arabic voice IDs from ElevenLabs
-// These should be verified against your ElevenLabs account
+/**
+ * Arabic voices.
+ *
+ * ⚠ HISTORY — these were previously ElevenLabs' DEFAULT ENGLISH voices with Arabic
+ *   labels stuck on them: pNInz6obpgDQGcFmaJgB is "Adam" (American male) and
+ *   EXAVITQu4vr4xnSDxMaL is "Bella" (American female). A customer who picked
+ *   "رجل - احترافي (عربي)" received an American voice reading Arabic with a heavy
+ *   English accent. The original comment said "should be verified against your
+ *   ElevenLabs account" — that verification never happened.
+ *
+ * These are genuine Arabic voices, chosen to match the dialects this product
+ * actually targets (Emirati and Saudi first, then Modern Standard).
+ *
+ * ⚠ BEFORE RELYING ON THESE: Voice Library voices must be added to your ElevenLabs
+ *   account before the API will accept their IDs. Verify with
+ *   `GET https://api.elevenlabs.io/v1/voices` and override any that your account
+ *   does not expose using the PYRA_VOICE_* env vars below.
+ */
+function voice(envKey: string, fallbackId: string): string {
+  const v = process.env[envKey];
+  return v && v.trim().length > 0 ? v.trim() : fallbackId;
+}
+
 export const ELEVENLABS_ARABIC_VOICES: Record<string, { id: string; name: string; nameAr: string; gender: 'male' | 'female'; dialect: string }> = {
-  el_arabic_male_1: { id: 'pNInz6obpgDQGcFmaJgB', name: 'Arabic Male Professional', nameAr: 'رجل - احترافي (عربي)', gender: 'male', dialect: 'formal' },
-  el_arabic_male_2: { id: 'VR6AewLTigWG4xSOukaG', name: 'Arabic Male Warm', nameAr: 'رجل - دافئ (عربي)', gender: 'male', dialect: 'gulf' },
-  el_arabic_female_1: { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Arabic Female Professional', nameAr: 'امرأة - احترافية (عربي)', gender: 'female', dialect: 'formal' },
-  el_arabic_female_2: { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Arabic Female Energetic', nameAr: 'امرأة - حماسية (عربي)', gender: 'female', dialect: 'gulf' },
-  el_arabic_formal: { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Arabic Formal Narrator', nameAr: 'راوي - فصحى', gender: 'male', dialect: 'formal' },
-  el_premium_1: { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Premium Arabic Male', nameAr: 'رجل مميز (بريميوم)', gender: 'male', dialect: 'saudi' },
-  el_premium_2: { id: 'XB0fDUnXU5powFXDhCwa', name: 'Premium Arabic Female', nameAr: 'امرأة مميزة (بريميوم)', gender: 'female', dialect: 'emirati' },
+  // Authentic Emirati Gulf Arabic — the closest match to the primary target market.
+  el_arabic_male_2: { id: voice('PYRA_VOICE_MALE_GULF', 'rUaPbzcZIu8df8iNL9WZ'), name: 'Sultan — Emirati', nameAr: 'سلطان — خليجي إماراتي', gender: 'male', dialect: 'emirati' },
+  // Saudi Najdi, professional female read.
+  el_arabic_female_2: { id: voice('PYRA_VOICE_FEMALE_GULF', 'gVzwmdZzRgBrNjXaTmi5'), name: 'Layan — Najdi', nameAr: 'ليان — نجدي', gender: 'female', dialect: 'saudi' },
+  // Modern Standard Arabic, warm and refined — safe default for pan-Arab copy.
+  el_arabic_male_1: { id: voice('PYRA_VOICE_MALE_MSA', 'xvhpbk8otnNHtT3fjCpr'), name: 'Omar — Modern Standard', nameAr: 'عمر — فصحى', gender: 'male', dialect: 'formal' },
+  el_arabic_female_1: { id: voice('PYRA_VOICE_FEMALE_MSA', 'ML7jGRDg4E9hIl5qEm1Z'), name: 'Suhair — Modern Standard', nameAr: 'سهير — فصحى', gender: 'female', dialect: 'formal' },
+  // Deep neutral narrator for documentary/VO reads.
+  el_arabic_formal: { id: voice('PYRA_VOICE_NARRATOR', 'G1HOkzin3NMwRHSq60UI'), name: 'Arabic Knight — Narrator', nameAr: 'فارس — راوي فصحى', gender: 'male', dialect: 'formal' },
+  // Premium tier: deep Saudi male and friendly Hijazi female.
+  el_premium_1: { id: voice('PYRA_VOICE_PREMIUM_MALE', '8KMBeKnOSHXjLqGuWsAE'), name: 'Sultan — Saudi', nameAr: 'سلطان — سعودي', gender: 'male', dialect: 'saudi' },
+  el_premium_2: { id: voice('PYRA_VOICE_PREMIUM_FEMALE', 'kdUY91gH5xyDHapxlthT'), name: 'Hana — Hijazi', nameAr: 'هناء — حجازي', gender: 'female', dialect: 'saudi' },
 };
 
 // Tone to ElevenLabs stability/similarity mapping
@@ -66,7 +93,7 @@ export async function generateElevenLabsSpeech(options: ElevenLabsOptions): Prom
       },
       body: JSON.stringify({
         text: options.text,
-        model_id: 'eleven_multilingual_v2',
+        model_id: MODELS.elevenlabs,
         voice_settings: {
           stability: stability ?? 0.5,
           similarity_boost: similarityBoost ?? 0.75,

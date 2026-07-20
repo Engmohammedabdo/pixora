@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
-import { Link } from '@/i18n/routing';
+import { Link, useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,26 @@ export default function SignupPage(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createBrowserClient();
+
+  // The referrals page builds invite links as /signup?ref=CODE, but nothing ever
+  // read the parameter — so every referral was silently lost at the last step.
+  const referralCode = searchParams.get('ref');
+
+  const claimReferral = async (): Promise<void> => {
+    if (!referralCode) return;
+    try {
+      await fetch('/api/referrals/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: referralCode }),
+      });
+    } catch {
+      // A failed claim must never block the signup the user actually came for.
+    }
+  };
 
   const handleSignup = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -37,7 +57,7 @@ export default function SignupPage(): React.ReactElement {
       }
     } catch { /* proceed if check fails */ }
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -52,15 +72,34 @@ export default function SignupPage(): React.ReactElement {
       return;
     }
 
+    // When the Supabase instance auto-confirms sign-ups (GOTRUE
+    // ENABLE_EMAIL_AUTOCONFIRM=true, which is how this deployment is configured),
+    // signUp returns a live session: the user is ALREADY logged in and no
+    // confirmation email will ever be sent. Showing the "check your inbox" screen
+    // here strands every new user waiting for mail that cannot arrive. Only show
+    // that screen when Supabase actually withheld a session pending confirmation.
+    if (data.session) {
+      // Await the claim: the session cookie is set, and navigating away first
+      // would cancel the in-flight request and drop the referral.
+      await claimReferral();
+      router.replace('/onboarding');
+      return; // keep `loading` true so the form stays disabled through navigation
+    }
+
     setSuccess(true);
     setLoading(false);
   };
 
   const handleGoogleSignup = async (): Promise<void> => {
+    // Carry the referral code through the OAuth round-trip — the callback route
+    // claims it server-side once the session exists.
+    const callback = new URL(`${window.location.origin}/${locale}/callback`);
+    if (referralCode) callback.searchParams.set('ref', referralCode);
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/${locale}/callback`,
+        redirectTo: callback.toString(),
       },
     });
 
@@ -74,12 +113,17 @@ export default function SignupPage(): React.ReactElement {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl text-primary-600">
-            تحقق من بريدك الإلكتروني
+            {t('checkEmailTitle')}
           </CardTitle>
           <CardDescription>
-            أرسلنا رابط تأكيد إلى {email}
+            {t('checkEmailBody', { email })}
           </CardDescription>
         </CardHeader>
+        <CardFooter className="justify-center">
+          <Link href="/login" className="text-sm text-primary-500 hover:underline">
+            {t('backToLogin')}
+          </Link>
+        </CardFooter>
       </Card>
     );
   }

@@ -3,13 +3,15 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
-import { buildAnalysisPrompt, getMockAnalysis } from '@/lib/ai/prompts/analysis';
+import { buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
   description: z.string().min(10).max(2000),
@@ -39,14 +41,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const input = InputSchema.parse(body);
+
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
     const creditCost = CREDIT_COSTS.analysis;
 
-    const { data: generation } = await supabase.from('generations').insert({
-      user_id: user.id, studio: 'analysis', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
+    const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
+      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
+    // Fail loudly — otherwise credits are reserved and the model is called while
+    // the generations row was never written, and the user is charged for nothing.
+    if (genInsertError || !generation) {
+      return NextResponse.json(
+        { success: false, error: 'failed_to_create_generation' },
+        { status: 500 }
+      );
+    }
+
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: creditCost,
+      userId: user.id, amount: creditCost,
       studio: 'analysis', description: `Marketing Analysis - ${input.businessName}`,
       generationId: generation?.id,
     });
@@ -61,12 +80,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const prompt = buildAnalysisPrompt(input);
       result = await generateText({ prompt, maxTokens: 8192 });
 
+      // Unparseable output = failure + refund. The old fallback returned canned
+      // text containing PyraSuite's OWN pricing page ("مبتدئ: $12/شهر") as if it
+      // were an analysis of the customer's business — charged at full price.
       try {
         const jsonMatch = (result.text || '').match(/\{[\s\S]*\}/);
-        analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : getMockAnalysis();
-      } catch { analysis = getMockAnalysis(); }
+        if (!jsonMatch) throw new Error('model returned no JSON object');
+        analysis = JSON.parse(jsonMatch[0]);
+      } catch {
+        if (generation) {
+          await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+        }
+        await refundCredits({
+          userId: user.id, amount: creditCost,
+          description: 'Refund: analysis parse failure',
+          generationId: generation?.id,
+        });
+        return NextResponse.json({
+          success: false,
+          error: 'generation_parse_failed',
+        }, { status: 500 });
+      }
     } catch (genError) {
-      await refundCredits({ supabase, userId: user.id, amount: creditCost, description: `Refund: analysis generation failed`, generationId: generation?.id });
+      await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: analysis generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
       throw genError;
     }

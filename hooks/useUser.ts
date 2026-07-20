@@ -63,6 +63,9 @@ export function useUser(): UseUserReturn {
 
   // C6: Use current locale instead of hardcoded /ar/
   const signOut = useCallback(async (): Promise<void> => {
+    // Clear the saved client workspace: on a shared browser it would otherwise
+    // carry into the next account and break every studio with a 404.
+    try { window.localStorage.removeItem('pyra.selectedProject'); } catch { /* ignore */ }
     await supabase.auth.signOut();
     const locale = window.location.pathname.split('/')[1] || 'ar';
     window.location.href = `/${locale}/login`;

@@ -4,11 +4,14 @@ import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { watermarkAndReupload } from '@/lib/image/watermark';
+import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   imageUrl: z.string().min(1),
   editDescription: z.string().min(5).max(500),
   editType: z.enum(['background_replace', 'object_remove', 'color_change', 'text_add', 'style_transfer']),
@@ -38,14 +41,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const body = await req.json();
     const input = InputSchema.parse(body);
 
-    const { data: generation } = await supabase.from('generations').insert({
-      user_id: user.id, studio: 'edit', model: 'gpt', status: 'processing',
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
+
+    const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
+      user_id: user.id, project_id: projectId, studio: 'edit', model: 'gemini', status: 'processing',
       input: { imageUrl: input.imageUrl, editDescription: input.editDescription, editType: input.editType },
       credits_used: CREDIT_COST,
     }).select().single();
 
+    // Fail loudly. Without this the request continues, reserves credits, calls the
+    // model and returns 200 — while the generations row (and therefore the asset)
+    // was never written. The user pays and receives nothing.
+    if (genInsertError || !generation) {
+      return NextResponse.json(
+        { success: false, error: 'failed_to_create_generation' },
+        { status: 500 }
+      );
+    }
+
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: CREDIT_COST,
+      userId: user.id, amount: CREDIT_COST,
       studio: 'edit', description: `Image edit - ${input.editType}`,
       generationId: generation?.id,
     });
@@ -57,7 +78,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     let result: Awaited<ReturnType<typeof generateImage>>;
     try {
       const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
-      result = await generateImage({ prompt, model: 'gpt', resolution: '1080p', referenceImageUrl: input.imageUrl });
+      // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
+      // the gemini branch. With 'gpt' the image to edit never reached the model, so
+      // "edit this photo" generated an unrelated picture from the instruction alone.
+      result = await generateImage({ prompt, model: 'gemini', resolution: '1080p', referenceImageUrl: input.imageUrl });
 
       // Apply watermark for free plan users
       const { data: profile } = await supabase
@@ -67,10 +91,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .single();
       const planId = profile?.plan_id || 'free';
       if (result.url) {
-        result.url = await watermarkAndReupload(result.url, planId, supabase);
+        // Store first — Gemini returns a data: URL, which watermarkAndReupload()
+        // skips, dropping the free-plan watermark and writing the whole image
+        // into generations.output and assets.url.
+        const stored = await persistGeneratedImage(supabase, result.url, {
+          userId: user.id, generationId: generation.id,
+        });
+        result.url = await watermarkAndReupload(stored, planId, supabase);
       }
     } catch (genError) {
-      await refundCredits({ supabase, userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
+      await refundCredits({ userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
       throw genError;
     }

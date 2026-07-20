@@ -18,6 +18,7 @@ interface CreatorInput {
   style: string;
   variations: 1 | 4;
   brandKitId?: string;
+  projectId?: string;
   referenceImageUrl?: string;
 }
 

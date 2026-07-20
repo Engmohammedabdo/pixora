@@ -11,6 +11,8 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { Sparkles, Palette } from 'lucide-react';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 interface CampaignFormProps {
   onSubmit: (input: {
@@ -21,6 +23,7 @@ interface CampaignFormProps {
     occasion?: string;
     brandKitId?: string;
     generateImages: boolean;
+    projectId?: string;
   }) => void;
   isLoading: boolean;
   /** Prefill for the product description (e.g. from a ?prompt= cross-studio handoff) */
@@ -34,6 +37,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
 
+  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productDescription, setProductDescription] = useState(initialDescription ?? '');
   const [targetAudience, setTargetAudience] = useState('');
   const [dialect, setDialect] = useState<string>('saudi');
@@ -43,6 +47,9 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const [generateImages, setGenerateImages] = useState(true);
 
   const { brandKits, defaultKit } = useBrandKits();
+  // A project's own brand kit wins over the account default, so switching client
+  // switches the visual identity with it.
+  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
 
   const isValid = productDescription.length >= 10 && targetAudience.length >= 5;
 
@@ -55,13 +62,15 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       dialect,
       platform,
       occasion: occasion || undefined,
-      brandKitId: useBrandKit ? defaultKit?.id : undefined,
+      brandKitId: projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined),
       generateImages,
+      projectId: projectId ?? undefined,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       {/* Product Description */}
       <div className="space-y-2">
         <Label htmlFor="campaign-product-description">{t('productDescription')}</Label>
@@ -142,7 +151,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       </div>
 
       {/* Brand Kit */}
-      {brandKits.length > 0 && (
+      {brandKits.length > 0 && !projectKit && (
         <button
           type="button"
           onClick={() => setUseBrandKit(!useBrandKit)}

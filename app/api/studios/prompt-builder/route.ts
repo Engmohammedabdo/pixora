@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
-import { buildPromptBuilderPrompt, getMockPromptResults } from '@/lib/ai/prompts/prompt-builder';
+import { buildPromptBuilderPrompt } from '@/lib/ai/prompts/prompt-builder';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   description: z.string().min(5).max(500),
   outputType: z.enum(['image', 'video', 'copy', 'campaign']),
   style: z.string().max(100).optional(),
@@ -37,21 +39,51 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
-    const { data: generation } = await supabase.from('generations').insert({
-      user_id: user.id, studio: 'prompt-builder', model: 'gemini',
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
+
+    const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
+      user_id: user.id, project_id: projectId, studio: 'prompt-builder', model: 'gemini',
       input: { description: input.description, outputType: input.outputType },
       credits_used: 0, status: 'completed',
     }).select().single();
 
+    // No credits are charged here, but silently losing the record is still wrong —
+    // it hides a schema mismatch (e.g. a missing project_id column) behind a 200.
+    if (genInsertError || !generation) {
+      return NextResponse.json(
+        { success: false, error: 'failed_to_create_generation' },
+        { status: 500 }
+      );
+    }
+
     const prompt = buildPromptBuilderPrompt(input);
     const result = await generateText({ prompt });
 
+    // No credits are charged here, so there is nothing to refund — but returning
+    // canned results as if the model had answered is still dishonest. Report the
+    // failure and let the user retry.
     let prompts: { prompt: string; style: string; tip: string }[];
     try {
-      const parsed = JSON.parse(result.text || '[]');
-      prompts = Array.isArray(parsed) ? parsed : getMockPromptResults();
+      // Extract the JSON array rather than parsing the raw text: models routinely
+      // wrap output in ```json fences, which a bare JSON.parse rejects. The other
+      // studios already do this — matching them here avoids failing a response
+      // that is actually valid.
+      const text = result.text || '';
+      const match = text.match(/\[[\s\S]*\]/);
+      const parsed = JSON.parse(match ? match[0] : text);
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('model returned no prompt list');
+      prompts = parsed;
     } catch {
-      prompts = getMockPromptResults();
+      if (generation) {
+        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      }
+      return NextResponse.json({
+        success: false,
+        error: 'generation_parse_failed',
+      }, { status: 500 });
     }
 
     return NextResponse.json({

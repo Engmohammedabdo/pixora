@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { downloadFiles } from '@/lib/download';
 import { Download, Trash2, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { AssetProjectFilter } from '@/components/shared/AssetProjectFilter';
 
 interface Asset {
   id: string;
@@ -37,6 +38,7 @@ export default function AssetsPage(): React.ReactElement {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [studioFilter, setStudioFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const fetchAssets = useCallback(async (): Promise<void> => {
@@ -44,6 +46,7 @@ export default function AssetsPage(): React.ReactElement {
     try {
       const params = new URLSearchParams({ limit: '48' });
       if (studioFilter !== 'all') params.set('studio', studioFilter);
+      if (projectFilter !== 'all') params.set('projectId', projectFilter);
 
       const res = await fetch(`/api/assets?${params}`);
       const data = await res.json();
@@ -61,7 +64,14 @@ export default function AssetsPage(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [studioFilter]);
+  }, [studioFilter, projectFilter]);
+
+  // Selection must not survive a filter change: the ids stay selected while a
+  // different client's files are displayed, so a bulk delete would destroy work
+  // the user cannot even see. Clearing is the only safe behaviour.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [studioFilter, projectFilter]);
 
   useEffect(() => {
     fetchAssets();
@@ -129,7 +139,8 @@ export default function AssetsPage(): React.ReactElement {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <AssetProjectFilter value={projectFilter} onChange={setProjectFilter} />
+          <div className="flex flex-wrap items-center gap-2">
         {STUDIOS.map((s) => (
           <button
             key={s}

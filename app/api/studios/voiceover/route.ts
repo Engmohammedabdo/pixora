@@ -7,8 +7,10 @@ import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/a
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { generateTTS } from '@/lib/ai/tts-router';
 import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   script: z.string().min(1).max(2000),
   voice: z.string(),
   dialect: z.string(),
@@ -37,6 +39,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const body = await req.json();
     const input = InputSchema.parse(body);
+
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
 
     // Sanitize script
     const safeScript = sanitizePrompt(input.script, 2000);
@@ -84,8 +94,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const creditCost = calculateVoiceoverCost(safeScript.length, parseFloat(input.speed), planId);
 
     // Create generation record
-    const { data: generation } = await supabase.from('generations').insert({
-      user_id: user.id,
+    const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
+      user_id: user.id, project_id: projectId,
       studio: 'voiceover',
       model: config.provider === 'elevenlabs' ? 'elevenlabs' : config.quality,
       status: 'processing',
@@ -93,9 +103,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       credits_used: creditCost,
     }).select().single();
 
+    // Fail loudly — otherwise credits are reserved and the model is called while
+    // the generations row was never written, and the user is charged for nothing.
+    if (genInsertError || !generation) {
+      return NextResponse.json(
+        { success: false, error: 'failed_to_create_generation' },
+        { status: 500 }
+      );
+    }
+
     // Reserve credits before generation
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: creditCost,
+      userId: user.id, amount: creditCost,
       studio: 'voiceover', description: `Voiceover (${config.provider}) - ${input.voice} - ${input.dialect} - ${estimatedDuration}s`,
       generationId: generation?.id,
     });
@@ -119,7 +138,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       // Upload audio to storage
       if (ttsResult.audioBuffer.length > 0) {
-        const fileName = `${user.id}/voiceover-${generation?.id ?? Date.now()}.mp3`;
+        const fileName = `${user.id}/voiceover-${generation.id}.mp3`;
         const { error: uploadError } = await supabase.storage
           .from('assets')
           .upload(fileName, ttsResult.audioBuffer, { contentType: 'audio/mpeg', upsert: false });
@@ -130,9 +149,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
       }
     } catch (genError) {
-      await refundCredits({ supabase, userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
+      await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
       throw genError;
+    }
+
+    // TTS succeeded but the upload did not, so there is no file to hand back.
+    // Without this the route returned success with an empty audioUrl and kept the
+    // full charge — the user paid for a voiceover they cannot play or download.
+    if (!audioUrl) {
+      await refundCredits({
+        userId: user.id, amount: creditCost,
+        description: 'Refund: voiceover audio upload failed',
+        generationId: generation?.id,
+      });
+      if (generation) {
+        await supabase.from('generations').update({ status: 'failed', error: 'audio_upload_failed' }).eq('id', generation.id);
+      }
+      return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });
     }
 
     // Update generation record

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { MODELS } from './models';
 import { generateElevenLabsSpeech, getElevenLabsVoiceId, getToneSettings } from './elevenlabs';
 import { generateText } from './router';
 import { buildVoiceOverPrompt } from './prompts/voiceover';
@@ -88,11 +89,25 @@ export async function generateTTS(input: TTSInput): Promise<TTSResult> {
   );
 
   // Step 2: Route to correct TTS provider
-  if (config.provider === 'elevenlabs') {
-    return generateWithElevenLabs(enhancedScript, input, config, enhanced);
+  const result = config.provider === 'elevenlabs'
+    ? await generateWithElevenLabs(enhancedScript, input, config, enhanced)
+    : await generateWithOpenAI(enhancedScript, input, config, enhanced);
+
+  // Mirrors rejectMockInProduction() in lib/ai/router.ts, which only guards the
+  // image and text routers. Without this, an unconfigured TTS provider returns
+  // `Buffer.alloc(0)` with mock:true, and the voiceover route happily reports
+  // success — charging full credits for a zero-byte audio file. Throwing lets the
+  // route's existing catch block refund the reservation.
+  if (result.mock && process.env.NODE_ENV === 'production') {
+    throw new Error('provider_unavailable: TTS returned a mock result in production (missing or placeholder API key)');
   }
 
-  return generateWithOpenAI(enhancedScript, input, config, enhanced);
+  // A configured provider that still produced no audio is equally unsellable.
+  if (!result.audioBuffer || result.audioBuffer.length === 0) {
+    throw new Error('provider_unavailable: TTS returned an empty audio buffer');
+  }
+
+  return result;
 }
 
 async function generateWithOpenAI(
@@ -107,11 +122,16 @@ async function generateWithOpenAI(
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+  // gpt-4o-mini-tts is the current recommended speech model. It keeps `speed` and
+  // adds `instructions`, which lets us ask for natural Arabic delivery instead of
+  // the flat, English-accented reading tts-1 produces on Arabic script. `config.quality`
+  // (tts-1 / tts-1-hd) is retained only as the per-plan fidelity hint.
   const mp3 = await openai.audio.speech.create({
-    model: config.quality, // tts-1 or tts-1-hd
+    model: MODELS.openaiTts,
     voice: OPENAI_VOICE_MAP[input.voice] || 'alloy',
     input: script,
     speed: parseFloat(input.speed),
+    instructions: 'Read as a native Arabic speaker with natural Gulf-Arabic pronunciation, clear diction, and a warm, confident advertising delivery.',
   });
 
   const audioBuffer = Buffer.from(await mp3.arrayBuffer());

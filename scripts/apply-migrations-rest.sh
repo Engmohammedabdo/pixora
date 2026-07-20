@@ -9,7 +9,17 @@
 set -e
 
 SUPABASE_URL="${SUPABASE_URL:-https://pixoradb.pyramedia.cloud}"
-SERVICE_KEY="${SERVICE_KEY:-eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc3NDc3NjAwMCwiZXhwIjo0OTMwNDQ5NjAwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.UeupLYGByxwQUsVEKGxgQ2zvrZTsTMYkZrJ-iWQSIFQ}"
+
+# NEVER hardcode the key here — this file is tracked in git.
+# Read it from .env.local (gitignored), or pass SERVICE_KEY at call time.
+if [ -z "${SERVICE_KEY:-}" ] && [ -f .env.local ]; then
+  SERVICE_KEY=$(grep -m1 '^SUPABASE_SERVICE_ROLE_KEY=' .env.local | cut -d= -f2- | tr -d '"'"'"'\r')
+fi
+if [ -z "${SERVICE_KEY:-}" ]; then
+  echo "ERROR: SERVICE_KEY not set and SUPABASE_SERVICE_ROLE_KEY is empty in .env.local." >&2
+  echo "  See docs/ROTATE_SECRETS.md — the previously hardcoded key is compromised." >&2
+  exit 1
+fi
 
 echo "=== Pixora Migration Runner (REST API) ==="
 echo "URL: $SUPABASE_URL"

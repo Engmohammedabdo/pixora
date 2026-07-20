@@ -12,6 +12,8 @@ interface PhotoshootInput {
   productImageUrl: string;
   environment: string;
   shots: 1 | 3 | 6;
+  projectId?: string;
+  brandKitId?: string;
   notes?: string;
 }
 

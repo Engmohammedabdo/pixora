@@ -16,9 +16,15 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as const;
-const DURATIONS = [30, 60, 90] as const;
+// Strings, not numbers: /api/studios/plan validates `duration` with
+// z.enum(['30','60','90']) and Zod v4 does not coerce. Sending numbers made every
+// single request fail validation, so this studio never produced a plan at all.
+const DURATIONS = ['30', '60', '90'] as const;
+type Duration = (typeof DURATIONS)[number];
 
 interface Plan {
   objectives?: { goal: string; kpi: string; target: string }[];
@@ -31,12 +37,13 @@ interface Plan {
 export default function PlanPage(): React.ReactElement {
   const t = useTranslations();
   const tPlan = useTranslations('plan');
+  const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [goals, setGoals] = useState<string[]>([]);
   const [targetMarket, setTargetMarket] = useState('');
   const [budget, setBudget] = useState('$1,000 - $2,000');
-  const [duration, setDuration] = useState<number>(30);
+  const [duration, setDuration] = useState<Duration>('30');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,14 +59,14 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration }),
+        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setPlan(data.data.plan);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t]);
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -67,6 +74,7 @@ export default function PlanPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2"><Label htmlFor="plan-business-name">{tPlan('businessName')}</Label><Input id="plan-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('businessNamePlaceholder')} /></div>
       <div className="space-y-2"><Label htmlFor="plan-industry">{tPlan('industry')}</Label><Input id="plan-industry" value={industry} onChange={(e) => setIndustry(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('industryPlaceholder')} /></div>
       <div className="space-y-2">

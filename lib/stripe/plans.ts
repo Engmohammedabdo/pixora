@@ -10,6 +10,8 @@ export interface PlanConfig {
   teams: boolean;
   maxMembers: number;
   maxBrandKits: number;
+  /** Projects = isolated client workspaces. The main lever that makes higher tiers worth buying for agencies. */
+  maxProjects: number;
   features: string[];
   featuresAr: string[];
 }
@@ -26,6 +28,7 @@ export const PLANS: Record<string, PlanConfig> = {
     teams: false,
     maxMembers: 1,
     maxBrandKits: 1,
+    maxProjects: 1,
     features: ['25 credits/month', '1080p resolution', 'Watermark on images', '1 Brand Kit'],
     featuresAr: ['25 كريدت/شهر', 'دقة 1080p', 'علامة مائية', 'هوية بصرية واحدة'],
   },
@@ -41,6 +44,7 @@ export const PLANS: Record<string, PlanConfig> = {
     teams: false,
     maxMembers: 1,
     maxBrandKits: 3,
+    maxProjects: 3,
     features: ['200 credits/month', '2K resolution', 'No watermark', '3 Brand Kits'],
     featuresAr: ['200 كريدت/شهر', 'دقة 2K', 'بدون علامة مائية', '3 هويات بصرية'],
   },
@@ -56,8 +60,11 @@ export const PLANS: Record<string, PlanConfig> = {
     teams: false,
     maxMembers: 1,
     maxBrandKits: 10,
-    features: ['600 credits/month', '4K resolution', 'No watermark', '10 Brand Kits', 'Priority AI'],
-    featuresAr: ['600 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '10 هويات بصرية', 'أولوية AI'],
+    maxProjects: 10,
+    // 'Priority AI' removed: there is no priority queue or per-plan routing anywhere
+    // in lib/ai/router.ts — every plan hits the same providers in the same order.
+    features: ['600 credits/month', '4K resolution', 'No watermark', '10 Brand Kits'],
+    featuresAr: ['600 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '10 هويات بصرية'],
   },
   business: {
     id: 'business',
@@ -71,8 +78,12 @@ export const PLANS: Record<string, PlanConfig> = {
     teams: true,
     maxMembers: 5,
     maxBrandKits: 25,
-    features: ['1,500 credits/month', '4K resolution', 'No watermark', '25 Brand Kits', 'Team (5 users)', 'White-label'],
-    featuresAr: ['1,500 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '25 هوية بصرية', 'فريق (5 أعضاء)', 'وايت ليبل'],
+    maxProjects: 30,
+    // 'Team (5 users)' and 'White-label' removed: neither exists in any of the 52 API
+    // routes. Advertising unbuilt features on the checkout screen invites chargebacks
+    // and counts as misleading advertising under UAE consumer protection law.
+    features: ['1,500 credits/month', '4K resolution', 'No watermark', '25 Brand Kits'],
+    featuresAr: ['1,500 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '25 هوية بصرية'],
   },
   agency: {
     id: 'agency',
@@ -86,8 +97,12 @@ export const PLANS: Record<string, PlanConfig> = {
     teams: true,
     maxMembers: 20,
     maxBrandKits: 100,
-    features: ['5,000 credits/month', '4K resolution', 'No watermark', 'Unlimited Brand Kits', 'Team (20 users)', 'API Access', 'White-label'],
-    featuresAr: ['5,000 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', 'هويات بصرية غير محدودة', 'فريق (20 عضو)', 'وصول API', 'وايت ليبل'],
+    maxProjects: 100,
+    // 'Team (20 users)', 'API Access' and 'White-label' removed — none are implemented.
+    // 'Unlimited Brand Kits' corrected to the limit actually enforced in
+    // app/api/brand-kits/route.ts, which rejects creation past 100.
+    features: ['5,000 credits/month', '4K resolution', 'No watermark', '100 Brand Kits'],
+    featuresAr: ['5,000 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '100 هوية بصرية'],
   },
 };
 

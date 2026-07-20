@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, FileText } from 'lucide-react';
 import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
@@ -34,6 +36,7 @@ interface Analysis {
 export default function AnalysisPage(): React.ReactElement {
   const t = useTranslations();
   const tAn = useTranslations('analysis');
+  const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [description, setDescription] = useState('');
@@ -54,14 +57,14 @@ export default function AnalysisPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/analysis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints }),
+        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setAnalysis(data.data.analysis);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, t]);
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -69,6 +72,7 @@ export default function AnalysisPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2"><Label htmlFor="analysis-business-name">{tAn('businessName')}</Label><Input id="analysis-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tAn('businessNamePlaceholder')} /></div>
       <div className="space-y-2">
         <Label>{tAn('industry')}</Label>

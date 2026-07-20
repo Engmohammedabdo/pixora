@@ -50,7 +50,10 @@
     "passwordMismatch": "Passwords do not match",
     "magicLink": "Sign in without password",
     "magicLinkSent": "Check your email! We sent you a login link",
-    "sendMagicLink": "Send Login Link"
+    "sendMagicLink": "Send Login Link",
+    "checkEmailTitle": "Check your email",
+    "checkEmailBody": "We sent a confirmation link to {email}. Open it to activate your account.",
+    "backToLogin": "Back to sign in"
   },
   "nav": {
     "home": "Home",
@@ -170,7 +173,8 @@
       "voice_not_available": "This voice isn't available on your current plan",
       "dialect_not_available": "This dialect isn't available on your current plan",
       "network": "Connection problem — check your internet and retry",
-      "fallback": "Something unexpected went wrong. Please try again"
+      "fallback": "Something unexpected went wrong. Please try again",
+      "project_not_found": "Project not found or not yours"
     },
     "pyraPath": "Pyra path 🦊",
     "failed": "Generation failed",
@@ -326,11 +330,13 @@
       "male_youth": "Male - Youthful",
       "female_youth": "Female - Youthful",
       "male_formal": "Male - Formal",
-      "el_arabic_male_1": "Arabic Male - Professional 🌟",
-      "el_arabic_female_1": "Arabic Female - Professional 🌟",
-      "el_arabic_male_2": "Arabic Male - Warm 🌟",
-      "el_arabic_female_2": "Arabic Female - Energetic 🌟",
-      "el_arabic_formal": "Arabic Narrator - Formal 🌟"
+      "el_arabic_male_1": "Modern Standard - Male 🌟",
+      "el_arabic_female_1": "Modern Standard - Female 🌟",
+      "el_arabic_male_2": "Emirati Gulf - Male 🌟",
+      "el_arabic_female_2": "Saudi Najdi - Female 🌟",
+      "el_arabic_formal": "Narrator - Deep Voice 🌟",
+      "el_premium_1": "Saudi - Male (Premium) 🌟",
+      "el_premium_2": "Hijazi - Female (Premium) 🌟"
     },
     "dialect": "Dialect",
     "dialects": {
@@ -523,7 +529,30 @@
     "emptyDescription": "Create your first project to organize your work",
     "newProject": "New Project",
     "projectName": "Project name",
-    "generations": "generations"
+    "generations": "generations",
+    "subtitle": "A separate workspace per client — its own brand kit and work",
+    "loadFailed": "Could not load projects",
+    "createFailed": "Could not create the project",
+    "created": "Project created",
+    "deleteFailed": "Could not delete the project",
+    "deleted": "Project deleted",
+    "confirmDelete": "Delete project \"{name}\"? The work inside is kept — it moves back to Unassigned.",
+    "deleteProject": "Delete project {name}",
+    "limitReached": "You have reached your plan limit of {limit, plural, one {# project} other {# projects}}.",
+    "upgrade": "Upgrade plan",
+    "hasBrandKit": "Brand kit linked",
+    "assignTo": "Project (client)",
+    "unassigned": "Unassigned",
+    "brandKit": "Client brand kit",
+    "noBrandKit": "No brand kit",
+    "brandKitHint": "Applied automatically to every generation in this project",
+    "filterByProject": "Project",
+    "allProjects": "All projects",
+    "editProject": "Edit \"{name}\"",
+    "updated": "Project updated",
+    "updateFailed": "Could not update the project",
+    "createBrandKitFirst": "Create a brand kit first",
+    "generationCount": "{count, plural, =0 {No generations} one {# generation} other {# generations}}"
   },
   "upgrade": {
     "insufficientCredits": "Insufficient Credits",

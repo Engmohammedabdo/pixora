@@ -50,7 +50,10 @@
     "passwordMismatch": "كلمات المرور غير متطابقة",
     "magicLink": "تسجيل بدون كلمة مرور",
     "magicLinkSent": "تحقق من بريدك الإلكتروني! أرسلنا لك رابط تسجيل الدخول",
-    "sendMagicLink": "إرسال رابط الدخول"
+    "sendMagicLink": "إرسال رابط الدخول",
+    "checkEmailTitle": "تحقق من بريدك الإلكتروني",
+    "checkEmailBody": "أرسلنا رابط تأكيد إلى {email}. افتح الرابط لتفعيل حسابك.",
+    "backToLogin": "العودة لتسجيل الدخول"
   },
   "nav": {
     "home": "الرئيسية",
@@ -170,7 +173,8 @@
       "voice_not_available": "هذا الصوت غير متاح في خطتك الحالية",
       "dialect_not_available": "هذه اللهجة غير متاحة في خطتك الحالية",
       "network": "مشكلة في الاتصال — تأكد من الإنترنت وحاول مجدداً",
-      "fallback": "حدث خطأ غير متوقع. حاول مرة أخرى"
+      "fallback": "حدث خطأ غير متوقع. حاول مرة أخرى",
+      "project_not_found": "المشروع غير موجود أو لا يخصّك"
     },
     "pyraPath": "مسار بايرا 🦊",
     "failed": "فشل التوليد",
@@ -326,11 +330,13 @@
       "male_youth": "رجل - شبابي",
       "female_youth": "امرأة - شبابية",
       "male_formal": "رجل - رسمي",
-      "el_arabic_male_1": "رجل عربي - احترافي 🌟",
-      "el_arabic_female_1": "امرأة عربية - احترافية 🌟",
-      "el_arabic_male_2": "رجل عربي - دافئ 🌟",
-      "el_arabic_female_2": "امرأة عربية - حماسية 🌟",
-      "el_arabic_formal": "راوي - فصحى 🌟"
+      "el_arabic_male_1": "فصحى - رجل 🌟",
+      "el_arabic_female_1": "فصحى - امرأة 🌟",
+      "el_arabic_male_2": "خليجي إماراتي - رجل 🌟",
+      "el_arabic_female_2": "خليجي نجدي - امرأة 🌟",
+      "el_arabic_formal": "راوي فصحى - صوت عميق 🌟",
+      "el_premium_1": "سعودي - رجل (بريميوم) 🌟",
+      "el_premium_2": "حجازي - امرأة (بريميوم) 🌟"
     },
     "dialect": "اللهجة",
     "dialects": {
@@ -523,7 +529,30 @@
     "emptyDescription": "أنشئ مشروعك الأول لتنظيم أعمالك",
     "newProject": "مشروع جديد",
     "projectName": "اسم المشروع",
-    "generations": "إنشاء"
+    "generations": "إنشاء",
+    "subtitle": "مساحة عمل مستقلة لكل عميل — هوية بصرية وأعمال منفصلة",
+    "loadFailed": "تعذّر تحميل المشاريع",
+    "createFailed": "تعذّر إنشاء المشروع",
+    "created": "تم إنشاء المشروع",
+    "deleteFailed": "تعذّر حذف المشروع",
+    "deleted": "تم حذف المشروع",
+    "confirmDelete": "حذف مشروع «{name}»؟ الأعمال بداخله لن تُحذف — سترجع إلى «غير مصنّف».",
+    "deleteProject": "حذف مشروع {name}",
+    "limitReached": "وصلت للحد الأقصى في باقتك: {limit, plural, one {مشروع واحد} two {مشروعان} few {# مشاريع} many {# مشروعاً} other {# مشروع}}.",
+    "upgrade": "ترقية الباقة",
+    "hasBrandKit": "هوية بصرية مرتبطة",
+    "assignTo": "المشروع (العميل)",
+    "unassigned": "غير مصنّف",
+    "brandKit": "الهوية البصرية للعميل",
+    "noBrandKit": "بدون هوية بصرية",
+    "brandKitHint": "تُطبَّق تلقائياً على كل عمل داخل هذا المشروع",
+    "filterByProject": "المشروع",
+    "allProjects": "كل المشاريع",
+    "editProject": "تعديل «{name}»",
+    "updated": "تم تحديث المشروع",
+    "updateFailed": "تعذّر تحديث المشروع",
+    "createBrandKitFirst": "أنشئ هوية بصرية أولاً",
+    "generationCount": "{count, plural, =0 {لا توليدات} one {توليد واحد} two {توليدان} few {# توليدات} many {# توليداً} other {# توليد}}"
   },
   "upgrade": {
     "insufficientCredits": "رصيدك غير كافي",

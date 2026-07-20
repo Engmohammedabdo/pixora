@@ -8,6 +8,8 @@ import { ModelSelector } from '@/components/shared/ModelSelector';
 import { ResolutionSelector } from '@/components/shared/ResolutionSelector';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -24,6 +26,7 @@ interface CreatorFormProps {
     variations: 1 | 4;
     brandKitId?: string;
     referenceImageUrl?: string;
+    projectId?: string;
   }) => void;
   isLoading: boolean;
   /** Prefill for the prompt textarea (e.g. from a ?prompt= cross-studio handoff) */
@@ -52,6 +55,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const [variations, setVariations] = useState<1 | 4>(1);
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
 
   const { brandKits, defaultKit } = useBrandKits();
 
@@ -61,7 +65,11 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
     }
   }, [brandKits]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedKit = useBrandKit ? defaultKit : undefined;
+  // A project's own brand kit wins over the account default: the whole point of
+  // client workspaces is that switching client switches the identity with it, so
+  // one client's colours can never leak into another's campaign.
+  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
+  const selectedKit = projectKit ?? (useBrandKit ? defaultKit : undefined);
 
   const creditCost = CREDIT_COSTS.image[resolution] * variations;
   const isValid = prompt.length >= 10;
@@ -77,6 +85,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       variations,
       brandKitId: selectedKit?.id,
       referenceImageUrl: referenceImage || undefined,
+      projectId: projectId ?? undefined,
     });
   };
 
@@ -198,8 +207,14 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       {/* Resolution */}
       <ResolutionSelector value={resolution} onChange={setResolution} />
 
-      {/* Brand Kit Toggle */}
-      {brandKits.length > 0 && (
+      {/* Client workspace — also decides which brand kit is applied */}
+      <ProjectSelector
+        value={projectId}
+        onChange={onProjectChange}
+      />
+
+      {/* Brand Kit Toggle — hidden when a project already dictates the identity */}
+      {brandKits.length > 0 && !projectKit && (
         <button
           type="button"
           onClick={() => setUseBrandKit(!useBrandKit)}

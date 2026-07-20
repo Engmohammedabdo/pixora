@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { TOPUPS } from '@/lib/stripe/plans';
 
@@ -40,7 +40,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         metadata: { userId: user.id },
       });
       customerId = customer.id;
-      await supabase.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id);
+      // Server-authoritative column — see migration 022. Must use service-role.
+      const admin = await createServiceRoleClient();
+      await admin.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id);
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

@@ -18,7 +18,15 @@ DB_HOST="${DB_HOST:-pixoradb.pyramedia.cloud}"
 DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-postgres}"
-DB_PASS="${DB_PASS:-2rkM9uecL5ZB2aC6ZZxk1Yj5iPan34GK}"
+
+# NEVER hardcode the password here — this file is tracked in git.
+# Supply it at call time:  DB_PASS='...' ./scripts/apply-migrations.sh
+if [ -z "${DB_PASS:-}" ]; then
+  echo "ERROR: DB_PASS is not set." >&2
+  echo "  Run:  DB_PASS='<postgres-password>' ./scripts/apply-migrations.sh" >&2
+  echo "  See docs/ROTATE_SECRETS.md — the previously hardcoded password is compromised." >&2
+  exit 1
+fi
 
 echo "=== Pixora Migration Runner ==="
 echo "Host: $DB_HOST:$DB_PORT"

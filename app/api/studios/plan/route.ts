@@ -3,13 +3,15 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
-import { buildPlanPrompt, getMockPlan } from '@/lib/ai/prompts/plan';
+import { buildPlanPrompt } from '@/lib/ai/prompts/plan';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
   goals: z.array(z.string().max(200)).min(1).max(10),
@@ -39,15 +41,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const input = InputSchema.parse(body);
+
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
     const creditCost = CREDIT_COSTS.plan;
 
-    const { data: generation } = await supabase.from('generations').insert({
-      user_id: user.id, studio: 'plan', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
+    const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
+      user_id: user.id, project_id: projectId, studio: 'plan', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
     }).select().single();
+
+    // Fail loudly — otherwise credits are reserved and the model is called while
+    // the generations row was never written, and the user is charged for nothing.
+    if (genInsertError || !generation) {
+      return NextResponse.json(
+        { success: false, error: 'failed_to_create_generation' },
+        { status: 500 }
+      );
+    }
 
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: creditCost,
+      userId: user.id, amount: creditCost,
       studio: 'plan', description: `Marketing Plan - ${input.businessName}`,
       generationId: generation?.id,
     });
@@ -64,11 +83,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const prompt = buildPlanPrompt({ ...input, duration: parseInt(input.duration, 10) });
     const result = await generateText({ prompt, maxTokens: 8192 });
 
+    // A model response we cannot parse is a FAILURE, not a result. Previously this
+    // fell back to canned Arabic filler, marked the generation `completed` and
+    // charged full price — so the customer paid to receive boilerplate that was
+    // not about their business at all.
     let plan: Record<string, unknown>;
     try {
       const jsonMatch = (result.text || '').match(/\{[\s\S]*\}/);
-      plan = jsonMatch ? JSON.parse(jsonMatch[0]) : getMockPlan();
-    } catch { plan = getMockPlan(); }
+      if (!jsonMatch) throw new Error('model returned no JSON object');
+      plan = JSON.parse(jsonMatch[0]);
+    } catch {
+      if (generation) {
+        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      }
+      await refundCredits({
+        userId: user.id, amount: creditCost,
+        description: 'Refund: plan parse failure',
+        generationId: generation?.id,
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'generation_parse_failed',
+      }, { status: 500 });
+    }
 
     if (generation) {
       await supabase.from('generations').update({ output: { plan, mock: result.mock }, status: 'completed' }).eq('id', generation.id);
@@ -77,7 +114,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
     } catch (genError) {
       await refundCredits({
-        supabase, userId: user.id, amount: creditCost,
+        userId: user.id, amount: creditCost,
         description: `Refund: plan generation failed`,
         generationId: generation?.id,
       });

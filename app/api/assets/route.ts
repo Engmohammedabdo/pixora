@@ -25,19 +25,41 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (studio && studio !== 'all') {
-      // Get generation IDs for this studio first (PostgREST join filters don't work correctly)
-      const { data: gens } = await supabase
+    // Assets carry no project column of their own — they inherit it from the
+    // generation that produced them. Without this filter the library mixes every
+    // client's work together, which undoes the isolation projects exist to provide.
+    const projectId = searchParams.get('projectId');
+
+    if ((studio && studio !== 'all') || (projectId && projectId !== 'all')) {
+      // Resolve matching generation ids first: PostgREST join filters do not
+      // filter the parent rows correctly here.
+      let genQuery = supabase
         .from('generations')
         .select('id')
-        .eq('user_id', user.id)
-        .eq('studio', studio);
-      const genIds = (gens || []).map(g => g.id);
-      if (genIds.length > 0) {
-        query = query.in('generation_id', genIds);
-      } else {
+        .eq('user_id', user.id);
+
+      if (studio && studio !== 'all') genQuery = genQuery.eq('studio', studio);
+      if (projectId === 'unassigned') {
+        genQuery = genQuery.is('project_id', null);
+      } else if (projectId && projectId !== 'all') {
+        genQuery = genQuery.eq('project_id', projectId);
+      }
+
+      // Bound the id list explicitly. PostgREST caps rows by default and a very
+      // long `in.(...)` list can exceed URL limits — either way files vanish from
+      // the library with no error, which reads as data loss to the user.
+      const MAX_GENERATION_IDS = 1000;
+      const { data: gens } = await genQuery
+        .order('created_at', { ascending: false })
+        .limit(MAX_GENERATION_IDS);
+      const genIds = (gens || []).map((g) => g.id);
+      if (genIds.length === MAX_GENERATION_IDS) {
+        console.warn('[assets] generation-id filter hit its cap; older assets may be omitted for user', user.id);
+      }
+      if (genIds.length === 0) {
         return NextResponse.json({ success: true, data: [], total: 0, page, limit });
       }
+      query = query.in('generation_id', genIds);
     }
 
     const { data, error, count } = await query;

@@ -15,6 +15,8 @@ import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
 import { mapApiError } from '@/lib/studio-errors';
 import { downloadFile } from '@/lib/download';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 // All voices — some locked per plan
 const ALL_VOICES = [
@@ -40,6 +42,8 @@ export default function VoiceOverPage(): React.ReactElement {
   const { profile } = useUser();
   const planId = profile?.plan_id || 'free';
   const config = getVoiceoverConfig(planId);
+
+  const { projectId, onProjectChange } = useProjectSelection();
 
   const [script, setScript] = useState('');
   const [voice, setVoice] = useState('male_pro');
@@ -68,7 +72,7 @@ export default function VoiceOverPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/voiceover', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, voice, dialect, speed, tone }),
+        body: JSON.stringify({ script, voice, dialect, speed, tone, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
@@ -78,7 +82,7 @@ export default function VoiceOverPage(): React.ReactElement {
       setEnhanced(data.data.enhanced || false);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
-  }, [isValid, script, voice, dialect, speed, tone, setBalance, t]);
+  }, [isValid, script, voice, dialect, speed, tone, setBalance, t, projectId]);
 
   const dialectLabels: Record<string, string> = { saudi: tVo('dialects.saudi'), emirati: tVo('dialects.emirati'), egyptian: tVo('dialects.egyptian'), gulf: tVo('dialects.gulf'), formal: tVo('dialects.formal') };
   const toneLabels: Record<string, string> = { professional: tVo('tones.professional'), friendly: tVo('tones.friendly'), energetic: tVo('tones.energetic'), calm: tVo('tones.calm') };
@@ -96,6 +100,7 @@ export default function VoiceOverPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       {/* Script */}
       <div className="space-y-2">
         <Label htmlFor="voiceover-script">{tVo('script')}</Label>

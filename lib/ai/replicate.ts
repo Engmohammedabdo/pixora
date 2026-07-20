@@ -1,4 +1,5 @@
 import type { AIModel } from '@/types/studios';
+import { MODELS } from './models';
 import { isValidApiKey } from './utils';
 
 interface GenerateFluxOptions {
@@ -46,7 +47,7 @@ export async function generateFlux(options: GenerateFluxOptions): Promise<AIResu
       Authorization: `Bearer ${apiToken}`,
     },
     body: JSON.stringify({
-      model: 'black-forest-labs/flux-1.1-pro',
+      model: MODELS.flux,
       input: {
         prompt: options.prompt,
         width: size.width,

@@ -5,11 +5,14 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { watermarkAndReupload } from '@/lib/image/watermark';
+import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { resolveProjectId } from '@/lib/projects/verify';
 
 const InputSchema = z.object({
+  projectId: z.string().uuid().optional(),
   productImageUrl: z.string().min(1),
   environment: z.enum(['white_studio', 'lifestyle', 'nature', 'urban', 'luxury', 'festive']),
   shots: z.union([z.literal(1), z.literal(3), z.literal(6)]),
@@ -45,6 +48,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
+    // Never trust a client-supplied project id: verify it belongs to the caller
+    // before filing work into it, or a user could write into another
+    // customer's workspace.
+    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    if (projectId === false) {
+      return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
+    }
+
     const creditCost = SHOT_COSTS[input.shots] || 8;
 
     // Fetch brand kit
@@ -63,9 +74,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: generation, error: genError } = await supabase
       .from('generations')
       .insert({
-        user_id: user.id,
+        user_id: user.id, project_id: projectId,
         studio: 'photoshoot',
-        model: 'flux',
+        model: 'gemini',
         input: { ...input },
         credits_used: creditCost,
         status: 'processing',
@@ -79,7 +90,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
-      supabase, userId: user.id, amount: creditCost,
+      userId: user.id, amount: creditCost,
       studio: 'photoshoot', description: `Photoshoot - ${input.shots} shots - ${input.environment}`,
       generationId: generation?.id,
     });
@@ -103,9 +114,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         brandKit,
       });
 
+      // MUST be a model the router forwards `referenceImageUrl` to. lib/ai/router.ts
+      // only passes it in the 'gemini' branch — with 'flux' the customer's product
+      // photo was silently dropped, so this studio invented a random product while
+      // the prompt asked for "EXACT product preservation" of an image it never saw.
       return generateImage({
         prompt,
-        model: 'flux',
+        model: 'gemini',
         resolution: '1080p',
         referenceImageUrl: input.productImageUrl,
       }).catch(() => null);
@@ -114,7 +129,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const results = await Promise.all(shotPromises);
 
     const successfulShots = results.filter(r => r !== null).length;
+
+    // Each shot is generated with `.catch(() => null)`, so a provider failure never
+    // reaches the outer catch block that refunds. Without the two branches below,
+    // all six shots could fail and the user was still charged the full reservation
+    // and shown a "successful" grid of empty frames.
+    if (successfulShots === 0) {
+      if (generation) {
+        await supabase.from('generations').update({ status: 'failed', error: 'all_shots_failed' }).eq('id', generation.id);
+      }
+      await refundCredits({
+        userId: user.id, amount: creditCost,
+        description: 'Refund: all photoshoot shots failed',
+        generationId: generation?.id,
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'generation_failed',
+      }, { status: 500 });
+    }
+
     const actualCost = Math.max(1, Math.ceil((creditCost / input.shots) * successfulShots));
+
+    // Partial failure: return the credits for the shots that never arrived.
+    let balanceAfter = reserveResult.newBalance;
+    if (actualCost < creditCost) {
+      const partial = await refundCredits({
+        userId: user.id, amount: creditCost - actualCost,
+        description: `Refund: ${input.shots - successfulShots} of ${input.shots} photoshoot shots failed`,
+        generationId: generation?.id,
+      });
+      if (partial.success) balanceAfter = partial.newBalance;
+    }
 
     // Fetch user plan for watermark check
     const { data: profile } = await supabase
@@ -124,14 +170,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .single();
     const planId = profile?.plan_id || 'free';
 
-    // Apply watermark to each shot URL
+    // Persist to Storage BEFORE watermarking: Gemini returns data: URLs, and
+    // watermarkAndReupload() skips anything that is not an http(s) URL — so
+    // without this the free-plan watermark is silently lost and six base64
+    // images get written into a single database row.
     const shots = await Promise.all(
-      results.map(async (r, i) => ({
-        index: i,
-        url: r?.url ? await watermarkAndReupload(r.url, planId, supabase) : null,
-        model: r?.model || 'flux',
-        mock: r?.mock ?? true,
-      }))
+      results.map(async (r, i) => {
+        if (!r?.url) {
+          return { index: i, url: null, model: r?.model || 'gemini', mock: r?.mock ?? true };
+        }
+        const stored = await persistGeneratedImage(supabase, r.url, {
+          userId: user.id, generationId: generation.id, index: i,
+        });
+        return {
+          index: i,
+          url: await watermarkAndReupload(stored, planId, supabase),
+          model: r.model || 'gemini',
+          mock: r.mock ?? true,
+        };
+      })
     );
 
     // Update generation with actual cost
@@ -165,12 +222,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         generationId: generation.id,
         shots,
         creditsUsed: actualCost,
-        newBalance: reserveResult.newBalance,
+        newBalance: balanceAfter,
       },
     });
     } catch (genError) {
       await refundCredits({
-        supabase, userId: user.id, amount: creditCost,
+        userId: user.id, amount: creditCost,
         description: `Refund: photoshoot generation failed`,
         generationId: generation?.id,
       });

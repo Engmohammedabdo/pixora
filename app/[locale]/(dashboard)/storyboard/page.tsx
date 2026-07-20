@@ -16,10 +16,16 @@ import { cn } from '@/lib/utils';
 import { mapApiError } from '@/lib/studio-errors';
 import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-react';
 import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
+import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { useProjectSelection } from '@/hooks/useProjectSelection';
 
 const STYLES = ['cinematic', 'ugc', 'animation', 'documentary'] as const;
 const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
-const DURATIONS = [15, 30, 60] as const;
+// Strings, not numbers — same reason as plan/page.tsx: the API validates
+// z.enum(['15','30','60']) and Zod v4 does not coerce, so numbers made every
+// request fail validation before a storyboard was ever generated.
+const DURATIONS = ['15', '30', '60'] as const;
+type Duration = (typeof DURATIONS)[number];
 
 interface Scene {
   scene_number: number; visual_description: string; dialogue: string;
@@ -30,8 +36,9 @@ interface Scene {
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
   const tSb = useTranslations('storyboard');
+  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [concept, setConcept] = useState('');
-  const [duration, setDuration] = useState<number>(30);
+  const [duration, setDuration] = useState<Duration>('30');
   const [style, setStyle] = useState('cinematic');
   const [platform, setPlatform] = useState('instagram_reel');
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -47,14 +54,14 @@ export default function StoryboardPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/storyboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept, duration, style, platform }),
+        body: JSON.stringify({ concept, duration, style, platform, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(mapApiError(data.error, (k) => t(`studio.${k}`))); return; }
       setScenes(data.data.scenes || []);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(mapApiError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, setBalance, t]);
+  }, [isValid, concept, duration, style, platform, setBalance, t, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
@@ -65,6 +72,7 @@ export default function StoryboardPage(): React.ReactElement {
 
   const inputPanel = (
     <div className="space-y-4">
+      <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2"><Label htmlFor="storyboard-concept">{tSb('videoConcept')}</Label><textarea id="storyboard-concept" value={concept} onChange={(e) => setConcept(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tSb('conceptPlaceholder')} rows={4} maxLength={1000} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{concept.length}/1000</p></div>
       <div className="space-y-2">
         <Label>{tSb('duration')}</Label>
