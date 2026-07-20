@@ -1,11 +1,13 @@
 'use client';
 
+import { useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Coins, Sparkles, Lock } from 'lucide-react';
+import { getPlan } from '@/lib/stripe/plans';
 
 type PromptVariant = 'insufficient_credits' | 'feature_locked' | 'resolution_locked';
 
@@ -31,6 +33,20 @@ export function UpgradePrompt({
   feature,
 }: UpgradePromptProps): React.ReactElement {
   const t = useTranslations('upgrade');
+  const locale = useLocale();
+
+  // currentPlan/requiredPlan arrive as raw plan ids ('free', 'pro', ...) — the
+  // same id stored in profiles.plan_id — not display names. lib/stripe/plans.ts
+  // is the existing source of truth for a localized display name (see how
+  // billing/page.tsx picks nameAr/name by locale); resolve through it instead
+  // of ever putting the bare id in front of the user.
+  const planDisplayName = useCallback(
+    (planId: string): string => {
+      const plan = getPlan(planId);
+      return locale === 'ar' ? plan.nameAr : plan.name;
+    },
+    [locale]
+  );
 
   const content: Record<PromptVariant, { icon: React.ReactNode; title: string; description: string }> = {
     insufficient_credits: {
@@ -41,12 +57,12 @@ export function UpgradePrompt({
     feature_locked: {
       icon: <Lock className="h-10 w-10 text-primary-500" />,
       title: t('featureLocked'),
-      description: t('featureLockedDescription', { feature: feature || '', plan: requiredPlan || 'Pro' }),
+      description: t('featureLockedDescription', { feature: feature || '', plan: planDisplayName(requiredPlan || 'pro') }),
     },
     resolution_locked: {
       icon: <Sparkles className="h-10 w-10 text-primary-500" />,
       title: t('resolutionLocked'),
-      description: t('resolutionLockedDescription', { plan: currentPlan, maxRes: currentPlan === 'free' ? '1080p' : '2K' }),
+      description: t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: currentPlan === 'free' ? '1080p' : '2K' }),
     },
   };
 
@@ -62,7 +78,7 @@ export function UpgradePrompt({
         </DialogHeader>
 
         <div className="flex items-center justify-center gap-2 mt-2">
-          <Badge variant="outline">{t('yourPlan')} {currentPlan}</Badge>
+          <Badge variant="outline">{t('yourPlan')} {planDisplayName(currentPlan)}</Badge>
           {requiredCredits && availableCredits !== undefined && (
             <Badge variant="secondary">
               {t('creditsRatio', { available: availableCredits, required: requiredCredits })}
