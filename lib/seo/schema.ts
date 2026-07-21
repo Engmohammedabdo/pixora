@@ -9,8 +9,17 @@
  */
 import { PLANS } from '@/lib/stripe/plans';
 import { OG_CONTENT, type OgLocale } from '@/lib/seo/og-content';
+import arMessages from '@/messages/ar.json';
+import enMessages from '@/messages/en.json';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
+
+// The landing page's FaqSection (components/landing/FaqSection.tsx) renders a
+// fixed set of 8 questions from the `landing.faq.q1..q8` / `a1..a8` keys —
+// reading the same translated strings here (rather than a second hardcoded
+// copy) is what keeps this schema from drifting out of sync with what's
+// actually on the page.
+const FAQ_COUNT = 8;
 
 export function toOgLocale(locale: string): OgLocale {
   return locale === 'ar' ? 'ar' : 'en';
@@ -43,6 +52,21 @@ interface SchemaOrgSoftwareApplication {
   operatingSystem: string;
   url: string;
   offers: SchemaOrgOffer[];
+}
+
+interface SchemaOrgQuestion {
+  '@type': 'Question';
+  name: string;
+  acceptedAnswer: {
+    '@type': 'Answer';
+    text: string;
+  };
+}
+
+interface SchemaOrgFaqPage {
+  '@type': 'FAQPage';
+  '@id': string;
+  mainEntity: SchemaOrgQuestion[];
 }
 
 export function buildOrganizationSchema(locale: string): SchemaOrgOrganization {
@@ -83,12 +107,42 @@ export function buildSoftwareApplicationSchema(locale: string): SchemaOrgSoftwar
   };
 }
 
+export function buildFaqSchema(locale: string): SchemaOrgFaqPage {
+  // Cast rather than a second type declaration for the messages shape: these
+  // are the same next-intl message files used everywhere else, and `faq.qN`/
+  // `aN` are always plain strings.
+  const messages = locale === 'ar' ? arMessages : enMessages;
+  const faq = messages.landing.faq as Record<string, string>;
+
+  const mainEntity: SchemaOrgQuestion[] = Array.from({ length: FAQ_COUNT }, (_, i) => {
+    const n = i + 1;
+    return {
+      '@type': 'Question' as const,
+      name: faq[`q${n}`],
+      acceptedAnswer: {
+        '@type': 'Answer' as const,
+        text: faq[`a${n}`],
+      },
+    };
+  });
+
+  return {
+    '@type': 'FAQPage',
+    '@id': `${APP_URL}/${locale}/#faq`,
+    mainEntity,
+  };
+}
+
 export function buildStructuredData(locale: string): {
   '@context': 'https://schema.org';
-  '@graph': [SchemaOrgOrganization, SchemaOrgSoftwareApplication];
+  '@graph': [SchemaOrgOrganization, SchemaOrgSoftwareApplication, SchemaOrgFaqPage];
 } {
   return {
     '@context': 'https://schema.org',
-    '@graph': [buildOrganizationSchema(locale), buildSoftwareApplicationSchema(locale)],
+    '@graph': [
+      buildOrganizationSchema(locale),
+      buildSoftwareApplicationSchema(locale),
+      buildFaqSchema(locale),
+    ],
   };
 }
