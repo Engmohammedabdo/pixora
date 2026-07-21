@@ -84,6 +84,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       // and newline-stripping, and attaches a user id when a session
       // happens to exist, but must never require one.
       '/api/client-errors',
+      // Uptime monitors have no session to send. The handler itself only
+      // ever returns a coarse `{ status, timestamp }` — see app/api/health/
+      // route.ts — so exposing it here leaks nothing sensitive.
+      '/api/health',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));

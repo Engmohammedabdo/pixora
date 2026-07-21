@@ -484,6 +484,7 @@
     "title": "Billing & Subscription",
     "currentPlan": "Your Current Plan",
     "creditsPerMonth": "credits/month",
+    "approxImages": "≈ {count, plural, one {1 image} other {# images}}",
     "resolution": "Resolution",
     "manageSubscription": "Manage Subscription",
     "creditBalance": "Credit Balance",
@@ -727,6 +728,7 @@
       "popular": "Most Popular",
       "perMonth": "/mo",
       "credits": "{count} credits",
+      "approxImages": "≈ {count, plural, one {1 image} other {# images}}",
       "startFree": "Start Free",
       "subscribe": "Subscribe Now",
       "features": {

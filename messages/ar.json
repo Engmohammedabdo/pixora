@@ -484,6 +484,7 @@
     "title": "الفواتير والاشتراك",
     "currentPlan": "خطتك الحالية",
     "creditsPerMonth": "كريدت/شهر",
+    "approxImages": "≈ {count, plural, one {صورة واحدة} two {صورتان} few {# صور} many {# صورة} other {# صورة}}",
     "resolution": "دقة",
     "manageSubscription": "إدارة الاشتراك",
     "creditBalance": "رصيد الكريدت",
@@ -727,6 +728,7 @@
       "popular": "الأكثر شعبية",
       "perMonth": "/شهر",
       "credits": "{count} كريدت",
+      "approxImages": "≈ {count, plural, one {صورة واحدة} two {صورتان} few {# صور} many {# صورة} other {# صورة}}",
       "startFree": "ابدأ مجاناً",
       "subscribe": "اشترك الآن",
       "features": {

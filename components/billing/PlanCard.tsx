@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { estimateImagesFromCredits } from '@/lib/credits/costs';
 import type { PlanConfig } from '@/lib/stripe/plans';
 
 interface PlanCardProps {
@@ -17,6 +19,7 @@ interface PlanCardProps {
 }
 
 const PlanCardInner = function PlanCard({ plan, isCurrentPlan, onSelect, loading, locale }: PlanCardProps): React.ReactElement {
+  const t = useTranslations('billing');
   const isAr = locale === 'ar';
   const features = isAr ? plan.featuresAr : plan.features;
   const isFree = plan.id === 'free';
@@ -43,6 +46,9 @@ const PlanCardInner = function PlanCard({ plan, isCurrentPlan, onSelect, loading
         </div>
         <p className="text-sm text-[var(--color-brand)] font-medium mt-1">
           {plan.credits.toLocaleString()} {isAr ? 'كريدت' : 'credits'}
+        </p>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {t('approxImages', { count: estimateImagesFromCredits(plan.credits) })}
         </p>
       </CardHeader>
 

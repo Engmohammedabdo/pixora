@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { useLocale, useTranslations } from 'next-intl';
 import { PLANS, ANNUAL_PLANS } from '@/lib/stripe/plans';
+import { estimateImagesFromCredits } from '@/lib/credits/costs';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,8 +117,11 @@ export default function PricingSection() {
                   )}
                 </div>
 
-                <p className="text-center text-sm font-medium text-primary-600 dark:text-primary-400 mb-6">
+                <p className="text-center text-sm font-medium text-primary-600 dark:text-primary-400 mb-1">
                   {t('pricing.credits', { count: plan.credits.toLocaleString() })}
+                </p>
+                <p className="text-center text-xs text-[var(--color-text-secondary)] mb-6">
+                  {t('pricing.approxImages', { count: estimateImagesFromCredits(plan.credits) })}
                 </p>
 
                 <ul className="flex-1 space-y-3 mb-6">

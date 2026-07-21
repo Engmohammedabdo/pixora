@@ -28,3 +28,15 @@ export function getStudioCost(studio: string, resolution?: string): number {
 
   return 1;
 }
+
+/**
+ * Translates a raw plan credit balance into an approximate outcome count
+ * ("≈ N images") for pricing UI — plan cards otherwise show a bare credit
+ * number a prospect has no way to evaluate. Derived from the cheapest image
+ * resolution's real cost (`CREDIT_COSTS.image`, currently 1080p at 1 credit)
+ * rather than hardcoded, so this stays correct if resolution pricing changes.
+ */
+export function estimateImagesFromCredits(credits: number): number {
+  const cheapestImageCost = Math.min(...Object.values(CREDIT_COSTS.image));
+  return Math.max(0, Math.floor(credits / cheapestImageCost));
+}

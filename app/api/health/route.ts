@@ -4,24 +4,25 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Public, unauthenticated endpoint (see middleware.ts publicApiPaths) so
+// uptime monitors can reach it without a session. The checks below run the
+// same internal probes as before (DB reachability, required config present,
+// Stripe key shape) to decide overall health, but NONE of that detail is
+// exposed — no per-check breakdown, no timings, no env var names, no error
+// messages. The public body is intentionally just a coarse status + a
+// timestamp; anyone needing the detailed breakdown should use an internal/
+// authenticated diagnostics route instead of widening this one.
 export async function GET(): Promise<NextResponse> {
-  const checks: Record<string, { status: 'ok' | 'error'; ms?: number }> = {};
-  const start = Date.now();
+  let healthy = true;
 
-  // Check 1: Supabase connection
   try {
-    const dbStart = Date.now();
     const supabase = await createServiceRoleClient();
     const { error } = await supabase.from('profiles').select('id').limit(1);
-    checks.database = {
-      status: error ? 'error' : 'ok',
-      ms: Date.now() - dbStart,
-    };
+    if (error) healthy = false;
   } catch {
-    checks.database = { status: 'error' };
+    healthy = false;
   }
 
-  // Check 2: Required config present (don't reveal WHICH vars are missing)
   const requiredEnvVars = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -32,29 +33,22 @@ export async function GET(): Promise<NextResponse> {
     'ADMIN_USERNAME',
     'ADMIN_PASSWORD',
   ];
-  const missingCount = requiredEnvVars.filter((v) => !process.env[v]).length;
-  checks.config = {
-    status: missingCount === 0 ? 'ok' : 'error',
-  };
+  if (requiredEnvVars.some((v) => !process.env[v])) {
+    healthy = false;
+  }
 
-  // Check 3: Payment processor
   const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-  checks.payments = {
-    status: stripeKey.startsWith('sk_') ? 'ok' : 'error',
-  };
-
-  const allOk = Object.values(checks).every((c) => c.status === 'ok');
-  const totalMs = Date.now() - start;
+  if (!stripeKey.startsWith('sk_')) {
+    healthy = false;
+  }
 
   return NextResponse.json(
     {
-      status: allOk ? 'healthy' : 'degraded',
+      status: healthy ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
-      responseTime: totalMs,
-      checks,
     },
     {
-      status: allOk ? 200 : 503,
+      status: healthy ? 200 : 503,
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
     }
   );
