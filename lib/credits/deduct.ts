@@ -90,8 +90,42 @@ export async function reserveCredits({
   return { success: true, newBalance: result?.new_balance || 0 };
 }
 
+/** Transient Postgres/PostgREST conditions worth one more attempt. */
+const RETRYABLE_REFUND_ERRORS = [
+  '40001', // serialization_failure
+  '40P01', // deadlock_detected
+  '55P03', // lock_not_available
+  '57014', // query_canceled (statement timeout)
+  '08006', // connection_failure
+  '08003', // connection_does_not_exist
+];
+
+const isRetryableRefundError = (code: unknown, message: string): boolean =>
+  (typeof code === 'string' && RETRYABLE_REFUND_ERRORS.includes(code)) ||
+  /timeout|deadlock|connection|fetch failed|network/i.test(message);
+
 /**
- * Refund credits when generation fails AFTER reservation.
+ * Refund credits when a generation fails AFTER reservation.
+ *
+ * WHY THIS RETRIES AND LOGS SO LOUDLY: a refund that does not land means the
+ * user paid credits and received nothing. Every one of the eight studio routes
+ * calls this as a bare `await refundCredits(...)` and discards the result, so
+ * this function is the ONLY place that can protect the user's balance — a
+ * failure here is otherwise invisible to them. Two things follow from that:
+ *
+ *  1. Transient failures (deadlock, lock timeout, dropped connection) get one
+ *     bounded retry. That is where most real-world refund failures live, and
+ *     retrying costs nothing because refund_credits is called once per failed
+ *     generation, not in a loop.
+ *  2. A refund that still will not land is logged as a single structured,
+ *     greppable line so it is recoverable. Grep production logs for
+ *     `[credits][OWED]` to find every user who is owed credits, with the amount
+ *     and generation id needed to reconcile them by hand.
+ *
+ * This does NOT make refunds transactional. If the process is killed between
+ * reserveCredits() and the caller's catch block, no refund is attempted at all —
+ * closing that requires a reconciliation job over reserved-but-unfinished
+ * generations, which is tracked separately.
  */
 export async function refundCredits({
   userId, amount, description, generationId,
@@ -99,28 +133,48 @@ export async function refundCredits({
   if (amount <= 0) return { success: true, newBalance: 0 };
 
   const supabase = await getServiceClient();
-  const { data, error } = await supabase.rpc('refund_credits', {
-    p_user_id: userId,
-    p_amount: amount,
-    p_description: description,
-    ...(generationId ? { p_generation_id: generationId } : {}),
-  });
 
-  // A failed refund means the user paid credits for nothing. Previously this
-  // returned success:true unconditionally, so a refund that the database
-  // rejected was reported as if it had worked and the loss was invisible.
-  if (error) {
-    console.error('[credits] refund RPC failed', { userId, amount, generationId, error: error.message });
-    return { success: false, newBalance: 0, error: error.message };
-  }
-
-  const result = data as { success: boolean; new_balance?: number; error?: string } | null;
-  if (!result?.success) {
-    console.error('[credits] refund rejected — user is owed credits', {
-      userId, amount, generationId, reason: result?.error ?? 'unknown',
+  const attempt = async (): Promise<CreditResult & { retryable: boolean }> => {
+    const { data, error } = await supabase.rpc('refund_credits', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_description: description,
+      ...(generationId ? { p_generation_id: generationId } : {}),
     });
-    return { success: false, newBalance: 0, error: result?.error || 'refund_failed' };
+
+    if (error) {
+      return {
+        success: false, newBalance: 0, error: error.message,
+        retryable: isRetryableRefundError((error as { code?: string }).code, error.message),
+      };
+    }
+
+    const result = data as { success: boolean; new_balance?: number; error?: string } | null;
+    if (!result?.success) {
+      // A rejection from the function body is a decision, not a glitch — the
+      // same call will be rejected again, so do not retry it.
+      return { success: false, newBalance: 0, error: result?.error || 'refund_failed', retryable: false };
+    }
+
+    return { success: true, newBalance: result.new_balance || 0, retryable: false };
+  };
+
+  let outcome = await attempt();
+  if (!outcome.success && outcome.retryable) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    outcome = await attempt();
   }
 
-  return { success: true, newBalance: result.new_balance || 0 };
+  if (!outcome.success) {
+    // Single line, machine-parseable, newline-free: this is the record that a
+    // user is owed credits. Alert on it.
+    console.error(`[credits][OWED] ${JSON.stringify({
+      userId, amount, generationId: generationId ?? null,
+      description: description.replace(/[\r\n]+/g, ' '),
+      reason: (outcome.error ?? 'unknown').replace(/[\r\n]+/g, ' '),
+      at: new Date().toISOString(),
+    })}`);
+  }
+
+  return { success: outcome.success, newBalance: outcome.newBalance, error: outcome.error };
 }
