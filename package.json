@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:query": "npx tsx scripts/db-query.ts",
-    "db:backfill-images": "npx tsx scripts/backfill-data-uris.ts"
+    "db:backfill-images": "npx tsx scripts/backfill-data-uris.ts",
+    "check:invariants": "npx tsx scripts/check-invariants.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
