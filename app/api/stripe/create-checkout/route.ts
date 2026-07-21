@@ -75,6 +75,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/${locale}/billing?success=true&plan=${planId}`,
       cancel_url: `${appUrl}/${locale}/billing`,
+      // Surfaces the promo-code field at checkout. Inert until a code actually
+      // exists in the Stripe dashboard, so enabling it costs nothing — but
+      // without it a code you create later simply cannot be redeemed.
+      allow_promotion_codes: true,
       metadata: {
         userId: user.id,
         planId,

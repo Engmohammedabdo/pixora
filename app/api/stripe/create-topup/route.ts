@@ -55,6 +55,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       line_items: [{ price: topup.priceId, quantity: 1 }],
       success_url: `${appUrl}/${locale}/billing?success=true&topup=${topupId}`,
       cancel_url: `${appUrl}/${locale}/billing`,
+      // Same rationale as the subscription checkout: inert until a code exists,
+      // but a code created later is unredeemable without this.
+      allow_promotion_codes: true,
       metadata: {
         userId: user.id,
         topupId,
