@@ -140,7 +140,7 @@ export default function AdminCommandPalette({ open, onClose }: AdminCommandPalet
             </kbd>
           </div>
 
-          <Command.List className="max-h-[60vh] overflow-y-auto p-2">
+          <Command.List className="max-h-[60dvh] overflow-y-auto p-2">
             {/* Loading */}
             {searching && (
               <div className="px-3 py-6 text-center text-xs text-slate-500">Searching...</div>

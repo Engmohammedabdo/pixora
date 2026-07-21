@@ -30,11 +30,26 @@
  *   npx tsx scripts/check-invariants.ts                  # run everything
  *   npx tsx scripts/check-invariants.ts --only=msg-parity,contrast-tokens
  *   npx tsx scripts/check-invariants.ts --skip=no-arabic-literals-in-tsx
+ *   npx tsx scripts/check-invariants.ts --update-baseline # regenerate the
+ *                                                          # known-debt file
+ *
+ * BASELINE (pre-existing debt, NOT a general-purpose suppression tool):
+ *   scripts/invariants-baseline.json records violations that already
+ *   existed when a rule was introduced and cannot be fixed immediately
+ *   (currently: the 130 pre-existing Arabic-literal strings in un-localized
+ *   pages, tracked as a separate localization project). A baselined
+ *   violation is reported as known debt and does NOT fail the run; a NEW
+ *   violation (not in the baseline) always fails the run, even for a rule
+ *   that also has baseline entries. Only `no-arabic-literals-in-tsx` is
+ *   allowed to consult the baseline at all (see BASELINE_ELIGIBLE_IDS) —
+ *   this is enforced in code, not just convention, specifically so the
+ *   baseline can never become a way to silence a new violation in any other
+ *   rule. See docs/INVARIANTS.md "Baseline mechanism" section.
  *
  * See docs/INVARIANTS.md for the full rationale behind each rule.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 
 const ROOT = process.cwd();
@@ -532,6 +547,18 @@ function lucideImportNames(content: string): Set<string> {
  *      exempt the Link's own hardcoded text-primary-600. Requiring the
  *      match to be an actual "<Name" JSX tag (not a bare identifier
  *      reference) avoids that.
+ *   5. Zone B's plain text (JSX tags stripped), trimmed, is 1-3 characters
+ *      long and consists ENTIRELY of characters from a small curated
+ *      "decorative glyph" set (DECORATIVE_GLYPH_RE below) — list-item bullet
+ *      markers ("●") and a blinking typewriter cursor ("|") are visually
+ *      "content" but convey no reading text, the same non-text category as
+ *      an icon; WCAG's text-contrast requirement targets *readable* text,
+ *      not marker glyphs. Verified by hand against the 3 sites this exempts:
+ *      the roadmap-item and calendar-item bullets in analysis/page.tsx and
+ *      plan/page.tsx, and the HeroSection typewriter cursor span. Kept
+ *      deliberately narrow (a short explicit character class, length capped
+ *      at 3) rather than "any non-letter content", so it can't swallow a
+ *      real short string like a "-" placeholder for missing data.
  *
  * Everything else is reported as a real violation. This was cross-checked
  * by hand against every current match in the repo (icon-only buttons,
@@ -539,6 +566,9 @@ function lucideImportNames(content: string): Set<string> {
  * classification matched manual judgment in each case, so violations here
  * are reported at normal (error) severity, not downgraded to warnings.
  */
+/** Curated set of glyphs used purely as decoration (list bullets, blinking
+ *  cursors) rather than readable text — see exemption rule 5 above. */
+const DECORATIVE_GLYPH_RE = /^[•◦●○▪▸►·|]+$/;
 const themeAwareTextColor: Invariant = {
   id: 'theme-aware-text-color',
   title: 'No text-primary-500/600 on an element that renders text (excludes icons)',
@@ -589,6 +619,13 @@ const themeAwareTextColor: Invariant = {
               exemptB = true;
               break;
             }
+          }
+        }
+        if (!exemptB) {
+          // Decorative-glyph exemption (rule 5, see comment above).
+          const bareText = zoneB.replace(/<[^>]*>/g, '').trim();
+          if (bareText.length > 0 && bareText.length <= 3 && DECORATIVE_GLYPH_RE.test(bareText)) {
+            exemptB = true;
           }
         }
         if (exemptB) continue;
@@ -666,6 +703,17 @@ const rtlLogicalProperties: Invariant = {
 // Invariant 8: mobile-16px-inputs
 // ---------------------------------------------------------------------------
 
+// <input> types exempt from the 16px-zoom rule: none of these ever show a
+// text caret + software keyboard, which is specifically what triggers iOS
+// Safari's auto-zoom-on-focus behavior.
+//   - "file"     opens the native file picker/camera sheet — no text field.
+//   - "checkbox"/"radio" render a fixed-size native check/dot control — the
+//     user taps it, never types into it.
+//   - "range" renders a native slider thumb — dragged, not typed into.
+// A font-size class on any of these themes a label/marker element, not an
+// editable text field, so it cannot cause the zoom this rule guards against.
+const ZOOM_EXEMPT_INPUT_TYPES = new Set(['file', 'checkbox', 'radio', 'range']);
+
 const mobile16pxInputs: Invariant = {
   id: 'mobile-16px-inputs',
   title: 'No <input>/<textarea>/<select> carrying a bare text-sm or text-xs',
@@ -676,7 +724,10 @@ const mobile16pxInputs: Invariant = {
     'so it always triggers the zoom. The fix pattern is mobile-first ' +
     '"text-base sm:text-sm" — 16px on mobile, smaller only at sm+ where iOS ' +
     "zoom doesn't apply — which never has a *bare* text-sm/text-xs token, " +
-    'only breakpoint-prefixed ones.',
+    'only breakpoint-prefixed ones. EXCEPTION: <input type="file"/' +
+    '"checkbox"/"radio"/"range"> never shows a text caret or software ' +
+    "keyboard on focus, so iOS's zoom-on-focus behavior does not apply to " +
+    'them regardless of font-size — see ZOOM_EXEMPT_INPUT_TYPES above.',
   async check(): Promise<Violation[]> {
     const violations: Violation[] = [];
     const files = listFiles(['app', 'components'], ['.tsx'], true);
@@ -685,6 +736,7 @@ const mobile16pxInputs: Invariant = {
     // so multi-line tags are handled naturally.
     const tagRe = /<(input|textarea|select)\b/g;
     const bareSizeRe = /(?<![\w:-])text-(sm|xs)\b/;
+    const typeAttrRe = /\btype\s*=\s*["']([\w-]+)["']/;
     for (const file of files) {
       const content = readFileSync(file, 'utf8');
       const rel = toRel(file);
@@ -693,6 +745,10 @@ const mobile16pxInputs: Invariant = {
       while ((m = tagRe.exec(content))) {
         const tagEnd = scanTagEnd(content, m.index);
         const tagText = content.slice(m.index, tagEnd + 1);
+        if (m[1] === 'input') {
+          const typeMatch = typeAttrRe.exec(tagText);
+          if (typeMatch && ZOOM_EXEMPT_INPUT_TYPES.has(typeMatch[1])) continue;
+        }
         const sizeMatch = bareSizeRe.exec(tagText);
         if (sizeMatch) {
           const absIdx = m.index + sizeMatch.index;
@@ -971,6 +1027,86 @@ const contrastTokens: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Baseline (pre-existing debt) mechanism
+// ---------------------------------------------------------------------------
+
+/*
+ * WHAT THE BASELINE IS FOR, AND WHAT IT IS NOT FOR:
+ *
+ * `no-arabic-literals-in-tsx` has 130 genuine, pre-existing violations —
+ * entire un-localized pages (terms/, privacy/) and components that never
+ * got i18n applied. That is real, tracked debt (a separate localization
+ * project), not something this task fixes. But a checker that is
+ * permanently red gets ignored — the next genuinely NEW violation lands in
+ * a wall of 130 pre-existing ones and nobody notices it. The baseline file
+ * (scripts/invariants-baseline.json) exists to solve exactly that: it
+ * freezes the CURRENT set of accepted violations so the checker can
+ * distinguish "still there from before" (reported, not failing) from
+ * "new since the baseline was written" (always fails).
+ *
+ * It must NEVER be used to silence a new violation in ANY rule — baselining
+ * is for pre-existing debt only. This is enforced structurally, not just by
+ * convention: BASELINE_ELIGIBLE_IDS is the only invariant id allowed to
+ * consult the file at all. Even if someone manually added a
+ * "refund-captured::..." key to invariants-baseline.json, it would be
+ * ignored — every other invariant's violations always fail the run,
+ * unconditionally, exactly as before this mechanism existed.
+ *
+ * KEY DESIGN — why "${invariantId}::${file}::${text}" and not "file:line":
+ *
+ * A line-number key is brittle: adding a single line anywhere ABOVE a
+ * baselined violation shifts every line number below it, so the same
+ * unfixed violation would appear to be "a new one" (line moved) while an
+ * actually-fixed one could coincidentally match a stale line number and
+ * hide a real regression. Editing terms/page.tsx to add one sentence near
+ * the top would otherwise invalidate the entire rest of the baseline for
+ * that file. The offending TEXT (the trimmed source line, already what the
+ * script prints) does not move when unrelated lines shift, so it survives
+ * routine edits elsewhere in the file. It only goes stale when the
+ * violating line ITSELF is edited or removed — which is precisely the
+ * "this entry needs attention" signal we want (see staleness reporting
+ * below): either it was fixed (remove it) or it was reformatted (regenerate
+ * with --update-baseline). Prefixing with the invariant id keeps the key
+ * self-describing in a flat, single-array JSON file (greppable on its own,
+ * no dependency on which top-level object key it lives under) and leaves
+ * room for another invariant to use the same mechanism later without a
+ * structural change. Confirmed by hand: all 130 current violations produce
+ * distinct (file, text) pairs, so this key has no collisions today.
+ */
+
+interface BaselineFile {
+  version: number;
+  entries: string[];
+}
+
+const BASELINE_PATH = join(ROOT, 'scripts', 'invariants-baseline.json');
+
+/** The ONLY invariant id(s) allowed to consult the baseline. Deliberately a
+ *  fixed allowlist rather than "any invariant with entries in the file" —
+ *  see the long comment above. */
+const BASELINE_ELIGIBLE_IDS = new Set<string>(['no-arabic-literals-in-tsx']);
+
+function violationKey(invariantId: string, v: Violation): string {
+  return `${invariantId}::${v.file}::${v.text}`;
+}
+
+function loadBaseline(): Set<string> {
+  if (!existsSync(BASELINE_PATH)) return new Set();
+  try {
+    const parsed = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as BaselineFile;
+    return new Set(parsed.entries ?? []);
+  } catch (err) {
+    console.error(`Could not parse ${toRel(BASELINE_PATH)}: ${(err as Error).message}`);
+    process.exit(2);
+  }
+}
+
+function writeBaselineFile(entries: string[]): void {
+  const data: BaselineFile = { version: 1, entries: [...entries].sort((a, b) => a.localeCompare(b)) };
+  writeFileSync(BASELINE_PATH, JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
@@ -995,7 +1131,49 @@ function parseArgList(flag: string): Set<string> | null {
   return new Set(value.split(',').map((s) => s.trim()).filter(Boolean));
 }
 
+/** `--update-baseline` mode: regenerate scripts/invariants-baseline.json
+ *  from the CURRENT violations of the baseline-eligible invariant(s) only.
+ *  This is a full snapshot rewrite (like `jest --updateSnapshot`), not a
+ *  merge — anything fixed since the last snapshot is dropped automatically,
+ *  anything new is captured, and the printed diff makes both visible.
+ *  Deliberately does not touch or report on any other invariant: this mode
+ *  exists solely to refresh accepted pre-existing debt. */
+async function runUpdateBaseline(): Promise<void> {
+  const oldEntries = loadBaseline();
+  const newEntries = new Set<string>();
+
+  for (const invariant of INVARIANTS) {
+    if (!BASELINE_ELIGIBLE_IDS.has(invariant.id)) continue;
+    const violations = await invariant.check();
+    const errors = violations.filter((v) => (v.severity ?? 'error') === 'error');
+    for (const v of errors) newEntries.add(violationKey(invariant.id, v));
+  }
+
+  writeBaselineFile([...newEntries]);
+
+  const added = [...newEntries].filter((k) => !oldEntries.has(k));
+  const removed = [...oldEntries].filter((k) => !newEntries.has(k));
+
+  console.log(`Wrote ${toRel(BASELINE_PATH)}: ${newEntries.size} entries.`);
+  if (added.length > 0) {
+    console.log(`  + ${added.length} added:`);
+    for (const k of added) console.log(`    ${k}`);
+  }
+  if (removed.length > 0) {
+    console.log(`  - ${removed.length} removed (no longer occurring):`);
+    for (const k of removed) console.log(`    ${k}`);
+  }
+  if (added.length === 0 && removed.length === 0) {
+    console.log('  (no change from the previous baseline)');
+  }
+}
+
 async function main(): Promise<void> {
+  if (process.argv.includes('--update-baseline')) {
+    await runUpdateBaseline();
+    process.exit(0);
+  }
+
   const only = parseArgList('--only=');
   const skip = parseArgList('--skip=');
 
@@ -1011,11 +1189,15 @@ async function main(): Promise<void> {
     }
   }
 
+  const baseline = loadBaseline();
+
   console.log('PyraSuite invariant check');
   console.log('='.repeat(60));
 
-  let errorCount = 0;
+  let errorCount = 0; // NEW violations only — these fail the run
   let warningCount = 0;
+  let knownDebtCount = 0; // baselined violations — reported, do not fail
+  let staleBaselineCount = 0; // baseline entries that no longer occur
   let ranCount = 0;
   let failedCount = 0;
   let skippedCount = 0;
@@ -1031,20 +1213,41 @@ async function main(): Promise<void> {
     ranCount++;
     console.log(`\n[${invariant.id}] ${invariant.title}`);
     const violations = await invariant.check();
-    const errors = violations.filter((v) => (v.severity ?? 'error') === 'error');
+    const allErrors = violations.filter((v) => (v.severity ?? 'error') === 'error');
     const warnings = violations.filter((v) => v.severity === 'warning');
 
-    if (errors.length === 0 && warnings.length === 0) {
+    const eligible = BASELINE_ELIGIBLE_IDS.has(invariant.id);
+    const currentKeys = new Set(allErrors.map((v) => violationKey(invariant.id, v)));
+    const newErrors = eligible ? allErrors.filter((v) => !baseline.has(violationKey(invariant.id, v))) : allErrors;
+    const knownDebt = eligible ? allErrors.filter((v) => baseline.has(violationKey(invariant.id, v))) : [];
+    const prefix = `${invariant.id}::`;
+    const staleBaseline = eligible
+      ? [...baseline].filter((k) => k.startsWith(prefix) && !currentKeys.has(k))
+      : [];
+
+    if (newErrors.length === 0 && warnings.length === 0 && knownDebt.length === 0 && staleBaseline.length === 0) {
       console.log('  PASS');
     } else {
-      if (errors.length > 0) {
+      if (newErrors.length > 0) {
         failedCount++;
-        console.log(`  FAIL (${errors.length} violation${errors.length === 1 ? '' : 's'})`);
-        for (const v of errors) {
+        console.log(`  FAIL (${newErrors.length} NEW violation${newErrors.length === 1 ? '' : 's'}, not in baseline)`);
+        for (const v of newErrors) {
           console.log(`    ${v.file}:${v.line}: ${v.text}`);
         }
       } else {
-        console.log('  PASS');
+        console.log(eligible ? '  PASS (0 new violations)' : '  PASS');
+      }
+      if (knownDebt.length > 0) {
+        console.log(`  KNOWN DEBT (${knownDebt.length} baselined, pre-existing — not failing the build)`);
+        for (const v of knownDebt) {
+          console.log(`    ${v.file}:${v.line}: ${v.text}`);
+        }
+      }
+      if (staleBaseline.length > 0) {
+        console.log(`  STALE BASELINE (${staleBaseline.length}) — no longer occurring; fixed, remove via --update-baseline`);
+        for (const k of staleBaseline) {
+          console.log(`    ${k}`);
+        }
       }
       if (warnings.length > 0) {
         console.log(`  WARN (${warnings.length} heuristic-uncertain match${warnings.length === 1 ? '' : 'es'}, not failing the build)`);
@@ -1053,13 +1256,16 @@ async function main(): Promise<void> {
         }
       }
     }
-    errorCount += errors.length;
+    errorCount += newErrors.length;
     warningCount += warnings.length;
+    knownDebtCount += knownDebt.length;
+    staleBaselineCount += staleBaseline.length;
   }
 
   console.log('\n' + '='.repeat(60));
   console.log(
-    `Summary: ${ranCount} run, ${ranCount - failedCount} passed, ${failedCount} failed, ${skippedCount} skipped, ${errorCount} total violations, ${warningCount} total warnings`
+    `Summary: ${ranCount} run, ${ranCount - failedCount} passed, ${failedCount} failed, ${skippedCount} skipped, ` +
+      `${errorCount} new violations, ${knownDebtCount} known-debt (baselined), ${staleBaselineCount} stale baseline entries, ${warningCount} total warnings`
   );
 
   process.exit(failedCount > 0 ? 1 : 0);

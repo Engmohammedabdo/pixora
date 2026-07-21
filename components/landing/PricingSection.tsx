@@ -117,7 +117,7 @@ export default function PricingSection() {
                   )}
                 </div>
 
-                <p className="text-center text-sm font-medium text-primary-600 dark:text-primary-400 mb-1">
+                <p className="text-center text-sm font-medium text-[var(--color-brand)] mb-1">
                   {t('pricing.credits', { count: plan.credits.toLocaleString() })}
                 </p>
                 <p className="text-center text-xs text-[var(--color-text-secondary)] mb-6">

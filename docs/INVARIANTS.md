@@ -9,9 +9,12 @@ npm run check:invariants
 # or, for fast iteration on one rule:
 npx tsx scripts/check-invariants.ts --only=contrast-tokens
 npx tsx scripts/check-invariants.ts --skip=no-arabic-literals-in-tsx
+# regenerate the pre-existing-debt baseline (see "Baseline mechanism" below):
+npx tsx scripts/check-invariants.ts --update-baseline
 ```
 
-The script exits `0` if every invariant passes, `1` if any fails. Output is
+The script exits `0` if every invariant passes (no NEW violations — see
+baseline mechanism below for what "new" means), `1` if any fails. Output is
 colour/emoji-free and greppable (`file:line: text` per violation) so it works
 the same in a terminal or a CI log. Implementation: `scripts/check-invariants.ts`.
 
@@ -146,16 +149,40 @@ nav label inside the same `<Link>`; a bare `icon` substring search over Zone
 B would wrongly exempt the `<Link>`'s own hardcoded `text-primary-600` on
 the label text. Requiring a JSX tag match closes that hole.
 
+5. Zone B's plain text (JSX tags stripped), trimmed, is 1-3 characters long
+   and consists **entirely** of characters from a small curated
+   "decorative glyph" set (`DECORATIVE_GLYPH_RE` in the script: bullet/dot
+   markers and a vertical-bar cursor). A list-item bullet ("●") or a
+   blinking typewriter cursor ("|") is visually rendered but conveys no
+   *reading* text — the same non-text category as an icon glyph, just
+   authored as a literal character instead of an SVG. WCAG's text-contrast
+   requirement targets readable text, not marker glyphs, so the 4.5:1 rule
+   does not apply to them. Deliberately narrow (a short explicit character
+   class, length capped at 3) so it can't swallow a real short string like
+   a "-" placeholder for missing data.
+
 This was cross-checked by hand against every match found in the repo (icon
 buttons, checkboxes, decorative bullets, nav links, pricing badges) and the
 classification matched manual judgment every time, so its output is reported
 as normal violations, not downgraded to warnings.
 
-**Status at time of writing:** 6 genuine violations (decorative bullet
-glyphs and a blinking cursor character colored with a non-flipping hex, plus
-three real text elements — a pricing-badge paragraph, an active nav-link
-label, and a prompt-suggestion button — using `text-primary-600` instead of
-`--color-brand`). See the script's own output for exact file:line.
+**Per-site decisions made while fixing the 6 violations found (all now
+resolved — 0 violations):**
+
+| Site | Judgment | Fix |
+|------|----------|-----|
+| `app/[locale]/(dashboard)/analysis/page.tsx:155` — `<span className="text-primary-500 mt-0.5">●</span>` | Decorative list-item bullet, not read as text | Checker updated (exemption rule 5 above) — component unchanged |
+| `app/[locale]/(dashboard)/plan/page.tsx:145` — `<span className="text-primary-500">●</span>` | Same — decorative bullet | Checker updated — component unchanged |
+| `components/landing/HeroSection.tsx:119` — `<span className="text-primary-500 animate-pulse">\|</span>` | Blinking typewriter cursor, decorative | Checker updated — component unchanged |
+| `components/landing/PricingSection.tsx:120` — pricing-credits paragraph | Real text a user reads | `text-primary-600 dark:text-primary-400` → `text-[var(--color-brand)]` |
+| `components/layout/Sidebar.tsx:143` — active nav-link label | Real text a user reads | `text-primary-600 dark:text-primary-300` → `text-[var(--color-brand)]` (the `bg-primary-50 dark:bg-primary-900/30` background tint is untouched — this rule is about text colour only) |
+| `components/shared/PromptSuggestions.tsx:26` — prompt-suggestion button label | Real text a user reads | `text-primary-600 dark:text-primary-300` → `text-[var(--color-brand)]` |
+
+The three decorative-glyph sites were fixed in the **checker**, not the
+component, per the rule: if it genuinely colours an icon or a decorative
+glyph, the 4.5:1 rule doesn't apply, but a checker that keeps reporting a
+known-non-issue as FAIL trains people to ignore it — so the exemption is
+now encoded (rule 5) rather than left as a standing failure.
 
 ---
 
@@ -211,10 +238,36 @@ lines. The checker scans by character index across the whole file (not
 line-by-line), so it finds an element's full opening tag — and thus every
 class token in it — regardless of how many lines it spans.
 
-**Status at time of writing:** 1 genuine violation —
-`app/[locale]/(dashboard)/settings/page.tsx:109`, the avatar
-`<input type="file">`, carries a bare `text-sm` (the `file:text-sm` later in
-the same class list is fine — it's a `file:` variant, not a bare token).
+**Exemption — `type="file"`/`"checkbox"`/`"radio"`/`"range"`:** none of
+these `<input>` types ever show a text caret plus software keyboard, which
+is specifically what triggers iOS Safari's zoom-on-focus behavior:
+
+- `type="file"` opens the native file-picker/camera sheet — there is no
+  text field to focus or type into.
+- `type="checkbox"`/`"radio"` render a fixed-size native check/dot control
+  that the user taps, never types into.
+- `type="range"` renders a native slider thumb that's dragged, not typed
+  into.
+
+A font-size class on any of these themes a label/marker element, not an
+editable text field, so it cannot cause the zoom this rule exists to guard
+against. The checker (`ZOOM_EXEMPT_INPUT_TYPES` in
+`scripts/check-invariants.ts`) reads the tag's own `type="..."` attribute
+and skips the element entirely when it matches one of these four values;
+an `<input>` with a dynamic (non-literal) `type` expression is not
+recognized by this string match and is still checked normally (a
+conservative default, not a hole — it just means the exemption only fires
+when it can prove the type from the source text).
+
+**Status at time of writing: 0 violations.** The one match previously
+reported, `app/[locale]/(dashboard)/settings/page.tsx:109` (the avatar
+`<input type="file">`, carrying a bare `text-sm` — the `file:text-sm` later
+in the same class list is a `file:` variant, not a bare token, and was
+never the issue) was a confirmed **false positive**: a file input opens a
+native OS picker instead of receiving text input, so it cannot trigger
+iOS's auto-zoom regardless of its computed font-size. The rule was narrowed
+(see exemption above) rather than changing the component to satisfy an
+incorrect check.
 
 ---
 
@@ -232,11 +285,15 @@ fix this. A local `max-h-[Nvh]` override on a specific dialog wins through
 property wins) and silently reintroduces the exact overflow-behind-the-
 address-bar bug `dvh` was adopted to fix.
 
-**Status at time of writing:** 1 genuine violation —
-`components/admin/AdminCommandPalette.tsx:143` (`max-h-[60vh]`). Real and in
-scope: this rule intentionally covers admin too, since a native mobile
-Safari viewport bug doesn't care whether the surface is customer-facing or
-internal.
+**Status at time of writing: 0 violations.** The one match previously
+found, `components/admin/AdminCommandPalette.tsx:143` (`max-h-[60vh]`), was
+real and in scope — this rule intentionally covers admin too, since a
+native mobile Safari viewport bug doesn't care whether the surface is
+customer-facing or internal — and was fixed directly (`max-h-[60vh]` →
+`max-h-[60dvh]`), not exempted. The admin console is desktop-oriented in
+practice, but the fix is a one-character class change with no downside, so
+there was no reason to carve out an admin exception for a device-viewport
+correctness bug.
 
 ---
 
@@ -266,18 +323,82 @@ reported at normal (error) severity rather than downgraded to warnings,
 because every match surfaced during development was spot-checked by hand
 and is a genuine hardcoded string, not a comment-stripping artifact.
 
-**Status at time of writing: 130 genuine violations.** This is a real,
-pre-existing gap, not a heuristic artifact — it spans entire un-localized
-pages (`terms/page.tsx`, `privacy/page.tsx` are 100% hardcoded Arabic with
-no English variant at all), `isAr ? '...' : '...'` ternaries scattered
-through shared components instead of `t()` calls (`PlanCard.tsx`,
-`not-found.tsx`, the error boundaries), and components with no i18n applied
-whatsoever (`TopupCard.tsx`, `WeeklyChallenge.tsx`, `DailyBonus.tsx`,
-`ModelSelector.tsx`, `PersonaSelector.tsx`, `PromptSuggestions.tsx`,
-`ShareMenu.tsx`, `PromptTemplateLibrary.tsx`, `AutoTopup.tsx`,
-`community/page.tsx`, `team/page.tsx`, `portfolio/page.tsx`). See
-`.superpowers/sdd/invariants-report.md` or the script's own output for the
-full file:line list — it is too long to duplicate here.
+**Status at time of writing: 130 genuine violations — all baselined as
+known debt (see "Baseline mechanism" below); 0 NEW violations.** This is a
+real, pre-existing gap, not a heuristic artifact — it spans entire
+un-localized pages (`terms/page.tsx`, `privacy/page.tsx` are 100%
+hardcoded Arabic with no English variant at all), `isAr ? '...' : '...'`
+ternaries scattered through shared components instead of `t()` calls
+(`PlanCard.tsx`, `not-found.tsx`, the error boundaries), and components
+with no i18n applied whatsoever (`TopupCard.tsx`, `WeeklyChallenge.tsx`,
+`DailyBonus.tsx`, `ModelSelector.tsx`, `PersonaSelector.tsx`,
+`PromptSuggestions.tsx`, `ShareMenu.tsx`, `PromptTemplateLibrary.tsx`,
+`AutoTopup.tsx`, `community/page.tsx`, `team/page.tsx`,
+`portfolio/page.tsx`). It is tracked as a separate, standalone
+localization project — not something this checker's fixes attempt to
+resolve — and is recorded in `scripts/invariants-baseline.json` so it
+stops failing the build while remaining fully visible in every run's
+output as "known debt". See the script's own output for the full
+file:line list — it is too long to duplicate here.
+
+---
+
+## Baseline mechanism (pre-existing debt only)
+
+**What it's for:** some invariants, when first introduced, immediately find
+violations that already existed in the codebase and cannot be fixed as part
+of adding the check (the 130 Arabic literals above are the only current
+example — an entire un-localized-pages project, out of scope for a checker
+PR). A checker that reports those 130 as a plain FAIL is either blocking
+forever or gets `--skip`'d and ignored, and either way a genuinely NEW
+violation next week is invisible in the noise. `scripts/invariants-baseline.json`
+freezes the accepted set so the two cases are distinguishable:
+
+- **Baselined violation** (its key is in the file): reported under
+  `KNOWN DEBT`, does **not** fail the run.
+- **New violation** (not in the file): reported under `FAIL`, **always**
+  fails the run — exit code 1 — with no way around it except fixing the
+  code or (for a *genuinely* new, deliberately-accepted debt item, which
+  should be rare) explicitly re-running `--update-baseline`.
+- **Stale baseline entry** (in the file, but the violation no longer
+  occurs — because it was fixed, or the line was reformatted): reported
+  under `STALE BASELINE`. Still exits 0, but is printed on every run so the
+  file cannot rot silently; regenerate with `--update-baseline` to clear it.
+
+**What it is emphatically NOT for:** silencing a new violation in any rule,
+ever. This is enforced in code, not just documented as a convention —
+`BASELINE_ELIGIBLE_IDS` in `scripts/check-invariants.ts` is a fixed
+allowlist containing only `no-arabic-literals-in-tsx`. Every other
+invariant's violations always fail the run unconditionally; the baseline
+file is never even consulted for them, so adding an entry for e.g.
+`refund-captured` to the JSON by hand would have zero effect. If a future
+invariant legitimately needs to onboard with pre-existing debt, add its id
+to that allowlist deliberately, with the same reasoning documented here —
+never as a quick fix to make a new rule's introduction "pass".
+
+**Key design:** each baseline entry is the string
+`${invariantId}::${file}::${text}` — the invariant id, the repo-relative
+file path, and the violation's own reported text (the trimmed source line),
+**not** a line number. A `file:line` key was rejected on purpose: editing
+any line above a baselined violation shifts every line number below it, so
+the same still-unfixed violation would look "new" (churn) purely from
+unrelated edits elsewhere in the file, while a coincidental line-number
+match could just as easily mask an actual regression. The offending TEXT
+doesn't move when unrelated lines shift — it only changes when that exact
+line is edited or removed, which is exactly the signal worth surfacing
+("fixed — remove it" or "reformatted — regenerate the baseline"). All 130
+current violations were confirmed by hand to produce distinct `(file,
+text)` pairs, so this key has no collisions today; if a future duplicate
+ever occurred, both violations would simply share one baseline entry
+(matched by key presence, not by count).
+
+**Regenerating:** `npx tsx scripts/check-invariants.ts --update-baseline`
+re-runs only the baseline-eligible invariant(s), overwrites
+`scripts/invariants-baseline.json` with the current violation set (a full
+snapshot replace, like a test-snapshot update — not a merge), and prints
+what was added/removed relative to the previous file. Use it after
+genuinely fixing some of the 130 (to shrink the file) — never to add a
+brand-new violation to the accepted set without a very deliberate reason.
 
 ---
 

@@ -23,7 +23,7 @@ export function PromptSuggestions({ onSelect }: PromptSuggestionsProps): React.R
       <Sparkles className="h-3 w-3 text-primary-400 mt-1" />
       {selected.map((s, i) => (
         <button key={i} type="button" onClick={() => onSelect(s)}
-          className="text-[11px] px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
+          className="text-[11px] px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/20 text-[var(--color-brand)] hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors">
           {s}
         </button>
       ))}

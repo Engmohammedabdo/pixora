@@ -140,7 +140,7 @@ export function Sidebar(): React.ReactElement {
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
           sidebarCollapsed && 'justify-center px-2',
           isActive
-            ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300 font-medium'
+            ? 'bg-primary-50 text-[var(--color-brand)] dark:bg-primary-900/30 font-medium'
             : 'text-[var(--color-text-secondary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
         )}
       >
