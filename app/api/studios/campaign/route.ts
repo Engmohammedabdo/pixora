@@ -10,6 +10,7 @@ import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -152,14 +153,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (generation) {
         await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
       }
-      await refundCredits({
+      const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: campaign parse failure',
         generationId: generation?.id,
       });
       return NextResponse.json({
         success: false,
-        error: 'generation_parse_failed',
+        error: refundAwareErrorCode(refundResult, 'generation_parse_failed'),
         message: 'AI returned invalid response. Please try again.',
       }, { status: 500 });
     }
@@ -228,12 +229,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
     } catch (genError) {
-      await refundCredits({
+      const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: `Refund: campaign generation failed`,
         generationId: generation?.id,
       });
       if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      // PromptBlockedError carries its own dedicated response (400 + `term`),
+      // handled by the outer catch below — don't clobber that with refund_failed.
+      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+        console.error('Campaign API error:', genError);
+        return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
+      }
       throw genError;
     }
   } catch (error) {

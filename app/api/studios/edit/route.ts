@@ -8,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -98,8 +99,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         });
       }
     } catch (genError) {
-      await refundCredits({ userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
+      const refundResult = await refundCredits({ userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // PromptBlockedError carries its own dedicated response (400 + `term`),
+      // handled by the outer catch below — don't clobber that with refund_failed.
+      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+        console.error('Edit API error:', genError);
+        return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
+      }
       throw genError;
     }
 

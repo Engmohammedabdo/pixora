@@ -13,6 +13,7 @@ import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
   prompt: z.string().min(10).max(1000),
@@ -165,6 +166,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let hasUsedFallback = false;
     let resultModel = input.model;
     let resultOriginalModel: string | undefined;
+    // Tracks the balance actually left after any partial refund below. Stays at
+    // the reservation's balance when no partial refund is needed.
+    let balanceAfterPartialRefund = reserveResult.newBalance;
 
     if (input.variations === 4) {
       // Generate 4 variations — track individual successes/failures
@@ -183,23 +187,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // If ALL failed → full refund + error
       if (successCount === 0) {
-        await refundCredits({
+        const refundResult = await refundCredits({
           userId: user.id, amount: totalCost,
           description: 'Full refund: all 4 variations failed',
           generationId: generation.id,
         });
         await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
-        return NextResponse.json({ success: false, error: 'All generation attempts failed. Credits refunded.' }, { status: 500 });
+        return NextResponse.json({
+          success: false,
+          error: refundAwareErrorCode(refundResult, 'All generation attempts failed. Credits refunded.'),
+        }, { status: 500 });
       }
 
-      // Partial refund for failed variations
+      // Partial refund for failed variations. Captured (not bare) so the
+      // balance we report back reflects whether the refund actually landed —
+      // mirrors photoshoot's analogous partial-refund site.
       if (failedCount > 0) {
         const refundAmount = failedCount * creditCost;
-        await refundCredits({
+        const partialRefund = await refundCredits({
           userId: user.id, amount: refundAmount,
           description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
           generationId: generation.id,
         });
+        if (partialRefund.success) balanceAfterPartialRefund = partialRefund.newBalance;
       }
 
       const uploadPromises = results.map((r, i) =>
@@ -275,16 +285,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         creditsUsed: imageUrls.length * creditCost,
         totalReserved: totalCost,
         refunded: (input.variations - imageUrls.length) * creditCost,
-        newBalance: reserveResult.newBalance,
+        newBalance: balanceAfterPartialRefund,
       },
     });
     } catch (genError) {
-      await refundCredits({
+      const refundResult = await refundCredits({
         userId: user.id, amount: totalCost,
         description: `Refund: creator generation failed`,
         generationId: generation?.id,
       });
       if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      // PromptBlockedError carries its own dedicated response (400 + `term`),
+      // handled by the outer catch below — don't clobber that with refund_failed.
+      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+        console.error('Creator API error:', genError);
+        return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
+      }
       throw genError;
     }
   } catch (error) {
