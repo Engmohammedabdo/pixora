@@ -15,6 +15,7 @@ const KNOWN_ERROR_CODES = new Set([
   'dialect_not_available',
   'network',
   'project_not_found',
+  'refund_failed',
 ]);
 
 type Translator = (key: string) => string;
@@ -53,6 +54,28 @@ export function toStudioError(code: unknown, t: Translator, required?: number): 
     message: mapApiError(code, t),
     ...(typeof required === 'number' ? { required } : {}),
   };
+}
+
+/**
+ * Every studio route reserves credits before generating and calls
+ * refundCredits() to give them back on failure — but that call can itself
+ * fail (see lib/credits/deduct.ts). When it does, telling the user "generation
+ * failed" is actively misleading: their credits are gone from the balance and
+ * nothing on screen says so. `refund_failed` takes priority over whatever
+ * failure code the route would otherwise have returned, EXCEPT the small set
+ * of codes that carry their own required response metadata a caller must not
+ * silently drop (e.g. `term` on `prompt_blocked`) — routes should only pass
+ * this the plain fallback code they'd use when the refund succeeds.
+ *
+ * Usage at a call site:
+ *   const refundResult = await refundCredits({ ... });
+ *   return NextResponse.json({
+ *     success: false,
+ *     error: refundAwareErrorCode(refundResult, 'generation_parse_failed'),
+ *   }, { status: 500 });
+ */
+export function refundAwareErrorCode(refundResult: { success: boolean }, fallbackCode: string): string {
+  return refundResult.success ? fallbackCode : 'refund_failed';
 }
 
 export type UpgradeVariant = 'insufficient_credits' | 'feature_locked' | 'resolution_locked';

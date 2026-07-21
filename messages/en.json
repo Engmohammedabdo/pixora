@@ -184,6 +184,7 @@
       "rate_limited": "Too many requests — wait a minute and try again",
       "generation_failed": "Pyra hit a snag while generating. Please try again 🦊",
       "generation_parse_failed": "Pyra returned an incomplete result. Please try again",
+      "refund_failed": "Generation failed and we couldn't automatically refund your credits. Our team has been notified and will restore them shortly — contact support if they don't appear within a business day",
       "prompt_blocked": "Your text contains disallowed content. Edit it and retry",
       "validation_error": "Invalid input — check the fields and try again",
       "unauthorized": "Session expired — please sign in again",

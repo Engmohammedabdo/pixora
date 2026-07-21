@@ -9,6 +9,7 @@ import { generateTTS } from '@/lib/ai/tts-router';
 import { MODELS } from '@/lib/ai/models';
 import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -153,8 +154,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
       }
     } catch (genError) {
-      await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
+      const refundResult = await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
       if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // PromptBlockedError carries its own dedicated response (400 + `term`),
+      // handled by the outer catch below — don't clobber that with refund_failed.
+      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+        console.error('Voiceover API error:', genError);
+        return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
+      }
       throw genError;
     }
 
@@ -162,7 +169,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Without this the route returned success with an empty audioUrl and kept the
     // full charge — the user paid for a voiceover they cannot play or download.
     if (!audioUrl) {
-      await refundCredits({
+      const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: voiceover audio upload failed',
         generationId: generation?.id,
@@ -170,7 +177,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (generation) {
         await supabase.from('generations').update({ status: 'failed', error: 'audio_upload_failed' }).eq('id', generation.id);
       }
-      return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });
+      return NextResponse.json({ success: false, error: refundAwareErrorCode(refundResult, 'generation_failed') }, { status: 500 });
     }
 
     // Update generation record
