@@ -13,6 +13,17 @@ import '../globals.css';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
 
+/**
+ * Without this, `[locale]` is an unknown dynamic segment at build time, so Next
+ * has nothing to prerender and every route stays `ƒ (Dynamic)` — `revalidate`
+ * and `setRequestLocale()` alone are NOT enough, as the build output proved.
+ * Enumerating the locales is what actually makes the public pages eligible for
+ * static/ISR rendering.
+ */
+export function generateStaticParams(): { locale: string }[] {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
 // Self-hosted via next/font — fetched and served from our own origin at
 // build time, so there is no runtime request to the Google Fonts CDN, and
 // next/font auto-generates a size-adjusted fallback so there is no layout
