@@ -167,6 +167,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Generate images for each post if requested (included in 12 credits)
     let postImages: (string | null)[] = new Array(posts.length).fill(null);
+    // Tracks how many of the requested images never came back, so the block
+    // below can refund the credits those images were never worth generating.
+    // creator (per failed variation) and photoshoot (per failed shot) already
+    // do this — campaign was the only studio silently dropping failed images
+    // (via the catch below) without ever returning their cost.
+    let failedImageCount = 0;
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post) => {
         try {
@@ -181,6 +187,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       });
       postImages = await Promise.all(imagePromises);
+      failedImageCount = postImages.filter((url) => url === null).length;
     }
 
     // Apply watermark to campaign images for free plan users
@@ -208,11 +215,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       imageUrl: postImages[i],
     }));
 
-    // Update generation
+    // Partial refund: a failed image is still worth exactly what a 1080p image
+    // costs everywhere else (CREDIT_COSTS.image['1080p']) — the flat 12-credit
+    // campaign price already decomposes as 9 posts x 1 credit/image = 9,
+    // leaving 3 of the 12 for the text generation. The text posts are valid
+    // regardless of image failures, so this stays a success response with a
+    // partial refund, never an error.
+    //
+    // Capped at `creditCost` — the amount actually reserved for this
+    // generation — never the raw failedImageCount x per-image price. The
+    // reservation itself is untouched; the cap only guards against ever
+    // refunding more than was charged (e.g. if the AI ever returns more than
+    // the requested 9 posts, failedImageCount x price could otherwise exceed
+    // the 12 credits actually reserved, which would mint credits).
+    let balanceAfterPartialRefund = reserveResult.newBalance;
+    let actualCreditsCharged = creditCost;
+    if (input.generateImages && failedImageCount > 0) {
+      const refundAmount = Math.min(failedImageCount * CREDIT_COSTS.image['1080p'], creditCost);
+      const partialRefund = await refundCredits({
+        userId: user.id, amount: refundAmount,
+        description: `Partial refund: ${failedImageCount}/${posts.length} campaign images failed (${refundAmount} credits returned)`,
+        generationId: generation.id,
+      });
+      if (partialRefund.success) {
+        balanceAfterPartialRefund = partialRefund.newBalance;
+        actualCreditsCharged = creditCost - refundAmount;
+      }
+    }
+
+    // Update generation. `credits_used` reflects the net charge after any
+    // partial refund above — mirrors creator/photoshoot, whose ledger rows
+    // would otherwise disagree with the credits the user actually kept.
     await supabase
       .from('generations')
       .update({
         output: { posts: postsWithImages, mock: textResult.mock },
+        credits_used: actualCreditsCharged,
         status: 'completed',
       })
       .eq('id', generation.id);
@@ -224,8 +262,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         posts: postsWithImages,
         mock: textResult.mock,
         usedFallback: textResult.usedFallback,
-        creditsUsed: creditCost,
-        newBalance: reserveResult.newBalance,
+        creditsUsed: actualCreditsCharged,
+        newBalance: balanceAfterPartialRefund,
       },
     });
     } catch (genError) {
