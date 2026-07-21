@@ -5,6 +5,7 @@ import { Footer } from '@/components/landing/Footer';
 import { FaqSection } from '@/components/landing/FaqSection';
 import PricingSection from '@/components/landing/PricingSection';
 import { StudioCostTable } from '@/components/pricing/StudioCostTable';
+import { CreditPolicySection } from '@/components/pricing/CreditPolicySection';
 import { TopupGrid } from '@/components/pricing/TopupGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { buildStructuredData } from '@/lib/seo/schema';
@@ -76,6 +77,7 @@ export default async function PricingPage({
 
       <PricingSection />
       <StudioCostTable />
+      <CreditPolicySection />
       <TopupGrid />
       <FaqSection />
       <Footer />

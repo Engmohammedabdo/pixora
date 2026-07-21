@@ -638,7 +638,7 @@
       "p2Title": "Arabic from A to Z",
       "p2Desc": "Not a translation. Not a retrofit. Built in Arabic from the first line of code. It understands your dialect, writes in your style, and creates content that never feels AI-made.",
       "p3Title": "Pay only for what you use",
-      "p3Desc": "A transparent credit system — know the cost before you click. An image = 1 credit, a full campaign = 12. No surprises, no hidden fees.",
+      "p3Desc": "A transparent credit system — know the cost before you click. An image = 1 credit, a full campaign = 12. No surprises, no hidden fees. And if a generation fails, Pyra refunds its credits to your account automatically.",
       "p4Title": "From idea to publish in minutes",
       "p4Desc": "Write your idea in one line — Pyra turns it into a ready-to-post campaign with images, captions, and hashtags. A full week's work, done in 10 minutes."
     },
@@ -823,6 +823,13 @@
       "imageNote": "Varies by the resolution you pick — 1080p / 2K / 4K",
       "voiceoverNote": "Free & Starter plans: 1 credit per 15 seconds · Pro and above: 3 credits per 20 seconds, higher quality",
       "freeLabel": "Free"
+    },
+    "creditPolicy": {
+      "title": "Credit Refund Policy",
+      "point1": "Credits are reserved from your balance only the moment you start a generation — never before.",
+      "point2": "If a generation fails, Pyra returns the credits to your account automatically, right then — no support ticket, no waiting.",
+      "point3": "Every refund shows up immediately in your transaction history, with the reason noted.",
+      "point4": "For studios that produce more than one item per run (like a product photoshoot session or campaign images), if part succeeds and part fails, only the credits for the failed part are refunded."
     },
     "topups": {
       "title": "Need extra credits?",
