@@ -1,6 +1,12 @@
 # Handoff: finish surfacing failed refunds in the last 4 studio routes
 
-**Status:** ready to apply. Blocked only by file ownership, not by design.
+**Status: DONE.** Completed in commit `38ce6ca`, after the concurrent session was stopped and its
+work committed separately as `143175f`. All eight studio routes now capture the refund result —
+17 call sites total. Verified: `grep -rn "await refundCredits" app/api/studios/*/route.ts |
+grep -v "= await refundCredits"` returns nothing.
+
+Kept for the record of what was done and why. The one item deliberately NOT done is the campaign
+`Promise.all` gap — see the note at the end.
 
 ## Why this is a handoff and not a commit
 
@@ -112,3 +118,18 @@ grep -rn "await refundCredits" app/api/studios/*/route.ts | grep -v "= await ref
   closes the other half of this problem: a process killed between reservation and the catch block
   never attempts a refund at all. Its own verification block is `ROLLBACK`-wrapped, so testing it
   costs nothing.
+
+
+---
+
+## Outcome
+
+Completed in `38ce6ca`. Call sites captured per route: analysis 2, campaign 2, creator 3, edit 1,
+photoshoot 3, plan 2, storyboard 2, voiceover 2 — 17 in total, zero bare calls remaining.
+
+**The campaign `Promise.all` gap was deliberately left alone.** `CREDIT_COSTS.campaign` is a single
+flat charge of 12 credits for the whole call — 9 posts plus optional images, bundled. There is no
+per-image or per-post price anywhere in the product, unlike `creator` (cost x variations) or
+`photoshoot` (SHOT_COSTS x shots), so a partial refund cannot be computed from anything real.
+Deriving one — 12/9, say — would be inventing a price the product never defined and refunding
+against it. That needs a pricing decision from the owner, not a code change.
