@@ -5,7 +5,7 @@
 
 export const PROMPT_VERSIONS: Record<string, string> = {
   creator_image: 'v2.0',
-  photoshoot: 'v2.0',
+  photoshoot: 'v3.0',
   campaign_planner: 'v2.0',
   storyboard: 'v2.0',
   marketing_analysis: 'v2.0',

@@ -8,7 +8,7 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { watermarkAndReupload } from '@/lib/image/watermark';
+import { persistGeneratedImage, formatFromUrl } from '@/lib/storage/persist-image';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
@@ -143,35 +143,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     try {
     // Generate image(s)
-    const uploadImage = async (url: string, index: number): Promise<string> => {
-      let finalUrl = url;
-      if (finalUrl.startsWith('data:')) {
-        try {
-          const matches = finalUrl.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches) {
-            const mimeType = matches[1];
-            const base64Data = matches[2];
-            const ext = mimeType.includes('png') ? 'png' : 'jpg';
-            const fileName = `generations/${user.id}/${generation.id}-${index}.${ext}`;
-            const buffer = Buffer.from(base64Data, 'base64');
-
-            const { error: uploadError } = await supabase.storage
-              .from('assets')
-              .upload(fileName, buffer, { contentType: mimeType, upsert: true });
-
-            if (!uploadError) {
-              const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
-              finalUrl = urlData.publicUrl;
-            } else {
-              console.error('Upload error:', uploadError.message);
-            }
-          }
-        } catch (uploadErr) {
-          console.error('Failed to upload to storage:', uploadErr);
-        }
-      }
-      return finalUrl;
-    };
+    //
+    // This used to be an inline copy of the persist logic that wrote to
+    // `generations/<uid>/...`. The live storage policy is
+    //   INSERT WITH CHECK (bucket_id = 'assets' AND (storage.foldername(name))[1] = uid()::text)
+    // so segment 1 was the literal string 'generations' and every upload was
+    // denied — the error was logged and the raw data: URL kept, which is why
+    // creator has been writing megabytes of base64 into generations.output and
+    // assets.url. The shared helper already has the correct uid-first layout.
+    const planId = profile?.plan_id || 'free';
+    const uploadImage = (url: string, index: number): Promise<string> =>
+      persistGeneratedImage(supabase, url, {
+        userId: user.id,
+        generationId: generation.id,
+        index,
+        planId,
+      });
 
     let imageUrls: string[];
     let hasMock = false;
@@ -244,11 +231,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       resultOriginalModel = result.originalModel;
     }
 
-    // Apply watermark for free plan users
-    const planId = profile?.plan_id || 'free';
-    imageUrls = await Promise.all(
-      imageUrls.map((url) => watermarkAndReupload(url, planId, supabase))
-    );
+    // The free-plan watermark is burned in by uploadImage() above, before the
+    // single storage upload — see lib/storage/persist-image.ts.
 
     // Update generation with result. `credits_used` MUST be rewritten here: it was
     // inserted as the full reservation, but failed variations are partially
@@ -272,7 +256,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         generation_id: generation.id,
         type: 'image' as const,
         url,
-        format: 'png',
+        format: formatFromUrl(url),
       }));
 
     if (assetInserts.length > 0) {

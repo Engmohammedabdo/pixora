@@ -73,8 +73,11 @@ export async function watermarkAndReupload(
 
 /**
  * Convert a URL or base64 data URL to a Buffer.
+ *
+ * Exported so lib/storage/persist-image.ts can watermark an image *before* its
+ * single upload rather than uploading twice. See that file for why.
  */
-async function urlToBuffer(imageUrl: string): Promise<Buffer> {
+export async function urlToBuffer(imageUrl: string): Promise<Buffer> {
   if (imageUrl.startsWith('data:')) {
     const base64Data = imageUrl.split(',')[1];
     if (!base64Data) throw new Error('Invalid base64 data URL');
@@ -118,7 +121,7 @@ async function urlToBuffer(imageUrl: string): Promise<Buffer> {
  * Apply diagonal repeating "PyraSuite" watermark across the entire image.
  * Semi-transparent white text with dark shadow for visibility on any background.
  */
-async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
+export async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
   const image = sharp(imageBuffer);
   const metadata = await image.metadata();
   const width = metadata.width || 1024;

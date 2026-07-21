@@ -4,8 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
-import { watermarkAndReupload } from '@/lib/image/watermark';
-import { persistGeneratedImage } from '@/lib/storage/persist-image';
+import { persistGeneratedImage, formatFromUrl } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -112,6 +111,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         totalShots: input.shots,
         notes: input.notes,
         brandKit,
+        // Varies lighting, grade and shot order between runs. The generation id
+        // is per-run but fixed within it, so the six shots stay one coherent set
+        // and any single shot can be rebuilt byte-for-byte when a user reports it.
+        seed: generation.id,
       });
 
       // MUST be a model the router forwards `referenceImageUrl` to. lib/ai/router.ts
@@ -170,21 +173,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .single();
     const planId = profile?.plan_id || 'free';
 
-    // Persist to Storage BEFORE watermarking: Gemini returns data: URLs, and
-    // watermarkAndReupload() skips anything that is not an http(s) URL — so
-    // without this the free-plan watermark is silently lost and six base64
-    // images get written into a single database row.
+    // Pyra returns images as data: URLs. persistGeneratedImage watermarks the
+    // buffer and uploads it once — a second pass to watermark in place would
+    // need an UPDATE on storage.objects that `authenticated` does not hold.
     const shots = await Promise.all(
       results.map(async (r, i) => {
         if (!r?.url) {
           return { index: i, url: null, model: r?.model || 'gemini', mock: r?.mock ?? true };
         }
-        const stored = await persistGeneratedImage(supabase, r.url, {
-          userId: user.id, generationId: generation.id, index: i,
-        });
         return {
           index: i,
-          url: await watermarkAndReupload(stored, planId, supabase),
+          url: await persistGeneratedImage(supabase, r.url, {
+            userId: user.id, generationId: generation.id, index: i, planId,
+          }),
           model: r.model || 'gemini',
           mock: r.mock ?? true,
         };
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         generation_id: generation.id,
         type: 'image' as const,
         url: s.url!,
-        format: 'png',
+        format: formatFromUrl(s.url!),
       }));
 
     if (assetInserts.length > 0) {

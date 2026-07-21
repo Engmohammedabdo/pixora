@@ -6,7 +6,6 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
-import { watermarkAndReupload } from '@/lib/image/watermark';
 import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
@@ -190,17 +189,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('id', user.id)
       .single();
     const planId = profile?.plan_id || 'free';
-    // Persist before watermarking. Gemini returns data: URLs and
-    // watermarkAndReupload() skips non-http URLs, so without this a nine-post
-    // campaign wrote nine base64 images into one generations.output row AND lost
-    // the free-plan watermark entirely.
+    // Pyra returns images as data: URLs; without persisting them a nine-post
+    // campaign wrote nine base64 images into one generations.output row. The
+    // watermark is burned in before the upload — see lib/storage/persist-image.ts.
     postImages = await Promise.all(
       postImages.map(async (url, i) => {
         if (!url) return null;
-        const stored = await persistGeneratedImage(supabase, url, {
-          userId: user.id, generationId: generation.id, index: i,
+        return persistGeneratedImage(supabase, url, {
+          userId: user.id, generationId: generation.id, index: i, planId,
         });
-        return watermarkAndReupload(stored, planId, supabase);
       })
     );
 

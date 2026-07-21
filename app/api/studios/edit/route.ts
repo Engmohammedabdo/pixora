@@ -3,7 +3,6 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
-import { watermarkAndReupload } from '@/lib/image/watermark';
 import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -91,13 +90,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .single();
       const planId = profile?.plan_id || 'free';
       if (result.url) {
-        // Store first — Gemini returns a data: URL, which watermarkAndReupload()
-        // skips, dropping the free-plan watermark and writing the whole image
-        // into generations.output and assets.url.
-        const stored = await persistGeneratedImage(supabase, result.url, {
-          userId: user.id, generationId: generation.id,
+        // Pyra returns a data: URL. Persisting it keeps the whole image out of
+        // generations.output and assets.url, and burns in the free-plan
+        // watermark before the single upload.
+        result.url = await persistGeneratedImage(supabase, result.url, {
+          userId: user.id, generationId: generation.id, planId,
         });
-        result.url = await watermarkAndReupload(stored, planId, supabase);
       }
     } catch (genError) {
       await refundCredits({ userId: user.id, amount: CREDIT_COST, description: `Refund: edit generation failed`, generationId: generation?.id });
