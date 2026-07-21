@@ -14,13 +14,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/ar/signup`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/en/login`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${baseUrl}/en/signup`, changeFrequency: 'monthly', priority: 0.6 },
-    // /privacy and /terms live under app/[locale]/(dashboard)/ but are exempt from
-    // the auth redirect: middleware.ts publicPaths explicitly whitelists both, and
-    // isPublicPath() strips the locale prefix before matching, so an unauthenticated
-    // request reaches the page (verified: no redirect). They DO render inside the
-    // authenticated dashboard chrome (sidebar/topbar) rather than a public layout —
-    // a pre-existing cosmetic issue (benchmark gap 15/38), not an auth gate — so
-    // sitemap inclusion is correct; the chrome mismatch is a separate follow-up.
+    // /privacy and /terms live under app/[locale]/(landing)/ (moved out of the
+    // dashboard route group — benchmark gap 15/38): middleware.ts publicPaths
+    // whitelists both and isPublicPath() strips the locale prefix before
+    // matching, so an unauthenticated request reaches the page with no
+    // redirect. They now render with the public NavBar/Footer chrome, not the
+    // authenticated dashboard sidebar/topbar.
     { url: `${baseUrl}/ar/privacy`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/en/privacy`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/ar/terms`, changeFrequency: 'yearly', priority: 0.3 },
