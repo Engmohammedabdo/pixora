@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
 import { FaqSection } from '@/components/landing/FaqSection';
@@ -18,6 +18,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: 'pricingPage.meta' });
 
   return {
@@ -38,12 +39,20 @@ export async function generateMetadata({
   };
 }
 
+// Public, non-personalized: same NavBar/PricingSection/FaqSection components
+// as the landing page (verified above to carry no auth branching), plus a
+// static cost table and top-up grid sourced from lib/stripe/plans.ts constants
+// — nothing here varies per visitor. See the note on the landing page's
+// `revalidate` for why this is safe and why 1 hour was chosen.
+export const revalidate = 3600;
+
 export default async function PricingPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<React.ReactElement> {
   const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: 'pricingPage.hero' });
   const structuredData = buildStructuredData(locale);
 

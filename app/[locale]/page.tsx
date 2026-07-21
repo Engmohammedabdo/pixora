@@ -1,3 +1,4 @@
+import { setRequestLocale } from 'next-intl/server';
 import { NavBar } from '@/components/landing/NavBar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ValuePillars } from '@/components/landing/ValuePillars';
@@ -14,12 +15,21 @@ import { LandingMotionConfig } from '@/components/landing/LandingMotionConfig';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { buildStructuredData } from '@/lib/seo/schema';
 
+// Public, logged-out-and-logged-in-identical marketing page (verified: NavBar
+// and every section here are 'use client' components with no auth/session
+// branching, and middleware.ts's isPublicPath() short-circuits before the
+// Supabase auth check ever runs for this route) — safe to cache. 1 hour keeps
+// the origin-render savings (the actual win) while still propagating copy
+// edits same-day; a redeploy invalidates the cache immediately regardless.
+export const revalidate = 3600;
+
 export default async function LandingPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<React.ReactElement> {
   const { locale } = await params;
+  setRequestLocale(locale);
   const structuredData = buildStructuredData(locale);
 
   return (

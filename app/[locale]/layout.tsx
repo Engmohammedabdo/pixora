@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Cairo, Tajawal, Inter } from 'next/font/google';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
+import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { DirectionProvider } from '@radix-ui/react-direction';
 import { routing } from '@/i18n/routing';
@@ -53,6 +54,21 @@ export async function generateMetadata({
       default: og.title,
       template: '%s | PyraSuite',
     },
+    // Search engines had no signal at all for which URL is canonical or which
+    // locale variant to serve — this is the site-wide default (locale root),
+    // built from the locale segment alone since layout.tsx only receives
+    // `params`, not the full pathname. Route-specific pages that define their
+    // own `generateMetadata` (e.g. /pricing) override this with a page-exact
+    // canonical; everything else inherits this locale-root default rather
+    // than emitting no canonical tag at all.
+    alternates: {
+      canonical: `${APP_URL}/${locale}`,
+      languages: {
+        ar: `${APP_URL}/ar`,
+        en: `${APP_URL}/en`,
+        'x-default': `${APP_URL}/ar`,
+      },
+    },
     description: isAr
       // Was "نماذج AI متعددة" ("multiple AI models") — broke the Pyra persona rule in
       // CLAUDE.md (never name models to the user) on the very first sentence Google
@@ -97,6 +113,19 @@ export default async function RootLayout({
   if (!hasLocale(routing.locales, locale)) {
     notFound();
   }
+
+  // Registers the locale for this request in next-intl's request-scoped cache
+  // BEFORE any descendant Server Component resolves translations without an
+  // explicit locale (e.g. Footer.tsx, StudioCostTable.tsx, TopupGrid.tsx all
+  // call `useTranslations()` server-side with no locale argument). Without
+  // this, that lookup falls back to reading a `next/headers` header, and any
+  // use of `headers()`/`cookies()` anywhere in a route's render tree forces
+  // Next.js to fully opt the ENTIRE route out of static/ISR rendering — which
+  // is exactly why public, non-personalized pages (landing, pricing) were
+  // being rendered fresh on every single request in production. This call
+  // makes those routes eligible for the `revalidate` caching they declare.
+  // See https://next-intl.dev/docs/routing/setup#static-rendering
+  setRequestLocale(locale);
 
   const messages = (await import(`../../messages/${locale}.json`)).default;
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
