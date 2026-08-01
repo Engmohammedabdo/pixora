@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Migration 026: Pre-launch waitlist
+-- Migration 030: Pre-launch waitlist
 --
 -- Collects interested emails while the product is being finished, so launch day
 -- starts with an audience instead of silence.
@@ -13,7 +13,12 @@
 --   * `source` records where the signup came from, so paid traffic can later be
 --     told apart from organic.
 --
--- ⚠ Apply AFTER 025. Run as `postgres` via the Supabase SQL Editor.
+-- ⚠ Apply AFTER 029. Run as `postgres` via the Supabase SQL Editor.
+--
+-- Renumbered from 026: that number was already taken by
+-- 026_referral_abuse_controls.sql, which is already applied in production.
+-- Reusing it would have overwritten that row in the ledger via the
+-- ON CONFLICT clause below, silently erasing the record of an applied migration.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -105,7 +110,7 @@ CREATE TABLE IF NOT EXISTS public.schema_migrations (
 );
 
 INSERT INTO public.schema_migrations (version, description)
-VALUES ('026', 'Pre-launch waitlist table + join_waitlist RPC')
+VALUES ('030', 'Pre-launch waitlist table + join_waitlist RPC')
 ON CONFLICT (version) DO UPDATE SET applied_at = NOW();
 
 COMMIT;

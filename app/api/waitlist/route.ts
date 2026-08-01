@@ -10,7 +10,10 @@ const InputSchema = z.object({
   source: z.string().trim().max(60).optional(),
   locale: z.string().trim().max(5).optional(),
   // Honeypot: a real person never fills a hidden field. Bots fill everything.
-  company: z.string().max(0).optional(),
+  // Deliberately NOT `.max(0)` — that would make Zod reject the request with a
+  // validation error, telling the bot exactly which field caught it. Accept any
+  // value here and let the silent discard below handle it.
+  company: z.string().max(200).optional(),
 });
 
 /**
