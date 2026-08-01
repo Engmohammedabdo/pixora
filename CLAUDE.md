@@ -51,19 +51,55 @@
 
 ---
 
-## Project Status: ✅ ALL PHASES COMPLETE
+## Project Status — verified against code, not against intent
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Phase 1 | ✅ | Foundation — Auth + DB + Layout + Credits |
-| Phase 2 | ✅ | Core AI Studios — Creator + Photoshoot + Campaign |
-| Phase 3 | ✅ | Advanced Studios — Plan + Storyboard + Analysis + VoiceOver + Edit + Prompt Builder |
-| Phase 4 | ✅ | Monetization — Stripe subscriptions + top-ups + webhooks |
-| Phase 5 | ✅ | Polish — Dark Mode + Landing Page + Export + Onboarding + SEO |
-| Code Review | ✅ | 55/55 bugs fixed (CRITICAL + HIGH + MEDIUM + LOW) |
-| PRD Features | ✅ | 11/11 missing features implemented |
-| ROADMAP | ✅ | 40/40 UX features (Phases A-D) |
-| VoiceOver | ✅ | Tiered TTS (OpenAI + ElevenLabs) with plan-based features |
+> **Read this before trusting any ✅ in this repo.** A July 2026 audit read 100
+> documented claims and checked each one against the source. Result: 14 were UI
+> with no backend, 32 half-built, 16 absent entirely. The docs were not stale —
+> they recorded intent at the moment of writing and were never re-checked.
+>
+> **Rule from here on: a ✅ must be able to name a file:line that proves it.
+> Otherwise write the real state.** A doc that lies is worse than a missing
+> feature — the feature gets discovered, the doc misdirects every later decision.
+
+### Shippable today
+
+| Area | State | Proof |
+|------|-------|-------|
+| Auth + DB + RLS | ✅ built | 30 migrations; every public table has RLS |
+| 9 studios generate | ✅ built | `app/api/studios/*` — all 9 return real output |
+| Credits: reserve → deduct → refund | ✅ built | atomic RPCs, `SELECT … FOR UPDATE` |
+| Projects (client workspaces) | ✅ built | wired into all 9 studios + asset filter |
+| Stripe money path | ✅ hardened | see "Money path" below |
+| Pre-launch waitlist | ✅ built | `/[locale]/waitlist`, migration 030 applied |
+| Admin dashboard | ✅ built | real funnel/MRR/churn/retention queries |
+| i18n ar/en + RTL | ✅ built | key sets verified identical |
+
+### Money path — fixed 2026-07-21
+
+| Defect | State |
+|--------|-------|
+| Webhook ignored all 23 DB writes → paid customer got no credits, Stripe never retried | ✅ fixed — critical writes throw via `mustSucceed` |
+| Upgrade created a SECOND parallel subscription → double billing | ✅ fixed — 409 + billing-portal route |
+| `subscription.updated` granted a full month on ANY update | ✅ fixed — reads plan from price, requires live status + tier change |
+| Credits granted before payment settled | ✅ fixed — requires `payment_status === 'paid'` |
+| Annual billing sold with placeholder price ids → every purchase 500'd | ✅ removed entirely (not deferred — deleted) |
+
+### Not built — do not describe these as done
+
+| Item | Real state |
+|------|-----------|
+| Transactional email | ❌ none. No provider, no SMTP, no template. Password reset is broken in production. |
+| Support channel | ❌ none. No contact page, no support email, no widget. |
+| Tax invoice / VAT / refunds | ❌ none. Blocks selling to any Gulf company. |
+| Teams | ❌ UI shell. Mock members, invite button shows "coming soon", zero API routes. |
+| Gamification (achievements, levels, streaks) | ❌ dead code. Zero importers, table never written. |
+| Community / Portfolio | ❌ fabricated data. Invented names and like counts. |
+| Prompt templates + history | ⚠️ components written (242 lines), zero imports. Cheap to activate. |
+| API access (sold on Agency tier) | ❌ absent — and correctly removed from the plan features. |
+| Arabic text inside generated images | ❌ not handled; prompts actively forbid it. |
+| Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. |
+| Error tracking (Sentry) / product analytics (PostHog) | ❌ env vars declared, empty, never read by any line of code. |
 
 ---
 

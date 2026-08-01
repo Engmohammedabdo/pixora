@@ -1,7 +1,20 @@
 # PyraSuite — Feature Roadmap & UX Enhancement Plan
 
 > Generated: 2026-03-29 | Based on full codebase analysis + UX research
-> Current status: 149 files, 25 pages, 21 API routes, 13 migrations — LIVE
+>
+> ⚠️ **This document records what was PLANNED in March 2026, not what exists.**
+> A July 2026 audit checked every item against the source. Several marked or
+> assumed complete are UI shells with no backend — notably **B3** (prompt
+> templates: components written, zero imports), **C1** (daily bonus: flag on,
+> modal built, no backend), **C2** (achievements: zero importers, table never
+> written), **D2/D3** (community and portfolio: fabricated names and like
+> counts), and **D8** (email: no provider, no SMTP, not one template).
+>
+> The counts in the original header were also wrong — the repo has ~278 TS files,
+> 57 API routes and 30 migrations, not 149/21/13.
+>
+> **For the verified state of the product, read `CLAUDE.md` and
+> `docs/CHANGELOG.md`. Treat this file as a wish list.**
 
 ---
 

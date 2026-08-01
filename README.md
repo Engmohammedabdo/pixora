@@ -24,11 +24,11 @@
 
 <br />
 
-<img src="https://img.shields.io/badge/211-ملف_TypeScript-blue?style=flat-square" />
+<img src="https://img.shields.io/badge/302-ملف_TypeScript-blue?style=flat-square" />
 <img src="https://img.shields.io/badge/0-أخطاء_TS-brightgreen?style=flat-square" />
-<img src="https://img.shields.io/badge/21-API_Route-orange?style=flat-square" />
-<img src="https://img.shields.io/badge/49-Component-purple?style=flat-square" />
-<img src="https://img.shields.io/badge/13-Migration-teal?style=flat-square" />
+<img src="https://img.shields.io/badge/58-API_Route-orange?style=flat-square" />
+<img src="https://img.shields.io/badge/104-Component-purple?style=flat-square" />
+<img src="https://img.shields.io/badge/31-Migration-teal?style=flat-square" />
 
 </div>
 
@@ -313,7 +313,7 @@ app/
 │   │   └── onboarding/            # 🎯 جولة ترحيبية (5 خطوات + كريدت مجاني)
 │   └── layout.tsx                 # Root (i18n + theme + query)
 │
-├── api/                           # ⚡ 21 API Route
+├── api/                           # ⚡ 58 API Route
 │   ├── studios/                   # 9 استوديوهات (Pyra AI endpoints)
 │   ├── stripe/                    # checkout · topup · webhook · portal
 │   ├── credits/                   # balance · transactions
@@ -400,13 +400,19 @@ npm run dev
 |:---|:---:|
 | TypeScript errors | **0** ✅ |
 | Build | **Passes** ✅ |
-| Code review issues | **55/55 fixed** ✅ |
-| PRD features | **11/11** ✅ |
-| i18n | **عربي + English** ✅ |
-| Dark Mode | **Full coverage** ✅ |
-| DB Migrations | **13 applied** ✅ |
-| API Routes | **21 route** ✅ |
-| Components | **49 component** ✅ |
+| i18n | **عربي + English** — مفاتيح متطابقة ✅ |
+| Dark Mode | **مغطّى** ✅ |
+| DB Migrations | **31 ملف · 022–030 مطبّقة على الإنتاج** ✅ |
+| مسار الدفع | **مؤمَّن** — راجع `docs/CHANGELOG.md` ✅ |
+| بريد معاملاتي | **غير موجود** ❌ |
+| قناة دعم | **غير موجودة** ❌ |
+| فاتورة ضريبية | **غير موجودة** ❌ |
+
+<sub>
+الصفوف المشطوبة سابقاً («55/55 bug fixed»، «11/11 PRD features») أُزيلت: تدقيق
+يوليو 2026 فحص ١٠٠ ادعاء موثّق فوجد ١٤ منها واجهة بلا منطق و١٦ غير موجود إطلاقاً.
+الحالة المتحقَّقة في <code>CLAUDE.md</code> و<code>docs/CHANGELOG.md</code>.
+</sub>
 
 </div>
 

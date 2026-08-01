@@ -19,6 +19,14 @@
 - [x] **C3** Stripe webhook — no idempotency protection
   - File: `/app/api/stripe/webhook/route.ts`
   - Fix: Check `event.id` against processed events (use Set or DB table)
+  - ⚠️ **This entry was wrong for months, and the error was expensive.** The
+    idempotency table was added, but the handler marked events `processed: true`
+    without checking whether the business logic had succeeded. supabase-js does
+    not throw on a database error, so a failed credit grant fell straight through
+    to that marker and returned 200 — Stripe recorded a successful delivery and
+    never retried. A paying customer received nothing, silently.
+    **Genuinely fixed 2026-07-21** (see `docs/CHANGELOG.md`): critical writes now
+    throw, so a failure returns 500 and Stripe retries.
 
 - [x] **C4** Webhook top-up balance calculation double-counts purchased_credits
   - File: `/app/api/stripe/webhook/route.ts:82-84`

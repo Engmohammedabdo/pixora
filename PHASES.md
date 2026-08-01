@@ -4,6 +4,13 @@
 
 ---
 
+> ⚠️ **"COMPLETE" here means the phase was worked through, not that every item
+> in it functions.** A July 2026 audit found several marked-complete items are UI
+> with no backend — Teams (Phase 4) shows mock members and an invite button that
+> says "coming soon", with zero API routes behind it.
+>
+> **For the verified state, read `CLAUDE.md` and `docs/CHANGELOG.md`.**
+
 ## Phase 1: Foundation 🏗️ ✅ COMPLETE
 **الهدف:** قاعدة صلبة — Auth + DB + Layout + Credit System
 
