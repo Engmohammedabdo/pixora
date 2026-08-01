@@ -40,3 +40,6 @@ next-env.d.ts
 
 # Playwright MCP session artifacts
 /.playwright-mcp/
+
+# Claude Code — personal permissions, not shared
+.claude/settings.local.json
