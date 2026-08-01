@@ -440,6 +440,18 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      // Migration 026. service_role only — the public key can neither read the
+      // waitlist nor call this directly.
+      join_waitlist: {
+        Args: {
+          p_email: string;
+          p_name: string | null;
+          p_segment: string | null;
+          p_source: string | null;
+          p_locale: string;
+        };
+        Returns: string;
+      };
       // Migration 025. Atomic: locks the caller's profile row, re-counts, then
       // inserts — so concurrent creates cannot both pass the quota check.
       // service_role only; the caller supplies p_user_id and p_limit.

@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
-import { PLANS, ANNUAL_PLANS } from '@/lib/stripe/plans';
+import { PLANS } from '@/lib/stripe/plans';
 
 const InputSchema = z.object({
   planId: z.enum(['starter', 'pro', 'business', 'agency']),
-  billing: z.enum(['monthly', 'annual']).default('monthly'),
 });
 
 async function getOrCreateStripeCustomer(
@@ -52,17 +51,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body = await request.json();
-    const { planId, billing } = InputSchema.parse(body);
+    const { planId } = InputSchema.parse(body);
 
     const plan = PLANS[planId];
     if (!plan || !plan.priceId) {
       return NextResponse.json({ success: false, error: 'invalid_plan' }, { status: 400 });
     }
 
-    // Use annual price if billing=annual and annual plan exists
-    const priceId = billing === 'annual' && ANNUAL_PLANS[planId]
-      ? ANNUAL_PLANS[planId].annualPriceId
-      : plan.priceId;
+    const priceId = plan.priceId;
+
+    // A customer with a live subscription must go through the billing portal, not
+    // a second checkout. Stripe happily creates a SECOND parallel subscription, so
+    // a Starter subscriber clicking "Pro" ended up paying for both — and the
+    // webhook then overwrote the stored subscription id, leaving the first one
+    // billing forever with no way to cancel it from the app.
+    const { data: existingSub } = await supabase
+      .from('profiles')
+      .select('stripe_subscription_id, plan_id')
+      .eq('id', user.id)
+      .single();
+
+    if (existingSub?.stripe_subscription_id) {
+      return NextResponse.json({
+        success: false,
+        error: 'subscription_exists',
+        currentPlan: existingSub.plan_id,
+      }, { status: 409 });
+    }
 
     const customerId = await getOrCreateStripeCustomer(supabase, user.id, user.email || '');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

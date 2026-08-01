@@ -507,7 +507,8 @@
     "billingCycle": "Annual billing",
     "checkoutError": "Could not start checkout. Please try again.",
     "portalError": "Could not open the subscription portal. Please try again.",
-    "networkError": "Something went wrong. Please try again."
+    "networkError": "Something went wrong. Please try again.",
+    "alreadySubscribed": "You already have an active subscription. Change your plan from subscription management so you are not billed twice."
   },
   "onboarding": {
     "stepOf": "Step {current} of {total}",
@@ -945,5 +946,32 @@
     "stepBilling": "Choose a plan",
     "studioUsage": "Studio usage",
     "usageEmpty": "Create something to see your stats here"
+  },
+  "waitlist": {
+    "badge": "Coming soon — preparing for launch",
+    "title": "Write your idea in Arabic, and Pyra turns it into a full campaign",
+    "subtitle": "Images, campaigns, marketing plans and voiceover — all in Arabic, in your dialect. We are in the final stretch before launch.",
+    "emailLabel": "Your email",
+    "emailPlaceholder": "you@company.com",
+    "cta": "Join the waitlist",
+    "segmentLabel": "What describes you? (optional)",
+    "segments": {
+      "agency": "Marketing agency",
+      "store": "Online store",
+      "freelancer": "Freelancer",
+      "other": "Something else"
+    },
+    "privacyNote": "We will only use your email to tell you about the launch. No spam, unsubscribe any time.",
+    "successTitle": "You are on the list",
+    "successBody": "We will email you the moment we open the doors. Early members get early access and bonus credits.",
+    "invalidEmail": "Check the email address and try again.",
+    "tooMany": "Too many attempts. Wait a minute and try again.",
+    "networkError": "Connection problem. Please try again.",
+    "earlyAccess": "Early access",
+    "earlyAccessBody": "Waitlist members try the platform before anyone else.",
+    "bonusCredits": "Bonus credits",
+    "bonusCreditsBody": "Gift credits at launch for everyone on the list.",
+    "shapeIt": "Shape the product",
+    "shapeItBody": "Your input goes into the final decisions before launch."
   }
 }

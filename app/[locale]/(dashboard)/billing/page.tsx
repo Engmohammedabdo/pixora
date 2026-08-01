@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { PlanCard } from '@/components/billing/PlanCard';
 import { TopupCard } from '@/components/billing/TopupCard';
 import { TransactionTable } from '@/components/billing/TransactionTable';
-import { PLANS, ANNUAL_PLANS, TOPUPS, getPlan } from '@/lib/stripe/plans';
+import {PLANS, TOPUPS, getPlan} from '@/lib/stripe/plans';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Check, CreditCard, Coins, Sparkles, ExternalLink } from 'lucide-react';
@@ -28,7 +28,6 @@ export default function BillingPage(): React.ReactElement {
   const searchParams = useSearchParams();
   // Track WHICH card/action is loading so only the clicked one is disabled
   const [loading, setLoading] = useState<string | null>(null);
-  const [isAnnual, setIsAnnual] = useState(false);
 
   const success = searchParams.get('success');
   const currentPlanId = profile?.plan_id || 'free';
@@ -44,14 +43,25 @@ export default function BillingPage(): React.ReactElement {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, billing: isAnnual ? 'annual' : 'monthly' }),
+        body: JSON.stringify({ planId }),
       });
       const data = await res.json();
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
-      } else {
-        toast.error(data.error || t('checkoutError'));
+        return;
       }
+
+      // An existing subscriber must change plan through the billing portal — a
+      // second checkout would create a parallel subscription and bill them twice.
+      // Say so and route them there, rather than showing a dead generic error.
+      if (data.error === 'subscription_exists') {
+        toast.error(t('alreadySubscribed'), {
+          action: { label: t('manageSubscription'), onClick: () => void handleManageSubscription() },
+        });
+        return;
+      }
+
+      toast.error(t('checkoutError'));
     } catch {
       toast.error(t('networkError'));
     } finally { setLoading(null); }
@@ -157,41 +167,12 @@ export default function BillingPage(): React.ReactElement {
           <Sparkles className="h-5 w-5 text-primary-500" />
           <h2 className="text-xl font-bold font-cairo">{t('plansAndPricing')}</h2>
         </div>
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <button
-            type="button"
-            onClick={() => setIsAnnual(false)}
-            className={cn('text-sm font-medium', !isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}
-          >
-            {t('monthly')}
-          </button>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isAnnual}
-            aria-label={t('billingCycle')}
-            onClick={() => setIsAnnual(!isAnnual)}
-            className={cn('relative w-14 h-7 rounded-full transition-colors', isAnnual ? 'bg-primary-500' : 'bg-surface-2')}
-          >
-            <div className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', isAnnual ? 'end-0.5' : 'start-0.5')} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsAnnual(true)}
-            className={cn('text-sm font-medium', isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]')}
-          >
-            {t('annual')}
-            <Badge variant="secondary" className="ms-1.5 text-[9px] text-green-600 dark:text-green-400">{t('save18')}</Badge>
-          </button>
-        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {Object.values(PLANS).map((plan) => {
-            const annualInfo = isAnnual && ANNUAL_PLANS[plan.id] ? ANNUAL_PLANS[plan.id] : null;
-            const displayPlan = annualInfo ? { ...plan, price: annualInfo.annualMonthly } : plan;
             return (
               <PlanCard
                 key={plan.id}
-                plan={displayPlan}
+                plan={plan}
                 isCurrentPlan={currentPlanId === plan.id}
                 onSelect={handleSubscribe}
                 loading={loading === plan.id}

@@ -6,7 +6,10 @@ import { jwtVerify } from 'jose';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/pricing', '/forgot-password', '/reset-password', '/opengraph-image'];
+// `/waitlist` is the pre-launch signup page: it exists to be reached by people
+// who have no account at all, so leaving it out would redirect every visitor to
+// the login screen and collect nothing.
+const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/pricing', '/waitlist', '/forgot-password', '/reset-password', '/opengraph-image'];
 
 function isPublicPath(pathname: string): boolean {
   // Root path (before locale redirect)
@@ -88,6 +91,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       // ever returns a coarse `{ status, timestamp }` — see app/api/health/
       // route.ts — so exposing it here leaks nothing sensitive.
       '/api/health',
+      // Pre-launch signup: the whole point is that the visitor has no account.
+      // The handler rate-limits by IP, validates with Zod, carries a honeypot,
+      // and writes through a service-role RPC that accepts only four fields —
+      // and the public key can neither read the list nor call that RPC.
+      '/api/waitlist',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));

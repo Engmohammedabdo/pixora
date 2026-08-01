@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { useLocale, useTranslations } from 'next-intl';
-import { PLANS, ANNUAL_PLANS } from '@/lib/stripe/plans';
+import { PLANS } from '@/lib/stripe/plans';
 import { estimateImagesFromCredits } from '@/lib/credits/costs';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ export default function PricingSection() {
   const locale = useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
-  const [isAnnual, setIsAnnual] = useState(false);
 
   return (
     <section id="pricing" className="py-20 px-6">
@@ -29,43 +28,6 @@ export default function PricingSection() {
           {t('pricing.subtitle')}
         </p>
 
-        {/* Monthly / Annual toggle */}
-        <div className="flex items-center justify-center gap-3 mb-12">
-          <span
-            className={cn(
-              'text-sm font-medium',
-              !isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'
-            )}
-          >
-            {t('pricing.monthly')}
-          </span>
-          <button
-            onClick={() => setIsAnnual(!isAnnual)}
-            className={cn(
-              'relative w-14 h-7 rounded-full transition-colors',
-              isAnnual ? 'bg-primary-500' : 'bg-surface-2'
-            )}
-          >
-            <div
-              className={cn(
-                'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all',
-                isAnnual ? 'end-0.5' : 'start-0.5'
-              )}
-            />
-          </button>
-          <span
-            className={cn(
-              'text-sm font-medium',
-              isAnnual ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'
-            )}
-          >
-            {t('pricing.annual')}
-            <Badge variant="secondary" className="ms-1.5 text-[9px] text-green-600 dark:text-green-400">
-              {t('pricing.saveBadge')}
-            </Badge>
-          </span>
-        </div>
-
         <motion.div
           ref={ref}
           variants={staggerContainer}
@@ -75,8 +37,7 @@ export default function PricingSection() {
         >
           {Object.values(PLANS).map((plan) => {
             const isPro = plan.id === 'pro';
-            const annualInfo = isAnnual && ANNUAL_PLANS[plan.id] ? ANNUAL_PLANS[plan.id] : null;
-            const displayPrice = annualInfo ? annualInfo.annualMonthly : plan.price;
+            const displayPrice = plan.price;
             // Sourced from next-intl (messages/*.json → landing.pricing.features), not
             // plan.features/plan.featuresAr — those are hardcoded bilingual literals in
             // lib/stripe/plans.ts that bypass the project's i18n convention entirely.
