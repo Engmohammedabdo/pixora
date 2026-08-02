@@ -8,7 +8,7 @@ export const CREDITS_BALANCE_QUERY_KEY = ['credits-balance'] as const;
 
 interface CreditBalanceResponse {
   success: boolean;
-  data?: { balance: number; planId: string };
+  data?: { balance: number; planId: string; paymentFailed: boolean };
 }
 
 interface UseCreditsOptions {
@@ -19,6 +19,19 @@ interface UseCreditsOptions {
 interface UseCreditsReturn {
   balance: number;
   status: CreditsStatus;
+  /**
+   * The plan the SERVER currently has for this user, not the one cached in
+   * useUser's profile (which is read once at mount and never invalidated by a
+   * webhook). Null until the first response lands — callers must fall back.
+   *
+   * This is what closes the post-checkout window: the profile read that renders
+   * the billing page can easily beat the webhook, and without a self-healing
+   * source the customer who just paid $29 sits looking at a "Free" badge under a
+   * green success banner until they think to reload.
+   */
+  planId: string | null;
+  /** Stripe could not collect. Drives the dunning banner. */
+  paymentFailed: boolean;
   refetch: () => void;
 }
 
@@ -39,7 +52,12 @@ export function useCredits({ poll = false }: UseCreditsOptions = {}): UseCredits
       // Query's error state never engages and the UI cannot tell failure apart
       // from success.
       if (!json.success || !json.data) throw new Error('balance_unavailable');
-      return { balance: json.data.balance, startedAt };
+      return {
+        balance: json.data.balance,
+        planId: json.data.planId,
+        paymentFailed: json.data.paymentFailed === true,
+        startedAt,
+      };
     },
     // React Query keeps refetchInterval per OBSERVER, not per query. With five
     // widgets mounting this hook that would be five independent timers, drifting
@@ -60,5 +78,15 @@ export function useCredits({ poll = false }: UseCreditsOptions = {}): UseCredits
     if (query.isError) setError();
   }, [query.isError, setError]);
 
-  return { balance, status, refetch: () => { void query.refetch(); } };
+  // balance comes from the store because of the stale-write guard above — a
+  // generation finishing mid-poll must win. planId and paymentFailed have no such
+  // race (nothing in the client writes them), so they come straight off the shared
+  // React Query cache entry.
+  return {
+    balance,
+    status,
+    planId: query.data?.planId ?? null,
+    paymentFailed: query.data?.paymentFailed ?? false,
+    refetch: () => { void query.refetch(); },
+  };
 }

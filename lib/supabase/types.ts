@@ -204,6 +204,11 @@ export interface Database {
           generation_id: string | null;
           stripe_payment_intent_id: string | null;
           balance_after: number | null;
+          // Migration 033. On usage/refund rows, which pool the credits moved
+          // through — so a refund can be returned to the one it came from.
+          // NULL on every row written before that migration.
+          sub_amount: number | null;
+          purchased_amount: number | null;
           created_at: string;
         };
         Insert: {
@@ -215,6 +220,8 @@ export interface Database {
           generation_id?: string | null;
           stripe_payment_intent_id?: string | null;
           balance_after?: number | null;
+          sub_amount?: number | null;
+          purchased_amount?: number | null;
           created_at?: string;
         };
         Update: {
@@ -440,6 +447,23 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      // Migration 031. Atomic, idempotent top-up grant. Keyed on the Stripe payment
+      // intent, so replaying the same webhook event returns already_granted:true and
+      // writes nothing. service_role only.
+      grant_purchased_credits: {
+        Args: {
+          p_user_id: string;
+          p_credits: number;
+          p_description: string;
+          p_payment_intent_id: string | null;
+        };
+        Returns: {
+          success: boolean;
+          error?: string;
+          already_granted?: boolean;
+          new_balance?: number;
+        };
+      };
       // Migration 026. service_role only — the public key can neither read the
       // waitlist nor call this directly.
       join_waitlist: {

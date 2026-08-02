@@ -3,9 +3,11 @@ import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { TOPUPS } from '@/lib/stripe/plans';
+import { resolveReturnLocale } from '@/lib/stripe/locale';
 
 const InputSchema = z.object({
   topupId: z.enum(['small', 'medium', 'large', 'xl']),
+  locale: z.string().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -19,6 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const { topupId } = InputSchema.parse(body);
+    const locale = resolveReturnLocale(body);
 
     const topup = TOPUPS[topupId];
     if (!topup) {
@@ -46,8 +49,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const { data: prof } = await supabase.from('profiles').select('locale').eq('id', user.id).single();
-    const locale = prof?.locale || 'ar';
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,

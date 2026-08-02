@@ -12,7 +12,7 @@ export async function GET(): Promise<NextResponse> {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('credits_balance, purchased_credits, plan_id')
+      .select('credits_balance, purchased_credits, plan_id, payment_failed')
       .eq('id', user.id)
       .single();
 
@@ -27,6 +27,12 @@ export async function GET(): Promise<NextResponse> {
         planCredits: data.credits_balance,
         purchasedCredits: data.purchased_credits || 0,
         planId: data.plan_id,
+        // The dashboard polls this route every 30s, which makes it the cheapest
+        // carrier for both signals the billing UI needs to stay truthful without a
+        // reload: the plan (so the page heals itself after a checkout lands) and
+        // the dunning flag (so a failed card is visible at all — it was written by
+        // the webhook and read by nothing).
+        paymentFailed: data.payment_failed === true,
       },
     });
   } catch (error) {

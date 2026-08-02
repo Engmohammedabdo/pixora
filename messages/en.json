@@ -502,13 +502,13 @@
     "balanceAfter": "Balance",
     "noTransactions": "No transactions yet",
     "monthly": "Monthly",
-    "annual": "Annual",
-    "save18": "Save 18%",
-    "billingCycle": "Annual billing",
     "checkoutError": "Could not start checkout. Please try again.",
     "portalError": "Could not open the subscription portal. Please try again.",
     "networkError": "Something went wrong. Please try again.",
-    "alreadySubscribed": "You already have an active subscription. Change your plan from subscription management so you are not billed twice."
+    "alreadySubscribed": "You already have an active subscription. Change your plan from subscription management so you are not billed twice.",
+    "pendingActivation": "Payment received — activating your plan. This page will update in a few seconds.",
+    "billingAndReceipts": "Billing & receipts",
+    "noBillingHistory": "No payments on your account yet."
   },
   "onboarding": {
     "stepOf": "Step {current} of {total}",
@@ -973,5 +973,10 @@
     "bonusCreditsBody": "Gift credits at launch for everyone on the list.",
     "shapeIt": "Shape the product",
     "shapeItBody": "Your input goes into the final decisions before launch."
+  },
+  "paymentFailed": {
+    "message": "Your last payment failed. Update your payment method to keep your plan.",
+    "updatePayment": "Update payment method",
+    "portalError": "Could not open the billing page. Please try again."
   }
 }

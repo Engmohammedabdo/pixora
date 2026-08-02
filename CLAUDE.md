@@ -75,7 +75,9 @@
 | Admin dashboard | ✅ built | real funnel/MRR/churn/retention queries |
 | i18n ar/en + RTL | ✅ built | key sets verified identical |
 
-### Money path — fixed 2026-07-21
+### Money path — round 1 fixed 2026-07-21, round 2 fixed 2026-08-02
+
+Round 1 — money that arrived:
 
 | Defect | State |
 |--------|-------|
@@ -85,13 +87,35 @@
 | Credits granted before payment settled | ✅ fixed — requires `payment_status === 'paid'` |
 | Annual billing sold with placeholder price ids → every purchase 500'd | ✅ removed entirely (not deferred — deleted) |
 
+Round 2 — money delivered twice, money that stops, money taken back:
+
+| Defect | State |
+|--------|-------|
+| One top-up delivered twice granted the credits twice | ✅ fixed — `grant_purchased_credits` RPC, keyed on payment intent (031) |
+| Monthly cron refilled non-paying accounts forever (job is LIVE, `cron.job` jobid 1) | ✅ fixed — reset skips `payment_failed` (032) |
+| Nothing downgraded a subscriber who stopped paying — `deleted` was the only exit | ✅ fixed — status branch shares `downgradeToFree()` |
+| A chargeback fired no handled event; account kept its paid tier | ✅ fixed — `charge.dispute.created` handler† |
+| Refunds destroyed credits the customer had bought | ✅ fixed — refund returns to its source pool (033) |
+| `payment_failed` was written by the webhook and read by NOTHING | ✅ fixed — drives the cron guard + a dashboard banner |
+| Post-checkout screen showed "Success" over a `Free` badge | ✅ fixed — plan comes from the server poll, amber pending state |
+| Portal unreachable for top-up-only and churned customers | ✅ fixed — gated on `stripe_customer_id`, not plan |
+| Every Stripe route returned English users to `/ar/billing` | ✅ fixed — locale passed by the caller (`profiles.locale` is a dead column) |
+| Raw error codes (`portal_failed`) shown to Arabic customers | ✅ fixed |
+
+† Requires `charge.dispute.created` to be enabled on the webhook endpoint in the
+Stripe Dashboard — the handler cannot fire if the endpoint is not subscribed to it.
+
+**Verification:** `scripts/db/tests/money-path.sql` runs 12 assertions against the
+live database inside a rolled-back transaction. The webhook paths were verified by
+replaying events at a running dev server. See `docs/CHANGELOG.md` for the evidence.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
 |------|-----------|
 | Transactional email | ❌ none. No provider, no SMTP, no template. Password reset is broken in production. |
 | Support channel | ❌ none. No contact page, no support email, no widget. |
-| Tax invoice / VAT / refunds | ❌ none. Blocks selling to any Gulf company. |
+| Tax invoice / VAT | ❌ none — and correctly so. Below the AED 375,000 threshold there is no TRN and it is *prohibited* to issue a document stating VAT. Becomes real work at registration. Credit refunds/clawback are handled (see money path round 2). |
 | Teams | ❌ UI shell. Mock members, invite button shows "coming soon", zero API routes. |
 | Gamification (achievements, levels, streaks) | ❌ dead code. Zero importers, table never written. |
 | Community / Portfolio | ❌ fabricated data. Invented names and like counts. |

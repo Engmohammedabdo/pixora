@@ -15,7 +15,7 @@ import { TransactionTable } from '@/components/billing/TransactionTable';
 import {PLANS, TOPUPS, getPlan} from '@/lib/stripe/plans';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { Check, CreditCard, Coins, Sparkles, ExternalLink } from 'lucide-react';
+import { Check, CreditCard, Coins, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function BillingPage(): React.ReactElement {
@@ -24,14 +24,32 @@ export default function BillingPage(): React.ReactElement {
   const locale = useLocale();
   const format = useFormatter();
   const { profile } = useUser();
-  const { balance, status: creditsStatus } = useCredits();
+  const { balance, status: creditsStatus, planId: serverPlanId } = useCredits();
   const searchParams = useSearchParams();
   // Track WHICH card/action is loading so only the clicked one is disabled
   const [loading, setLoading] = useState<string | null>(null);
 
   const success = searchParams.get('success');
-  const currentPlanId = profile?.plan_id || 'free';
+  const purchasedPlan = searchParams.get('plan');
+
+  // Prefer the SERVER's plan over useUser's cached profile. That profile is read
+  // once at mount and is never invalidated when the Stripe webhook lands, so a
+  // customer returning from checkout could sit on a page that said "Free" — with a
+  // green success banner above it and no Manage Subscription button — until they
+  // thought to reload. `serverPlanId` rides the balance poll the layout already
+  // runs, so the whole page heals itself within 30s.
+  const currentPlanId = serverPlanId ?? profile?.plan_id ?? 'free';
   const currentPlan = getPlan(currentPlanId);
+
+  // Stripe has taken the money but the webhook has not landed yet. Say that,
+  // rather than claiming an activation that has not happened.
+  const planPending = Boolean(success && purchasedPlan && currentPlanId !== purchasedPlan);
+
+  // Anyone who has ever paid has a Stripe customer — including a top-up-only buyer
+  // still on the free plan, and a churned subscriber. Gating this button on the
+  // PLAN locked both of them out of their own receipts and payment history, which
+  // is the only place either exists (there is no in-app invoice list).
+  const hasBillingHistory = Boolean(profile?.stripe_customer_id);
   const creditPercentage =
     creditsStatus === 'ready' && currentPlan.credits > 0
       ? Math.min((balance / currentPlan.credits) * 100, 100)
@@ -43,7 +61,9 @@ export default function BillingPage(): React.ReactElement {
       const res = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
+        // The locale travels with the request: `profiles.locale` is a dead column
+        // that nothing ever writes, so the server cannot work this out on its own.
+        body: JSON.stringify({ planId, locale }),
       });
       const data = await res.json();
       if (data.success && data.data?.url) {
@@ -73,13 +93,16 @@ export default function BillingPage(): React.ReactElement {
       const res = await fetch('/api/stripe/create-topup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topupId }),
+        body: JSON.stringify({ topupId, locale }),
       });
       const data = await res.json();
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
       } else {
-        toast.error(data.error || t('checkoutError'));
+        // NOT `data.error || t(...)`. These routes always populate `error`, so the
+        // fallback never fired and an Arabic customer was shown the raw token
+        // `checkout_failed` inside an RTL page.
+        toast.error(t('checkoutError'));
       }
     } catch {
       toast.error(t('networkError'));
@@ -89,12 +112,18 @@ export default function BillingPage(): React.ReactElement {
   const handleManageSubscription = async (): Promise<void> => {
     setLoading('portal');
     try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' });
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale }),
+      });
       const data = await res.json();
       if (data.success && data.data?.url) {
         window.location.href = data.data.url;
+      } else if (data.error === 'no_customer') {
+        toast.error(t('noBillingHistory'));
       } else {
-        toast.error(data.error || t('portalError'));
+        toast.error(t('portalError'));
       }
     } catch {
       toast.error(t('networkError'));
@@ -103,8 +132,16 @@ export default function BillingPage(): React.ReactElement {
 
   return (
     <div className="p-6 space-y-10 max-w-6xl mx-auto">
+      {/* Payment landed, plan not active yet — the webhook is still in flight. */}
+      {planPending && (
+        <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>{t('pendingActivation')}</span>
+        </div>
+      )}
+
       {/* Success Banner */}
-      {success && (
+      {success && !planPending && (
         <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-300">
           <Check className="h-5 w-5" />
           <span>{t('successMessage')}</span>
@@ -128,10 +165,10 @@ export default function BillingPage(): React.ReactElement {
                 </p>
               </div>
               <div className="flex gap-2">
-                {currentPlanId !== 'free' && (
+                {hasBillingHistory && (
                   <Button variant="outline" size="sm" onClick={handleManageSubscription} disabled={loading === 'portal'} className="gap-1">
                     <ExternalLink className="h-3 w-3" />
-                    {t('manageSubscription')}
+                    {currentPlanId !== 'free' ? t('manageSubscription') : t('billingAndReceipts')}
                   </Button>
                 )}
               </div>
@@ -175,7 +212,10 @@ export default function BillingPage(): React.ReactElement {
                 plan={plan}
                 isCurrentPlan={currentPlanId === plan.id}
                 onSelect={handleSubscribe}
-                loading={loading === plan.id}
+                // While a purchase is settling, every plan card is inert. Clicking
+                // one in that window would open a second checkout for a customer
+                // who has already paid.
+                loading={loading === plan.id || planPending}
                 locale={locale}
               />
             );

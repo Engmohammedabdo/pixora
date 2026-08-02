@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { LowCreditsBanner } from '@/components/shared/LowCreditsBanner';
+import { PaymentFailedBanner } from '@/components/shared/PaymentFailedBanner';
 import { CommandPalette } from '@/components/shared/CommandPalette';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useCredits } from '@/hooks/useCredits';
@@ -25,6 +26,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       <Sidebar />
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
         <TopBar />
+        {/* Above LowCredits on purpose: a declined card is the cause, an empty
+            balance is often just the symptom. Fix the cause first. */}
+        <PaymentFailedBanner />
         <LowCreditsBanner />
         <CommandPalette />
         <main className="flex-1 bg-[var(--color-bg)] pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
