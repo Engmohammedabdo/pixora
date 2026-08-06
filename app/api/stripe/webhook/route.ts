@@ -14,11 +14,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     if (webhookSecret && signature) {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } else if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_APP_URL?.includes('localhost')) {
-      console.warn('Webhook signature verification skipped (dev mode)');
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Unsigned events are accepted ONLY outside a production build, so that event
+      // replay against a dev server does not need a Stripe CLI tunnel.
+      //
+      // The second half of this condition used to be
+      // `process.env.NEXT_PUBLIC_APP_URL?.includes('localhost')`. That made the
+      // bypass reachable from a PUBLIC, operator-set string: anyone who deployed
+      // with a copied-over localhost URL would disable signature verification on a
+      // live endpoint, and this route grants credits. A forged
+      // `checkout.session.completed` would then be worth unlimited credits to
+      // anybody who could find the URL.
+      //
+      // NODE_ENV is set by Next itself — `next dev` is development, `next build`
+      // and `next start` are production — so it cannot be spoofed by a misconfigured
+      // environment variable.
+      console.warn('Webhook signature verification skipped — non-production build');
       event = JSON.parse(body) as Stripe.Event;
     } else {
-      console.error('STRIPE_WEBHOOK_SECRET not configured in production');
+      console.error('STRIPE_WEBHOOK_SECRET not configured in production — refusing to process an unsigned webhook');
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
   } catch (err) {

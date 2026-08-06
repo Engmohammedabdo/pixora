@@ -10,6 +10,73 @@ worst defect in the money path.
 
 ---
 
+## 2026-08-06 — Stripe SDK 21 → 22, API 2026-07-29.dahlia
+
+`stripe` 21.0.1 → 22.4.0, and the pinned API version `2026-03-25.dahlia` →
+`2026-07-29.dahlia` (the version SDK 22.4.0 is generated against).
+
+The API bump is the safe half: both versions are **dahlia**, and monthly releases
+inside a major are backward-compatible by definition. The SDK major is where the
+breaking changes live. Checked each against this codebase before upgrading:
+
+| v22 breaking change | This repo |
+|---|---|
+| `Stripe(...)` must become `new Stripe(...)` | already `new Stripe()` |
+| Callback-style API methods removed | async/await throughout |
+| API key as a function argument removed | passed to the constructor |
+| Per-request host override removed | never used |
+| `Stripe.StripeContext` / `Stripe.errors.StripeError` no longer types | zero references |
+| CJS entry no longer exports `.default` / `.Stripe` | ESM imports only |
+| `StripeResource` helper methods removed | zero references |
+
+Nothing to migrate — the integration was already on the supported shapes.
+
+`lib/stripe/client.ts` now exports `STRIPE_API_VERSION`. No invariant check guards
+it, because none is needed: `apiVersion` is typed as the exact literal the installed
+SDK pins, so a stale value is a compile error.
+
+```
+Type '"2026-03-25.dahlia"' is not assignable to type '"2026-07-29.dahlia"'
+```
+
+**Verified:** the full webhook replay suite re-run against the new SDK produces
+byte-identical outcomes — a replayed top-up grants once, `past_due` leaves the plan
+alone, `unpaid` downgrades while keeping purchased credits, `invoice.payment_failed`
+writes no ledger row. The 12 database assertions still pass.
+
+### Fixed: signature verification could be disabled by a public env var
+
+Found while testing the upgrade. The webhook accepted unsigned JSON when either
+`NODE_ENV === 'development'` **or** `NEXT_PUBLIC_APP_URL` contained the substring
+`localhost`.
+
+That second clause is an operator-set, publicly-exposed string. A deploy that
+carried a localhost URL over from `.env.local.example` would silently turn off
+signature verification on a live endpoint — and this route grants credits, so a
+forged `checkout.session.completed` would be worth unlimited credits to anyone who
+found the URL.
+
+The bypass now requires `NODE_ENV !== 'production'`, which Next sets itself and no
+environment variable can spoof.
+
+`scripts/db/verify-webhook-signature.js` asserts the four properties the replay
+tests structurally cannot reach, because they all use the unsigned dev path: a valid
+signature verifies, a tampered body is rejected, a stale timestamp is rejected, and
+a wrong secret is rejected.
+
+### Noted, not changed
+
+- **`STRIPE_WEBHOOK_SECRET` is present but empty in `.env.local`.** Harmless
+  locally. If it is also empty in production, every webhook returns 500 and no
+  customer ever receives credits — fail-closed, but completely broken. Verify it in
+  Coolify before the first sale.
+- **`@stripe/stripe-js` is declared in `dependencies` and imported by nothing.** The
+  app uses hosted Checkout and redirects with `window.location.href`, so it is not
+  needed. Left in place because it would be required for Payment Element or embedded
+  checkout later; it costs nothing at runtime since it is never bundled.
+
+---
+
 ## 2026-08-02 — Money path, round two
 
 Round one stopped the app losing money on a payment that **succeeded**. This round
