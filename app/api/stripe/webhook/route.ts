@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/client';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCreditsForPlan, PLANS } from '@/lib/stripe/plans';
+import { sendPaymentFailedEmail } from '@/lib/email/send';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -451,10 +452,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         const { data: failedProfile } = await supabase
           .from('profiles')
-          .select('id, plan_id, email')
+          .select('id, plan_id, email, payment_failed, locale')
           .eq('stripe_customer_id', customerId)
           .single();
         if (!failedProfile) break;
+
+        // Stripe's smart retries fire this event once per attempt — four or more
+        // times over ~3 weeks. Read the flag BEFORE writing it so the email goes out
+        // on the transition only. Four identical "your payment failed" emails is how
+        // a recoverable card problem turns into an unsubscribe.
+        const alreadyFlagged = failedProfile.payment_failed === true;
 
         // `mustSucceed`, unlike before. This flag is now load-bearing: migration 032
         // reads it to stop the monthly cron refilling a delinquent account, and the
@@ -472,6 +479,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // customer's real balance. A failed payment is not a credit transaction; the
         // flag above carries the signal.
         console.warn(`[webhook] payment failed for ${failedProfile.id} on ${failedProfile.plan_id} — flagged`);
+
+        // NOT wrapped in mustSucceed, and deliberately so. `sendPaymentFailedEmail`
+        // never throws; if the provider is down it returns a failure we log. Letting
+        // an email outage return 500 here would make Stripe retry the event, and the
+        // retry would re-run everything above it. A notification must not be able to
+        // destabilise the money path.
+        if (!alreadyFlagged && failedProfile.email) {
+          const mail = await sendPaymentFailedEmail({
+            email: failedProfile.email,
+            planId: failedProfile.plan_id,
+            locale: failedProfile.locale,
+          });
+          if (mail.status !== 'sent') {
+            console.error(`[webhook] dunning email not delivered (${mail.status}) for ${failedProfile.id} — the in-app banner is the only remaining signal`);
+          }
+        }
         break;
       }
 

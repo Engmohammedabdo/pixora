@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { PLANS } from '@/lib/stripe/plans';
-import { resolveReturnLocale } from '@/lib/stripe/locale';
+import { resolveReturnLocale, persistLocale } from '@/lib/stripe/locale';
 
 const InputSchema = z.object({
   planId: z.enum(['starter', 'pro', 'business', 'agency']),
@@ -56,6 +56,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const { planId } = InputSchema.parse(body);
     const locale = resolveReturnLocale(body);
+    // Captured here because a webhook has no request to read it from later.
+    await persistLocale(supabase, user.id, locale);
 
     const plan = PLANS[planId];
     if (!plan || !plan.priceId) {

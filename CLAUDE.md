@@ -113,7 +113,8 @@ replaying events at a running dev server. See `docs/CHANGELOG.md` for the eviden
 
 | Item | Real state |
 |------|-----------|
-| Transactional email | ❌ none. No provider, no SMTP, no template. Password reset is broken in production. |
+| Transactional email — app side | ⚠️ **built, unconfigured.** `lib/email/` sends the dunning notice and waitlist confirmation. Set `RESEND_API_KEY` + `EMAIL_FROM` to switch it on; unset is a supported no-op state. |
+| Transactional email — auth side | ❌ **still broken.** Password reset is sent by Supabase Auth, not this app, and needs `SMTP_*` on the Supabase service in Coolify. Verified: `recovery_sent_at` is NULL for every user — no auth email has ever been sent. See `docs/EMAIL_SETUP.md`. |
 | Support channel | ❌ none. No contact page, no support email, no widget. |
 | Tax invoice / VAT | ❌ none — and correctly so. Below the AED 375,000 threshold there is no TRN and it is *prohibited* to issue a document stating VAT. Becomes real work at registration. Credit refunds/clawback are handled (see money path round 2). |
 | Teams | ❌ UI shell. Mock members, invite button shows "coming soon", zero API routes. |

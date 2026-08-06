@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { TOPUPS } from '@/lib/stripe/plans';
-import { resolveReturnLocale } from '@/lib/stripe/locale';
+import { resolveReturnLocale, persistLocale } from '@/lib/stripe/locale';
 
 const InputSchema = z.object({
   topupId: z.enum(['small', 'medium', 'large', 'xl']),
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const { topupId } = InputSchema.parse(body);
     const locale = resolveReturnLocale(body);
+    await persistLocale(supabase, user.id, locale);
 
     const topup = TOPUPS[topupId];
     if (!topup) {

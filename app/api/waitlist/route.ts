@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkKeyedRateLimit, getRequestIp } from '@/lib/rate-limit';
+import { sendWaitlistWelcomeEmail } from '@/lib/email/send';
 
 const InputSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const db = await createServiceRoleClient();
-    const { error } = await db.rpc('join_waitlist', {
+    const { data, error } = await db.rpc('join_waitlist', {
       p_email: input.email,
       p_name: input.name ?? null,
       p_segment: input.segment ?? null,
@@ -54,6 +55,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       console.error('[waitlist] join failed:', error.message);
       return NextResponse.json({ success: false, error: 'join_failed' }, { status: 500 });
+    }
+
+    // Welcome mail on the FIRST signup only (migration 034 distinguishes the two).
+    // Without that check, this endpoint would mail anyone whose address a stranger
+    // typed into the form — the IP rate limit permits 5 a minute, which is a spam
+    // cannon aimed at a third party, not a defence.
+    //
+    // The response below is byte-identical either way. `data` is visible only to
+    // this server; leaking "already registered" to the browser would turn a public
+    // form into an oracle for testing whether an address is on the list.
+    if (data === 'created') {
+      const mail = await sendWaitlistWelcomeEmail({
+        email: input.email,
+        name: input.name,
+        locale: input.locale,
+      });
+      if (mail.status === 'failed') {
+        // The signup itself is safely stored — that is the part that matters. A
+        // failed confirmation must not report the signup as failed and invite a
+        // retry that mails them twice.
+        console.error(`[waitlist] stored, but welcome email failed: ${mail.error}`);
+      }
     }
 
     return NextResponse.json({ success: true });
