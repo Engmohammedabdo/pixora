@@ -464,6 +464,36 @@ export interface Database {
           new_balance?: number;
         };
       };
+      // Migration 035/036. Issues an invite and returns its token. Idempotent:
+      // re-inviting returns the SAME token, so clicking twice does not invalidate a
+      // link already sent. service_role only.
+      issue_invite: {
+        Args: { p_email: string; p_invited_by?: string };
+        Returns: {
+          success: boolean;
+          error?: string;
+          email?: string;
+          token?: string;
+          reissued?: boolean;
+        };
+      };
+      revoke_invite: {
+        Args: { p_email: string };
+        Returns: { success: boolean; revoked: number };
+      };
+      // `installed` reports whether the trigger still exists on auth.users. It lives
+      // in a schema the Supabase auth service owns, so a redeploy or a restore can
+      // drop it and signup would silently revert to fully open.
+      invite_gate_status: {
+        Args: Record<string, never>;
+        Returns: {
+          installed: boolean;
+          enabled: boolean;
+          invited: number;
+          redeemed: number;
+          waiting: number;
+        };
+      };
       // Migration 026. service_role only — the public key can neither read the
       // waitlist nor call this directly.
       join_waitlist: {

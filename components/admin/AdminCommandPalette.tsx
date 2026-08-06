@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   Bot,
   FileText,
+  Ticket,
 } from 'lucide-react';
 
 interface SearchResult {
@@ -37,6 +38,7 @@ const quickActions = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Analytics', href: '/admin/analytics', icon: TrendingUp },
   { label: 'Users', href: '/admin/users', icon: Users },
+  { label: 'Invites', href: '/admin/invites', icon: Ticket },
   { label: 'Generations', href: '/admin/generations', icon: Palette },
   { label: 'Transactions', href: '/admin/transactions', icon: CreditCard },
   { label: 'Studios', href: '/admin/studios', icon: SlidersHorizontal },

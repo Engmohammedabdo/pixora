@@ -53,7 +53,14 @@
     "sendMagicLink": "Send Login Link",
     "checkEmailTitle": "Check your email",
     "checkEmailBody": "We sent a confirmation link to {email}. Open it to activate your account.",
-    "backToLogin": "Back to sign in"
+    "backToLogin": "Back to sign in",
+    "inviteOnlyTitle": "Invite only for now",
+    "inviteOnlyBody": "PyraSuite is in closed beta. Join the waitlist and we will send you an invite as soon as we open up.",
+    "joinWaitlist": "Join the waitlist",
+    "alreadyHaveAccount": "Already have an account?",
+    "inviteRequired": "You need an invite to create an account. Join the waitlist and we will reach out.",
+    "inviteInvalid": "That invite is not valid, or it has already been used. Let us know if this is a mistake.",
+    "alreadyRegistered": "That email is already registered. Try signing in instead."
   },
   "nav": {
     "home": "Home",
@@ -608,7 +615,7 @@
       "studios": "Studios",
       "pricing": "Pricing",
       "login": "Log in",
-      "signup": "Sign up",
+      "signup": "Join the waitlist",
       "menuLabel": "Menu"
     },
     "hero": {
@@ -622,9 +629,9 @@
       "subtitle1": "Type your idea — Pyra turns it into a complete marketing campaign.",
       "subtitle2": "Images, video, plans, analytics, and voiceover.",
       "subtitleStrong": "In Arabic, from day one.",
-      "ctaPrimary": "Start free — 25 bonus credits",
+      "ctaPrimary": "Request beta access",
       "ctaSecondary": "Explore the studios",
-      "microcopy": "No credit card · Sign up in seconds · Instant results",
+      "microcopy": "Invite only for now · We onboard in small batches · No credit card",
       "card1": "Image Creator",
       "card2": "Campaign Planner",
       "card3": "Marketing Plan",
@@ -798,9 +805,9 @@
       "a8": "Yes — the interface is available in both Arabic and English. But the real strength is that Pyra AI is designed Arabic-first, not translated from English."
     },
     "cta": {
-      "title": "Tell Pyra what you want — she'll handle the rest",
-      "subtitle": "25 free credits are waiting for you. No credit card required. Sign up in seconds and launch your first campaign.",
-      "button": "Start Free Now",
+      "title": "The beta is invite only",
+      "subtitle": "We are opening in small batches so we can look after everyone properly. Leave your email and we will reach out when it is your turn.",
+      "button": "Request access",
       "studios": "9 ready-to-use studios waiting for you"
     }
   },

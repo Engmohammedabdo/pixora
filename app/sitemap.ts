@@ -10,10 +10,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // the per-action credit cost table that is the product's stated differentiator.
     { url: `${baseUrl}/ar/pricing`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
     { url: `${baseUrl}/en/pricing`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    // /signup is deliberately NOT listed while the product is invite-only. Asking
+    // Google to index a page that answers "you need an invite" wastes the crawl and
+    // sends every organic visitor to a dead end. The waitlist is the door now.
+    { url: `${baseUrl}/ar/waitlist`, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${baseUrl}/en/waitlist`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${baseUrl}/ar/login`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/ar/signup`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${baseUrl}/en/login`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/en/signup`, changeFrequency: 'monthly', priority: 0.6 },
     // /privacy and /terms live under app/[locale]/(landing)/ (moved out of the
     // dashboard route group — benchmark gap 15/38): middleware.ts publicPaths
     // whitelists both and isPublicPath() strips the locale prefix before

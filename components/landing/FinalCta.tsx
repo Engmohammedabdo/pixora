@@ -52,7 +52,7 @@ export function FinalCta(): React.ReactElement {
               className="px-10 text-base gap-2"
               asChild
             >
-              <Link href="/signup">
+              <Link href="/waitlist">
                 {t('cta.button')}
                 <ArrowRight className="h-4 w-4 rtl:rotate-180" />
               </Link>

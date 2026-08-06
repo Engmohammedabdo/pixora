@@ -99,7 +99,7 @@ export default function PricingSection() {
                   className="w-full"
                   asChild
                 >
-                  <Link href="/signup">
+                  <Link href="/waitlist">
                     {plan.price === 0 ? t('pricing.startFree') : t('pricing.subscribe')}
                   </Link>
                 </Button>

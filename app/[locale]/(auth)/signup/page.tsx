@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
@@ -19,6 +19,9 @@ export default function SignupPage(): React.ReactElement {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // null = not known yet. Rendering the form before this resolves would flash a
+  // signup form at someone who cannot use it.
+  const [inviteOnly, setInviteOnly] = useState<boolean | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,6 +30,29 @@ export default function SignupPage(): React.ReactElement {
   // The referrals page builds invite links as /signup?ref=CODE, but nothing ever
   // read the parameter — so every referral was silently lost at the last step.
   const referralCode = searchParams.get('ref');
+
+  // The invite token from the founder's link: /signup?invite=PYRA-XXXXXX
+  //
+  // This is the secret the database gate checks, not the email address. Keying on
+  // the address alone would not work: /api/waitlist is public and self-service, and
+  // GoTrue autoconfirms, so whoever registered an invited address first would take
+  // the seat and the real invitee would be locked out with no recovery path.
+  const inviteToken = searchParams.get('invite');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/public/gate-status');
+        const json = await res.json();
+        if (!cancelled) setInviteOnly(json.inviteOnly !== false);
+      } catch {
+        // Same posture as the route itself: unknown means closed.
+        if (!cancelled) setInviteOnly(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const claimReferral = async (): Promise<void> => {
     if (!referralCode) return;
@@ -46,28 +72,43 @@ export default function SignupPage(): React.ReactElement {
     setError('');
     setLoading(true);
 
-    // Check if registration is enabled
-    try {
-      const regCheck = await fetch('/api/public/registration-check');
-      const regData = await regCheck.json();
-      if (!regData.registration_enabled) {
-        setError('Registration is currently disabled. Please try again later.');
-        setLoading(false);
-        return;
-      }
-    } catch { /* proceed if check fails */ }
-
+    // The `/api/public/registration-check` fetch that used to sit here is gone.
+    //
+    // It read a flag in the browser and then called supabase.auth.signUp() anyway,
+    // so it stopped nobody: the request goes straight to GoTrue with the public anon
+    // key and no code of ours is in the path. Verified by creating a real account
+    // with a bare curl while the flag said closed. The real gate is a BEFORE INSERT
+    // trigger on auth.users (migration 035).
+    //
+    // Keeping a second, differently-named switch that LOOKS like the gate is how a
+    // founder flips the wrong one at 2am and believes the door is shut.
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: name },
+        // invite_token lands in raw_user_meta_data, which is exactly where the
+        // trigger reads it from.
+        data: { full_name: name, ...(inviteToken ? { invite_token: inviteToken } : {}) },
         emailRedirectTo: `${window.location.origin}/${locale}/callback`,
       },
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      // A refusal from the gate reaches us as GoTrue's generic
+      // "Database error saving new user" 500 — Postgres cannot get a clean message
+      // through. Matching on that specific string is deliberate: a catch-all
+      // "anything that isn't 'already registered' means not invited" would tell a
+      // genuinely invited person, during a real database outage, that they were
+      // never invited. Better to show the raw error in the unknown case than to
+      // assert something false about their invitation.
+      const raw = signUpError.message || '';
+      if (/database error/i.test(raw)) {
+        setError(t(inviteToken ? 'inviteInvalid' : 'inviteRequired'));
+      } else if (/already/i.test(raw)) {
+        setError(t('alreadyRegistered'));
+      } else {
+        setError(raw);
+      }
       setLoading(false);
       return;
     }
@@ -107,6 +148,34 @@ export default function SignupPage(): React.ReactElement {
       setError(oauthError.message);
     }
   };
+
+  // Invite-only and no token in the link. Showing the form here would collect a
+  // name, an email and a password and then hand back a 500 from Postgres — so send
+  // them somewhere that actually does something with their interest instead. A wall
+  // that collects an email beats a wall.
+  if (inviteOnly === true && !inviteToken) {
+    return (
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold text-[var(--color-brand)]">
+            {t('inviteOnlyTitle')}
+          </CardTitle>
+          <CardDescription>{t('inviteOnlyBody')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Link href="/waitlist" className="block">
+            <Button className="w-full">{t('joinWaitlist')}</Button>
+          </Link>
+          <p className="text-center text-sm text-[var(--color-text-secondary)]">
+            {t('alreadyHaveAccount')}{' '}
+            <Link href="/login" className="text-[var(--color-link)] hover:underline">
+              {t('login')}
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (success) {
     return (
@@ -190,25 +259,36 @@ export default function SignupPage(): React.ReactElement {
           </Button>
         </form>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-surface px-2 text-[var(--color-text-muted)]">
-              {t('or')}
-            </span>
-          </div>
-        </div>
+        {/* Google is hidden while the gate is on, and this is not cosmetic.
+            The invite token travels in raw_user_meta_data, which we control on the
+            email/password call — but an OAuth round-trip carries Google's metadata,
+            not ours, so the token cannot ride along and the trigger would refuse
+            every attempt. Leaving the button visible would give an invited person a
+            path that always fails. Google stays available on the LOGIN page, where
+            it signs in accounts that already exist. */}
+        {inviteOnly === false && (
+          <>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-surface px-2 text-[var(--color-text-muted)]">
+                  {t('or')}
+                </span>
+              </div>
+            </div>
 
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handleGoogleSignup}
-          type="button"
-        >
-          {t('continueWithGoogle')}
-        </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleSignup}
+              type="button"
+            >
+              {t('continueWithGoogle')}
+            </Button>
+          </>
+        )}
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">

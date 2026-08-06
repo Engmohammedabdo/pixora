@@ -79,7 +79,7 @@ export function NavBar(): React.ReactElement {
             <Link href="/login">{t('nav.login')}</Link>
           </Button>
           <Button size="sm" asChild>
-            <Link href="/signup">{t('nav.signup')}</Link>
+            <Link href="/waitlist">{t('nav.signup')}</Link>
           </Button>
         </div>
 
@@ -134,7 +134,7 @@ export function NavBar(): React.ReactElement {
                   <Link href="/login">{t('nav.login')}</Link>
                 </Button>
                 <Button size="sm" className="flex-1" asChild>
-                  <Link href="/signup">{t('nav.signup')}</Link>
+                  <Link href="/waitlist">{t('nav.signup')}</Link>
                 </Button>
               </div>
             </div>

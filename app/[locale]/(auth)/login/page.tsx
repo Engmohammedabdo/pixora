@@ -16,9 +16,6 @@ export default function LoginPage(): React.ReactElement {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [magicLinkEmail, setMagicLinkEmail] = useState('');
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
 
   const supabase = createBrowserClient();
 
@@ -52,28 +49,6 @@ export default function LoginPage(): React.ReactElement {
     if (oauthError) {
       setError(oauthError.message);
     }
-  };
-
-  const handleMagicLink = async (): Promise<void> => {
-    if (!magicLinkEmail) return;
-    setError('');
-    setMagicLinkLoading(true);
-
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: magicLinkEmail,
-      options: {
-        emailRedirectTo: `${window.location.origin}/${locale}/callback`,
-      },
-    });
-
-    if (otpError) {
-      setError(otpError.message);
-      setMagicLinkLoading(false);
-      return;
-    }
-
-    setMagicLinkSent(true);
-    setMagicLinkLoading(false);
   };
 
   return (
@@ -111,11 +86,24 @@ export default function LoginPage(): React.ReactElement {
               dir="ltr"
               className="rtl:placeholder-shown:text-right"
             />
-            <div className="text-end">
-              <Link href="/forgot-password" className="text-xs text-[var(--color-link)] hover:underline">
-                {t('forgotPassword')}
-              </Link>
-            </div>
+            {/* Hidden until Supabase Auth has SMTP. The reset form itself is
+                untouched and still reachable at /forgot-password — it just says
+                "check your email" and nothing is ever sent, because GoTrue has no
+                mailer on this deployment. Verified: recovery_sent_at is NULL for
+                every user who has ever existed.
+
+                Advertising a recovery path that cannot recover anyone is the single
+                worst thing to put in front of a hand-picked cohort: the moment one
+                of them forgets a password, they are locked out permanently and the
+                product told them there was a way back. Re-enable together with the
+                magic-link block once SMTP_* is set — docs/EMAIL_SETUP.md. */}
+            {process.env.NEXT_PUBLIC_AUTH_EMAIL_ENABLED === 'true' && (
+              <div className="text-end">
+                <Link href="/forgot-password" className="text-xs text-[var(--color-link)] hover:underline">
+                  {t('forgotPassword')}
+                </Link>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -147,42 +135,17 @@ export default function LoginPage(): React.ReactElement {
           {t('continueWithGoogle')}
         </Button>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-surface px-2 text-[var(--color-text-muted)]">
-              {t('magicLink')}
-            </span>
-          </div>
-        </div>
+        {/* The magic-link block that used to sit here is removed, not disabled.
+            Supabase Auth has no SMTP configured on this deployment — verified,
+            `recovery_sent_at` is NULL for every user who has ever existed — so
+            `signInWithOtp` returns no error, the UI set magicLinkSent=true, and the
+            mail never arrived. A control that reports success and does nothing is
+            worse than a missing one, and this is the page invited testers are sent
+            to. It also created accounts as a side effect (`shouldCreateUser`
+            defaults to true), which is a second door into an invite-only product.
 
-        {magicLinkSent ? (
-          <p className="text-sm text-center text-[var(--color-text-secondary)]">
-            {t('magicLinkSent')}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            <Input
-              type="email"
-              placeholder={t('emailPlaceholder')}
-              value={magicLinkEmail}
-              onChange={(e) => setMagicLinkEmail(e.target.value)}
-              dir="ltr"
-              className="rtl:placeholder-shown:text-right"
-            />
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleMagicLink}
-              type="button"
-              disabled={magicLinkLoading || !magicLinkEmail}
-            >
-              {magicLinkLoading ? '...' : t('sendMagicLink')}
-            </Button>
-          </div>
-        )}
+            Bring it back when SMTP_* is set on the Supabase service — see
+            docs/EMAIL_SETUP.md. The same applies to the "forgot password" link. */}
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">

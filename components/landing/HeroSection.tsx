@@ -133,7 +133,7 @@ export function HeroSection(): React.ReactElement {
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-4"
             >
               <Button size="lg" className="text-base px-8 gap-2" asChild>
-                <Link href="/signup">
+                <Link href="/waitlist">
                   {t('hero.ctaPrimary')}
                   <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                 </Link>
