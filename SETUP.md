@@ -184,9 +184,11 @@ Not code. None of it can be assumed done.
 
 These are not settings; they are things only you can decide.
 
-1. **A support address.** `/privacy` tells users to "contact us by email" and no
-   address appears anywhere in the product. An error that says "contact support" with
-   no way to do so is worse than no message.
+1. ~~A support address.~~ **Done.** `/contact` is live and public, messages land in
+   `/admin/support`. Nothing to configure — it stores rather than emails on purpose,
+   so it works with no provider. Reply from your own mail client using the address
+   shown on each message. If you later set `EMAIL_FROM`, put a real inbox behind it
+   so replies reach you.
 2. **The Terms page** names no legal entity, no address, and no governing law. It
    needs the entity that will appear on Stripe invoices, a governing-law line, and an
    explicit refund position for unused subscription time and unused purchased credits.
@@ -225,7 +227,7 @@ that needs `ALTER USER`. Never touch `VAULT_ENC_KEY`.
 [ ] Stripe portal default configuration saved        (§5.3)
 [ ] Retry exhaustion set to "cancel"                 (§5.1)
 [ ] node scripts/db/verify-invite-gate.js passes     (§4)
-[ ] Support address chosen and published             (§6.1)
+[x] Support channel live at /contact                 (§6.1)
 [ ] Terms name an entity + refund position           (§6.2)
 [ ] SMTP_* on the Supabase service                   (§3.2)  ← or accept: no password reset
 [ ] Secrets rotated                                  (§7)

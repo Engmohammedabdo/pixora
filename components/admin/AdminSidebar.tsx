@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Hexagon,
   Ticket,
+  LifeBuoy,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -44,6 +45,7 @@ const navItems: NavItem[] = [
   { href: '/admin/analytics', label: 'Analytics', icon: TrendingUp },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/invites', label: 'Invites', icon: Ticket },
+  { href: '/admin/support', label: 'Support', icon: LifeBuoy },
   { href: '/admin/generations', label: 'Generations', icon: Palette },
   { href: '/admin/transactions', label: 'Transactions', icon: CreditCard },
   { type: 'separator', label: 'God Mode' },

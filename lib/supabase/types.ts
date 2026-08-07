@@ -494,6 +494,24 @@ export interface Database {
           waiting: number;
         };
       };
+      // Migration 037. Stores a support message. Called with a user id only when a
+      // VERIFIED session exists — the route never takes it from the request body.
+      submit_support_message: {
+        Args: {
+          p_email: string;
+          p_topic: string;
+          p_message: string;
+          p_name: string | null;
+          p_user_id: string | null;
+          p_locale: string;
+          p_page_url: string | null;
+        };
+        Returns: { success: boolean; error?: string; id?: string };
+      };
+      resolve_support_message: {
+        Args: { p_id: string; p_status: string; p_note?: string | null };
+        Returns: { success: boolean; error?: string };
+      };
       // Migration 026. service_role only — the public key can neither read the
       // waitlist nor call this directly.
       join_waitlist: {

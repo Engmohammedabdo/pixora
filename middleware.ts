@@ -9,7 +9,11 @@ const intlMiddleware = createIntlMiddleware(routing);
 // `/waitlist` is the pre-launch signup page: it exists to be reached by people
 // who have no account at all, so leaving it out would redirect every visitor to
 // the login screen and collect nothing.
-const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/pricing', '/waitlist', '/forgot-password', '/reset-password', '/opengraph-image'];
+// `/contact` must be public for the same reason `/waitlist` is, only more so: the
+// people most likely to need it are the ones who cannot sign in. Requiring a session
+// would close the support channel to exactly that group — which today includes
+// anyone who forgets a password, since Supabase Auth has no mailer.
+const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/pricing', '/waitlist', '/contact', '/forgot-password', '/reset-password', '/opengraph-image'];
 
 function isPublicPath(pathname: string): boolean {
   // Root path (before locale redirect)
@@ -96,6 +100,12 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       // and writes through a service-role RPC that accepts only four fields —
       // and the public key can neither read the list nor call that RPC.
       '/api/waitlist',
+      // Support: unauthenticated by design. The handler rate-limits by IP, validates
+      // with Zod, carries a honeypot, and writes through a service-role RPC with a
+      // fixed argument list. It attaches the user id only from a VERIFIED session,
+      // never from the request body, so a logged-out sender cannot file a ticket
+      // that appears to come from someone else.
+      '/api/support',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));

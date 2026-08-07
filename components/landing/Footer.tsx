@@ -9,6 +9,9 @@ const STUDIO_LINKS = [
 ] as const;
 
 const SUPPORT_LINKS = [
+  // This heading used to sit over pricing and an FAQ, with no way to reach a human
+  // anywhere in the product — while error copy told people to "contact support".
+  { key: 'contact', href: '/contact' },
   { key: 'pricing', href: '/pricing' },
   { key: 'faq', href: '/#faq' },
 ] as const;

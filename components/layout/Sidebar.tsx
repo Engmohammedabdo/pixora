@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Gift,
   RefreshCw,
+  LifeBuoy,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
@@ -69,6 +70,9 @@ const accountItems: NavItem[] = [
   { href: '/team', labelKey: 'team', icon: <Users className="h-4 w-4" />, soon: true },
   { href: '/settings', labelKey: 'settings', icon: <Settings className="h-4 w-4" /> },
   { href: '/billing', labelKey: 'billing', icon: <CreditCard className="h-4 w-4" /> },
+  // A paying customer with a problem should not have to go back to the marketing
+  // site to find a way to reach anyone.
+  { href: '/contact', labelKey: 'support' as 'settings', icon: <LifeBuoy className="h-4 w-4" /> },
 ];
 
 export function Sidebar(): React.ReactElement {

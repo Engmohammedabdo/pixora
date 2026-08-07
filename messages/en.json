@@ -94,7 +94,8 @@
       "closeSidebar": "Close sidebar",
       "toggleSidebar": "Collapse sidebar",
       "mainNav": "Main navigation"
-    }
+    },
+    "support": "Support"
   },
   "credits": {
     "balance": "Credit Balance",
@@ -191,7 +192,7 @@
       "rate_limited": "Too many requests — wait a minute and try again",
       "generation_failed": "Pyra hit a snag while generating. Please try again 🦊",
       "generation_parse_failed": "Pyra returned an incomplete result. Please try again",
-      "refund_failed": "Generation failed and we couldn't automatically refund your credits. Our team has been notified and will restore them shortly — contact support if they don't appear within a business day",
+      "refund_failed": "Generation failed and we could not return your credits automatically. We have been notified and will restore them shortly — if they have not appeared within a business day, reach us from the Contact page.",
       "prompt_blocked": "Your text contains disallowed content. Edit it and retry",
       "validation_error": "Invalid input — check the fields and try again",
       "unauthorized": "Session expired — please sign in again",
@@ -666,7 +667,8 @@
       "privacy": "Privacy Policy",
       "terms": "Terms of Use",
       "copyright": "© 2026 PyraSuite. All rights reserved.",
-      "poweredBy": "Powered by Pyra AI 🦊 — Built by Pyramedia"
+      "poweredBy": "Powered by Pyra AI 🦊 — Built by Pyramedia",
+      "contact": "Contact us"
     },
     "how": {
       "title": "Three Steps and You're Done",
@@ -985,5 +987,33 @@
     "message": "Your last payment failed. Update your payment method to keep your plan.",
     "updatePayment": "Update payment method",
     "portalError": "Could not open the billing page. Please try again."
+  },
+  "contact": {
+    "title": "Talk to us",
+    "subtitle": "Payment problem? Something not working? Write to us — a human reads every message.",
+    "topic": "Topic",
+    "topics": {
+      "billing": "Billing",
+      "bug": "Something broke",
+      "account": "Account",
+      "other": "Something else"
+    },
+    "hints": {
+      "billing": "Charged but no credits, or you want to cancel",
+      "bug": "Something failed or produced the wrong result",
+      "account": "Cannot sign in, or forgot your password"
+    },
+    "email": "Your email",
+    "name": "Your name",
+    "namePlaceholder": "Optional",
+    "message": "What happened?",
+    "messagePlaceholder": "The more detail the faster we can fix it. If you saw an error message, paste it here.",
+    "submit": "Send",
+    "responseTime": "We read every message ourselves. Usually a reply within one business day.",
+    "sentTitle": "Got it ✅",
+    "sentBody": "We will reply to the email you gave. If this is about a payment, include the last 4 digits of the card in your reply so we can find it faster.",
+    "errorGeneric": "Something went wrong. Try again — if it keeps failing, email us directly.",
+    "errorTooShort": "Give us a little more detail (at least 10 characters).",
+    "errorRateLimited": "That is a lot of messages very quickly. Wait a minute and try again."
   }
 }

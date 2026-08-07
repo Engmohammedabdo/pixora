@@ -1,4 +1,5 @@
 import { setRequestLocale } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
@@ -63,7 +64,15 @@ export default async function PrivacyPage({
           <CardHeader><CardTitle className="text-base">5. حقوقك</CardTitle></CardHeader>
           <CardContent className="text-sm leading-relaxed space-y-2">
             <p>يمكنك الوصول لبياناتك أو تعديلها أو حذف حسابك في أي وقت من صفحة الإعدادات.</p>
-            <p>للاستفسارات المتعلقة بالخصوصية، تواصل معنا عبر البريد الإلكتروني.</p>
+            {/* Was "contact us by email" with no address given anywhere in the
+                product. Now points at a channel that exists. */}
+            <p>
+              للاستفسارات المتعلقة بالخصوصية أو لطلب حذف بياناتك،{' '}
+              <Link href="/contact" className="text-[var(--color-link)] hover:underline">
+                كلّمنا من هنا
+              </Link>
+              .
+            </p>
           </CardContent>
         </Card>
       </div>
