@@ -16,7 +16,7 @@ export function FaqSection(): React.ReactElement {
   };
 
   return (
-    <section id="faq" className="py-20 px-6">
+    <section id="faq" className="scroll-mt-20 py-20 px-6">
       <div className="mx-auto max-w-3xl">
         <h2 className="mb-4 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
           {t('faq.title')}

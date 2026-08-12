@@ -56,7 +56,14 @@ export default async function WaitlistPage({
           </span>
 
           <div className="flex flex-col gap-4">
-            <h1 className="font-cairo text-3xl font-bold leading-tight text-[var(--color-text-primary)] sm:text-5xl">
+            {/* leading-[1.45], not leading-tight. Tailwind's text-5xl carries its own
+                line-height of 1, which collapsed this to a 48px line on a 48px font —
+                measured on production. Latin text survives that; Arabic does not,
+                because the diacritics and the tall alif/lam sit above the cap height
+                and collide with the descenders of the line above. Verified on
+                "اكتب فكرتك بالعربي، وبايرا تطلّعها حملة كاملة", where the shadda on
+                تطلّعها touched the line below it. */}
+            <h1 className="font-cairo text-3xl font-bold leading-[1.45] text-[var(--color-text-primary)] sm:text-5xl">
               {t('title')}
             </h1>
             <p className="mx-auto max-w-xl text-base leading-relaxed text-[var(--color-text-secondary)] sm:text-lg">

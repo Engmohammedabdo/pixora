@@ -690,7 +690,7 @@
       "ex3": "Burger restaurant",
       "ex4": "Luxury perfume",
       "caption": "Illustrative example — actual results depend on your description",
-      "cta": "Try it now with your free account"
+      "cta": "Request beta access"
     },
     "studios": {
       "title": "9 Studios — Each One a New Superpower 🦊",
@@ -732,7 +732,7 @@
     },
     "pricing": {
       "title": "Transparent pricing — no surprises",
-      "subtitle": "Start free and upgrade as you grow",
+      "subtitle": "These are our launch prices — join now and you are in the first batch",
       "monthly": "Monthly",
       "annual": "Annual",
       "saveBadge": "Save 18%",
@@ -773,7 +773,9 @@
           "No watermark",
           "100 Brand Kits"
         ]
-      }
+      },
+      "ctaFree": "Request access",
+      "ctaPaid": "Request access"
     },
     "social": {
       "title": "Join Pyra's early adopters 🦊",
@@ -792,9 +794,9 @@
       "q1": "What is Pyra AI?",
       "a1": "Pyra AI is the intelligence engine that powers all nine studios in PyraSuite. It understands your request in Arabic and turns it into professional results — images, campaigns, plans, analyses, and voiceovers.",
       "q2": "How does the credit system work?",
-      "a2": "Every action has a clear cost you see before you click. One image = 1 credit, a full 9-post campaign = 12 credits. No surprises. You start with 25 free credits.",
-      "q3": "Can I try it without paying?",
-      "a3": "Absolutely! Create a free account and get 25 credits on us — enough to try all nine studios and see the results for yourself.",
+      "a2": "Every action has a clear cost you see before you click. One image = 1 credit, a full 9-post campaign = 12. No surprises — and if a generation fails, the credits return to your account automatically.",
+      "q3": "How do I try the platform?",
+      "a3": "The beta is invite only right now. Join the waitlist and we will send invites in batches. Invited users get a larger credit balance than the free plan, so there is enough to genuinely try every studio.",
       "q4": "Does Pyra AI really understand Arabic?",
       "a4": "It doesn't just understand it — it's built Arabic-first. Write in Gulf, Egyptian, Levantine, or Modern Standard Arabic. Pyra AI gets the context and creates content that sounds natural, not translated.",
       "q5": "Do credits expire?",

@@ -19,7 +19,7 @@ export function ValuePillars(): React.ReactElement {
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
-    <section id="features" className="py-20 px-6">
+    <section id="features" className="scroll-mt-20 py-20 px-6">
       <div className="mx-auto max-w-7xl">
         <h2 className="mb-4 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
           {t('pillars.title')}

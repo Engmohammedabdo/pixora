@@ -107,7 +107,7 @@ export function StudiosShowcase(): React.ReactElement {
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
   return (
-    <section id="studios" className="py-20 px-6">
+    <section id="studios" className="scroll-mt-20 py-20 px-6">
       <div className="mx-auto max-w-6xl">
         <h2 className="mb-3 text-center font-cairo text-3xl font-bold text-[var(--color-text-primary)]">
           {t('studios.title')}
