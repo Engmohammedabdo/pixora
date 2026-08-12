@@ -81,19 +81,28 @@ Confusing these is why password reset stayed broken. Full detail in
 
 ### 3.1 App email (dunning + waitlist confirmation)
 
+**Use your own mail server — there is nothing to buy.** `mail.pyramedia.info` is
+live (Postfix, STARTTLS on 587), already paid for with the hosting, and the SPF
+record for `pyramedia.info` already authorises it. Sending as
+`support@pyramedia.info` passes SPF with **no DNS changes at all** — and since the
+From address is your real inbox, replies simply arrive.
+
 - **Where:** app environment
+
 ```
-RESEND_API_KEY=re_...
-EMAIL_FROM="PyraSuite <no-reply@pyramedia.cloud>"
-EMAIL_REPLY_TO=support@pyramedia.info
+SMTP_HOST=mail.pyramedia.info
+SMTP_PORT=587
+SMTP_USER=support@pyramedia.info     # the FULL address, not "support"
+SMTP_PASS=<the mailbox password>
+EMAIL_FROM="PyraSuite <support@pyramedia.info>"
 ```
 
-> Send from `pyramedia.cloud`, not `pyramedia.info`. The .info domain already sends
-> mail through HostGator behind a strict `-all` SPF record, so adding Resend to it
-> without editing that record means every message is rejected or spam-foldered.
-> `EMAIL_REPLY_TO` still lands replies in your real support inbox.
+- **Test before deploying:** `npx tsx scripts/db/test-smtp.js you@gmail.com` — it
+  uses the same client production uses, so a pass means the real path works. On
+  failure it prints the server's own words; `535 authentication failed` almost
+  always means the username is missing its `@domain`.
 - **Unset is fine.** The code logs what it would have sent and returns `skipped`.
-  Nothing crashes. The invite flow does not depend on it — you copy links by hand.
+  Nothing crashes. The invite flow never depended on it — you copy links by hand.
 
 ### 3.2 Auth email (password reset) — **this is the one that is broken**
 
@@ -102,13 +111,15 @@ is NULL for every user who has ever existed. No auth email has ever been sent.
 
 - **Where:** the **Supabase service** in Coolify (not the app)
 ```
-SMTP_HOST=smtp.resend.com
+SMTP_HOST=mail.pyramedia.info
 SMTP_PORT=587
-SMTP_USER=resend
-SMTP_PASS=<the same Resend key>
+SMTP_USER=support@pyramedia.info
+SMTP_PASS=<the same mailbox password>
 SMTP_SENDER_NAME=PyraSuite
-SMTP_ADMIN_EMAIL=no-reply@pyramedia.cloud
+SMTP_ADMIN_EMAIL=support@pyramedia.info
 ```
+
+Same credentials as §3.1 — one mailbox covers both systems.
 - Restart the Supabase service afterwards. Some Coolify templates prefix these
   `GOTRUE_SMTP_*` — match whatever that service already uses; the wrong prefix fails
   silently and looks identical to the current broken state.
