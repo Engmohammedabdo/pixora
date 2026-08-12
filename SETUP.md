@@ -14,39 +14,63 @@ These are set and verified in production. Listed so you don't go looking.
 | | |
 |---|---|
 | Supabase URL / anon key / service-role key | app env |
-| Stripe secret key + all 8 price ids | app env |
-| AI providers (Gemini, OpenAI, Replicate, ElevenLabs) | app env |
+| Stripe secret key, **webhook secret**, all 8 price ids | app env |
+| Gemini, OpenAI, ElevenLabs keys | app env |
+| `NEXT_PUBLIC_APP_URL` — set at **build** time too | verified: the live sitemap renders the real domain, not localhost |
 | Admin panel login | app env |
-| Database migrations 001–036 | applied |
+| Database migrations 001–037 | applied |
 | Monthly credit-reset cron | live, `cron.job` id 1 |
 | Orphan-generation reconcile cron | live, `cron.job` id 2 |
+
+Checked against the real production environment on 2026-08-12.
+
+> An earlier version of this file warned that `STRIPE_WEBHOOK_SECRET` might be empty
+> in production, because it is empty in the local `.env.local`. **It is set.** The
+> money path has its secret. Left here as a correction rather than deleted, so nobody
+> re-raises it from an old copy.
 
 ---
 
 ## 2. Required before the first invite goes out
 
-### 2.1 Stripe webhook secret — **check this first**
+### 2.1 Rotate the admin password — **do this first**
 
-`STRIPE_WEBHOOK_SECRET` is present but **empty** in `.env.local`.
+`ADMIN_PASSWORD` is a short, guessable string, paired with the username `admin`.
 
-If it is also empty in production, every Stripe webhook returns 500 and **no
-customer ever receives credits**. The failure is safe (Stripe retries, no money is
-lost silently) but the money path is dead until it is set.
+That panel can issue invites, change any user's credit balance, ban users, and read
+every email address you have collected. It is a higher-value target than the database
+key, and unlike the database key it can be guessed without finding anything.
 
 - **Where:** app environment in Coolify
-- **Value:** Stripe Dashboard → Developers → Webhooks → your endpoint → signing secret (`whsec_…`)
-- **Check:** the endpoint must also be subscribed to `charge.dispute.created`, or the
-  chargeback handler can never fire.
+- **Value:** 24+ random characters from a password manager
+- **Also rotate:** `ADMIN_JWT_SECRET` at the same time, which invalidates any session
+  already issued.
 
-### 2.2 `NEXT_PUBLIC_APP_URL` at **build** time
+### 2.2 Stripe is in LIVE mode
 
-Not just at runtime. `sitemap.ts` and `robots` bake this in when the image is built —
-the committed build output currently shows `http://localhost:3000`, which means it was
-unset during the last build.
+The keys in production are `pk_live` / `sk_live`. **Every purchase charges a real
+card**, including any you make while testing with your invited cohort.
 
-- **Where:** Coolify build environment for the app
-- **Value:** `https://pyrasuite.pyramedia.cloud`
-- **Breaks without it:** Google is told your site lives on localhost.
+That may be exactly what you want — real revenue from day one. Just decide it
+deliberately rather than discovering it. If you would rather rehearse first, swap the
+secret key, publishable key, all 8 price ids, and the webhook secret for their test
+equivalents; they are not interchangeable individually.
+
+### 2.3 `charge.dispute.created` on the webhook endpoint
+
+- **Where:** Stripe Dashboard → Developers → Webhooks → your endpoint → events
+- **Breaks without it:** the chargeback handler exists in the code and can never fire,
+  so a customer who disputes a charge keeps their paid plan.
+
+### 2.4 `REPLICATE_API_TOKEN` is empty
+
+Not urgent, but know what it costs you. With no token, `generateFlux` returns a mock,
+and `rejectMockInProduction` (`lib/ai/router.ts:110`) throws on it — correctly, rather
+than serving a fake image.
+
+The effect is that the image fallback chain is **Gemini → GPT → nothing**. If both
+fail, the generation fails and credits are refunded. Each attempt that reaches the
+dead third branch also burns 2.5 seconds before throwing.
 
 ---
 
@@ -61,7 +85,13 @@ Confusing these is why password reset stayed broken. Full detail in
 ```
 RESEND_API_KEY=re_...
 EMAIL_FROM="PyraSuite <no-reply@pyramedia.cloud>"
+EMAIL_REPLY_TO=support@pyramedia.info
 ```
+
+> Send from `pyramedia.cloud`, not `pyramedia.info`. The .info domain already sends
+> mail through HostGator behind a strict `-all` SPF record, so adding Resend to it
+> without editing that record means every message is rejected or spam-foldered.
+> `EMAIL_REPLY_TO` still lands replies in your real support inbox.
 - **Unset is fine.** The code logs what it would have sent and returns `skipped`.
   Nothing crashes. The invite flow does not depend on it — you copy links by hand.
 
@@ -221,9 +251,11 @@ that needs `ALTER USER`. Never touch `VAULT_ENC_KEY`.
 ## Launch checklist
 
 ```
-[ ] STRIPE_WEBHOOK_SECRET set in production          (§2.1)
-[ ] charge.dispute.created subscribed                (§5.5)
-[ ] NEXT_PUBLIC_APP_URL set at BUILD time            (§2.2)
+[x] STRIPE_WEBHOOK_SECRET set in production          (§1)
+[x] NEXT_PUBLIC_APP_URL set at BUILD time            (§1)
+[ ] Admin password + JWT secret rotated              (§2.1)  ← highest value
+[ ] Decided: stay on Stripe LIVE, or switch to test  (§2.2)
+[ ] charge.dispute.created subscribed                (§2.3)
 [ ] Stripe portal default configuration saved        (§5.3)
 [ ] Retry exhaustion set to "cancel"                 (§5.1)
 [ ] node scripts/db/verify-invite-gate.js passes     (§4)

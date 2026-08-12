@@ -39,6 +39,20 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const apiKey = process.env.RESEND_API_KEY;
   const from = input.from || process.env.EMAIL_FROM;
 
+  /**
+   * Where a reply goes, which is deliberately NOT where the mail is sent from.
+   *
+   * Sending domain and support inbox are separate problems. The sending domain has
+   * to be verified with the provider and carry its DKIM and SPF; the support inbox
+   * just has to be somewhere a human reads. Forcing them to be the same address
+   * means either bolting the provider onto a domain that already sends mail through
+   * somebody else — a strict `-all` SPF there will hard-fail every message — or
+   * asking customers to reply into a no-reply void.
+   *
+   * So: send from the verified domain, and point replies at the real inbox.
+   */
+  const replyTo = input.replyTo || process.env.EMAIL_REPLY_TO;
+
   if (!apiKey || !from) {
     const missing = !apiKey ? 'RESEND_API_KEY' : 'EMAIL_FROM';
     console.warn(`[email] ${missing} not set — would have sent "${input.subject}" to ${redact(input.to)}`);
@@ -66,7 +80,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
           subject: input.subject,
           html: input.html,
           text: input.text,
-          ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+          ...(replyTo ? { reply_to: replyTo } : {}),
         }),
         signal: controller.signal,
       });
