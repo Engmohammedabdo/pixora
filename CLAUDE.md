@@ -75,7 +75,7 @@
 | Admin dashboard | ✅ built | real funnel/MRR/churn/retention queries |
 | i18n ar/en + RTL | ✅ built | key sets verified identical |
 
-### Money path — round 1 fixed 2026-07-21, round 2 fixed 2026-08-02
+### Money path — round 1 fixed 2026-07-21, round 2 fixed 2026-08-02, round 3 fixed 2026-08-19
 
 Round 1 — money that arrived:
 
@@ -105,9 +105,35 @@ Round 2 — money delivered twice, money that stops, money taken back:
 † Requires `charge.dispute.created` to be enabled on the webhook endpoint in the
 Stripe Dashboard — the handler cannot fire if the endpoint is not subscribed to it.
 
+Round 3 — money the customer could take back after receiving the goods
+(fixed 2026-08-19, migration `038_generation_lifecycle_guard.sql`):
+
+| Defect | State |
+|--------|-------|
+| A customer could PATCH their own **completed** generation back to `processing` and let the reconciler refund it in full — work already delivered, repeatable, unlimited free credits | ✅ fixed — `generations_lifecycle_guard` trigger |
+| `created_at` was writable, so an in-flight generation could be backdated into the refund window and collected on while the route was still running | ✅ fixed — `created_at` immutable |
+| `generations.status` was nullable and a `CHECK` passes NULL, so `completed → NULL → processing` laundered a terminal row past any `OLD`/`NEW` comparison | ✅ fixed — `status SET NOT NULL` + the rule stated on `NEW` |
+| Policy 009:28 let a user DELETE their own generations — the rows `lib/rate-limit.ts:11-16` counts, i.e. the only throttle in front of every paid studio | ✅ fixed — DELETE revoked from `PUBLIC, anon, authenticated` |
+
+**Why a trigger and not a REVOKE.** All nine studios write `generations` through
+`createServerClient()` (`lib/supabase/server.ts:5`) — anon key plus the user's
+cookie JWT — so the app executes as `authenticated`, the *same role over the same
+PostgREST endpoint as the attacker*, and `status` is exactly the column both must
+write. Privilege cannot separate them; only the shape of the write can. Every
+legitimate write moves a generation forward, so the invariant is: **a row may only
+be in the reconciler's scan window if it was already in it.** Stated on `NEW`, where
+it is total — a blacklist on `OLD` is what the NULL hop defeats.
+
 **Verification:** `scripts/db/tests/money-path.sql` runs 12 assertions against the
 live database inside a rolled-back transaction. The webhook paths were verified by
-replaying events at a running dev server. See `docs/CHANGELOG.md` for the evidence.
+replaying events at a running dev server. Migration 038 proves itself at apply time
+against the live table **as the `authenticated` role** (probes A–E, `038:§4`) and
+refuses to commit if any probe cannot reach a verdict — a probe blocked by RLS is
+treated as a failure, not a pass, because it certifies nothing. Post-apply, all four
+attack paths were re-run independently as `authenticated` and returned `23514`
+(check_violation) / `42501` (permission denied). Forensics before applying: the loop
+had never been used — zero rewound rows, zero reconciler payouts ever.
+See `docs/CHANGELOG.md` for the evidence.
 
 ### Not built — do not describe these as done
 
