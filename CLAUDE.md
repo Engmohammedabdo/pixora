@@ -254,7 +254,9 @@ lib/
 // 4. Check plan limits (resolution, duration, features)
 // 5. Check credits
 // 6. Generate via Pyra AI router (handles model selection + fallback)
-// 7. Apply watermark (maybeWatermark for free plan)
+// 7. Persist + watermark (persistGeneratedImage — burns the mark in before the
+//    single upload; throws WatermarkRequiredError if it cannot, so the caller
+//    refunds. NOT maybeWatermark/watermarkAndReupload — both are dead code.)
 // 8. Deduct credits + CHECK deductResult.success
 // 9. Save generation + assets
 // 10. Return response
@@ -275,7 +277,14 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 ### Credits System
 - Check balance → Generate → Deduct (atomic) → Log transaction
 - `deductResult.success` MUST be checked after every deduction
-- Free plan: watermark on images
+- Free plan: watermark on images — fail-CLOSED. If the mark cannot be burned in,
+  the request fails and credits are refunded; the clean original is never served.
+  **Requires fonts in the runtime image.** The mark is SVG `<text>` rendered via
+  librsvg/pango, and on a bare `node:*-alpine` pango draws every glyph as an empty
+  box and returns *success* — so from 2026-08-13 until 2026-08-20 every free-plan
+  image shipped with rectangles instead of the product name, with nothing thrown
+  and nothing logged. `Dockerfile` installs `ttf-dejavu`; `assertTextRenderingAvailable()`
+  (`lib/image/watermark.ts`) fails the request closed if that layer is ever dropped.
 - Resolution enforcement per plan
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
