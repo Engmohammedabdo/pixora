@@ -146,7 +146,15 @@ export const TOPUPS: Record<string, TopupConfig> = {
 };
 
 export function getPlan(planId: string): PlanConfig {
-  return PLANS[planId] || PLANS.free;
+  // Object.hasOwn, not a bare index: `PLANS['constructor']` (and toString,
+  // valueOf, hasOwnProperty, __proto__) resolve to TRUTHY prototype members, so
+  // `|| PLANS.free` would be skipped and the caller would get an object whose
+  // `.watermark` is undefined — i.e. no watermark, plus undefined resolution
+  // and credit limits. Nothing writes those values into profiles.plan_id today
+  // (022_privilege_lockdown.sql:40 revokes UPDATE on that column and :86
+  // re-grants only profile fields), but the free-plan watermark gate should not
+  // rest on that staying true.
+  return Object.hasOwn(PLANS, planId) ? PLANS[planId] : PLANS.free;
 }
 
 export function getCreditsForPlan(planId: string): number {

@@ -14,6 +14,40 @@ interface PersistOptions {
 }
 
 /**
+ * A watermark was required for this image and could not be burned in.
+ *
+ * Free is the only plan with `watermark: true` (lib/stripe/plans.ts:27), and a
+ * free-plan image handed over without it is a product-rule violation, not a
+ * quality degradation — so this path must NOT fall back to the incoming URL the
+ * way the unwatermarked path does. `url` is the clean original we watermarked
+ * *away from*: returning it delivered exactly the asset the watermark exists to
+ * withhold, silently, every time sharp choked on a payload, the 10s fetch
+ * aborted, the image was over 20MB, or the host was off the allow-list
+ * (lib/image/watermark.ts:89-93, :98, :101, :105-112, :124-156). The catch at
+ * the bottom of this file logged it and carried on, so the only trace was a log
+ * line nobody reads.
+ *
+ * Typed so a caller can tell "this one image is undeliverable" apart from a
+ * genuine bug, without string-matching a message:
+ *
+ *  - the multi-image studios (creator x4, campaign, photoshoot) catch it, drop
+ *    that one image, and pay for it through the partial-refund path they
+ *    already run for an image the model never returned;
+ *  - the single-image paths (edit, creator x1) let it reach the catch that
+ *    refunds the whole reservation — app/api/studios/edit/route.ts:101-111 and
+ *    app/api/studios/creator/route.ts:343-357.
+ *
+ * Anything that is NOT this error is a real fault, and those catch sites
+ * rethrow it rather than swallow it.
+ */
+export class WatermarkRequiredError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'WatermarkRequiredError';
+  }
+}
+
+/**
  * Persist a generated image to Supabase Storage and return a public HTTPS URL.
  *
  * Every image provider hands us bytes we cannot serve directly: Pyra's default
@@ -34,7 +68,9 @@ interface PersistOptions {
  * unwatermarked file sat in a public bucket, and halves the upload traffic.
  *
  * Upload failures fall back to the incoming URL so a storage outage degrades
- * quality rather than losing the generation.
+ * quality rather than losing the generation — EXCEPT when a watermark was
+ * required, because there the incoming URL *is* the clean original. That case
+ * throws WatermarkRequiredError instead; see it for why, and for who catches it.
  */
 export async function persistGeneratedImage(
   supabase: SupabaseClient,
@@ -42,16 +78,32 @@ export async function persistGeneratedImage(
   opts: PersistOptions
 ): Promise<string> {
   if (!url) return url;
-  // Mock/placeholder images have nothing worth storing.
-  if (url.includes('placehold.co')) return url;
 
   const watermark = opts.planId ? getPlan(opts.planId).watermark : false;
+
+  // Mock/placeholder images have nothing worth storing — but on a watermarked
+  // plan they must still not come back looking like a clean render, so mark them
+  // the same cheap way lib/image/watermark.ts:20-22 does. Every mock URL the
+  // router emits carries `?text=` (lib/ai/gemini.ts:25-28, lib/ai/openai.ts:24-27,
+  // lib/ai/replicate.ts:17-19), so the replace always lands.
+  if (url.includes('placehold.co')) {
+    return watermark ? url.replace('?text=', '?text=WATERMARK+') : url;
+  }
 
   // An image already in our storage only needs revisiting to watermark it, and
   // re-uploading over an existing key would need the UPDATE the policy withholds.
   const alreadyStored = url.includes('/storage/v1/object/public/');
   if (alreadyStored && !watermark) return url;
-  if (!url.startsWith('data:') && !url.startsWith('http')) return url;
+
+  // Anything that is neither a data: URL nor http(s) cannot be read into a
+  // buffer, so a required watermark cannot be burned in. Returning it here was
+  // the same fail-open as the catch below, just reached earlier.
+  if (!url.startsWith('data:') && !url.startsWith('http')) {
+    if (watermark) {
+      throw new WatermarkRequiredError('Image cannot be watermarked: unsupported URL scheme');
+    }
+    return url;
+  }
 
   try {
     const buffer = await urlToBuffer(url);
@@ -86,9 +138,35 @@ export async function persistGeneratedImage(
     }
 
     const { data } = supabase.storage.from('assets').getPublicUrl(fileName);
-    return data.publicUrl || url;
+    // The last `|| url` in this function, and the same fail-open as the rest:
+    // on a watermarked plan `url` is the clean original. getPublicUrl builds its
+    // result by string concatenation so an empty value is not reachable through
+    // supabase-js today, but the guarantee must not depend on that.
+    if (!data.publicUrl) {
+      if (watermark) {
+        throw new WatermarkRequiredError('Watermarked image uploaded but no public URL was returned');
+      }
+      return url;
+    }
+    return data.publicUrl;
   } catch (e) {
     console.error('[storage] generated image persist threw:', e);
+    // The branch above can still fail closed on its own: the upload reported an
+    // error, but a watermarked buffer exists, so it serves that inline. Here
+    // there is no watermarked buffer at all — urlToBuffer() or applyWatermark()
+    // is what threw — and the only image in hand is the clean `url`. Returning
+    // it was the defect: a free-plan customer got an unwatermarked image
+    // whenever sharp failed on an odd payload, the fetch timed out or aborted,
+    // or the file was too large. Fail the image instead and let the caller
+    // refund; every caller does. Callers: creator route.ts:224-235 (x4) and
+    // :288 (x1), campaign route.ts:209-224, photoshoot route.ts:178-197,
+    // edit route.ts:97-99.
+    if (watermark) {
+      throw new WatermarkRequiredError(
+        'Watermark could not be applied to the generated image',
+        { cause: e }
+      );
+    }
     return url;
   }
 }

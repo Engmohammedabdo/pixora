@@ -6,7 +6,7 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
-import { persistGeneratedImage } from '@/lib/storage/persist-image';
+import { persistGeneratedImage, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
@@ -200,14 +200,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Pyra returns images as data: URLs; without persisting them a nine-post
     // campaign wrote nine base64 images into one generations.output row. The
     // watermark is burned in before the upload — see lib/storage/persist-image.ts.
+    // A post image whose free-plan watermark cannot be burned in is dropped, not
+    // delivered clean: persistGeneratedImage throws WatermarkRequiredError there
+    // instead of returning the original. Dropping just that image keeps the other
+    // eight images and all nine text posts, and the partial refund below pays for
+    // it; letting the throw reach the catch would refund the whole 12 credits and
+    // destroy a campaign that is mostly intact.
     postImages = await Promise.all(
       postImages.map(async (url, i) => {
         if (!url) return null;
-        return persistGeneratedImage(supabase, url, {
-          userId: user.id, generationId: generation.id, index: i, planId,
-        });
+        try {
+          return await persistGeneratedImage(supabase, url, {
+            userId: user.id, generationId: generation.id, index: i, planId,
+          });
+        } catch (e: unknown) {
+          // Only the watermark verdict is a droppable image. Anything else is a
+          // fault and belongs in the refunding catch at the end of this try.
+          if (!(e instanceof WatermarkRequiredError)) throw e;
+          console.error(`[campaign] post image ${i} dropped, watermark could not be burned in:`, e.message);
+          return null;
+        }
       })
     );
+
+    // Recounted AFTER persisting. failedImageCount was taken at :190 from what
+    // the model returned, which is one stage too early now that an image can also
+    // be lost on the way into storage — the partial refund below must cover every
+    // image the customer does not receive, whichever stage lost it. Guarded on
+    // `generateImages` because with images switched off every entry is null by
+    // construction and there is nothing to refund.
+    if (input.generateImages) {
+      failedImageCount = postImages.filter((url) => url === null).length;
+    }
 
     // Combine posts with images
     const postsWithImages = posts.map((post, i) => ({

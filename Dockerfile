@@ -29,6 +29,22 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Fonts for the free-plan watermark. lib/image/watermark.ts paints "PyraSuite"
+# as SVG <text>, which sharp rasterises through librsvg -> pango -> fontconfig.
+# On a bare node:*-alpine there is not one font file on the system, and pango
+# does not treat that as an error: it renders every character as .notdef — an
+# empty box — and returns success. So the watermark WAS being composited, and
+# every free-plan image shipped with a row of meaningless rectangles instead of
+# the product name. Verified against a real production asset before this line
+# existed; the same code on a host with fonts renders correctly, which is what
+# made it invisible in development.
+#
+# ttf-dejavu covers the Latin text we draw and is what fontconfig resolves the
+# `sans-serif` fallback to, so the family list in watermark.ts keeps working.
+# assertTextRenderingAvailable() in that file fails the request closed if this
+# layer is ever dropped, rather than going back to shipping boxes.
+RUN apk add --no-cache fontconfig ttf-dejavu && fc-cache -f
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 

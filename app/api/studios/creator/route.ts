@@ -8,7 +8,7 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { persistGeneratedImage, formatFromUrl } from '@/lib/storage/persist-image';
+import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
@@ -142,6 +142,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 402 });
     }
 
+    // Credits already returned to the user inside the try below. The catch
+    // refunds the reservation, and refunding it WHOLE after a partial refund has
+    // landed mints credits: refund_credits caps only the slice routed to the
+    // purchased pool (supabase/migrations/033_refund_to_source_pool.sql:279) and
+    // credits the full p_amount to the balance regardless (033:284-286). Nothing
+    // between the partial-refund site and the end of the try throws today, but
+    // the persist call used to swallow every failure and now does not, so this
+    // stops being an accident of ordering. Declared out here because a `let`
+    // inside the try is not in scope in the catch.
+    let refundedSoFar = 0;
+
     try {
     // Generate image(s)
     //
@@ -183,7 +194,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       const results = await Promise.all(promises);
       const successCount = results.filter((r) => r !== null).length;
-      const failedCount = 4 - successCount;
 
       // If ALL failed → full refund + error
       if (successCount === 0) {
@@ -199,6 +209,63 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }, { status: 500 });
       }
 
+      // Persist BEFORE settling the cost, and count a variation we cannot store
+      // as a failed variation.
+      //
+      // On a watermarked plan (free only, lib/stripe/plans.ts:27) uploadImage now
+      // THROWS instead of handing back the clean original — see
+      // lib/storage/persist-image.ts WatermarkRequiredError. Dropping just that
+      // variation feeds it into the partial-refund path this branch already runs
+      // for a variation the model never returned; from the customer's side the
+      // two are the same event, one of four images is not deliverable. Letting
+      // the throw reach the catch instead would take the three good, already
+      // watermarked and uploaded images down with it AND refund `totalCost` on
+      // top of the partial refund below.
+      const uploadPromises = results.map((r, i) =>
+        r
+          ? uploadImage(r.url || '', i).catch((e: unknown) => {
+              // Only the watermark verdict is a droppable image. Anything else is
+              // a fault and belongs in the refunding catch below.
+              if (!(e instanceof WatermarkRequiredError)) throw e;
+              console.error(`[creator] variation ${i} dropped, watermark could not be burned in:`, e.message);
+              return '';
+            })
+          : Promise.resolve('')
+      );
+      const urls = await Promise.all(uploadPromises);
+
+      imageUrls = urls.filter((u) => u !== '');
+      const failedCount = 4 - imageUrls.length;
+
+      // Every variation that generated was then undeliverable — all four failed
+      // the watermark. There is nothing to return, so this is a failure and the
+      // whole reservation goes back; without this the partial refund below would
+      // report `success: true` over an empty grid.
+      if (imageUrls.length === 0) {
+        const refundResult = await refundCredits({
+          userId: user.id, amount: totalCost,
+          description: 'Full refund: no variation could be stored',
+          generationId: generation.id,
+        });
+        // Only mark it terminal once the credits are actually back. The
+        // reconciler's scan window is `status IN ('pending','processing')`
+        // (028_reconcile_orphaned_generations.sql:161), and after migration 038
+        // it is the ONLY automated payout left — so writing 'failed' over a
+        // refund that did not land takes the row out of reach of the one thing
+        // that could still pay the customer, and the credits survive only in a
+        // `[credits][OWED]` log line. Leaving it in 'processing' costs a delay
+        // of at most one 15-minute tick and cannot double-pay: the reconciler
+        // derives what it owes from the ledger (SUM(usage) - SUM(refund),
+        // 028:169-176), so a refund that DID land leaves nothing owed.
+        if (refundResult.success) {
+          await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
+        }
+        return NextResponse.json({
+          success: false,
+          error: refundAwareErrorCode(refundResult, 'generation_failed'),
+        }, { status: 500 });
+      }
+
       // Partial refund for failed variations. Captured (not bare) so the
       // balance we report back reflects whether the refund actually landed —
       // mirrors photoshoot's analogous partial-refund site.
@@ -209,15 +276,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
           generationId: generation.id,
         });
-        if (partialRefund.success) balanceAfterPartialRefund = partialRefund.newBalance;
+        if (partialRefund.success) {
+          balanceAfterPartialRefund = partialRefund.newBalance;
+          refundedSoFar += refundAmount;
+        }
       }
 
-      const uploadPromises = results.map((r, i) =>
-        r ? uploadImage(r.url || '', i) : Promise.resolve('')
-      );
-      const urls = await Promise.all(uploadPromises);
-
-      imageUrls = urls.filter((u) => u !== '');
       hasMock = results.some((r) => r?.mock);
       hasUsedFallback = results.some((r) => r?.usedFallback);
       const firstResult = results.find((r) => r !== null);
@@ -289,11 +353,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
     } catch (genError) {
-      const refundResult = await refundCredits({
-        userId: user.id, amount: totalCost,
-        description: `Refund: creator generation failed`,
-        generationId: generation?.id,
-      });
+      // Refund what is still outstanding, never the whole reservation again:
+      // the 4-variation branch may already have returned part of it, and
+      // refund_credits does not net a second payout against the first
+      // (033_refund_to_source_pool.sql:284-286 credits p_amount unconditionally,
+      // and only the purchased-pool slice is capped, 033:279). Refunding
+      // `totalCost` here after a partial refund would mint credits on the free
+      // tier — the same shape as the round-3 rewind defect in CLAUDE.md.
+      const outstanding = totalCost - refundedSoFar;
+      const refundResult: { success: boolean } = outstanding > 0
+        ? await refundCredits({
+            userId: user.id, amount: outstanding,
+            description: `Refund: creator generation failed`,
+            generationId: generation?.id,
+          })
+        : { success: true };
       if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
