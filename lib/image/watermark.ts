@@ -87,7 +87,11 @@ export async function urlToBuffer(imageUrl: string): Promise<Buffer> {
   // SSRF protection: only allow HTTPS and known domains
   const url = new URL(imageUrl);
   if (url.protocol !== 'https:') throw new Error('Only HTTPS URLs allowed');
-  const allowedHosts = ['.supabase.co', '.supabase.in', '.pyramedia.cloud', 'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery'];
+  // .supabase.co/.supabase.in are deliberately absent: this deployment's storage
+  // is self-hosted under .pyramedia.cloud, so those wildcards matched nothing we
+  // own while letting anyone with a free Supabase project serve bytes to this
+  // server-side fetch.
+  const allowedHosts = ['.pyramedia.cloud', 'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery'];
   if (!allowedHosts.some((h) => url.hostname.endsWith(h) || url.hostname === h)) {
     throw new Error(`Host not allowed: ${url.hostname}`);
   }

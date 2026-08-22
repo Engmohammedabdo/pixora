@@ -20,10 +20,10 @@ interface ExpandableRowProps {
  * nothing visible in the panel.
  *
  * The old test accepted any host: a trailing image extension, or merely the
- * string containing "supabase" or "storage" anywhere. CSP does not cover this
- * either — `img-src` in next.config.ts still allows the `*.supabase.co`
- * wildcard, and anyone can register a project there and read the hit out of
- * their own logs. Our Supabase is self-hosted, so that wildcard buys nothing.
+ * string containing "supabase" or "storage" anywhere. CSP was no backstop
+ * either — `img-src` allowed `*.supabase.co`, a multi-tenant wildcard anyone can
+ * register under. That entry has since been removed from next.config.ts, but
+ * this check is the one that has to hold: CSP is a second line, not the rule.
  *
  * Same rule the server just adopted in lib/storage/export-source.ts: a
  * customer-written URL is never dereferenced unless it is ours.

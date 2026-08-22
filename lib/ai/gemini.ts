@@ -41,7 +41,10 @@ function getMockImageUrl(): string {
  * Mirrors the protections already applied in lib/image/watermark.ts.
  */
 const REFERENCE_IMAGE_ALLOWED_HOSTS = [
-  '.supabase.co', '.supabase.in', '.pyramedia.cloud',
+  // NOT .supabase.co/.supabase.in: this deployment is self-hosted, so those
+  // matched nothing we own while letting a customer point a reference image at
+  // any free Supabase project they registered.
+  '.pyramedia.cloud',
   'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery',
 ];
 const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
