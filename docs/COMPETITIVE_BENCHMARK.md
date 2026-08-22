@@ -190,7 +190,7 @@ Every row is PASS/FAIL or a number. "Best-in-class" names the vendor that sets t
 | 20 | Credit reservation before the model call (no double-spend, no race) | **PASS** — `reserve_credits` RPC, migrations `017`/`018` | Not documented by any competitor | **PASS — ahead of category** |
 | 21 | You pay only for results you keep | **FAIL** — credits are reserved/charged per attempt | **AdCreative** — credits burn only on download | **FAIL — biggest metering idea PyraSuite is missing** |
 | 22 | Direct publish/schedule to social channels | **FAIL** — grep across `app/` finds platform names only as form selectors in `storyboard` and `campaign`; no OAuth, no scheduler, no `social_accounts` table in migrations 001–027 | Predis (8 networks), Adly AI | **FAIL — largest feature gap vs the MENA set** |
-| 23 | Batch/bulk export | **PASS** — `app/api/assets/export` (ZIP) + PDF export | — | **PASS** |
+| 23 | Batch/bulk export | **PARTIAL** — `app/api/assets/export/route.ts` exists and works, but nothing in the app calls it (no fetch of `/api/assets/export` anywhere in `app/`, `components/` or `hooks/`). It archives inline `data:` assets and objects under the caller's own storage folder; rows pointing at a foreign host are skipped and counted in `X-Export-Skipped`. PDF export is real. | — | **PARTIAL** |
 | 24 | Brand consistency automation | **PASS** — brand kits auto-applied | Predis "brand voice", Makeen "brand DNA" | **PASS (parity)** |
 
 ### 2.4 Error and limit handling
