@@ -6,16 +6,23 @@ import {
   resetLoginAttempts,
   COOKIE_NAME,
 } from '@/lib/admin/auth';
-import { logAdminAction, getClientIP } from '@/lib/admin/logger';
+import { logAdminAction, getClientIP, rateLimitBucket } from '@/lib/admin/logger';
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
+  const bucket = rateLimitBucket(ip);
 
   // Rate limit check
-  if (!(await checkLoginRateLimit(ip))) {
+  if (!(await checkLoginRateLimit(bucket))) {
+    // Record it. The throttle used to be silent: logAdminAction below only runs
+    // once the limiter has already passed, so a brute force that actually
+    // tripped the limit left no trace in admin_logs — the one case anyone
+    // reviewing the logs would most want to see. It also gives a locked-out
+    // admin something to point at.
+    await logAdminAction('login_throttled', null, null, null, ip);
     return NextResponse.json(
       { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
-      { status: 429 }
+      { status: 429 },
     );
   }
 
@@ -39,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Success — create token and set cookie
-    await resetLoginAttempts(ip);
+    await resetLoginAttempts(bucket);
     const token = await createAdminToken();
 
     const response = NextResponse.json({ success: true });
