@@ -135,6 +135,57 @@ attack paths were re-run independently as `authenticated` and returned `23514`
 had never been used — zero rewound rows, zero reconciler payouts ever.
 See `docs/CHANGELOG.md` for the evidence.
 
+### Security hardening — fixed 2026-08-20 → 2026-08-23
+
+One defect class produced most of these: **RLS gates WHICH ROW, only a GRANT
+gates WHICH COLUMN.** Migration 022 applied column-level lockdown to `profiles`
+and to no other table, so every table where Supabase's bootstrap
+`GRANT ALL TO anon, authenticated` was never revoked still lets a customer
+rewrite arbitrary columns of their own rows.
+
+| Defect | State |
+|--------|-------|
+| Stored XSS: a customer's own prompt rendered as live HTML in the admin panel (`JSON.stringify` escapes quotes, not `<`) | ✅ fixed — `highlightJson()` returns React nodes; the `dangerouslySetInnerHTML` sink is gone |
+| Admin preview `<img src>` fetched a customer-chosen URL, beaconing the admin's IP/UA | ✅ fixed — previews restricted to our own origin |
+| SSRF: `POST /api/assets/export` did `fetch(asset.url)` on a customer-writable column, returning the response in a ZIP | ✅ fixed — bytes come from inline `data:` or our own bucket by validated path (`lib/storage/export-source.ts`) |
+| Admin login limiter failed OPEN on any DB error, raced (SELECT-then-UPSERT), and keyed on the client-supplied leftmost `x-forwarded-for` | ✅ fixed — atomic `consume_login_attempt()` (039), fails closed, rightmost hop, per-/64 for IPv6 |
+| `assets.url` writable to any string by any customer | ✅ fixed — UPDATE revoked, INSERT shape-constrained (040) |
+| CSP + two server-side fetch allowlists trusted `*.supabase.co` / `*.supabase.in` — multi-tenant wildcards this self-hosted deployment never owned | ✅ fixed — removed from CSP, `remotePatterns`, `lib/ai/gemini.ts`, `lib/image/watermark.ts` |
+| `script-src 'unsafe-eval'` | ✅ removed — verified against the production bundle, not assumed |
+| `script-src 'unsafe-inline'` | ⚠️ **remains.** Next.js App Router emits inline bootstrap scripts; the nonce alternative forces all 133 prerendered pages dynamic. Deliberate trade, not an oversight. |
+
+**Verification.** Every migration rehearsed in a rolled-back transaction, then
+applied, then re-probed independently **as the `authenticated` role** against the
+live database — a probe blocked by RLS is treated as a failure, not a pass,
+because it certifies nothing. Results: `42501` (permission denied) for admin-
+throttle RPC/table/reset and for `assets` UPDATE; `23514` (check violation) for
+an SSRF-shaped `assets` INSERT; legitimate inserts still `OK`. The throttle was
+proved atomic with 25 genuinely parallel calls against a cap of 5 → exactly 5
+allowed. Live end-to-end after deploy: a real generation completes and writes its
+asset row; export returns `X-Export-Included: 13, X-Export-Skipped: 3`; admin
+login returns 401 → 429 at the cap and records `login_throttled`.
+
+**Three defects were introduced by these fixes and caught by adversarial review
+before shipping.** They are recorded in the migration headers because each is
+easy to reintroduce:
+- 038 v1 stated its rule as a blacklist on `OLD`. `status` was nullable and a
+  `CHECK` passes NULL, so `completed → NULL → processing` walked through in two
+  PATCHes. The rule belongs on `NEW`, where it is total.
+- 040 v1 derived its allowed origin **from the customer-writable column it
+  exists to constrain**, and built a `LIKE` pattern from it — so a row of
+  `https://%/...` could compile a guard matching every host while all probes
+  passed. Now a literal, matched with `starts_with()`.
+- The export fix v1 resolved only storage paths, silently dropping the 13 of 25
+  live rows that are `data:` URLs — one account went from 16 exportable assets
+  to 1, with a 200 and no warning.
+
+**Still open (known, not fixed here):** `script-src 'unsafe-inline'` above; the
+studios discard the error from their own `generations`/`assets` writes, so a
+rejected write surfaces as `success: true` rather than a 500; and
+`scripts/backfill-data-uris.ts --watermark` is all-or-nothing across users,
+making it the one remaining path that could publish an unwatermarked free-plan
+image.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
