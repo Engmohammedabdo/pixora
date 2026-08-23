@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase/server';
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { getCachedFeatureFlags } from '@/lib/admin/settings';
 
 /**
  * GET /api/referrals — the signed-in user's referral code and results.
@@ -31,9 +32,38 @@ export async function GET(): Promise<NextResponse> {
 
     const referrals = rows ?? [];
 
+    // Whether sharing a link can actually produce anything, answered HERE rather
+    // than by a second client fetch.
+    //
+    // Two independent switches can make a share pointless, and the page used to
+    // consult neither:
+    //   - invite-only signup: the friend lands on /signup?ref=CODE with no invite
+    //     token, hits the wall, and cannot register at all;
+    //   - the admin "Referral System" flag, which /api/referrals/claim already
+    //     enforces with a 403 — so a share could complete signup and still award
+    //     nothing.
+    // Answering both from this one authenticated call also removes a race: a
+    // separate gate fetch resolving first flipped the page's `loading` flag while
+    // the stats were still null, painting an empty link box and "0 signups".
+    let enabled = false;
+    try {
+      const flags = await getCachedFeatureFlags();
+      const db = await createServiceRoleClient();
+      const { data: gate } = await db.rpc('invite_gate_status');
+      const g = (gate ?? {}) as { installed?: boolean; enabled?: boolean };
+      const inviteOnly = g.installed === true && g.enabled === true;
+      enabled = flags.referral_enabled === true && !inviteOnly;
+    } catch (error) {
+      // Fail closed: better to say "not yet" than to hand out a link that
+      // silently earns nothing.
+      console.error('[referrals] could not resolve availability, reporting closed:', error);
+      enabled = false;
+    }
+
     return NextResponse.json({
       success: true,
       data: {
+        enabled,
         code: profile?.referral_code ?? null,
         totalReferred: referrals.length,
         creditsEarned: referrals.reduce((sum, r) => sum + (r.credits_each ?? 0), 0),

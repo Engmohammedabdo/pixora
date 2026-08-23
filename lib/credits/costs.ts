@@ -49,8 +49,10 @@ export function getStudioCost(studio: string, resolution?: string): number {
  */
 export function estimateImagesFromCredits(
   credits: number,
-  resolution: keyof typeof CREDIT_COSTS.image = '1080p'
+  resolution: keyof typeof CREDIT_COSTS.image
 ): number {
-  const costPerImage = CREDIT_COSTS.image[resolution] ?? CREDIT_COSTS.image['1080p'];
-  return Math.max(0, Math.floor(credits / costPerImage));
+  // Required, deliberately. A default of '1080p' would keep the original bug
+  // alive as the zero-argument call shape — the exact overstatement this
+  // function was changed to remove.
+  return Math.max(0, Math.floor(credits / CREDIT_COSTS.image[resolution]));
 }

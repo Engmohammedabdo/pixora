@@ -80,10 +80,8 @@
     "projects": "Projects",
     "assets": "My Assets",
     "brandKit": "Brand Kit",
-    "team": "Team",
     "settings": "Settings",
     "billing": "Billing",
-    "community": "Community",
     "referrals": "Referrals",
     "soon": "Soon",
     "more": "More",
@@ -526,10 +524,10 @@
     "step1Description": "The first Arabic AI marketing platform. 9 smart studios to help you create professional content in minutes.",
     "step1Cta": "Next",
     "step2Title": "Create Your Brand Kit",
-    "step2Description": "Add your colors and brand voice — Pyra uses them in every generation, without you re-entering them each time.",
+    "step2Description": "Add your colors and brand voice — Pyra uses them in the Image Creator, and your colors in Product Photoshoot too.",
     "step2Cta": "Create Brand Kit",
     "step3Title": "Try Your First Studio",
-    "step3Description": "Try the Image Creator — write a short description and see the result. You start with 25 free credits, and a 1080p image costs 1.",
+    "step3Description": "Try the Image Creator — write a short description in Arabic or English and see the result. You start with 25 free credits, and a 1080p image costs 1.",
     "step3Cta": "Try Now",
     "step4Title": "Choose Your Plan",
     "step4Description": "Start free with 25 credits per month, or upgrade to a larger plan based on your needs. You can upgrade anytime.",
@@ -538,22 +536,6 @@
     "step5Description": "Thanks for completing onboarding — we added 5 free credits to your account. Start creating now!",
     "step5Cta": "Start Creating",
     "next": "Next"
-  },
-  "team": {
-    "subtitle": "Manage your team and permissions",
-    "inviteMember": "Invite Member",
-    "yourTeam": "Your Team",
-    "members": "members",
-    "roleOwner": "Owner",
-    "roleAdmin": "Admin",
-    "roleMember": "Member",
-    "businessFeature": "Team feature is available on Business plan and above",
-    "businessUpgrade": "Upgrade to Business plan ($59/month) to get a team of up to 5 members with shared credits.",
-    "inviteNewMember": "Invite New Member",
-    "email": "Email",
-    "role": "Role",
-    "sendInvite": "Send Invite",
-    "inviteAlert": "An invitation will be sent to {email} as {role}"
   },
   "projects": {
     "empty": "No projects yet",
@@ -980,7 +962,7 @@
     "creditsPerInvite": "Credits per invite",
     "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}",
     "gatedTitle": "Referrals open at public launch",
-    "gatedBody": "Signup is invite-only right now, so a link you share today cannot complete registration. Once we open to everyone, your link and 25 credits per signup will be here."
+    "gatedBody": "Signup is invite-only right now, so a link you share today cannot complete registration. At public launch your link appears here, with {credits} credits for every friend who signs up."
   },
   "widgets": {
     "completeProfile": "Complete your profile",

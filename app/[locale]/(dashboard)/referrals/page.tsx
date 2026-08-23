@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Copy, Check, Gift, Users, Share2 } from 'lucide-react';
 
 interface ReferralStats {
+  /** Whether a share can actually earn anything — see /api/referrals. */
+  enabled: boolean;
   code: string | null;
   totalReferred: number;
   creditsEarned: number;
@@ -23,9 +25,6 @@ export default function ReferralsPage(): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
-  // null = still unknown. Defaults to gated, so a slow or failed check never
-  // shows a share button that cannot work.
-  const [inviteOnly, setInviteOnly] = useState<boolean | null>(null);
 
   // The code comes from the database (profiles.referral_code, issued by migration
   // 023). It used to be invented client-side from a slice of the user id, so the
@@ -42,22 +41,6 @@ export default function ReferralsPage(): React.ReactElement {
     return () => { active = false; };
   }, []);
 
-  // While signup is invite-only, every referral link dead-ends at the invite
-  // wall: the friend lands on /signup?ref=CODE with no invite token, sees
-  // "بالدعوة فقط حالياً", and cannot create an account. The referrer's credits
-  // never arrive and their stats stay at zero, so the product looks like it
-  // silently ate their referrals. /api/public/gate-status already fails closed
-  // (it reports invite-only when it cannot tell), which is the behaviour we
-  // want here too.
-  useEffect(() => {
-    let active = true;
-    fetch('/api/public/gate-status')
-      .then((r) => r.json())
-      .then((json) => { if (active) setInviteOnly(json?.inviteOnly !== false); })
-      .catch(() => { if (active) setInviteOnly(true); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
 
   const referralCode = stats?.code ?? '';
   // Carry the sharer's locale, not a hardcoded /ar — an English user was sending
@@ -86,7 +69,20 @@ export default function ReferralsPage(): React.ReactElement {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
-  if (inviteOnly !== false) {
+  // Three states, not two. The closed notice is a statement of fact, so it must
+  // not double as the "still loading" render: prerendered HTML would then ship
+  // "referrals open at public launch" to every visitor, and anyone with JS
+  // blocked or a failed fetch would never see it corrected.
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6 max-w-2xl">
+        <h1 className="text-2xl font-bold font-cairo">{t('title')}</h1>
+        <div className="h-32 rounded-xl bg-surface-2 animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!stats?.enabled) {
     return (
       <div className="p-6 space-y-6 max-w-2xl">
         <div>
@@ -99,10 +95,30 @@ export default function ReferralsPage(): React.ReactElement {
             </div>
             <div className="space-y-1">
               <h2 className="font-semibold">{t('gatedTitle')}</h2>
-              <p className="text-sm text-[var(--color-text-secondary)]">{t('gatedBody')}</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                {t('gatedBody', { credits: CREDITS_PER_REFERRAL })}
+              </p>
             </div>
           </CardContent>
         </Card>
+
+        {/* Referrals ARE claimable during invite-only by someone holding both an
+            invite token and a ?ref= code, so anything already earned stays
+            visible rather than disappearing behind the notice. */}
+        {(stats?.totalReferred ?? 0) > 0 && (
+          <Card>
+            <CardContent className="p-6 grid grid-cols-2 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{stats?.totalReferred ?? 0}</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">{t('totalReferred')}</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats?.creditsEarned ?? 0}</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">{t('creditsEarned')}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

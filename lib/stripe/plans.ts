@@ -7,8 +7,6 @@ export interface PlanConfig {
   credits: number;
   resolution: '1080p' | '2K' | '4K';
   watermark: boolean;
-  teams: boolean;
-  maxMembers: number;
   maxBrandKits: number;
   /** Projects = isolated client workspaces. The main lever that makes higher tiers worth buying for agencies. */
   maxProjects: number;
@@ -25,8 +23,6 @@ export const PLANS: Record<string, PlanConfig> = {
     credits: 25,
     resolution: '1080p',
     watermark: true,
-    teams: false,
-    maxMembers: 1,
     maxBrandKits: 1,
     maxProjects: 1,
     features: ['25 credits/month', '1080p resolution', 'Watermark on images', '1 Brand Kit'],
@@ -41,8 +37,6 @@ export const PLANS: Record<string, PlanConfig> = {
     credits: 200,
     resolution: '2K',
     watermark: false,
-    teams: false,
-    maxMembers: 1,
     maxBrandKits: 3,
     maxProjects: 3,
     features: ['200 credits/month', '2K resolution', 'No watermark', '3 Brand Kits'],
@@ -57,8 +51,6 @@ export const PLANS: Record<string, PlanConfig> = {
     credits: 600,
     resolution: '4K',
     watermark: false,
-    teams: false,
-    maxMembers: 1,
     maxBrandKits: 10,
     maxProjects: 10,
     // 'Priority AI' removed: there is no priority queue or per-plan routing anywhere
@@ -75,8 +67,6 @@ export const PLANS: Record<string, PlanConfig> = {
     credits: 1500,
     resolution: '4K',
     watermark: false,
-    teams: true,
-    maxMembers: 5,
     maxBrandKits: 25,
     maxProjects: 30,
     // 'Team (5 users)' and 'White-label' removed: neither exists in any of the 52 API
@@ -94,8 +84,6 @@ export const PLANS: Record<string, PlanConfig> = {
     credits: 5000,
     resolution: '4K',
     watermark: false,
-    teams: true,
-    maxMembers: 20,
     maxBrandKits: 100,
     maxProjects: 100,
     // 'Team (20 users)', 'API Access' and 'White-label' removed — none are implemented.

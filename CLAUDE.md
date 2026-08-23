@@ -194,9 +194,9 @@ image.
 | Transactional email — auth side | ❌ **still broken.** Password reset is sent by Supabase Auth, not this app, and needs `SMTP_*` on the Supabase service in Coolify. Verified: `recovery_sent_at` is NULL for every user — no auth email has ever been sent. See `docs/EMAIL_SETUP.md`. |
 | Support channel | ✅ built — `/[locale]/contact` (public), stored in `support_messages`, read at `/admin/support`. Stores rather than emails on purpose, so it works with no provider configured. |
 | Tax invoice / VAT | ❌ none — and correctly so. Below the AED 375,000 threshold there is no TRN and it is *prohibited* to issue a document stating VAT. Becomes real work at registration. Credit refunds/clawback are handled (see money path round 2). |
-| Teams | ❌ UI shell. Mock members, invite button shows "coming soon", zero API routes. |
+| Teams | 🗑️ **removed 2026-08-23.** Was a UI shell with mock members that also sold Business at $59/mo for a 5-seat team — a claim `lib/stripe/plans.ts` had already pulled from checkout. Page, nav entry and i18n namespace all deleted. |
 | Gamification (achievements, levels, streaks) | ❌ dead code. Zero importers, table never written. |
-| Community / Portfolio | ❌ fabricated data. Invented names and like counts. |
+| Community / Portfolio | 🗑️ **removed 2026-08-23.** Community shipped six invented Arabic users with invented like counts and a Copy button that did not copy; Portfolio was an orphan route leaking the user's raw UUID. Both deleted. |
 | Prompt templates + history | ⚠️ components written (242 lines), zero imports. Cheap to activate. |
 | API access (sold on Agency tier) | ❌ absent — and correctly removed from the plan features. |
 | Arabic text inside generated images | ❌ not handled; prompts actively forbid it. |
@@ -240,7 +240,7 @@ image.
 app/
 ├── [locale]/
 │   ├── (auth)/          # Login, Signup, Forgot/Reset Password, Callback
-│   ├── (dashboard)/     # 25+ authenticated pages (9 studios + billing + team + etc.)
+│   ├── (dashboard)/     # 20+ authenticated pages (9 studios + billing + projects + etc.)
 │   ├── page.tsx         # Landing page (public)
 │   └── layout.tsx       # Root: i18n + theme + query + toast providers
 ├── api/

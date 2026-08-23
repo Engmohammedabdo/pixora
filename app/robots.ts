@@ -26,7 +26,6 @@ export default function robots(): MetadataRoute.Robots {
           '/*/voiceover/',
           '/*/edit/',
           '/*/prompt-builder/',
-          '/*/team/',
           '/*/projects/',
           '/*/referrals/',
         ],
