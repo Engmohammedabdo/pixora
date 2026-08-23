@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
@@ -13,7 +13,28 @@ const STATS = [
 ] as const;
 
 function AnimatedCounter({ target, suffix, inView }: { target: number; suffix: string; inView: boolean }) {
-  const [count, setCount] = useState(0);
+  // Starts at the REAL number, not 0.
+  //
+  // Starting at 0 meant the server-rendered HTML said "0 استوديو متخصص · 0 كريدت
+  // مجاناً · 0 باقات" — which is what search engines index, what a link preview
+  // scrapes, and what anyone sees before hydration on a slow connection. It also
+  // contradicted the "9 استوديوهات" two sections above it. The count-up is a
+  // flourish; it must not be the only path to a truthful number.
+  const [count, setCount] = useState(target);
+  const primed = useRef(false);
+
+  // Drop to 0 BEFORE the first client paint, not when the section scrolls into
+  // view. Zeroing inside the inView effect would show the real number, then
+  // visibly snap backwards to 0 and count up again — a glitch the old code did
+  // not have. A layout effect runs before paint, so the client starts at 0 and
+  // the server still sends the truthful number. Guarded for SSR, where
+  // useLayoutEffect does not run and would warn.
+  const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+  useIsomorphicLayoutEffect(() => {
+    if (primed.current) return;
+    primed.current = true;
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) setCount(0);
+  }, []);
 
   useEffect(() => {
     if (!inView) return;

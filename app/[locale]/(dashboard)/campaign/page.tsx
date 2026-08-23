@@ -73,6 +73,7 @@ function CampaignPageContent(): React.ReactElement {
       </div>
 
       <StudioLayout
+        isGenerating={isLoading}
         inputPanel={<CampaignForm onSubmit={handleGenerate} isLoading={isLoading} initialDescription={initialDescription} />}
         previewPanel={
           <CampaignPlanDisplay

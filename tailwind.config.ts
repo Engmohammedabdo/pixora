@@ -10,6 +10,14 @@ const config: Config = {
   theme: {
     extend: {
       screens: {
+        // 400px is deliberate, and measured. Its only consumer is the dashboard's
+        // quick-action grid (dashboard/page.tsx), whose tiles are an icon plus an
+        // Arabic label. In Tajawal at text-sm the longest label — التحليل التسويقي
+        // — is 102px wide, while a 2-column tile at 390px (iPhone 14) leaves 93px,
+        // at 375px 86px, and at 360px 78px. So two columns wrap four of the nine
+        // labels on every common phone. Lowering this to 360px was tried and
+        // reverted: single full-width cards are the better phone layout here, and
+        // this breakpoint is what keeps them.
         xs: '400px',
       },
       colors: {

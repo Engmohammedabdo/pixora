@@ -196,7 +196,7 @@ export default function PromptBuilderPage(): React.ReactElement {
         <h1 className="text-xl font-bold font-cairo">{t('nav.promptBuilder')}</h1>
         <p className="text-sm text-[var(--color-text-secondary)]">{tPb('description')}</p>
       </div>
-      <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
+      <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} isGenerating={isLoading} />
     </div>
   );
 }

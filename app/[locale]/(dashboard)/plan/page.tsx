@@ -150,7 +150,7 @@ export default function PlanPage(): React.ReactElement {
   return (
     <div className="flex flex-col lg:h-[calc(100dvh-3.5rem)]">
       <div className="px-6 py-4 border-b"><h1 className="text-xl font-bold font-cairo">{t('nav.plan')}</h1><p className="text-sm text-[var(--color-text-secondary)]">{tPlan('description')}</p></div>
-      <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} />
+      <StudioLayout inputPanel={inputPanel} previewPanel={previewPanel} isGenerating={isLoading} />
     </div>
   );
 }

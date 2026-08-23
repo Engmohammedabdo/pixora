@@ -68,6 +68,7 @@ export default function PhotoshootPage(): React.ReactElement {
       </div>
 
       <StudioLayout
+        isGenerating={isLoading}
         inputPanel={<PhotoshootForm onSubmit={handleGenerate} isLoading={isLoading} />}
         previewPanel={
           <PhotoshootPreview

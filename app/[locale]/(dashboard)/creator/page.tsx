@@ -107,6 +107,7 @@ function CreatorPageContent(): React.ReactElement {
       </div>
 
       <StudioLayout
+        isGenerating={isLoading}
         inputPanel={<CreatorForm onSubmit={handleGenerate} isLoading={isLoading} initialPrompt={initialPrompt} />}
         previewPanel={
           <CreatorPreview
