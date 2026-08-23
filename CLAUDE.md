@@ -72,8 +72,11 @@
 | Projects (client workspaces) | ✅ built | wired into all 9 studios + asset filter |
 | Stripe money path | ✅ hardened | see "Money path" below |
 | Pre-launch waitlist | ✅ built | `/[locale]/waitlist`, migration 030 applied |
+| Invite-only gate | ✅ built + **live** | `invite_gate_status()` on the live DB returns `installed: true, enabled: true`; refusal is a BEFORE INSERT trigger on `auth.users` (035/036) |
+| Invite issue + email | ✅ built | `/admin/invites` → `issue_invite` RPC, then `sendInviteEmail()`; per-address delivery status is reported, never assumed |
+| Text-studio retrieval | ✅ built | `/api/generations` + `/api/generations/[id]`, surfaced by `components/shared/RecentWork.tsx` in plan/analysis/storyboard |
 | Admin dashboard | ✅ built | real funnel/MRR/churn/retention queries |
-| i18n ar/en + RTL | ✅ built | key sets verified identical |
+| i18n ar/en + RTL | ✅ built | 863 keys each, verified identical 2026-08-23 |
 
 ### Money path — round 1 fixed 2026-07-21, round 2 fixed 2026-08-02, round 3 fixed 2026-08-19
 
@@ -281,7 +284,7 @@ then the page says so and offers `/contact` instead of claiming a send.
 
 | Item | Real state |
 |------|-----------|
-| Transactional email — app side | ⚠️ **built, unconfigured.** `lib/email/` sends the dunning notice, the waitlist confirmation and — since 2026-08-23 — the password-reset link. Set `EMAIL_FROM` plus `SMTP_HOST` (or `RESEND_API_KEY`) on the **app** service to switch it on; unset is a supported no-op state, and `/api/auth/recover` answers 503 rather than pretending. |
+| Transactional email — app side | ⚠️ **built, unconfigured — the last thing gating the invite launch.** `lib/email/` sends the invite, the password-reset link, the dunning notice and the waitlist confirmation. Set `EMAIL_FROM` plus `SMTP_HOST` on the **app** service to switch it on; unset is a supported no-op state, `/api/auth/recover` answers 503 rather than pretending, and `/admin/invites` reports `skipped` per address rather than claiming a send. **The mail server is `mail.pyramedia.info` on the Coolify box (`72.61.148.81`), NOT the cPanel/Bluehost host** — every earlier doc said cPanel and was wrong. `npm run check:mail` verifies DNS, DMARC alignment and the TLS handshake without a password. See `docs/EMAIL_SETUP.md`. |
 | Password reset | ⚠️ **built, waits only on the app's own SMTP.** It no longer depends on the Supabase service at all: `app/api/auth/recover/route.ts` mints the token with `admin.generateLink()` and sends it on this app's transport. Corrects a claim this file used to make — `recovery_sent_at` is **not** evidence of a send; `generateLink()` stamps it and sends nothing. See the "Password reset — rebuilt 2026-08-23" section above. |
 | Transactional email — auth side (GoTrue) | ❌ **unconfigured, and now optional.** Signup confirmation and magic link are still GoTrue's, configured with `SMTP_*` on the **Supabase** service. Neither is in use: `/auth/v1/settings` reports `mailer_autoconfirm: true` and the magic-link control was removed from the login page. |
 | Support channel | ✅ built — `/[locale]/contact` (public), stored in `support_messages`, read at `/admin/support`. Stores rather than emails on purpose, so it works with no provider configured. |
@@ -293,7 +296,7 @@ then the page says so and offers `/contact` instead of claiming a send.
 | API access (sold on Agency tier) | ❌ absent — and correctly removed from the plan features. |
 | Arabic text inside generated images | ❌ not handled; prompts actively forbid it. |
 | Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. The logo is uploaded and now shown on the brand-kit card, and that is all it does — the copy says so. Colours reach creator and photoshoot, the voice reaches creator. |
-| Retrieving a text studio's output after the tab closes | ❌ **absent.** `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) write their result only into `generations.output`, and **no customer-facing route reads that column** — the only customer reads of `generations` are the assets filter (selects `id`) and the projects count. Reload the page and the work is gone. analysis and storyboard at least offer a client-side PDF while still mounted; `plan` has no export at all. Found 2026-08-23; the fix is a retrieval path, not a patch. |
+| Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. |
 | Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
 | Error tracking (Sentry) / product analytics (PostHog) | ❌ env vars declared, empty, never read by any line of code. |
 
@@ -441,10 +444,11 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **43 files** in `supabase/migrations/`, latest `042_brand_kit_logo_shape.sql`.
-  `public.schema_migrations` records 21 of them (022 → 042, contiguous) because
+- **44 files** in `supabase/migrations/`, latest `043_throttle_table_is_general_purpose.sql`.
+  `public.schema_migrations` records 22 of them (022 → 043, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
-  it predates the ledger, not that it was skipped.
+  it predates the ledger, not that it was skipped. Verified against the live
+  database 2026-08-23; an earlier version of this file stopped at 042.
 - Apply with `node scripts/db/apply.js supabase/migrations/0XX_*.sql`. Port 5432
   is closed to the internet, so this goes through pg-meta `/pg/query` on Kong and
   runs as `supabase_admin`. `scripts/apply-migrations.sh` is the historical

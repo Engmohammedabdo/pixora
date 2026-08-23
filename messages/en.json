@@ -235,7 +235,10 @@
       "stage2": "Pyra is working on the result...",
       "stage3": "Pyra is polishing the quality...",
       "stage4": "Finishing up..."
-    }
+    },
+    "recentWorkTitle": "Your previous work",
+    "recentWorkHint": "Click any item to open it again. Your work is saved even if you close the page.",
+    "recentWorkFailed": "Could not open this one right now. Try again."
   },
   "creator": {
     "title": "Image Creator",

@@ -13,7 +13,8 @@
     "check:invariants": "npx tsx scripts/check-invariants.ts",
     "test:safety": "npx tsx scripts/tests/safety.test.ts",
     "test:uploads": "npx tsx scripts/tests/uploaded-url.test.ts",
-    "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts"
+    "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts",
+    "check:mail": "node scripts/check-mail-dns.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

@@ -22,6 +22,7 @@ import { Link } from '@/i18n/routing';
 import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { RecentWork } from '@/components/shared/RecentWork';
 
 const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as const;
 // Strings, not numbers: /api/studios/plan validates `duration` with
@@ -56,6 +57,10 @@ export default function PlanPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
   const [activeTab, setActiveTab] = useState('objectives');
+  // Bumped once per successful run so RecentWork refetches. Deriving the key
+  // from `plan` instead would not change on a second run that returns a
+  // structurally similar object, and the new row would not appear.
+  const [runs, setRuns] = useState(0);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const { balance, status: creditsStatus } = useCredits();
@@ -78,6 +83,7 @@ export default function PlanPage(): React.ReactElement {
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setPlan(data.data.plan);
+      setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, tStudio, projectId]);
@@ -116,6 +122,13 @@ export default function PlanPage(): React.ReactElement {
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
         </div>
       </div>
+      {/*
+        A plan lives only in `generations.output` — this studio writes no assets
+        row — so this list is the customer's only way back to work they paid for
+        after the tab closes. `refreshKey` is the current plan object, so a run
+        that just finished appears without a reload.
+      */}
+      <RecentWork studio="plan" onRestore={(output) => setPlan(output.plan as Plan)} refreshKey={runs} />
     </div>
   );
 

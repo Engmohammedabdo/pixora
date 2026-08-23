@@ -1,5 +1,5 @@
 import { sendEmail, type SendEmailResult } from './client';
-import { passwordResetEmail, paymentFailedEmail, waitlistWelcomeEmail } from './templates';
+import { inviteEmail, passwordResetEmail, paymentFailedEmail, waitlistWelcomeEmail } from './templates';
 import { getPlan } from '@/lib/stripe/plans';
 import { routing } from '@/i18n/routing';
 
@@ -68,5 +68,32 @@ export async function sendPasswordResetEmail(params: {
 }): Promise<SendEmailResult> {
   const locale = normaliseLocale(params.locale);
   const content = passwordResetEmail(locale, params.resetUrl);
+  return sendEmail({ to: params.email, ...content });
+}
+
+/**
+ * Deliver an invite that `issue_invite` has already minted.
+ *
+ * The token is a bearer credential for a seat in a paid beta, so the link is
+ * built here from the app's own `NEXT_PUBLIC_APP_URL` rather than accepted from
+ * the caller. An admin route that took a URL parameter would be one XSS away
+ * from mailing every person on the waitlist a link to somewhere else, over our
+ * domain's reputation and our SPF record.
+ *
+ * Returns rather than throws, like every send here — but unlike the others the
+ * CALLER MUST NOT IGNORE THE RESULT. A waitlist confirmation that fails costs a
+ * pleasantry; an invite that fails silently means the founder believes thirty
+ * people were let in and thirty inboxes are empty, and the only evidence is a
+ * log line nobody reads. `/api/admin/invites` reports the status per address.
+ */
+export async function sendInviteEmail(params: {
+  email: string;
+  token: string;
+  credits: number;
+  locale?: string | null;
+}): Promise<SendEmailResult> {
+  const locale = normaliseLocale(params.locale);
+  const inviteUrl = `${appUrl()}/${locale}/signup?invite=${encodeURIComponent(params.token)}`;
+  const content = inviteEmail(locale, inviteUrl, params.credits);
   return sendEmail({ to: params.email, ...content });
 }
