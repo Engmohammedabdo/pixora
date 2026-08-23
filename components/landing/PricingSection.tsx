@@ -82,7 +82,7 @@ export default function PricingSection() {
                   {t('pricing.credits', { count: plan.credits.toLocaleString() })}
                 </p>
                 <p className="text-center text-xs text-[var(--color-text-secondary)] mb-6">
-                  {t('pricing.approxImages', { count: estimateImagesFromCredits(plan.credits) })}
+                  {t('pricing.approxImages', { count: estimateImagesFromCredits(plan.credits, plan.resolution), resolution: plan.resolution })}
                 </p>
 
                 <ul className="flex-1 space-y-3 mb-6">

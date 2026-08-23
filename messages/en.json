@@ -493,7 +493,7 @@
     "title": "Billing & Subscription",
     "currentPlan": "Your Current Plan",
     "creditsPerMonth": "credits/month",
-    "approxImages": "≈ {count, plural, one {1 image} other {# images}}",
+    "approxImages": "≈ {count, plural, one {1 image} other {# images}} at {resolution}",
     "resolution": "Resolution",
     "manageSubscription": "Manage Subscription",
     "creditBalance": "Credit Balance",
@@ -526,10 +526,10 @@
     "step1Description": "The first Arabic AI marketing platform. 9 smart studios to help you create professional content in minutes.",
     "step1Cta": "Next",
     "step2Title": "Create Your Brand Kit",
-    "step2Description": "Add your logo, colors, and fonts. We'll use them automatically in everything you create — no need to re-enter them each time.",
+    "step2Description": "Add your colors and brand voice — Pyra uses them in every generation, without you re-entering them each time.",
     "step2Cta": "Create Brand Kit",
     "step3Title": "Try Your First Studio",
-    "step3Description": "Try the Image Creator — write a simple description in Arabic or English and see the result. First generation is free!",
+    "step3Description": "Try the Image Creator — write a short description and see the result. You start with 25 free credits, and a 1080p image costs 1.",
     "step3Cta": "Try Now",
     "step4Title": "Choose Your Plan",
     "step4Description": "Start free with 25 credits per month, or upgrade to a larger plan based on your needs. You can upgrade anytime.",
@@ -770,7 +770,7 @@
       "popular": "Most Popular",
       "perMonth": "/mo",
       "credits": "{count} credits",
-      "approxImages": "≈ {count, plural, one {1 image} other {# images}}",
+      "approxImages": "≈ {count, plural, one {1 image} other {# images}} at {resolution}",
       "startFree": "Start Free",
       "subscribe": "Subscribe Now",
       "features": {
@@ -978,7 +978,9 @@
     "successfulSignups": "Successful signups",
     "creditsEarned": "Credits earned",
     "creditsPerInvite": "Credits per invite",
-    "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}"
+    "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}",
+    "gatedTitle": "Referrals open at public launch",
+    "gatedBody": "Signup is invite-only right now, so a link you share today cannot complete registration. Once we open to everyone, your link and 25 credits per signup will be here."
   },
   "widgets": {
     "completeProfile": "Complete your profile",

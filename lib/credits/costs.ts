@@ -32,11 +32,25 @@ export function getStudioCost(studio: string, resolution?: string): number {
 /**
  * Translates a raw plan credit balance into an approximate outcome count
  * ("≈ N images") for pricing UI — plan cards otherwise show a bare credit
- * number a prospect has no way to evaluate. Derived from the cheapest image
- * resolution's real cost (`CREDIT_COSTS.image`, currently 1080p at 1 credit)
- * rather than hardcoded, so this stays correct if resolution pricing changes.
+ * number a prospect has no way to evaluate.
+ *
+ * Priced at the PLAN'S OWN resolution, not the cheapest one.
+ *
+ * This used to divide by the cheapest image cost (1080p at 1 credit) for every
+ * tier, which is only true for Free — the one plan actually capped at 1080p.
+ * Starter is sold on 2K and Pro, Business and Agency on 4K, so the figure a
+ * prospect read on the pricing page overstated what their own plan delivers by
+ * 2x and 4x: "600 credits ≈ 600 images" on a 4K plan is really 150. The number
+ * that sells the plan has to be the number the plan produces.
+ *
+ * A customer can of course generate below their cap and get more images; this
+ * is deliberately the conservative figure, since the alternative is a promise
+ * the default resolution breaks.
  */
-export function estimateImagesFromCredits(credits: number): number {
-  const cheapestImageCost = Math.min(...Object.values(CREDIT_COSTS.image));
-  return Math.max(0, Math.floor(credits / cheapestImageCost));
+export function estimateImagesFromCredits(
+  credits: number,
+  resolution: keyof typeof CREDIT_COSTS.image = '1080p'
+): number {
+  const costPerImage = CREDIT_COSTS.image[resolution] ?? CREDIT_COSTS.image['1080p'];
+  return Math.max(0, Math.floor(credits / costPerImage));
 }

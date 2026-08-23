@@ -24,7 +24,6 @@ import {
   FolderOpen,
   ImageIcon,
   Palette,
-  Users,
   Settings,
   CreditCard,
   X,
@@ -62,12 +61,10 @@ const workspaceItems: NavItem[] = [
   { href: '/projects', labelKey: 'projects', icon: <FolderOpen className="h-4 w-4" /> },
   { href: '/assets', labelKey: 'assets', icon: <ImageIcon className="h-4 w-4" /> },
   { href: '/brand-kit', labelKey: 'brandKit', icon: <Palette className="h-4 w-4" /> },
-  { href: '/community', labelKey: 'community' as 'projects', icon: <Users className="h-4 w-4" />, soon: true },
   { href: '/referrals', labelKey: 'referrals' as 'projects', icon: <Gift className="h-4 w-4" /> },
 ];
 
 const accountItems: NavItem[] = [
-  { href: '/team', labelKey: 'team', icon: <Users className="h-4 w-4" />, soon: true },
   { href: '/settings', labelKey: 'settings', icon: <Settings className="h-4 w-4" /> },
   { href: '/billing', labelKey: 'billing', icon: <CreditCard className="h-4 w-4" /> },
   // A paying customer with a problem should not have to go back to the marketing

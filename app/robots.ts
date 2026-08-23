@@ -28,8 +28,6 @@ export default function robots(): MetadataRoute.Robots {
           '/*/prompt-builder/',
           '/*/team/',
           '/*/projects/',
-          '/*/portfolio/',
-          '/*/community/',
           '/*/referrals/',
         ],
       },

@@ -23,6 +23,9 @@ export default function ReferralsPage(): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = still unknown. Defaults to gated, so a slow or failed check never
+  // shows a share button that cannot work.
+  const [inviteOnly, setInviteOnly] = useState<boolean | null>(null);
 
   // The code comes from the database (profiles.referral_code, issued by migration
   // 023). It used to be invented client-side from a slice of the user id, so the
@@ -35,6 +38,23 @@ export default function ReferralsPage(): React.ReactElement {
         if (active && json?.success) setStats(json.data as ReferralStats);
       })
       .catch(() => { /* stats stay null; the UI shows the empty state */ })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // While signup is invite-only, every referral link dead-ends at the invite
+  // wall: the friend lands on /signup?ref=CODE with no invite token, sees
+  // "بالدعوة فقط حالياً", and cannot create an account. The referrer's credits
+  // never arrive and their stats stay at zero, so the product looks like it
+  // silently ate their referrals. /api/public/gate-status already fails closed
+  // (it reports invite-only when it cannot tell), which is the behaviour we
+  // want here too.
+  useEffect(() => {
+    let active = true;
+    fetch('/api/public/gate-status')
+      .then((r) => r.json())
+      .then((json) => { if (active) setInviteOnly(json?.inviteOnly !== false); })
+      .catch(() => { if (active) setInviteOnly(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -65,6 +85,27 @@ export default function ReferralsPage(): React.ReactElement {
     const message = t('shareMessage', { credits: CREDITS_PER_REFERRAL, link: referralLink });
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
+
+  if (inviteOnly !== false) {
+    return (
+      <div className="p-6 space-y-6 max-w-2xl">
+        <div>
+          <h1 className="text-2xl font-bold font-cairo">{t('title')}</h1>
+        </div>
+        <Card>
+          <CardContent className="p-6 flex items-start gap-4">
+            <div className="h-12 w-12 shrink-0 rounded-xl bg-surface-2 flex items-center justify-center">
+              <Gift className="h-6 w-6 text-[var(--color-text-secondary)]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="font-semibold">{t('gatedTitle')}</h2>
+              <p className="text-sm text-[var(--color-text-secondary)]">{t('gatedBody')}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">

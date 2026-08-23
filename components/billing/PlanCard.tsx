@@ -48,7 +48,7 @@ const PlanCardInner = function PlanCard({ plan, isCurrentPlan, onSelect, loading
           {plan.credits.toLocaleString()} {isAr ? 'كريدت' : 'credits'}
         </p>
         <p className="text-xs text-[var(--color-text-muted)]">
-          {t('approxImages', { count: estimateImagesFromCredits(plan.credits) })}
+          {t('approxImages', { count: estimateImagesFromCredits(plan.credits, plan.resolution), resolution: plan.resolution })}
         </p>
       </CardHeader>
 
