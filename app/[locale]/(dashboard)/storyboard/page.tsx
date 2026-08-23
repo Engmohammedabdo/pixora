@@ -74,7 +74,7 @@ export default function StoryboardPage(): React.ReactElement {
       setScenes(data.data.scenes || []);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, setBalance, t, projectId, projectBrandKitId]);
+  }, [isValid, concept, duration, style, platform, setBalance, tStudio, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };

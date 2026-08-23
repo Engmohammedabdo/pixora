@@ -4,7 +4,6 @@
     "no-arabic-literals-in-tsx::app/[locale]/(auth)/error.tsx::{error.message || 'حدث خطأ أثناء المصادقة.'}",
     "no-arabic-literals-in-tsx::app/[locale]/(auth)/error.tsx::<Button onClick={reset} variant=\"outline\">إعادة المحاولة</Button>",
     "no-arabic-literals-in-tsx::app/[locale]/(auth)/error.tsx::<h2 className=\"text-xl font-bold\">حدث خطأ</h2>",
-    "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/brand-kit/page.tsx::إلغاء",
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::? 'حدث خطأ أثناء تحميل الصفحة. يرجى المحاولة مرة أخرى.'",
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::{isAr ? 'إعادة المحاولة' : 'Try Again'}",
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::{isAr ? 'حدث خطأ غير متوقع' : 'Something went wrong'}",

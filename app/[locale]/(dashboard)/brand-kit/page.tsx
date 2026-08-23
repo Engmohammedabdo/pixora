@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useBrandKits, useCreateBrandKit, useUpdateBrandKit, useDeleteBrandKit } from '@/hooks/useBrandKit';
+import { toast } from 'sonner';
+import Image from 'next/image';
+import { useBrandKits, useCreateBrandKit, useUpdateBrandKit, useDeleteBrandKit, BrandKitError } from '@/hooks/useBrandKit';
 import { BrandKitForm } from '@/components/brand-kit/BrandKitForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,15 +25,42 @@ export default function BrandKitPage(): React.ReactElement {
   const [editingKit, setEditingKit] = useState<BrandKit | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Every mutation below used to be awaited with no catch, so a rejected
+  // request became an unhandled promise rejection: the dialog stayed open with
+  // no message and the user had no way to learn what was wrong.
+  const reportFailure = (error: unknown, fallbackKey: string): void => {
+    const code = error instanceof BrandKitError ? error.code : 'request_failed';
+    if (code === 'brand_kit_limit_reached') {
+      const limit = error instanceof BrandKitError ? error.limit : undefined;
+      toast.error(t('limitReached', { limit: limit ?? '' }));
+      return;
+    }
+    if (code === 'invalid_logo_url') {
+      toast.error(t('invalidLogo'));
+      return;
+    }
+    toast.error(t(fallbackKey));
+  };
+
   const handleCreate = async (data: Partial<BrandKit>): Promise<void> => {
-    await createBrandKit(data);
-    setShowCreate(false);
+    try {
+      await createBrandKit(data);
+      setShowCreate(false);
+      toast.success(t('created'));
+    } catch (error) {
+      reportFailure(error, 'saveFailed');
+    }
   };
 
   const handleUpdate = async (data: Partial<BrandKit>): Promise<void> => {
     if (!editingKit) return;
-    await updateBrandKit(editingKit.id, data);
-    setEditingKit(null);
+    try {
+      await updateBrandKit(editingKit.id, data);
+      setEditingKit(null);
+      toast.success(t('updated'));
+    } catch (error) {
+      reportFailure(error, 'saveFailed');
+    }
   };
 
   const handleDelete = (id: string): void => {
@@ -39,14 +68,21 @@ export default function BrandKitPage(): React.ReactElement {
   };
 
   const confirmDelete = async (): Promise<void> => {
-    if (deleteId) {
+    if (!deleteId) return;
+    try {
       await deleteBrandKit(deleteId);
       setDeleteId(null);
+    } catch (error) {
+      reportFailure(error, 'deleteFailed');
     }
   };
 
   const handleSetDefault = async (kit: BrandKit): Promise<void> => {
-    await updateBrandKit(kit.id, { is_default: true });
+    try {
+      await updateBrandKit(kit.id, { is_default: true });
+    } catch (error) {
+      reportFailure(error, 'saveFailed');
+    }
   };
 
   if (loading) {
@@ -92,9 +128,25 @@ export default function BrandKitPage(): React.ReactElement {
             <Card key={kit.id} className="relative">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <CardTitle className="text-base">{kit.name}</CardTitle>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {/* The logo had no reader anywhere in the product: it was
+                        uploaded, saved, and never displayed. It still does not
+                        reach any model — see brandKit.emptyDescription — but it
+                        does now identify the kit in the list. */}
+                    {kit.logo_url && (
+                      <Image
+                        src={kit.logo_url}
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 shrink-0 rounded object-contain border p-0.5"
+                        unoptimized
+                      />
+                    )}
+                    <CardTitle className="text-base truncate">{kit.name}</CardTitle>
+                  </div>
                   {kit.is_default && (
-                    <Badge variant="default" className="text-xs">
+                    <Badge variant="default" className="text-xs shrink-0">
                       <Star className="h-3 w-3 me-1" />
                       {t('isDefault')}
                     </Badge>
@@ -192,8 +244,7 @@ export default function BrandKitPage(): React.ReactElement {
           <p className="text-sm text-[var(--color-text-secondary)]">{t('deleteConfirm')}</p>
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="ghost" onClick={() => setDeleteId(null)}>
-              {/* Cancel */}
-              إلغاء
+              {t('cancel')}
             </Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
               {t('delete')}

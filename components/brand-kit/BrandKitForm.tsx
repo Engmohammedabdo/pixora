@@ -27,9 +27,13 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
   const [fontPrimary, setFontPrimary] = useState(initialData?.font_primary || 'Cairo');
   const [fontSecondary, setFontSecondary] = useState(initialData?.font_secondary || 'Tajawal');
   const [brandVoice, setBrandVoice] = useState(initialData?.brand_voice || '');
+  // Saving mid-upload would persist the previous logo and throw away the file
+  // the user just picked, with no indication that anything was lost.
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
+    if (logoUploading) return;
     await onSubmit({
       name,
       logo_url: logoUrl,
@@ -57,7 +61,7 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
       </div>
 
       {/* Logo */}
-      <LogoUpload value={logoUrl} onChange={setLogoUrl} />
+      <LogoUpload value={logoUrl} onChange={setLogoUrl} onUploadingChange={setLogoUploading} />
 
       {/* Colors */}
       <div className="space-y-4">
@@ -100,7 +104,7 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
 
       {/* Submit */}
       <div className="flex gap-3">
-        <Button type="submit" disabled={loading || !name.trim()}>
+        <Button type="submit" disabled={loading || logoUploading || !name.trim()}>
           {loading ? '...' : initialData ? tCommon('save') : tCommon('create')}
         </Button>
       </div>

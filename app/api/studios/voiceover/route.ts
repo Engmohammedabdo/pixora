@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Update generation record
     if (generation) {
-      await supabase.from('generations').update({
+      await finalizeGeneration(supabase, generation.id, {
         status: 'completed',
         // Correct the model now that the provider is known. The row was inserted
         // before generation from the PLAN's provider, but tts-router falls back
@@ -196,15 +197,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           enhanced: ttsResult.enhanced,
           mock: ttsResult.mock,
         },
-      }).eq('id', generation.id);
+      }, 'voiceover');
 
-      await supabase.from('assets').insert({
+      await insertAssets(supabase, [{
         user_id: user.id,
         generation_id: generation.id,
         type: 'audio',
         url: audioUrl,
         format: 'mp3',
-      });
+      }], 'voiceover');
     }
 
     return NextResponse.json({

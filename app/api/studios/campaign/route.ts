@@ -6,7 +6,8 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
-import { persistGeneratedImage, WatermarkRequiredError } from '@/lib/storage/persist-image';
+import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
+import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
@@ -30,6 +31,15 @@ const CampaignPostSchema = z.object({
   schedule: z.string(),
   hashtags: z.string(),
 });
+
+/**
+ * The number of posts a campaign is sold as and priced for:
+ * lib/ai/prompts/campaign.ts:40 asks for "exactly 9 posts", the reservation is
+ * described as "Campaign - 9 posts", and the flat 12-credit price decomposes as
+ * 9 images x 1 credit + 3 for the text. Every refund below is sized against
+ * this, never against what the model happened to return.
+ */
+const EXPECTED_POSTS = 9;
 
 function parseJsonFromText(text: string): unknown {
   // Try to extract JSON array from the text (handle markdown code blocks)
@@ -147,6 +157,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       const parsed = parseJsonFromText(textResult.text || '[]');
       const arr = Array.isArray(parsed) ? parsed : [];
+      // An empty result is a FAILURE, not a successful empty campaign. The
+      // `|| '[]'` above turns an empty model response into a parseable array,
+      // `arr.map` over it throws nothing, and every refund path below is sized
+      // from `posts.length` — so zero posts refunded zero credits and the route
+      // returned `success: true` with `posts: []` after charging 12. Nothing
+      // reads `generations.output` from the customer side, so there was nothing
+      // to recover afterwards either. prompt-builder
+      // already guards exactly this at its own parse site.
+      if (arr.length === 0) throw new Error('campaign returned no posts');
       posts = arr.map((p: unknown) => CampaignPostSchema.parse(p));
     } catch {
       // AI returned invalid JSON — treat as failure
@@ -230,7 +249,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // `generateImages` because with images switched off every entry is null by
     // construction and there is nothing to refund.
     if (input.generateImages) {
-      failedImageCount = postImages.filter((url) => url === null).length;
+      // Against EXPECTED_POSTS, not postImages.length. The reservation is taken
+      // for a nine-post campaign ("Campaign - 9 posts"), and postImages is sized
+      // from what the model actually returned — so a four-post response used to
+      // produce four images, count zero failures, and refund nothing while the
+      // customer paid for nine. Clamped at 0 because a model that over-delivers
+      // must not mint credits.
+      const delivered = postImages.filter((url) => url !== null).length;
+      failedImageCount = Math.max(0, EXPECTED_POSTS - delivered);
     }
 
     // Combine posts with images
@@ -258,7 +284,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const refundAmount = Math.min(failedImageCount * CREDIT_COSTS.image['1080p'], creditCost);
       const partialRefund = await refundCredits({
         userId: user.id, amount: refundAmount,
-        description: `Partial refund: ${failedImageCount}/${posts.length} campaign images failed (${refundAmount} credits returned)`,
+        description: `Partial refund: ${failedImageCount}/${EXPECTED_POSTS} campaign images not delivered (${refundAmount} credits returned)`,
         generationId: generation.id,
       });
       if (partialRefund.success) {
@@ -270,14 +296,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Update generation. `credits_used` reflects the net charge after any
     // partial refund above — mirrors creator/photoshoot, whose ledger rows
     // would otherwise disagree with the credits the user actually kept.
-    await supabase
-      .from('generations')
-      .update({
-        output: { posts: postsWithImages, mock: textResult.mock },
-        credits_used: actualCreditsCharged,
-        status: 'completed',
-      })
-      .eq('id', generation.id);
+    await finalizeGeneration(supabase, generation.id, {
+      output: { posts: postsWithImages, mock: textResult.mock },
+      credits_used: actualCreditsCharged,
+      status: 'completed',
+    }, 'campaign');
+
+    // Campaign was the only image-producing studio that never wrote `assets` —
+    // creator, photoshoot, edit and voiceover all do. So a 12-credit campaign
+    // persisted its images to storage, embedded them in generations.output, and
+    // left them unreachable from ملفاتي: not listed, not downloadable, not in an
+    // export. Nothing to backfill — there are zero campaign generations in the
+    // live database, so this is the first release where the write can matter.
+    await insertAssets(
+      supabase,
+      postImages
+        .filter((url): url is string => Boolean(url))
+        .map((url) => ({
+          user_id: user.id,
+          generation_id: generation.id,
+          type: 'image' as const,
+          url,
+          format: formatFromUrl(url),
+        })),
+      'campaign'
+    );
 
     return NextResponse.json({
       success: true,

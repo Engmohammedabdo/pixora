@@ -151,7 +151,19 @@
     "delete": "Delete Kit",
     "deleteConfirm": "Are you sure you want to delete this brand kit?",
     "empty": "No brand kits yet",
-    "emptyDescription": "Create your first brand kit to use across all studios"
+    "emptyDescription": "Create your first brand kit — Pyra uses your colours and voice in the image creator, and your colours in product photoshoot too.",
+    "logoTypeError": "PNG, JPG or WEBP only",
+    "logoSizeError": "Max 10MB",
+    "logoUploadError": "Couldn't upload the logo. Please try again.",
+    "logoUploading": "Uploading logo...",
+    "logoRemove": "Remove logo",
+    "created": "Brand kit created",
+    "updated": "Changes saved",
+    "saveFailed": "Couldn't save the brand kit. Please try again.",
+    "deleteFailed": "Couldn't delete the brand kit. Please try again.",
+    "limitReached": "You have reached your plan limit of {limit} brand kits",
+    "invalidLogo": "The logo must be uploaded here. Remove it and upload it again.",
+    "cancel": "Cancel"
   },
   "dashboard": {
     "welcome": "Welcome",

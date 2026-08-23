@@ -71,7 +71,7 @@ function EditPageContent(): React.ReactElement {
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, originalImage, editDescription, editType, setBalance, t, projectId]);
+  }, [isValid, originalImage, editDescription, editType, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();

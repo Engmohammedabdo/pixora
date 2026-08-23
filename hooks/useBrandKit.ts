@@ -13,6 +13,37 @@ interface SingleBrandKitResponse {
   data?: BrandKit;
 }
 
+/**
+ * Carries the server's error code to the caller.
+ *
+ * These mutations used to throw `new Error('Failed to create brand kit')` and
+ * the page awaited them without a catch, so a 400 produced an unhandled
+ * rejection and nothing on screen: the dialog stayed open, the button
+ * re-enabled, and the user was never told why. Two real 400s hid behind that —
+ * `brand_kit_limit_reached` and, until this release, a validation error on the
+ * null `logo_url` the form sends whenever no logo was chosen.
+ */
+export class BrandKitError extends Error {
+  public readonly code: string;
+  public readonly limit?: number;
+
+  constructor(code: string, limit?: number) {
+    super(`brand_kit_request_failed: ${code}`);
+    this.name = 'BrandKitError';
+    this.code = code;
+    this.limit = limit;
+  }
+}
+
+async function readError(res: Response): Promise<BrandKitError> {
+  try {
+    const json = (await res.json()) as { error?: string; limit?: number };
+    return new BrandKitError(json.error || 'request_failed', json.limit);
+  } catch {
+    return new BrandKitError('request_failed');
+  }
+}
+
 export function useBrandKits(): {
   brandKits: BrandKit[];
   loading: boolean;
@@ -52,7 +83,7 @@ export function useCreateBrandKit(): {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to create brand kit');
+      if (!res.ok) throw await readError(res);
       return res.json() as Promise<SingleBrandKitResponse>;
     },
     onSuccess: () => {
@@ -82,7 +113,7 @@ export function useUpdateBrandKit(): {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to update brand kit');
+      if (!res.ok) throw await readError(res);
       return res.json() as Promise<SingleBrandKitResponse>;
     },
     onSuccess: () => {
@@ -108,7 +139,7 @@ export function useDeleteBrandKit(): {
   const mutation = useMutation<void, Error, string>({
     mutationFn: async (id) => {
       const res = await fetch(`/api/brand-kits/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete brand kit');
+      if (!res.ok) throw await readError(res);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brand-kits'] });

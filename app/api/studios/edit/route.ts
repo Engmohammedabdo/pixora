@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { persistGeneratedImage } from '@/lib/storage/persist-image';
@@ -115,8 +116,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await supabase.from('generations').update({ status: 'completed', output: { imageUrl: result.url, mock: result.mock } }).eq('id', generation.id);
-      await supabase.from('assets').insert({ user_id: user.id, generation_id: generation.id, type: 'image', url: result.url || '' });
+      await finalizeGeneration(supabase, generation.id, { status: 'completed', output: { imageUrl: result.url, mock: result.mock } }, 'edit');
+      await insertAssets(supabase, [{ user_id: user.id, generation_id: generation.id, type: 'image', url: result.url || '' }], 'edit');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, imageUrl: result.url, mock: result.mock, creditsUsed: CREDIT_COST, newBalance: reserveResult.newBalance } });

@@ -80,7 +80,7 @@ export default function PlanPage(): React.ReactElement {
       setPlan(data.data.plan);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, t, projectId]);
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();

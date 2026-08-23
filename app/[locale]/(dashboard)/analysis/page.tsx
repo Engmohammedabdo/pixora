@@ -77,7 +77,7 @@ export default function AnalysisPage(): React.ReactElement {
       setAnalysis(data.data.analysis);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, t, projectId]);
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
@@ -243,14 +244,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Update generation with actual cost
-    await supabase
-      .from('generations')
-      .update({
-        output: { shots, mock: shots.some((s) => s.mock) },
-        credits_used: actualCost,
-        status: 'completed',
-      })
-      .eq('id', generation.id);
+    await finalizeGeneration(supabase, generation.id, {
+      output: { shots, mock: shots.some((s) => s.mock) },
+      credits_used: actualCost,
+      status: 'completed',
+    }, 'photoshoot');
 
     // Save assets
     const assetInserts = shots
@@ -263,9 +261,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         format: formatFromUrl(s.url!),
       }));
 
-    if (assetInserts.length > 0) {
-      await supabase.from('assets').insert(assetInserts);
-    }
+    await insertAssets(supabase, assetInserts, 'photoshoot');
 
     return NextResponse.json({
       success: true,

@@ -179,12 +179,48 @@ easy to reintroduce:
   live rows that are `data:` URLs — one account went from 16 exportable assets
   to 1, with a 200 and no warning.
 
-**Still open (known, not fixed here):** `script-src 'unsafe-inline'` above; the
-studios discard the error from their own `generations`/`assets` writes, so a
-rejected write surfaces as `success: true` rather than a 500; and
+**Still open (known, not fixed here):** `script-src 'unsafe-inline'` above, and
 `scripts/backfill-data-uris.ts --watermark` is all-or-nothing across users,
 making it the one remaining path that could publish an unwatermarked free-plan
 image.
+
+### Data integrity — fixed 2026-08-23 (migration 042)
+
+Everything below was measured against the live database, not inferred.
+
+| Defect | State |
+|--------|-------|
+| **Every brand-kit logo ever saved was a dead pointer.** `LogoUpload` did `URL.createObjectURL(file)` and handed the result to `onChange`; the bytes were never uploaded. 1 of 1 live rows. | ✅ fixed — uploads to `/api/upload`; the object URL is now a local preview only and never leaves the component |
+| **Creating a brand kit without a logo did nothing, silently.** The form always sends `logo_url: null` / `brand_voice: null`; POST had `.optional()` (PUT had `.nullable()`), so it 400'd, the hook threw, and nothing caught it — dialog open, no message, forever. | ✅ fixed — shared schema, and every mutation now toasts its failure |
+| `logo_url` was validated with `z.string().url()` — a syntax check. `blob:`, `data:`, `javascript:` and any foreign host all passed. | ✅ fixed — `isOwnUploadUrl()` + migration 042 |
+| **The campaign studio never wrote `assets`.** A 12-credit campaign's images were persisted to storage, embedded in `generations.output`, and unreachable from ملفاتي — the assets page even has a `campaign` filter that could never match anything. | ✅ fixed (0 campaign generations existed, so nothing to backfill) |
+| **Campaign charged 12 credits with `success: true` when the model returned no posts.** `\|\| '[]'` made an empty response parse, and every refund path was sized from `posts.length`. A short response was charged as if it were nine. | ✅ fixed — empty is a failure; image refunds are sized against the 9 sold |
+| **Every studio's completion write was fire-and-forget.** A generation leaves the reconciler's scan window only by being marked terminal — so a silently failed `update({status:'completed'})` gets delivered, paid-for work refunded within 45 minutes while the route already returned the output. | ✅ fixed — `finalizeGeneration()` retries, confirms via `RETURNING`, and logs `REFUND RISK` when it cannot |
+| A batch `assets` insert lost every row to one off-shape URL (the risk migration 040's own header named). | ✅ fixed — `insertAssets()` retries row-by-row, but only on a database verdict, never on a transport failure that may already have committed |
+| `formatFromUrl()` returned `png` for every `data:` URL, so JPEG bytes exported as `.png`. 13 of 25 live asset rows are `data:` URLs. | ✅ fixed — reads the mime |
+| `assets.format` and `generations.studio` reached the export ZIP's entry names unsanitised; both are customer-writable. | ✅ fixed — filename allowlist |
+
+**One defect was introduced by these fixes and caught by adversarial review
+before shipping**, and it is the same shape as 040's: `isOwnUploadUrl()` first
+decided on `new URL(url)` while the routes store the string the client SENT and
+migration 042 matches raw bytes. A query string, a leading space, an embedded
+tab, an uppercase host, an IDN full stop, a `./` segment and a backslash path
+were all blessed by the route and then refused by the database — a 500 carrying
+raw Postgres text instead of a clean 400. **The rule must be stated on the same
+bytes both layers store.** `scripts/tests/logo-parity.ts` now feeds one corpus
+to both and fails on any disagreement.
+
+**A second was caught by the same review and is why a new invariant exists:** the
+conversion to `finalizeGeneration()` added the import to `photoshoot`, converted
+its asset write, and left its completion write raw. `tsc` and `eslint` both
+stayed green. The `generation-finalized` invariant now fails the build on any
+raw terminal write in a studio route — proved by reintroducing one.
+
+**Verified:** migration rehearsed in a rolled-back transaction, applied, then
+re-probed independently as `authenticated` — all six hostile shapes returned
+`23514`. `logo-parity` reports 41 strings, TypeScript and Postgres agreeing on
+every one. Gates: `tsc` clean, `lint` clean, invariants 12/12, `[safety] 65`,
+`[uploaded-url] 37`, clean production build.
 
 ### Not built — do not describe these as done
 
@@ -200,7 +236,9 @@ image.
 | Prompt templates + history | ⚠️ components written (242 lines), zero imports. Cheap to activate. |
 | API access (sold on Agency tier) | ❌ absent — and correctly removed from the plan features. |
 | Arabic text inside generated images | ❌ not handled; prompts actively forbid it. |
-| Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. |
+| Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. The logo is uploaded and now shown on the brand-kit card, and that is all it does — the copy says so. Colours reach creator and photoshoot, the voice reaches creator. |
+| Retrieving a text studio's output after the tab closes | ❌ **absent.** `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) write their result only into `generations.output`, and **no customer-facing route reads that column** — the only customer reads of `generations` are the assets filter (selects `id`) and the projects count. Reload the page and the work is gone. analysis and storyboard at least offer a client-side PDF while still mounted; `plan` has no export at all. Found 2026-08-23; the fix is a retrieval path, not a patch. |
+| Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
 | Error tracking (Sentry) / product analytics (PostHog) | ❌ env vars declared, empty, never read by any line of code. |
 
 ---
@@ -309,7 +347,14 @@ lib/
 //    single upload; throws WatermarkRequiredError if it cannot, so the caller
 //    refunds. NOT maybeWatermark/watermarkAndReupload — both are dead code.)
 // 8. Deduct credits + CHECK deductResult.success
-// 9. Save generation + assets
+// 9. Finalize + save assets — ALWAYS via lib/supabase/generation-writes.ts:
+//      await finalizeGeneration(supabase, generation.id, {...}, 'studio')
+//      await insertAssets(supabase, rows, 'studio')
+//    NEVER a raw `.from('generations').update({ status: 'completed' })`. That
+//    write is what takes the row out of reconcile_orphaned_generations()'s scan
+//    window; unchecked, a failed one gets delivered work refunded 45 minutes
+//    later while the route already returned success. The `generation-finalized`
+//    invariant fails the build on a raw one.
 // 10. Return response
 ```
 
@@ -340,9 +385,29 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- 14 migrations in `supabase/migrations/`
-- Tables: profiles, brand_kits, generations, credit_transactions, assets, teams, team_members, projects, achievements, saved_prompts
-- Apply via Supabase SQL Editor or `scripts/apply-migrations.sh`
+- **43 files** in `supabase/migrations/`, latest `042_brand_kit_logo_shape.sql`.
+  `public.schema_migrations` records 21 of them (022 → 042, contiguous) because
+  the ledger was introduced at 022 — a version's absence from it means only that
+  it predates the ledger, not that it was skipped.
+- Apply with `node scripts/db/apply.js supabase/migrations/0XX_*.sql`. Port 5432
+  is closed to the internet, so this goes through pg-meta `/pg/query` on Kong and
+  runs as `supabase_admin`. `scripts/apply-migrations.sh` is the historical
+  runner and had no `ON_ERROR_STOP` — do not use it.
+- **Rehearse before applying.** Send the same file with its trailing `COMMIT`
+  swapped for `ROLLBACK`; a migration that cannot pass its own probes must never
+  reach production.
+- **A migration that changes an access rule must prove itself as the
+  `authenticated` role**, inside the transaction, and refuse to commit if any
+  probe cannot reach a verdict — a probe blocked by RLS certifies nothing. See
+  038, 040 and 042 for the pattern. `apply.js` discards NOTICE and WARNING, so
+  report results as a final `SELECT`, never as `RAISE NOTICE`.
+- **21 tables in `public`** (read from the live database, 2026-08-23):
+  achievements, admin_login_attempts, admin_logs, assets, brand_kits,
+  credit_transactions, daily_metrics, generations, profiles, projects,
+  referrals, saved_prompts, schema_migrations, subscription_events,
+  support_messages, system_settings, team_members, teams, user_events, waitlist,
+  webhook_events. `achievements` and `saved_prompts` are dead (zero writers);
+  `teams`/`team_members` outlive the feature, which was removed 2026-08-23.
 
 ---
 
@@ -384,7 +449,22 @@ NEXT_PUBLIC_DEFAULT_LOCALE=ar
 
 ```bash
 npm run dev      # Development server
-npm run build    # Production build
+npm run build    # Production build — runs the gates below first, via prebuild
 npm run lint     # ESLint
 npx tsc --noEmit # TypeScript check
+```
+
+**Build gates** (`prebuild`, so a regression fails the build rather than shipping):
+
+```bash
+npm run check:invariants   # 12 rules; --update-baseline after fixing known debt
+npm run test:safety        # 65 checks over the prompt filter
+npm run test:uploads       # 37 checks over the brand-kit logo validator
+```
+
+Needs the live database, so **not** a build gate — run it after applying 042 or
+touching either side of the logo rule:
+
+```bash
+npm run test:logo-parity   # one corpus through both the TS validator and the SQL guard
 ```

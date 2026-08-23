@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
@@ -313,14 +314,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // refunded above — leaving the original figure makes the ledger disagree with
     // the credits the user actually kept, and every admin revenue number derived
     // from `generations.credits_used` overstates income.
-    await supabase
-      .from('generations')
-      .update({
-        output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
-        credits_used: imageUrls.length * creditCost,
-        status: 'completed',
-      })
-      .eq('id', generation.id);
+    await finalizeGeneration(supabase, generation.id, {
+      output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
+      credits_used: imageUrls.length * creditCost,
+      status: 'completed',
+    }, 'creator');
 
     // Save assets (one per successful image)
     const assetInserts = imageUrls
@@ -333,9 +331,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         format: formatFromUrl(url),
       }));
 
-    if (assetInserts.length > 0) {
-      await supabase.from('assets').insert(assetInserts);
-    }
+    await insertAssets(supabase, assetInserts, 'creator');
 
     return NextResponse.json({
       success: true,

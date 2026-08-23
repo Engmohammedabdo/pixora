@@ -10,6 +10,279 @@ worst defect in the money path.
 
 ---
 
+## 2026-08-23 — Data integrity: writes nobody checked, and a logo that was never uploaded
+
+`supabase/migrations/042_brand_kit_logo_shape.sql`, `lib/supabase/generation-writes.ts`,
+`lib/storage/uploaded-url.ts`, `components/brand-kit/LogoUpload.tsx`,
+`app/api/studios/*/route.ts`.
+
+### The brand kit was unusable in both directions
+
+**Saving one with a logo stored a pointer to nothing.** `LogoUpload` called
+`URL.createObjectURL(file)` and handed the result straight to `onChange`. A
+`blob:` URL is a handle scoped to the document that created it and the bytes
+were never uploaded anywhere, so the value died with the tab. Against the live
+database that was **1 of 1 rows** — every brand-kit logo this product had ever
+stored.
+
+**Saving one without a logo did nothing at all, silently.** `BrandKitForm`
+always sends `logo_url: logoUrl` and `brand_voice: brandVoice || null`. POST's
+schema had `.optional()` where PUT had `.nullable()`, and `.optional()` rejects
+`null` — so the request 400'd, `useBrandKit` threw, and the page awaited it with
+no catch. The dialog stayed open, the button re-enabled, and nothing told the
+user why. Editing worked; creating did not, for the same payload from the same
+component.
+
+`z.string().url()` was doing the validating, which is a syntax check, not a
+provenance check. Measured, all four values that reach this column passed it:
+`blob:`, `data:`, `javascript:` and any foreign host.
+
+Now: the file is uploaded to `/api/upload` and the object URL never leaves the
+component; the schema is shared; every mutation reports its failure as a toast;
+and the logo is finally displayed on the brand-kit card, which is the only thing
+it does — it still reaches no model, and the copy says so.
+
+### The rule stated twice, in two languages, that did not agree
+
+Migration 042 puts the same guard on `brand_kits` that 040 put on `assets`, for
+the same reason: `authenticated` holds INSERT/UPDATE on every column and the
+table's only policy has `polwithcheck = NULL`, so a customer can `PATCH
+/rest/v1/brand_kits` and never touch the route.
+
+**The first version of the route-side check was wrong, and adversarial review
+caught it.** It decided on `new URL(url)` — but the routes store the string the
+CLIENT SENT (`.insert({ ...input })`), and the trigger matches raw bytes. Every
+normalisation the WHATWG parser performs was a place where the value checked was
+not the value written. All of these were accepted by the route and then refused
+by the database, turning the clean 400 into a 500 carrying raw Postgres text:
+
+    …/a.png?download=evil.html    query lives in .search, never .pathname
+    "   https://…/a.png"          leading whitespace stripped by URL()
+    https://…clo<TAB>ud/…         C0 controls stripped by URL()
+    https://…cloud\storage\…      backslashes become separators
+    https://PIXORADB…CLOUD/…      host lowercased
+    https://pixoradb。pyramedia。cloud/…   IDEOGRAPHIC FULL STOP mapped to '.'
+    …/uploads/<uid>/./a.png       dot segment collapsed
+    https://…cloud:443/…          default port dropped
+
+The rule is now stated on the raw bytes both layers store. `scripts/tests/logo-parity.ts`
+feeds one corpus of 41 strings to the TypeScript validator and to the Postgres
+predicate and fails on any disagreement — which is why 042 exposes its rule as
+`brand_kit_logo_is_own(text, uuid)` rather than burying it in a trigger body.
+
+### Every studio's completion write was fire-and-forget
+
+A generation leaves `reconcile_orphaned_generations()`'s scan
+(`status IN ('pending','processing')`) only by being marked terminal. Every
+studio issued that write with no `.select()` and discarded its error — and an
+UPDATE that matches zero rows reports no error at all, so "no error" and "it
+worked" were different claims and nothing checked the second one. A failed
+completion leaves delivered, paid-for work sitting in the reconciler, which
+refunds it within 45 minutes while the route already returned `success: true`
+with the output attached.
+
+`finalizeGeneration()` retries four times — shedding `output` before `credits_used`,
+because the ledger is worth more than the stored copy of something the customer
+already received — confirms the row via `RETURNING`, and logs a `REFUND RISK`
+line when it cannot. `insertAssets()` retries a rejected batch row by row, so one
+off-shape URL costs one asset instead of nine, but **only on a database verdict**:
+a transport failure may already have committed and `assets` has no unique
+constraint to absorb a duplicate.
+
+**The conversion missed photoshoot, and adversarial review caught that too.** The
+import was added, the asset write was converted, the completion write was left
+raw — `tsc` and `eslint` both stayed green. Hence the new `generation-finalized`
+invariant, which fails the build on any raw terminal write in a studio route.
+Proved by reintroducing one and watching it fail.
+
+### Campaign
+
+- It **never wrote `assets`** — the only image studio that didn't. A 12-credit
+  campaign's images were persisted to storage, embedded in `generations.output`,
+  and unreachable from ملفاتي. The assets page even has a `campaign` filter that
+  could never match anything. Zero campaign generations exist, so nothing needed
+  backfilling.
+- It **charged 12 credits with `success: true` for zero posts.** `|| '[]'` turned
+  an empty model response into a parseable array, `arr.map` over it threw
+  nothing, and every refund path was sized from `posts.length` — so zero posts
+  refunded zero credits. Short-but-nonempty was charged as if it were nine.
+  Empty is now a failure with a full refund, and image refunds are sized against
+  the nine the campaign is sold as.
+
+### Smaller, same class
+
+- `formatFromUrl()` returned `png` for every `data:` URL — 13 of 25 live asset
+  rows are `data:` URLs, and the export route uses that column verbatim as the
+  ZIP filename extension, so JPEG bytes were handed over as `.png`. It reads the
+  mime now.
+- `assets.format` and `generations.studio` reached the ZIP entry name
+  unsanitised, and both are customer-writable. Filename allowlist.
+- `edit` inserted an asset row with `url: ''` whenever a generation produced no
+  file — a tile in ملفاتي pointing at nothing. `insertAssets` drops those.
+- The brand-kit routes returned raw Postgres `error.message` to the client.
+
+**Verified:** migration rehearsed in a rolled-back transaction, applied, then
+re-probed independently as the `authenticated` role — all six hostile shapes
+returned `23514`, and the migration's own seven probes (A–G, covering INSERT as
+well as UPDATE) refuse to commit if any cannot reach a verdict. `logo-parity`:
+41 strings, both implementations agreeing on every one. `UPDATE … RETURNING id`
+was proved to work as `authenticated` against a real completed generation before
+`finalizeGeneration` was allowed to depend on it. Gates: `tsc` clean, `lint`
+clean, invariants 12/12, `[safety] 65 checks`, `[uploaded-url] 37 checks`, clean
+production build.
+
+**Not fixed, and now recorded rather than implied:** `plan` (5 credits),
+`analysis` (3) and `storyboard` (14) write their output only into
+`generations.output`, and no customer-facing route reads that column — reload
+the page and the work is gone. That needs a retrieval path, not a patch.
+
+---
+
+## 2026-08-19 → 2026-08-23 — Money path round three, security hardening, UX
+
+Backfilled. `CLAUDE.md` cited this file as the evidence for round three while the
+newest entry here was still 2026-08-06 — a pointer to a page that did not exist,
+which is the same class of defect the preamble above exists to prevent.
+
+### 2026-08-19 — A customer could rewind a delivered generation and be refunded
+
+`297914a`, `supabase/migrations/038_generation_lifecycle_guard.sql`.
+
+`generations` had one policy, "Users manage own generations" FOR ALL, and
+`authenticated` held the bootstrap grant on every column. So a customer could
+`PATCH /rest/v1/generations` their own **completed** row back to `processing`,
+wait for `reconcile_orphaned_generations()` (pg_cron, every 15 min) and be
+refunded in full for work already delivered — repeatably, for unlimited free
+credits. Three supporting holes: `created_at` was writable, so an in-flight
+generation could be backdated into the refund window; `status` was nullable and a
+`CHECK` passes NULL, so `completed → NULL → processing` laundered a terminal row
+past any `OLD`/`NEW` comparison; and policy `009:28` let a user DELETE the rows
+`lib/rate-limit.ts:11-16` counts, i.e. the only throttle in front of every paid
+studio.
+
+A trigger, not a REVOKE: all nine studios write through `createServerClient()`
+(anon key + the user's cookie JWT), so the app executes as `authenticated` — the
+same role over the same PostgREST endpoint as the attacker, writing the same
+column. Privilege cannot separate them; only the shape of the write can.
+
+**The first version of this fix was bypassable.** It stated the rule as a
+blacklist on `OLD`, and the NULL hop walked straight through it in two PATCHes.
+The rule belongs on `NEW`, where it is total. Recorded in the migration header
+because it is easy to reintroduce.
+
+**Verified:** the migration proves itself at apply time against the live table as
+the `authenticated` role (probes A–E) and refuses to commit if any probe cannot
+reach a verdict — a probe blocked by RLS is treated as a failure, not a pass,
+because it certifies nothing. Post-apply, all four attack paths were re-run
+independently as `authenticated` and returned `23514` / `42501`. Forensics before
+applying: the loop had never been used — zero rewound rows, zero reconciler
+payouts ever.
+
+### 2026-08-20 — Every free-plan image shipped without a usable watermark
+
+`6d22742`, `4ebf1db`, `Dockerfile`, `lib/image/watermark.ts`,
+`lib/storage/persist-image.ts`.
+
+The mark is SVG `<text>` rendered through librsvg/pango. On a bare
+`node:*-alpine` there are no fonts, so pango draws every glyph as `.notdef` — an
+empty box — and returns **success**. From 2026-08-13 to 2026-08-20 every
+free-plan image shipped with rectangles where the product name should be, with
+nothing thrown and nothing logged. Proved by downloading a real production asset,
+not by reasoning about it.
+
+Fixed at the cause (`Dockerfile` installs `ttf-dejavu`) and guarded:
+`assertTextRenderingAvailable()` renders `IIII` and `WWWW` and refuses the request
+if they are byte-identical. With `.notdef` every glyph is the same box, so the two
+renders match exactly — a did-any-pixel-change test cannot tell that apart.
+
+`persistGeneratedImage` also stopped falling back to the clean original when the
+watermark could not be applied: it throws `WatermarkRequiredError` and the caller
+refunds. **A naive version of that fix would have minted credits** — creator and
+photoshoot issue a partial refund *before* their uploads, so a throw afterwards
+refunded the full reservation a second time. Netted against `refundedSoFar`.
+
+### 2026-08-20 → 08-23 — Security hardening
+
+`9b857d3`, `1ee1d4b`, `748ea06`, `32fd34e`, migrations 039–041.
+
+One defect class produced most of these: **RLS gates WHICH ROW, only a GRANT
+gates WHICH COLUMN.** Migration 022 applied column-level lockdown to `profiles`
+and to no other table.
+
+- Stored XSS in the admin panel — a customer's own prompt rendered as live HTML
+  (`JSON.stringify` escapes quotes, not `<`). The `dangerouslySetInnerHTML` sink
+  is gone; `highlightJson()` returns React nodes.
+- The admin preview `<img src>` fetched a customer-chosen URL, beaconing the
+  admin's IP and user-agent. Restricted to our own origin.
+- SSRF: `POST /api/assets/export` did `fetch(asset.url)` on a customer-writable
+  column and returned the response in a ZIP. Bytes now come from inline `data:`
+  or our own bucket by validated path (`lib/storage/export-source.ts`).
+- The admin login limiter failed **open** on any DB error, raced
+  (SELECT-then-UPSERT), and keyed on the client-supplied leftmost
+  `x-forwarded-for`. Replaced by an atomic `consume_login_attempt()` (039) that
+  fails closed, reads the rightmost hop, and buckets IPv6 per-/64.
+- `assets.url` was writable to any string by any customer (040).
+- The CSP and two server-side fetch allowlists trusted `*.supabase.co` /
+  `*.supabase.in` — multi-tenant wildcards this self-hosted deployment never
+  owned. Removed. `script-src 'unsafe-eval'` removed, verified against the
+  production bundle rather than assumed.
+
+**Three defects were introduced by these fixes and caught by adversarial review
+before shipping**, each recorded in its migration header: 040 v1 derived its
+allowed origin from the customer-writable column it exists to constrain and built
+a `LIKE` pattern from it, so a row of `https://%/...` could compile a guard
+matching every host while all probes passed; the export fix v1 resolved only
+storage paths and silently dropped the 13 of 25 live rows that are `data:` URLs,
+taking one account from 16 exportable assets to 1 with a 200 and no warning; and
+the login throttle's first global budget was an unrecoverable lockout — 10 IPs
+× 5 attempts refused the real admin before credentials were ever checked, with
+nothing to clear it.
+
+**Verified:** every migration rehearsed in a rolled-back transaction, applied,
+then re-probed independently as `authenticated`. `42501` for the admin-throttle
+RPC/table/reset and for `assets` UPDATE; `23514` for an SSRF-shaped `assets`
+INSERT; legitimate inserts still `OK`. The throttle was proved atomic with 25
+genuinely parallel calls against a cap of 5 → exactly 5 allowed. Live after
+deploy: a real generation completes and writes its asset row; export returns
+`X-Export-Included: 13, X-Export-Skipped: 3`; admin login returns 401 → 429 at
+the cap and records `login_throttled`.
+
+### 2026-08-23 — UX, in three passes
+
+`84c1ea2`, `0381ab1`, `b730b1d`, `9da9a56`.
+
+1. **On a phone the studio looked like the button did nothing.** Output renders
+   in a second column that is below the fold on mobile, so a generation appeared
+   to do nothing for 20 seconds. `StudioLayout` now scrolls the output into view
+   under `(max-width: 1023px)`, honouring `prefers-reduced-motion`, and announces
+   with `aria-live="polite"` + `aria-busy` (deliberately not `role="status"`,
+   which implies `aria-atomic`).
+2. **The product promised things it does not do.** Onboarding claimed the brand
+   kit is used "in every generation"; colours reach two of nine studios and the
+   voice reaches one. Copy now names the two studios.
+3. **The prompt safety filter refused real businesses and ignored Arabic.**
+   `lower.includes(term)` blocked `amethyst`, `Bombay Grill`, `skill
+   development` and `Shotgun Coffee` without ever naming the word. The first
+   rewrite used a whole-word regex, which was barely better than nothing for
+   Arabic — `القتل`, `بالسلاح` and `المخدرات` all passed, because Arabic writes its
+   clitics joined to the word. Matching is now on stems. **The second version was
+   also broken**: it treated digits as word characters, so `bomb1` defeated the
+   filter entirely for the price of one keystroke.
+
+   Two further defects found in the same review: the arrow translator wrapper
+   took one parameter and silently dropped the values a message needs, so
+   `{term}` rendered as literal text on six of nine studio pages while `tsc`
+   stayed green; and `edit`, `photoshoot` and `prompt-builder` never called
+   `sanitizePrompt` at all, which made their `catch (PromptBlockedError)` blocks
+   unreachable and left the two highest-risk image surfaces with no filter.
+
+**Verified:** `scripts/tests/safety.test.ts` — 65 checks, the first runnable
+tests in this repo — wired into `prebuild`, so the build fails if the filter
+breaks. The blocked term was confirmed rendering through the real next-intl
+`createTranslator` in both locales.
+
+---
+
 ## 2026-08-06 — Stripe SDK 21 → 22, API 2026-07-29.dahlia
 
 `stripe` 21.0.1 → 22.4.0, and the pinned API version `2026-03-25.dahlia` →

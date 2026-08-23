@@ -72,7 +72,7 @@ export default function PromptBuilderPage(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [description, outputType, t, projectId]);
+  }, [description, outputType, tStudio, projectId]);
 
   const handleCopy = async (text: string, idx: number): Promise<void> => {
     await navigator.clipboard.writeText(text);

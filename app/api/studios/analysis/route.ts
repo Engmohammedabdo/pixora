@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await supabase.from('generations').update({ output: { analysis, mock: result.mock }, status: 'completed' }).eq('id', generation.id);
+      await finalizeGeneration(supabase, generation.id, { output: { analysis, mock: result.mock }, status: 'completed' }, 'analysis');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, analysis, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });

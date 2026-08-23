@@ -83,8 +83,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       bytes += size;
       added += 1;
 
-      const ext = asset.format || (asset.type === 'audio' ? 'mp3' : 'png');
-      const studio = (asset.generations as { studio?: string } | null)?.studio || 'pyrasuite';
+      // Both halves of this filename come from customer-writable columns:
+      // migration 040 constrains `assets.url` but not `assets.format`, and 038
+      // constrains `generations.status`/`created_at` but not `studio`. Neither
+      // is validated on the way in, so a directly-PATCHed `format` of
+      // `../../evil` would become a ZIP entry that escapes the archive root on
+      // extraction. Allowlist the characters a filename may contain and refuse
+      // a leading dot, rather than hunting for the sequences that misbehave.
+      const safeName = (value: string, fallback: string): string => {
+        const cleaned = value.replace(/[^A-Za-z0-9._-]/g, '').replace(/^\.+/, '');
+        return cleaned.slice(0, 32) || fallback;
+      };
+      const ext = safeName(asset.format || '', asset.type === 'audio' ? 'mp3' : 'png');
+      const studio = safeName((asset.generations as { studio?: string } | null)?.studio || '', 'pyrasuite');
       zip.file(`${studio}-${index + 1}.${ext}`, body);
     }
 

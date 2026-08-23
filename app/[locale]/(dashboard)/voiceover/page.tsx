@@ -96,7 +96,7 @@ export default function VoiceOverPage(): React.ReactElement {
       setEnhanced(data.data.enhanced || false);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, script, voice, dialect, speed, tone, setBalance, t, projectId]);
+  }, [isValid, script, voice, dialect, speed, tone, setBalance, tStudio, projectId]);
 
   const dialectLabels: Record<string, string> = { saudi: tVo('dialects.saudi'), emirati: tVo('dialects.emirati'), egyptian: tVo('dialects.egyptian'), gulf: tVo('dialects.gulf'), formal: tVo('dialects.formal') };
   const toneLabels: Record<string, string> = { professional: tVo('tones.professional'), friendly: tVo('tones.friendly'), energetic: tVo('tones.energetic'), calm: tVo('tones.calm') };

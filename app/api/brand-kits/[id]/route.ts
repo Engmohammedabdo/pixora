@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
+import { brandKitLogoSchema } from '@/lib/brand-kits/schema';
+import { isOwnUploadUrl } from '@/lib/storage/uploaded-url';
 
 const UpdateBrandKitSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  logo_url: z.string().url().nullable().optional(),
+  logo_url: brandKitLogoSchema,
   primary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   secondary_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
@@ -31,6 +33,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams): Promis
     const body = await request.json();
     const input = UpdateBrandKitSchema.parse(body);
 
+    // Same provenance check as POST. `input.logo_url` may legitimately be null
+    // here (clearing the logo), which is why this tests the truthy case only.
+    if (input.logo_url && !isOwnUploadUrl(input.logo_url, user.id)) {
+      return NextResponse.json({ success: false, error: 'invalid_logo_url' }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from('brand_kits')
       .update(input)
@@ -39,8 +47,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams): Promis
       .select()
       .single();
 
+    // A check_violation here is migration 042's logo guard. The route already
+    // refuses the same shapes (isOwnUploadUrl), so reaching this means the two
+    // have drifted — report it as the 400 the customer can act on rather than a
+    // 500 carrying raw Postgres text, and let the log carry the detail.
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      if (error.code === '23514') {
+        console.error('[brand-kits] update refused by the database guard:', error.message);
+        return NextResponse.json({ success: false, error: 'invalid_logo_url' }, { status: 400 });
+      }
+      console.error('[brand-kits] update failed:', error.message);
+      return NextResponse.json({ success: false, error: 'save_failed' }, { status: 500 });
     }
 
     if (!data) {
@@ -77,7 +94,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams): Pr
       .eq('user_id', user.id);
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      console.error('[brand-kits] delete failed:', error.message);
+      return NextResponse.json({ success: false, error: 'delete_failed' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

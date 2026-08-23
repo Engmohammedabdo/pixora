@@ -293,6 +293,49 @@ const msgNoEmpty: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Invariant: generation-finalized
+// ---------------------------------------------------------------------------
+
+const generationFinalized: Invariant = {
+  id: 'generation-finalized',
+  title: "No studio route marks a generation 'completed' with a raw, unchecked update",
+  why:
+    'A generation leaves reconcile_orphaned_generations()\'s scan window ' +
+    '(status IN (\'pending\',\'processing\')) only by being marked terminal. A ' +
+    'raw `.from(\'generations\').update({ status: \'completed\' })` reports no ' +
+    'error when it matches zero rows and its error is discarded anyway, so a ' +
+    'failed completion leaves delivered, paid-for work sitting in the ' +
+    'reconciler — which refunds it within 45 minutes while the route already ' +
+    'returned success with the output attached. finalizeGeneration() retries, ' +
+    'confirms via RETURNING, and logs a REFUND RISK line when it cannot. ' +
+    'This check exists because the conversion missed photoshoot: the import ' +
+    'was added, the asset write was converted, and the completion write was ' +
+    'left behind — tsc and eslint both stayed green.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts', '.tsx'], false).filter((f) =>
+      /[\\/]route\.ts$/.test(f)
+    );
+    // A `.from('generations')` whose statement also sets status to a terminal
+    // value. `.insert()` is exempt: prompt-builder creates its row already
+    // completed and charges 0 credits, so it is never in the scan window.
+    const stmtRe = /\.from\(['"]generations['"]\)[\s\S]{0,600}?;/g;
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+      let m: RegExpExecArray | null;
+      while ((m = stmtRe.exec(content))) {
+        const stmt = m[0];
+        if (!/\.update\s*\(/.test(stmt)) continue;
+        if (!/status:\s*['"]completed['"]/.test(stmt)) continue;
+        violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Invariant 3: refund-captured
 // ---------------------------------------------------------------------------
 
@@ -1114,6 +1157,7 @@ const INVARIANTS: Invariant[] = [
   msgParity,
   msgNoEmpty,
   refundCaptured,
+  generationFinalized,
   noHardcodedDateLocale,
   noRawZindex,
   themeAwareTextColor,
