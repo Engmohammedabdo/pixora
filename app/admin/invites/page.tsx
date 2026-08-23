@@ -28,6 +28,16 @@ interface GateStatus {
 
 type Filter = 'all' | 'waiting' | 'invited' | 'joined';
 
+/** Mirrors the shape `/api/admin/invites` returns per address. */
+interface InviteResult {
+  email: string;
+  token?: string;
+  error?: string;
+  reissued?: boolean;
+  sent?: 'sent' | 'failed' | 'skipped';
+  sendError?: string;
+}
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || '';
 
 export default function AdminInvitesPage() {
@@ -92,9 +102,38 @@ export default function AdminInvitesPage() {
       });
       const json = await res.json();
       if (!json.success) { toast.error(json.error || 'Failed'); return; }
-      const failed = json.data.results.filter((r: { error?: string }) => r.error);
-      toast.success(`${json.data.issued} invite(s) issued${failed.length ? `, ${failed.length} failed` : ''}`);
-      if (failed.length) console.warn('[invites] failures:', failed);
+
+      const results: InviteResult[] = json.data.results;
+      const failed = results.filter((r) => r.error);
+      const sent = results.filter((r) => r.sent === 'sent').length;
+      const skipped = results.filter((r) => r.sent === 'skipped').length;
+      const undelivered = results.filter((r) => r.sent === 'failed');
+
+      toast.success(`${json.data.issued} invite(s) issued · ${sent} emailed`);
+      if (failed.length) {
+        toast.error(`${failed.length} could not be issued`);
+        console.warn('[invites] issue failures:', failed);
+      }
+
+      /**
+       * Issued-but-not-delivered gets its own message, and it is an error rather
+       * than a warning. The seats are open and the people they belong to have not
+       * been told — the founder has to go and send those links by hand, and the
+       * only moment they will act on that is this one.
+       */
+      if (undelivered.length) {
+        toast.error(
+          `${undelivered.length} invite(s) issued but the email FAILED — copy their links and send manually`,
+          { duration: 15000 }
+        );
+        console.error('[invites] undelivered:', undelivered);
+      }
+      if (skipped) {
+        toast.warning(
+          `${skipped} invite(s) issued but no email was sent — mail is not configured on this deployment. Copy the links and send them yourself.`,
+          { duration: 15000 }
+        );
+      }
       await load();
     } catch {
       toast.error('Failed');
@@ -259,6 +298,21 @@ export default function AdminInvitesPage() {
                             {copied === row.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                             {copied === row.id ? 'Copied' : 'Copy link'}
                           </button>
+                          {/*
+                            Safe to press twice. `issue_invite` is idempotent — it
+                            returns the SAME token for an address already holding
+                            one — so this re-sends the link that was mailed before
+                            rather than minting a second one and quietly breaking
+                            the first.
+                          */}
+                          <button
+                            onClick={() => void issue([row.email])}
+                            disabled={busy === 'issue'}
+                            className="flex items-center gap-1 rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700 disabled:opacity-50"
+                            title="Email the same link again"
+                          >
+                            <Send className="h-3 w-3" /> Resend
+                          </button>
                           <button
                             onClick={() => void revoke(row.email)}
                             disabled={busy === row.email}
@@ -285,9 +339,10 @@ export default function AdminInvitesPage() {
         )}
 
         <p className="text-xs text-neutral-500">
-          Copy the link and send it however you like — WhatsApp, DM, email. Transactional email is
-          optional here on purpose: with no provider configured, copying the link is the whole flow
-          and nothing is blocked.
+          Inviting emails the person their link automatically, in their own language. If mail is not
+          configured on this deployment the invite is still issued and you are told so explicitly —
+          copy the link and send it yourself. <span className="text-neutral-400">Resend</span> mails
+          the same link again; it never mints a second one.
         </p>
       </div>
     </AdminLayout>

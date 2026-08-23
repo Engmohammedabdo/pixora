@@ -23,6 +23,7 @@ import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, Fil
 import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { RecentWork } from '@/components/shared/RecentWork';
 
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
@@ -55,6 +56,9 @@ export default function AnalysisPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
   const [activeTab, setActiveTab] = useState('swot');
+  // Bumped once per successful run so RecentWork refetches and the row that
+  // was just produced appears without a reload.
+  const [runs, setRuns] = useState(0);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = businessName.length >= 2 && industry && description.length >= 10 && targetMarket.length >= 5;
@@ -75,6 +79,7 @@ export default function AnalysisPage(): React.ReactElement {
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setAnalysis(data.data.analysis);
+      setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, tStudio, projectId]);
@@ -109,6 +114,12 @@ export default function AnalysisPage(): React.ReactElement {
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
         </div>
       </div>
+      {/*
+        This studio writes no assets row, so `generations.output` is the only
+        place the result exists. Without this list, closing the tab destroys
+        work the customer already paid for.
+      */}
+      <RecentWork studio="analysis" onRestore={(output) => setAnalysis(output.analysis as Analysis)} refreshKey={runs} />
     </div>
   );
 

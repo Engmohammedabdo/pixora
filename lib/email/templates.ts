@@ -33,9 +33,19 @@ interface LayoutInput {
   cta?: { label: string; url: string };
   /** Small print under the divider. */
   footnote?: string;
+  /**
+   * The grey line under the card that says why this message arrived.
+   *
+   * It defaults to "you have an account", which is true of exactly one of the
+   * messages here. A waitlist subscriber and an invitee do NOT have accounts —
+   * telling them they do is both wrong and, for someone who never signed up for
+   * anything, the sentence that makes the message read as spam. Each template
+   * states its own reason.
+   */
+  reason?: string;
 }
 
-function layout({ locale, heading, paragraphs, cta, footnote }: LayoutInput): string {
+function layout({ locale, heading, paragraphs, cta, footnote, reason }: LayoutInput): string {
   const isAr = locale === 'ar';
   const dir = isAr ? 'rtl' : 'ltr';
   const align = isAr ? 'right' : 'left';
@@ -79,7 +89,7 @@ function layout({ locale, heading, paragraphs, cta, footnote }: LayoutInput): st
         </td></tr>
       </table>
       <p style="margin:16px 0 0;font-size:12px;color:${MUTED};font-family:${font};direction:${dir};">
-        ${isAr ? 'وصلتك الرسالة دي لأن عندك حساب على PyraSuite.' : 'You received this because you have a PyraSuite account.'}
+        ${reason ?? (isAr ? 'وصلتك الرسالة دي لأن عندك حساب على PyraSuite.' : 'You received this because you have a PyraSuite account.')}
       </p>
     </td></tr>
   </table>
@@ -152,7 +162,10 @@ export function waitlistWelcomeEmail(locale: Locale, name?: string | null): Emai
     const footnote = 'لو مش انت اللي سجّلت، تجاهل الرسالة ومش هيوصلك حاجة تانية.';
     return {
       subject: 'سجّلناك في قائمة الانتظار 🦊',
-      html: layout({ locale, heading: greeting, paragraphs, footnote }),
+      html: layout({
+        locale, heading: greeting, paragraphs, footnote,
+        reason: 'وصلتك الرسالة دي لأنك سجّلت في قائمة انتظار PyraSuite.',
+      }),
       text: toText([greeting, ...paragraphs], undefined, footnote),
     };
   }
@@ -166,7 +179,10 @@ export function waitlistWelcomeEmail(locale: Locale, name?: string | null): Emai
   const footnote = "If this wasn't you, ignore this email and you won't hear from us again.";
   return {
     subject: "You're on the PyraSuite waitlist 🦊",
-    html: layout({ locale, heading: greeting, paragraphs, footnote }),
+    html: layout({
+      locale, heading: greeting, paragraphs, footnote,
+      reason: 'You received this because you joined the PyraSuite waitlist.',
+    }),
     text: toText([greeting, ...paragraphs], undefined, footnote),
   };
 }
@@ -227,6 +243,72 @@ export function passwordResetEmail(locale: Locale, resetUrl: string): EmailConte
   return {
     subject: 'Reset your password — PyraSuite',
     html: layout({ locale, heading: 'Set a new password', paragraphs, cta, footnote }),
+    text: toText(paragraphs, cta, footnote),
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Invite
+//
+// The message the whole invite-only launch runs on. Before it existed, the
+// admin panel could mint a token and show the founder a link — and that was the
+// end of the automation. Inviting thirty people meant composing thirty messages
+// by hand, which is how a cohort of thirty becomes a cohort of the five you had
+// the patience for.
+//
+// Three things about the copy are deliberate:
+//
+//  - **It names the credits.** The gate grants `beta_credits` on redemption
+//    (migration 035). An invite that does not say what is waiting reads as a
+//    request for the recipient's time; one that does reads as a gift.
+//  - **It says the link is personal and single-use.** It is: the token is bound
+//    to this address, `issue_invite` refuses to re-mint a redeemed one, and the
+//    BEFORE INSERT trigger checks address and token together. Someone who
+//    forwards it to a friend gives away their own seat and the friend gets
+//    nothing — worth one sentence to prevent.
+//  - **It does not promise a deadline.** Invite tokens have no expiry in the
+//    schema. Writing "expires in 7 days" would be a lie the database does not
+//    enforce, and the first person to try it on day 8 finds out.
+// ───────────────────────────────────────────────────────────────────────────
+
+export function inviteEmail(locale: Locale, inviteUrl: string, credits: number): EmailContent {
+  if (locale === 'ar') {
+    const paragraphs = [
+      'دورك جه 🎉 — فتحنا لك باب PyraSuite.',
+      'PyraSuite بتحوّل فكرتك لحملة تسويقية كاملة: صور منتجات، بوستات، تعليق صوتي، وخطة تسويق — كلها بقوة بايرا 🦊.',
+      credits > 0
+        ? `حسابك هيفتح وفيه <strong>${credits} كريدت</strong> هدية عشان تجرّب من غير ما تدفع حاجة.`
+        : 'اضغط الزرار تحت وابدأ على طول.',
+    ];
+    const cta = { label: 'افتح حسابك دلوقتي', url: inviteUrl };
+    const footnote =
+      'الرابط ده مخصوص لإيميلك انت ويشتغل مرة واحدة. لو بعتّه لحد تاني، هو مش هيقدر يستخدمه وانت هتخسر مكانك.';
+    return {
+      subject: 'دعوتك لـ PyraSuite جاهزة 🦊',
+      html: layout({
+        locale, heading: 'أهلاً بيك في PyraSuite', paragraphs, cta, footnote,
+        reason: 'وصلتك الرسالة دي لأنك في قائمة انتظار PyraSuite ودورك جه.',
+      }),
+      text: toText(paragraphs, cta, footnote),
+    };
+  }
+
+  const paragraphs = [
+    "You're in 🎉 — your PyraSuite invite is ready.",
+    'PyraSuite turns an idea into a complete marketing campaign: product shots, social posts, voiceover, and a plan — all powered by Pyra 🦊.',
+    credits > 0
+      ? `Your account opens with <strong>${credits} free credits</strong> so you can try it without paying anything.`
+      : 'Use the button below to get started.',
+  ];
+  const cta = { label: 'Create your account', url: inviteUrl };
+  const footnote =
+    'This link is tied to your email address and works once. Forwarding it means nobody can use it — including you.';
+  return {
+    subject: 'Your PyraSuite invite is ready 🦊',
+    html: layout({
+      locale, heading: 'Welcome to PyraSuite', paragraphs, cta, footnote,
+      reason: "You received this because you're on the PyraSuite waitlist and your turn came up.",
+    }),
     text: toText(paragraphs, cta, footnote),
   };
 }

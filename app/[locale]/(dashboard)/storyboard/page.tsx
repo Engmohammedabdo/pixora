@@ -22,6 +22,7 @@ import { Sparkles, AlertTriangle, Film, Camera, Music, FileText } from 'lucide-r
 import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { RecentWork } from '@/components/shared/RecentWork';
 
 const STYLES = ['cinematic', 'ugc', 'animation', 'documentary'] as const;
 const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
@@ -52,6 +53,9 @@ export default function StoryboardPage(): React.ReactElement {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
+  // Bumped once per successful run so RecentWork refetches and the row that
+  // was just produced appears without a reload.
+  const [runs, setRuns] = useState(0);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const isValid = concept.length >= 10;
@@ -72,6 +76,7 @@ export default function StoryboardPage(): React.ReactElement {
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setScenes(data.data.scenes || []);
+      setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, concept, duration, style, platform, setBalance, tStudio, projectId, projectBrandKitId]);
@@ -106,6 +111,12 @@ export default function StoryboardPage(): React.ReactElement {
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
         </div>
       </div>
+      {/*
+        This studio writes no assets row, so `generations.output` is the only
+        place the result exists. Without this list, closing the tab destroys
+        work the customer already paid for.
+      */}
+      <RecentWork studio="storyboard" onRestore={(output) => setScenes((output.scenes as Scene[]) || [])} refreshKey={runs} />
     </div>
   );
 
