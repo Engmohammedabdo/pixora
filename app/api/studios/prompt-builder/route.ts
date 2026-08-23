@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
 import { buildPromptBuilderPrompt } from '@/lib/ai/prompts/prompt-builder';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { resolveProjectId } from '@/lib/projects/verify';
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const prompt = buildPromptBuilderPrompt(input);
+    // Every other studio sanitizes before the model sees the text; this one
+    // never did, so the user's description reached the model unfiltered.
+    const prompt = buildPromptBuilderPrompt({ ...input, description: sanitizePrompt(input.description) });
     const result = await generateText({ prompt });
 
     // No credits are charged here, so there is nothing to refund — but returning
@@ -93,6 +96,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
+    }
+    // Carries the offending word so the UI can name it. This studio charges 0
+    // credits, so there is nothing to refund — it is a plain 400.
+    if (error instanceof PromptBlockedError) {
+      return NextResponse.json(
+        { success: false, error: 'prompt_blocked', term: error.blockedTerm },
+        { status: 400 }
+      );
     }
     console.error('Prompt builder error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });

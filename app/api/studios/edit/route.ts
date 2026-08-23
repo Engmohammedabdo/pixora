@@ -6,7 +6,7 @@ import { generateImage } from '@/lib/ai/router';
 import { persistGeneratedImage } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -77,7 +77,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     let result: Awaited<ReturnType<typeof generateImage>>;
     try {
-      const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${input.editDescription}`;
+      // Every other studio sanitizes before the model sees the text; these three
+      // never did, so the catch for PromptBlockedError below was unreachable and
+      // the two highest-risk image surfaces had no filter at all.
+      const safeDescription = sanitizePrompt(input.editDescription);
+      const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${safeDescription}`;
       // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
       // the gemini branch. With 'gpt' the image to edit never reached the model, so
       // "edit this photo" generated an unrelated picture from the instruction alone.

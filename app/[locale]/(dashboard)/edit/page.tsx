@@ -33,6 +33,10 @@ const EDIT_TYPES = [
 
 function EditPageContent(): React.ReactElement {
   const t = useTranslations();
+  // Scoped, not an arrow wrapper: `tStudio` takes one
+  // argument and silently drops the values a message needs, so an ICU
+  // placeholder like {term} rendered as literal text.
+  const tStudio = useTranslations('studio');
   const tEdit = useTranslations('edit');
   const searchParams = useSearchParams();
   // Preload an image handed off from another studio (e.g. Creator's edit shortcut)
@@ -63,10 +67,10 @@ function EditPageContent(): React.ReactElement {
         body: JSON.stringify({ imageUrl: originalImage, editDescription, editType, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
+      if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, originalImage, editDescription, editType, setBalance, t, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {

@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run check:invariants",
+    "prebuild": "npm run check:invariants && npm run test:safety",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:query": "npx tsx scripts/db-query.ts",
     "db:backfill-images": "npx tsx scripts/backfill-data-uris.ts",
-    "check:invariants": "npx tsx scripts/check-invariants.ts"
+    "check:invariants": "npx tsx scripts/check-invariants.ts",
+    "test:safety": "npx tsx scripts/tests/safety.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

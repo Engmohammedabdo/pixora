@@ -31,6 +31,10 @@ interface PromptResult {
 
 export default function PromptBuilderPage(): React.ReactElement {
   const t = useTranslations();
+  // Scoped, not an arrow wrapper: `tStudio` takes one
+  // argument and silently drops the values a message needs, so an ICU
+  // placeholder like {term} rendered as literal text.
+  const tStudio = useTranslations('studio');
   const tPb = useTranslations('promptBuilder');
   const { projectId, onProjectChange } = useProjectSelection();
   const [description, setDescription] = useState('');
@@ -59,12 +63,12 @@ export default function PromptBuilderPage(): React.ReactElement {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined));
+        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined));
         return;
       }
       setResults(data.data.prompts);
     } catch {
-      setError(toStudioError('network', (k) => t(`studio.${k}`)));
+      setError(toStudioError('network', tStudio));
     } finally {
       setIsLoading(false);
     }

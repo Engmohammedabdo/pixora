@@ -7,7 +7,7 @@ import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -124,13 +124,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let refundedSoFar = 0;
 
     try {
+    // Every other studio sanitizes before the model sees the text; these three
+    // never did, so the catch for PromptBlockedError below was unreachable and
+    // the two highest-risk image surfaces had no filter at all.
+    const safeNotes = input.notes ? sanitizePrompt(input.notes) : undefined;
+
     // Generate shots in parallel
     const shotPromises = Array.from({ length: input.shots }, (_, i) => {
       const prompt = buildPhotoshootPrompt({
         environment: input.environment,
         shotIndex: i,
         totalShots: input.shots,
-        notes: input.notes,
+        notes: safeNotes,
         brandKit,
         // Varies lighting, grade and shot order between runs. The generation id
         // is per-run but fixed within it, so the six shots stay one coherent set

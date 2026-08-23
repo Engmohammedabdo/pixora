@@ -18,15 +18,23 @@ const KNOWN_ERROR_CODES = new Set([
   'refund_failed',
 ]);
 
-type Translator = (key: string) => string;
+type Translator = (key: string, values?: Record<string, string | number>) => string;
 
 /**
  * Map a machine error code from the studio APIs to a localized user message.
  * Pass a translator scoped to the `studio` namespace: useTranslations('studio').
  */
-export function mapApiError(code: unknown, t: Translator): string {
+export function mapApiError(
+  code: unknown,
+  t: Translator,
+  values?: Record<string, string | number>,
+): string {
   const key = typeof code === 'string' && KNOWN_ERROR_CODES.has(code) ? code : 'fallback';
-  return t(`errors.${key}`);
+  // `prompt_blocked` names the offending word. If a caller has no term to give,
+  // fall back to the wording that does not reference one — otherwise the user
+  // is shown the literal placeholder.
+  const resolved = key === 'prompt_blocked' && !values?.term ? 'prompt_blocked_generic' : key;
+  return t(`errors.${resolved}`, values);
 }
 
 /**
@@ -48,10 +56,21 @@ export interface StudioError {
 
 /** Build the state shape above from a fetch response's parsed `error` field
  * (or the literal 'network' on a thrown/caught request failure). */
-export function toStudioError(code: unknown, t: Translator, required?: number): StudioError {
+export function toStudioError(
+  code: unknown,
+  t: Translator,
+  required?: number,
+  /**
+   * The blocked word, on `prompt_blocked` responses. Without it the user is
+   * told their text "contains disallowed content" and left to guess which of
+   * their own words caused it — a wall with no door. Every studio route already
+   * echoes it back as `term`; it just had nowhere to go.
+   */
+  term?: string,
+): StudioError {
   return {
     code: typeof code === 'string' ? code : 'fallback',
-    message: mapApiError(code, t),
+    message: mapApiError(code, t, term ? { term } : undefined),
     ...(typeof required === 'number' ? { required } : {}),
   };
 }

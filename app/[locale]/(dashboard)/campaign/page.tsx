@@ -48,7 +48,7 @@ function CampaignPageContent(): React.ReactElement {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined));
+        setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined));
         return;
       }
 

@@ -39,6 +39,10 @@ interface Scene {
 
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
+  // Scoped, not an arrow wrapper: `tStudio` takes one
+  // argument and silently drops the values a message needs, so an ICU
+  // placeholder like {term} rendered as literal text.
+  const tStudio = useTranslations('studio');
   const tSb = useTranslations('storyboard');
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [concept, setConcept] = useState('');
@@ -66,10 +70,10 @@ export default function StoryboardPage(): React.ReactElement {
         body: JSON.stringify({ concept, duration, style, platform, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(toStudioError(data.error, (k) => t(`studio.${k}`), typeof data.required === 'number' ? data.required : undefined)); return; }
+      if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setScenes(data.data.scenes || []);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
-    } catch { setError(toStudioError('network', (k) => t(`studio.${k}`))); } finally { setIsLoading(false); }
+    } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, concept, duration, style, platform, setBalance, t, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
