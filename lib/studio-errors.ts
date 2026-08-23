@@ -13,6 +13,11 @@ const KNOWN_ERROR_CODES = new Set([
   'duration_exceeded',
   'voice_not_available',
   'dialect_not_available',
+  // 503 from the voiceover route: the narrator is on the plan, the path to it is
+  // down, and the reservation came back in full. Absent from this set the code
+  // resolves to `fallback`, i.e. "something unexpected went wrong" — which tells
+  // the customer neither to pick another voice nor that they were not charged.
+  'premium_voice_unavailable',
   'network',
   'project_not_found',
   'refund_failed',

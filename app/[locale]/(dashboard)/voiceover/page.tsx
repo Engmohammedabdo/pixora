@@ -64,6 +64,10 @@ export default function VoiceOverPage(): React.ReactElement {
   const [isPlaying, setIsPlaying] = useState(false);
   const [provider, setProvider] = useState<string>('');
   const [enhanced, setEnhanced] = useState(false);
+  // The route reprices a fallback run from the premium rate down to the standard
+  // one. Without this the balance drops by a different number than the form
+  // quoted and nothing on screen accounts for the difference.
+  const [usedFallback, setUsedFallback] = useState(false);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -81,7 +85,7 @@ export default function VoiceOverPage(): React.ReactElement {
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
-    setIsLoading(true); setError(null); setAudioUrl(null); setIsPlaying(false);
+    setIsLoading(true); setError(null); setAudioUrl(null); setIsPlaying(false); setUsedFallback(false);
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     try {
       const res = await fetch('/api/studios/voiceover', {
@@ -94,6 +98,7 @@ export default function VoiceOverPage(): React.ReactElement {
       setAudioDuration(data.data.duration || 0);
       setProvider(data.data.provider || '');
       setEnhanced(data.data.enhanced || false);
+      setUsedFallback(data.data.usedFallback === true);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, script, voice, dialect, speed, tone, setBalance, tStudio, projectId]);
@@ -273,6 +278,14 @@ export default function VoiceOverPage(): React.ReactElement {
         {provider && <Badge variant="secondary" className="text-[9px]">{provider === 'elevenlabs' ? tVo('pyraVoicePro') : tVo('pyraVoice')}</Badge>}
         {enhanced && <Badge variant="secondary" className="text-[9px] gap-0.5"><Info className="h-2.5 w-2.5" /> {tVo('enhanced')}</Badge>}
       </div>
+      {/* Stated, not badged: the charge on this run differs from the one the form
+          quoted, so it needs a sentence the customer can read, not an icon. */}
+      {usedFallback && (
+        <div className="flex max-w-md items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          <Info className="h-4 w-4 flex-shrink-0" />
+          <span>{tVo('fallbackNotice')} 🦊</span>
+        </div>
+      )}
       <div className="w-full max-w-sm bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-4">
         <audio
           ref={(el) => { audioRef.current = el; }}

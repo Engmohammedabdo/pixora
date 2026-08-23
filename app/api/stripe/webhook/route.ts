@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe/client';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCreditsForPlan, PLANS } from '@/lib/stripe/plans';
 import { sendPaymentFailedEmail } from '@/lib/email/send';
+import { planSwitchBalance } from '@/lib/credits/plan-switch';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -305,7 +306,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (planId && isLive) {
           const { data: prevProfile, error: prevError } = await supabase
             .from('profiles')
-            .select('plan_id')
+            .select('plan_id, credits_balance, purchased_credits, credits_reset_date')
             .eq('id', userId)
             .single();
 
@@ -323,22 +324,127 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             break;
           }
 
-          const credits = getCreditsForPlan(planId);
+          // ═══ What a plan switch is allowed to do to the balance ═══
+          //
+          // This used to ASSIGN the new plan's whole month (`credits_balance =
+          // getCreditsForPlan(planId)`), guarded only by the no-op check above. But
+          // Stripe merely PRORATES a mid-period switch: a down-then-up cycle in the
+          // billing portal costs the customer close to nothing in money — the
+          // downgrade issues customer credit, the upgrade spends it again — while
+          // every upward switch re-issued a full month of credits. Repeatable for as
+          // long as the portal is open. The same absolute write also DESTROYED the
+          // unused balance of a month the customer had already paid for whenever
+          // they switched down.
+          //
+          // The rule has to be stated on WHAT THE PERIOD HAS BEEN PAID FOR, and on
+          // nothing else. Two earlier attempts stated it on quantities the customer
+          // controls, and both were still taps:
+          //
+          //   - stating it on the event (has this exact switch granted before?)
+          //     fails because every switch in the cycle is a genuine, distinct tier
+          //     change and looks identical to honest churn;
+          //   - stating it on the resulting BALANCE fails because balance is a
+          //     number the customer moves at will. Cap the balance at the new
+          //     allowance and a lap that ends at zero simply re-earns the whole
+          //     difference: spend 600, drop to starter, return to pro, collect 400,
+          //     repeat for as long as the portal is open.
+          //
+          // Credits already granted this period is the one quantity spending cannot
+          // move, so that is what the ceiling is measured against.
+          //
+          //   1. an upgrade may add at most the DIFFERENCE between the allowances,
+          //      and never more than the period has left before it has issued one
+          //      full allowance of the tier being moved to;
+          //   2. the balance is clamped to the new tier's allowance in BOTH
+          //      directions. Clamping DOWN matters as much as clamping up: Stripe
+          //      prorates a mid-period downgrade, so it hands the customer back the
+          //      money for the part of the month they are giving up. Leaving the
+          //      higher tier's credits in place as well would pay them twice —
+          //      buy Agency, downgrade a minute later, keep the whole allowance.
+          //
+          // purchased_credits is a separate pool (031) and is never touched here, so
+          // a top-up the customer actually bought survives every switch.
+          const previousAllowance = getCreditsForPlan(previousPlan);
+          const newAllowance = getCreditsForPlan(planId);
+          const balance = prevProfile.credits_balance || 0;
+
+          // When the current period began. Every path that actually PAYS for a month
+          // — checkout.session.completed above and the subscription_cycle branch of
+          // invoice.payment_succeeded below — sets credits_reset_date to 30 days out,
+          // so subtracting the same 30 days recovers the start. A missing date falls
+          // back to the same width, which errs toward counting MORE prior grants
+          // rather than fewer; that direction costs credits, it does not mint them.
+          const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+          const periodEnd = prevProfile.credits_reset_date
+            ? new Date(prevProfile.credits_reset_date).getTime()
+            : Date.now() + PERIOD_MS;
+          const periodStart = new Date(periodEnd - PERIOD_MS).toISOString();
+
+          // How much plan allowance this period has already handed out. Both paid
+          // grants write type='subscription', and so does the grant below, so this
+          // sum IS the high-water mark of allowance issued this period. A clamp-down
+          // writes type='reset' precisely so it does not reduce that mark and hand
+          // the customer a second chance to collect.
+          const { data: priorGrants, error: grantsError } = await supabase
+            .from('credit_transactions')
+            .select('amount')
+            .eq('user_id', userId)
+            .eq('type', 'subscription')
+            .gte('created_at', periodStart);
+
+          // Fail CLOSED. Getting this read wrong in the generous direction mints
+          // credits against a live Stripe account; getting it wrong in the mean
+          // direction costs an honest upgrader credits that the next renewal
+          // restores anyway. Only one of those is recoverable.
+          if (grantsError) {
+            console.error(`[webhook] subscription.updated: could not read prior grants for ${userId} — granting nothing on this switch: ${grantsError.message}`);
+          }
+          const alreadyGranted = grantsError
+            ? newAllowance
+            : (priorGrants ?? []).reduce((sum, row) => sum + (row.amount || 0), 0);
+
+          // The arithmetic lives in lib/credits/plan-switch.ts so it can be proved
+          // against the attack SEQUENCES rather than argued about here — see
+          // scripts/tests/plan-switch.test.ts. `granted` is negative on a clamp-down,
+          // and the ledger row below records it as such.
+          const { newBalance, granted } = planSwitchBalance({
+            balance,
+            previousAllowance,
+            newAllowance,
+            alreadyGrantedThisPeriod: alreadyGranted,
+          });
+
+          const isUpgrade = (PLANS[planId]?.price || 0) > (PLANS[previousPlan]?.price || 0);
+
+          // plan_id and credits_balance move in ONE write, and that is also what
+          // makes an additive grant replay-safe here. Stripe delivers at least once
+          // and this route deliberately re-runs an event whose row exists but is not
+          // yet marked processed; a redelivery re-reads the profile, finds
+          // `previousPlan === planId` and stops above. Splitting the two columns
+          // across two writes would lose that property.
           await mustSucceed(supabase
             .from('profiles')
-            .update({ plan_id: planId, credits_balance: credits, payment_failed: false })
+            .update({ plan_id: planId, credits_balance: newBalance, payment_failed: false })
             .eq('id', userId), 'subscription.updated: update profile');
 
           await mustSucceed(supabase.from('credit_transactions').insert({
             user_id: userId,
-            amount: credits,
-            type: 'subscription',
-            description: `Plan updated to ${planId} — ${credits} credits`,
-            balance_after: credits,
+            amount: granted,
+            // A plan change that grants nothing is bookkeeping, not a credit
+            // purchase — same shape downgradeToFree() writes, so the two read alike
+            // in the customer's history.
+            type: granted > 0 ? 'subscription' : 'reset',
+            description: granted > 0
+              ? `Plan changed ${previousPlan} -> ${planId} — ${granted} credits added (difference between allowances)`
+              : `Plan changed ${previousPlan} -> ${planId} — balance ${granted === 0 ? `kept at ${newBalance}` : `adjusted by ${granted} to ${newBalance} (new tier allowance)`}`,
+            // Purchased credits are a separate pool and a plan change does not touch
+            // them, but the balance the customer is looking at includes them — the
+            // ledger has to agree with that widget. The old row wrote the plan
+            // allowance alone and disagreed for anyone who had ever bought a top-up.
+            balance_after: newBalance + (prevProfile.purchased_credits || 0),
           }), 'subscription.updated: ledger entry');
 
           // Track plan change for analytics
-          const isUpgrade = (PLANS[planId]?.price || 0) > (PLANS[previousPlan]?.price || 0);
           await supabase.from('subscription_events').insert({
             user_id: userId,
             event_type: isUpgrade ? 'upgrade' : 'downgrade',

@@ -13,6 +13,7 @@
  * function would be a bigger change than the guard is worth.
  */
 import { sanitizePrompt, PromptBlockedError } from '../../lib/ai/prompts/safety';
+import { buildPlanPrompt } from '../../lib/ai/prompts/plan';
 
 let failures = 0;
 let checks = 0;
@@ -112,6 +113,61 @@ checks += 1;
 if (blockedTerm('صورة القنبله') !== 'قنبله') {
   failures += 1;
   console.error('  FAIL  blocked term should be reported in its canonical form');
+}
+
+// ── The plan builder must actually RUN the filter ──────────────────────────
+//    lib/ai/prompts/plan.ts imported sanitizePrompt and never called it, so
+//    `plan` shipped as the one paid studio with no prompt filter at all and its
+//    route's PromptBlockedError arm was dead code. An unused import keeps both
+//    tsc and eslint green, so nothing but a test can hold this — and every
+//    free-text field is checked, because sanitizing only the "main" one is how
+//    the gap reopens.
+type PlanInput = Parameters<typeof buildPlanPrompt>[0];
+
+const PLAN_BASE: PlanInput = {
+  businessName: 'متجر التمور',
+  industry: 'تجزئة',
+  goals: ['زيادة المبيعات'],
+  targetMarket: 'السعودية',
+  budget: '5000 درهم',
+  duration: 30,
+};
+
+function planBlockedTerm(override: Partial<PlanInput>): string | null {
+  try {
+    buildPlanPrompt({ ...PLAN_BASE, ...override });
+    return null;
+  } catch (error) {
+    return error instanceof PromptBlockedError ? error.blockedTerm : 'UNEXPECTED_ERROR';
+  }
+}
+
+const PLAN_FIELDS: [string, Partial<PlanInput>][] = [
+  ['businessName', { businessName: 'متجر القنبله' }],
+  ['industry', { industry: 'صناعة القنبله' }],
+  ['stage', { stage: 'قنبله' }],
+  ['targetMarket', { targetMarket: 'سوق القنبله' }],
+  ['budget', { budget: '5000 قنبله' }],
+  // The second entry, not the first: the goals are sanitized per item, and a
+  // loop that only ever checks index 0 passes against a builder that does not.
+  ['goals', { goals: ['زيادة المبيعات', 'صورة قنبله'] }],
+];
+
+for (const [field, override] of PLAN_FIELDS) {
+  checks += 1;
+  const hit = planBlockedTerm(override);
+  if (hit !== 'قنبله') {
+    failures += 1;
+    console.error(`  FAIL  buildPlanPrompt must sanitize "${field}"  -> got ${JSON.stringify(hit)}`);
+  }
+}
+
+// A clean brief must still build, or the guard above could be "satisfied" by a
+// builder that throws on everything.
+checks += 1;
+if (planBlockedTerm({}) !== null) {
+  failures += 1;
+  console.error('  FAIL  buildPlanPrompt should build an ordinary brief');
 }
 
 if (failures > 0) {

@@ -154,10 +154,79 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
-  const action = updates.banned === true ? 'user_ban' : updates.banned === false ? 'user_unban' : 'user_update';
-  await logAdminAction(action, 'user', id, updates, getClientIP(request));
+  // Revoke the session on the AUTH side too, not just in our own table.
+  //
+  // `profiles.banned` is a flag only our code reads. GoTrue knows nothing about
+  // it, so before this the banned customer's refresh token stayed valid and kept
+  // minting fresh access tokens indefinitely — the ban began whenever they next
+  // chose to load an HTML page, which is to say never. Banning the user in GoTrue
+  // makes the token grant itself refuse, so the ban outlives the access token
+  // already in their browser rather than ending with the admin's patience.
+  // GoTrue takes a DURATION, not a flag; 'none' is its documented way to lift one.
+  //
+  // Best effort ON PURPOSE. The profile row is already written by the time we get
+  // here and every request of ours checks that row (middleware enforces it on both
+  // the page and the /api/* branch), so failing the whole call would report "ban
+  // failed" for a ban that IS in force everywhere our code looks. The outcome is
+  // reported instead, so the admin knows whether the live session was killed now
+  // or only the next middleware check will catch it.
+  let sessionRevoked: boolean | null = null;
+  let sessionRevokeError: string | null = null;
+  if (updates.banned === true || updates.banned === false) {
+    const { error: authError } = await supabase.auth.admin.updateUserById(id, {
+      ban_duration: updates.banned === true ? '876000h' : 'none',
+    });
+    if (authError) {
+      sessionRevokeError = authError.message;
+      // Loud on purpose, and phrased as the operational consequence rather than
+      // as the API call that failed: a `false` in this branch means a user the
+      // admin believes is locked out is still holding a working session.
+      console.error(
+        `[admin/users] SESSION NOT REVOKED — user ${id} was ${updates.banned === true ? 'banned' : 'unbanned'} in profiles, ` +
+        `but GoTrue refused the matching ${updates.banned === true ? 'ban' : 'unban'}: ${authError.message}. ` +
+        `${updates.banned === true
+          ? 'Their existing access token keeps working until it expires; only the middleware check stands in the way.'
+          : 'They stay locked out of the auth layer despite the unban and must be released manually.'}`
+      );
+    }
+    sessionRevoked = !authError;
+  }
 
-  return NextResponse.json({ success: true, data });
+  const action = updates.banned === true ? 'user_ban' : updates.banned === false ? 'user_unban' : 'user_update';
+  await logAdminAction(
+    action,
+    'user',
+    id,
+    {
+      ...updates,
+      ...(sessionRevoked === null ? {} : { session_revoked: sessionRevoked }),
+      ...(sessionRevokeError === null ? {} : { session_revoke_error: sessionRevokeError }),
+    },
+    getClientIP(request)
+  );
+
+  // A half-applied ban is reported as a `warning` on an otherwise successful
+  // response, not as a 500. The profile row IS written and every request of ours
+  // enforces it, so the ban is real — but the admin is the only one who can decide
+  // whether to retry or wait out the token, and they cannot decide what they were
+  // never told. The shape is a code plus a ready-to-render message so the panel can
+  // surface it without re-deriving the meaning of the flag.
+  return NextResponse.json({
+    success: true,
+    data,
+    ...(sessionRevoked === null ? {} : { sessionRevoked }),
+    ...(sessionRevoked === false
+      ? {
+          warning: {
+            code: 'session_revocation_failed',
+            message: updates.banned === true
+              ? 'Saved, but the sign-in session could not be revoked. This user stays blocked everywhere in the app, yet any access token already in their browser keeps working until it expires. Retry the ban to revoke it.'
+              : 'Saved, but the sign-in block could not be lifted on the auth side. This user is unbanned in the app but may still be refused at sign-in. Retry the unban.',
+            detail: sessionRevokeError,
+          },
+        }
+      : {}),
+  });
 }
 
 export async function DELETE(

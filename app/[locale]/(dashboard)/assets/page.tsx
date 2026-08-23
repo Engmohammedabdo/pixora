@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
-import { AssetCard } from '@/components/shared/AssetCard';
+import { AssetCard, assetFileName } from '@/components/shared/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { downloadFiles } from '@/lib/download';
@@ -15,6 +15,10 @@ interface Asset {
   id: string;
   url: string;
   type: string;
+  /** Needed for the saved filename: the studio filter includes voiceover, which
+   *  writes type 'audio' / format 'mp3'. Naming that .png hands the customer a
+   *  file their OS refuses to open. */
+  format?: string | null;
   created_at: string;
   generation_id?: string | null;
 }
@@ -106,7 +110,11 @@ export default function AssetsPage(): React.ReactElement {
 
   const handleDownloadSelected = (): void => {
     const selected = assets.filter((a) => selectedIds.has(a.id));
-    void downloadFiles(selected.map((asset) => ({ url: asset.url, filename: `pyrasuite-${asset.id}.png` })));
+    // The extension comes from the row, not from a guess — see assetFileName.
+    // downloadFiles() saves sequentially and stops at the first failure, so a
+    // partial batch must say so rather than looking like a completed one.
+    downloadFiles(selected.map((asset) => ({ url: asset.url, filename: assetFileName(asset) })))
+      .catch(() => toast.error(t('downloadFailed')));
   };
 
   return (
@@ -177,6 +185,7 @@ export default function AssetsPage(): React.ReactElement {
               id={asset.id}
               url={asset.url}
               type={asset.type}
+              format={asset.format}
               studio={undefined}
               createdAt={asset.created_at}
               selected={selectedIds.has(asset.id)}

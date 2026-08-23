@@ -8,7 +8,7 @@ import { buildPlanPrompt } from '@/lib/ai/prompts/plan';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -21,6 +21,82 @@ const InputSchema = z.object({
   budget: z.string().min(1).max(200),
   duration: z.enum(['30', '60', '90']),
 });
+
+/*
+ * The model's JSON was accepted on "did JSON.parse succeed", finalized as
+ * `completed`, and the 5 credits kept. The page then dereferenced nested arrays
+ * the top-level types called optional — `plan.budget.breakdown.map`,
+ * `week.content.map` — and a render throw trips the segment error boundary, so
+ * the customer paid and got a generic Arabic error instead of a plan.
+ *
+ * Shape is checked HERE so a wrong one takes the existing parse-failure branch
+ * (refund + `generation_parse_failed`) rather than being sold, and the value we
+ * store and return is the PARSED one — so the row RecentWork restores later is
+ * normalized too.
+ */
+
+/** A field the UI prints. A number where prose was asked for is not worth a
+ *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
+const printable = z
+  .union([z.string(), z.number(), z.boolean()])
+  .transform((v) => String(v))
+  .catch('');
+
+/** Does this section actually SHOW the customer anything?
+ *
+ *  Every leaf above is `.catch('')`, which never fails — it turns a
+ *  non-printable value into an empty string. So a non-empty array proves
+ *  nothing: `{"objectives":[{},{}]}` parses into two entries of empty strings,
+ *  and counting `.length` sold that as a plan for 5 credits. Numbers are left
+ *  out on purpose — a week index or a percentage is not a deliverable. */
+function hasPrintableText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some(hasPrintableText);
+  return false;
+}
+
+const numeric = z
+  .union([z.number(), z.string()])
+  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
+  .catch(0);
+
+const PlanSchema = z
+  .object({
+    objectives: z.array(z.object({ goal: printable, kpi: printable, target: printable }).loose()).catch([]),
+    channels: z.array(z.object({ name: printable, budget_pct: numeric, strategy: printable }).loose()).catch([]),
+    calendar: z
+      .array(z.object({ week: numeric, content: z.array(printable).catch([]), channel: printable }).loose())
+      .catch([]),
+    budget: z
+      .object({
+        total: printable,
+        breakdown: z.array(z.object({ item: printable, amount: printable, pct: numeric }).loose()).catch([]),
+      })
+      .loose()
+      .optional()
+      .catch(undefined),
+    kpis: z.array(z.object({ metric: printable, target: printable, tracking: printable }).loose()).catch([]),
+  })
+  .loose()
+  // Every section above defaults to empty, so `{}` would otherwise parse and be
+  // charged for. A plan with nothing in any section is the same failure the
+  // campaign studio already treats as one: an empty response sold as nine posts.
+  //
+  // Stated on CONTENT, not on `.length`: entry COUNT was the wrong question,
+  // because `.catch('')` means an entry always parses. `{"objectives":[{},{}]}`
+  // passed the count and was finalized as `completed` for a deliverable of
+  // empty strings. Only the fields the page and the PDF actually print are
+  // considered, so a section of unrendered junk cannot vouch for itself.
+  .refine((p) => {
+    const sections: unknown[] = [
+      p.objectives.map((o) => [o.goal, o.kpi, o.target]),
+      p.channels.map((c) => [c.name, c.strategy]),
+      p.calendar.map((w) => [w.content, w.channel]),
+      p.kpis.map((k) => [k.metric, k.target, k.tracking]),
+      p.budget?.breakdown.map((b) => [b.item, b.amount]) ?? [],
+    ];
+    return sections.some(hasPrintableText);
+  }, 'model returned no usable plan sections');
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -43,6 +119,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = await request.json();
     const input = InputSchema.parse(body);
+
+    // The safety filter runs HERE, before the generations row and before the
+    // reservation — the same order campaign and creator use. buildPlanPrompt
+    // sanitizes too, but it is called with 5 credits already held, so a blocked
+    // prompt had to be refunded back out again; and if that refund failed the
+    // loss was silent, because the refund guard below used to exempt
+    // PromptBlockedError from its alarm. A blocked plan now costs nothing and
+    // needs no refund at all.
+    //
+    // EVERY field is free text that reaches the prompt, so every one is filtered
+    // — at the caps the builder itself uses (which mirror InputSchema's maxima),
+    // so the builder's second pass truncates nothing and cannot throw.
+    const safeInput = {
+      ...input,
+      businessName: sanitizePrompt(input.businessName, 200),
+      industry: sanitizePrompt(input.industry, 100),
+      targetMarket: sanitizePrompt(input.targetMarket, 500),
+      budget: sanitizePrompt(input.budget, 200),
+      goals: input.goals.map((g) => sanitizePrompt(g, 200)),
+    };
 
     // Never trust a client-supplied project id: verify it belongs to the caller
     // before filing work into it, or a user could write into another
@@ -82,18 +178,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildPlanPrompt({ ...input, duration: parseInt(input.duration, 10) });
+    const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10) });
     const result = await generateText({ prompt, maxTokens: 8192 });
 
     // A model response we cannot parse is a FAILURE, not a result. Previously this
     // fell back to canned Arabic filler, marked the generation `completed` and
     // charged full price — so the customer paid to receive boilerplate that was
     // not about their business at all.
-    let plan: Record<string, unknown>;
+    let plan: z.infer<typeof PlanSchema>;
     try {
       const jsonMatch = (result.text || '').match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('model returned no JSON object');
-      plan = JSON.parse(jsonMatch[0]);
+      // Valid JSON of the WRONG shape is a parse failure too — it throws here so
+      // it lands in the same refund branch, never in `completed`.
+      plan = PlanSchema.parse(JSON.parse(jsonMatch[0]));
     } catch {
       if (generation) {
         await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
@@ -121,9 +219,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         generationId: generation?.id,
       });
       if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
-      // PromptBlockedError carries its own dedicated response (400 + `term`),
-      // handled by the outer catch below — don't clobber that with refund_failed.
-      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+      // No exemption here. The filter now runs before the reservation, so a
+      // blocked prompt cannot reach this arm at all — and back when it could,
+      // exempting it meant a refund that FAILED still returned a tidy 400 and
+      // lost the credits with nothing logged. Credits that did not come back
+      // are the alarm, whatever threw.
+      if (!refundResult.success) {
         console.error('Plan API error:', genError);
         return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
       }

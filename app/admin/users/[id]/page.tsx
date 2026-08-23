@@ -8,6 +8,7 @@ import CreditAdjustModal from '@/components/admin/CreditAdjustModal';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import DataTable, { Column } from '@/components/admin/DataTable';
 import { ArrowLeft, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id: string;
@@ -29,6 +30,13 @@ interface UserProfile {
     brandKits: number;
     assets: number;
   };
+}
+
+/** The `warning` shape PATCH /api/admin/users/[id] returns alongside success. */
+interface ActionWarning {
+  code: string;
+  message: string;
+  detail: string | null;
 }
 
 type TabType = 'generations' | 'transactions' | 'brand_kits' | 'assets' | 'timeline';
@@ -253,8 +261,17 @@ export default function AdminUserDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (data.success) setUser(data.data);
+      const data: { success: boolean; data?: UserProfile; warning?: ActionWarning } = await res.json();
+      if (data.success && data.data) setUser(data.data);
+      // A ban the auth layer refused still comes back `success: true` — the profile
+      // row IS written and every request of ours enforces it. Without this the admin
+      // closes a clean dialog while the banned customer's already-issued access token
+      // keeps working, spending credits on every paid route until it expires. They are
+      // the only one who can decide to retry, and this is the only moment they will.
+      if (data.warning) {
+        toast.error(data.warning.message, { duration: 15000 });
+        console.error('[admin/users]', data.warning.code, data.warning.detail);
+      }
       setBanDialogOpen(false);
       setBanReason('');
     } finally {

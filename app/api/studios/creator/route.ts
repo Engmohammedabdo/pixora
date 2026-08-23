@@ -10,7 +10,7 @@ import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt,
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
 import { resolveProjectId } from '@/lib/projects/verify';
@@ -26,6 +26,51 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
   referenceImageUrl: z.string().url().optional(),
 });
+
+/**
+ * The brief's labels, in the order buildCreatorPrompt emits them, keyed by the
+ * token the admin prompt editor advertises for each one.
+ */
+const OVERRIDE_BRIEF_LABELS: ReadonlyArray<readonly [token: string, label: string]> = [
+  ['user_prompt', 'Subject'],
+  ['brand_name', 'Brand'],
+  ['brand_colors', 'Brand Colors'],
+  ['selected_style', 'Visual Style'],
+  ['resolution', 'Resolution'],
+];
+
+/**
+ * Fill an admin override's {tokens}, then append only the parts of the brief it
+ * did not already ask for.
+ *
+ * /api/admin/prompts:8 advertises these tokens as clickable chips and seeds the
+ * copyable default WITH them (`userPrompt: '{user_prompt}'`, :50), so an
+ * override written the way the UI teaches contains `{user_prompt}` verbatim.
+ * Appending the brief without substituting shipped that literal brace text to
+ * the model as content; substituting and then appending everything anyway would
+ * state the same subject twice. So: substitute, and append what is left over.
+ *
+ * A token we do not recognise is left exactly as written. Blanking it would
+ * silently delete something the admin typed, and guessing at its meaning is
+ * worse than letting them see their own text came through untouched.
+ */
+function composeOverridePrompt(override: string, values: Readonly<Record<string, string>>): string {
+  const substituted = new Set<string>();
+  const filled = override.replace(/\{([a-z_]+)\}/g, (match: string, token: string) => {
+    if (!(token in values)) return match;
+    substituted.add(token);
+    return values[token];
+  });
+
+  // Same labels buildCreatorPrompt uses, so an override written against the
+  // default prompt's shape still reads as one prompt rather than two stapled
+  // together.
+  const brief = OVERRIDE_BRIEF_LABELS
+    .filter(([token]) => !substituted.has(token) && values[token])
+    .map(([token, label]) => `- ${label}: ${values[token]}`);
+
+  return brief.length > 0 ? `${filled}\n\n${brief.join('\n')}` : filled;
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -96,14 +141,59 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandKit = data;
     }
 
+    // The safety filter runs HERE, on the customer's own text, before anything
+    // branches on the admin override. buildCreatorPrompt() is the only caller of
+    // sanitizePrompt on this path, so while the override REPLACED the built
+    // prompt, setting one in /admin/settings switched the prompt filter off for
+    // the highest-risk paid surface in the product — and PromptBlockedError, the
+    // 400 + `term` response the UI is built to render, could never fire. A filter
+    // that an unrelated setting can disable is not a filter.
+    // Capped at the schema's own maximum (InputSchema.prompt max 1000) rather
+    // than sanitizePrompt's 2000 default, so the builder and the override path
+    // truncate identically.
+    const safeUserPrompt = sanitizePrompt(input.prompt, 1000);
+
     // Build prompt (check for admin override first)
     const promptOverride = await getEffectivePrompt('creator');
-    const fullPrompt = promptOverride || buildCreatorPrompt({
-      userPrompt: input.prompt,
-      style: input.style,
-      resolution: input.resolution,
-      brandKit,
-    });
+
+    // The override COMPOSES with the customer's brief, it does not replace it.
+    // `promptOverride || build(...)` dropped input.prompt entirely — the model
+    // was asked to draw nothing in particular while `generations.input` still
+    // recorded the customer's request, so the row looked like it had been used.
+    // See composeOverridePrompt() for why the brief is substituted first and
+    // only then appended.
+    //
+    // The values are built INSIDE this branch, not above it: sanitizePrompt
+    // throws, and running it on fields the default path never uses would let an
+    // unrelated brand-kit string block a generation that has no override at all.
+    // The brand kit's own columns are filtered here because they are
+    // customer-writable and would otherwise reach the model without ever
+    // meeting the filter — the same shape of hole the override itself once
+    // punched in it.
+    const fullPrompt = promptOverride
+      ? composeOverridePrompt(promptOverride, {
+          user_prompt: safeUserPrompt,
+          brand_name: brandKit?.name ? sanitizePrompt(String(brandKit.name), 200) : '',
+          brand_colors: brandKit
+            ? sanitizePrompt(
+                `Primary ${brandKit.primary_color}, Secondary ${brandKit.secondary_color}, Accent ${brandKit.accent_color}`,
+                200
+              )
+            : '',
+          selected_style: sanitizePrompt(input.style, 100),
+          resolution: input.resolution,
+          // Nothing in this studio's UI sets a mood or a platform, so the
+          // builder's own defaults are the honest values to give an override
+          // that asks for them.
+          mood: 'Professional',
+          platform: 'General',
+        })
+      : buildCreatorPrompt({
+          userPrompt: safeUserPrompt,
+          style: input.style,
+          resolution: input.resolution,
+          brandKit,
+        });
 
     // Create generation record
     const { data: generation, error: genError } = await supabase

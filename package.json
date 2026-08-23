@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads",
+    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -14,7 +14,8 @@
     "test:safety": "npx tsx scripts/tests/safety.test.ts",
     "test:uploads": "npx tsx scripts/tests/uploaded-url.test.ts",
     "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts",
-    "check:mail": "node scripts/check-mail-dns.js"
+    "check:mail": "node scripts/check-mail-dns.js",
+    "test:plan-switch": "npx tsx scripts/tests/plan-switch.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -64,6 +65,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.14",
     "pg": "^8.20.0",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.3"
   }
 }

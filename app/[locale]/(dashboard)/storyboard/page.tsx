@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -32,11 +33,29 @@ const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
 const DURATIONS = ['15', '30', '60'] as const;
 type Duration = (typeof DURATIONS)[number];
 
+// Every field is optional on purpose. The route validates the model's shape now,
+// but rows written before that guard existed are still restored here out of
+// `generations.output` — and this component's render is the last thing standing
+// between a thin field and the segment error boundary eating a paid-for
+// storyboard. Optional types force the guard at compile time.
 interface Scene {
-  scene_number: number; visual_description: string; dialogue: string;
-  camera_angle: string; camera_movement: string; duration_seconds: number;
-  mood: string; music_note: string;
+  scene_number?: number; visual_description?: string; dialogue?: string;
+  camera_angle?: string; camera_movement?: string; duration_seconds?: number;
+  mood?: string; music_note?: string;
 }
+
+/** The ELEMENTS, not just the array. A stored row can hold `[null, 7, {...}]`
+ *  under `scenes`, and `scene.scene_number` on a null element throws through
+ *  the segment error boundary exactly as the missing array guard used to —
+ *  generateStoryboardPdf reads the same array, so it throws there too.
+ *  Normalising at the two points scenes enter state covers both. */
+const toScenes = (value: unknown): Scene[] =>
+  Array.isArray(value) ? value.filter((s): s is Scene => typeof s === 'object' && s !== null) : [];
+
+/** Model output printed as text. `undefined.substring()` is what took the whole
+ *  studio down; `String(undefined)` on screen is barely better. */
+const text = (value: unknown): string =>
+  typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
 
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
@@ -75,7 +94,7 @@ export default function StoryboardPage(): React.ReactElement {
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
-      setScenes(data.data.scenes || []);
+      setScenes(toScenes(data.data?.scenes));
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
@@ -116,7 +135,10 @@ export default function StoryboardPage(): React.ReactElement {
         place the result exists. Without this list, closing the tab destroys
         work the customer already paid for.
       */}
-      <RecentWork studio="storyboard" onRestore={(output) => setScenes((output.scenes as Scene[]) || [])} refreshKey={runs} />
+      {/* A cast is not a check: a row stored before the route validated shape can
+          hold anything under `scenes`, including a bare object or a list with
+          holes in it. */}
+      <RecentWork studio="storyboard" onRestore={(output) => setScenes(toScenes(output.scenes))} refreshKey={runs} />
     </div>
   );
 
@@ -138,26 +160,30 @@ export default function StoryboardPage(): React.ReactElement {
   ) : (
     <div className="space-y-3">
     <div>
-      <Button size="sm" variant="outline" className="gap-1" onClick={() => openPdfInNewTab(generateStoryboardPdf(scenes, concept))}>
+      {/* A blocked popup used to be silent — the button did nothing at all, which
+          in an in-app webview (Instagram/WhatsApp) is the common case here. */}
+      <Button size="sm" variant="outline" className="gap-1" onClick={() => { if (!openPdfInNewTab(generateStoryboardPdf(scenes, concept))) toast.error(tStudio('popupBlocked')); }}>
         <FileText className="h-3 w-3" /> {tSb('exportPdf')}
       </Button>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {scenes.map((scene) => (
-        <Card key={scene.scene_number} className="overflow-hidden">
+      {scenes.map((scene, i) => (
+        // Index, not `scene_number`: a model that omitted it gave every card the
+        // same React key.
+        <Card key={i} className="overflow-hidden">
           <div className="h-24 bg-surface-2 flex items-center justify-center text-2xl">🎬</div>
           <CardHeader className="pb-1 px-3 pt-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs">{tSb('scene', { number: scene.scene_number })}</CardTitle>
-              <Badge variant="secondary" className="text-[9px]">{scene.duration_seconds}s</Badge>
+              <CardTitle className="text-xs">{tSb('scene', { number: scene.scene_number ?? i + 1 })}</CardTitle>
+              <Badge variant="secondary" className="text-[9px]">{text(scene.duration_seconds)}s</Badge>
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-1.5 text-[11px]">
-            <p className="text-[var(--color-text-secondary)]" dir="ltr">{scene.visual_description.substring(0, 80)}...</p>
-            <p className="font-medium">{scene.dialogue}</p>
+            <p className="text-[var(--color-text-secondary)]" dir="ltr">{text(scene.visual_description).substring(0, 80)}...</p>
+            <p className="font-medium">{text(scene.dialogue)}</p>
             <div className="flex flex-wrap gap-1">
-              <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Camera className="h-2 w-2" />{scene.camera_angle}</Badge>
-              <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Music className="h-2 w-2" />{scene.mood}</Badge>
+              <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Camera className="h-2 w-2" />{text(scene.camera_angle)}</Badge>
+              <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Music className="h-2 w-2" />{text(scene.mood)}</Badge>
             </div>
           </CardContent>
         </Card>

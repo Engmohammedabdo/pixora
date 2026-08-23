@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, Suspense } from 'react';
+import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
@@ -19,7 +19,7 @@ import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
-import { Sparkles, Upload, X, Download, AlertTriangle } from 'lucide-react';
+import { Sparkles, Upload, X, Download, AlertTriangle, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 
@@ -30,6 +30,21 @@ const EDIT_TYPES = [
   { id: 'text_add', key: 'text_add', emoji: '✍️' },
   { id: 'style_transfer', key: 'style_transfer', emoji: '🔄' },
 ] as const;
+
+/**
+ * What POST /api/upload actually accepts. The picker used to say `image/*`, so
+ * every HEIC from a phone, every GIF and every AVIF was offered, refused with a
+ * 400, and the refusal thrown away — the handler only acted on success, and a
+ * 400 resolves normally so the `catch` never ran. The blob: preview stayed on
+ * screen, Generate enabled, and the route reserved a credit before dying in
+ * lib/ai/gemini.ts. What dies there is the blob: URL specifically, not every
+ * non-https form: fetchReferenceImage() decodes a data: URL inline — that is the
+ * one reference shape the model consumes natively, which is why the edit and
+ * photoshoot routes accept data:image/ — and sends anything else through
+ * new URL() plus an https-and-host-allowlist check that blob: cannot pass.
+ */
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB — the limit /api/upload enforces
 
 function EditPageContent(): React.ReactElement {
   const t = useTranslations();
@@ -48,10 +63,20 @@ function EditPageContent(): React.ReactElement {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  // The object URL lives here and ONLY here, for the seconds the bytes are in
+  // flight. It must never become `originalImage`: that value is posted to the
+  // route as `imageUrl`, and a blob: string is meaningless to the server.
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
-  const isValid = !!originalImage && editDescription.length >= 5;
+  // Not just "an image was picked": an image the SERVER accepted. While an
+  // upload is in flight `originalImage` is still null, so Generate stays down
+  // rather than shipping the previous file under the new preview.
+  const isValid = !!originalImage && !uploading && editDescription.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.edit > balance;
   const { profile } = useUser();
@@ -77,26 +102,94 @@ function EditPageContent(): React.ReactElement {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
   };
 
+  const releasePreview = (): void => {
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current);
+      previewRef.current = null;
+    }
+  };
+  useEffect(() => releasePreview, []);
+
+  /** /api/upload answers with a machine code; anything we have no wording for
+   *  is still a failure the user must see, never a silent one. */
+  const uploadErrorMessage = (code: unknown): string => {
+    const known = ['invalid_type', 'file_too_large', 'storage_not_configured', 'unauthorized'];
+    return tStudio(`uploadErrors.${typeof code === 'string' && known.includes(code) ? code : 'fallback'}`);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = e.target.files?.[0];
+    // Reset first: picking the same file twice fires no change event otherwise,
+    // so a retry after a rejected file would do nothing at all.
+    e.target.value = '';
+    if (!file) return;
+
+    setUploadError('');
+    // The old file is not what the user means any more. Clearing it is what
+    // keeps a rejected pick from silently editing the previous one.
+    setOriginalImage(null);
+    setResultImage(null);
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError(tStudio('uploadErrors.invalid_type'));
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadError(tStudio('uploadErrors.file_too_large'));
+      return;
+    }
+
+    releasePreview();
+    const localPreview = URL.createObjectURL(file);
+    previewRef.current = localPreview;
+    setUploadPreview(localPreview);
+    setUploading(true);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('bucket', 'uploads');
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      // A 400 RESOLVES — it does not throw. Checking only the success branch is
+      // what let a refused upload look identical to an accepted one.
+      const d = (await res.json()) as { success?: boolean; error?: string; data?: { url?: string } };
+      if (!res.ok || !d.success || !d.data?.url) {
+        setUploadError(uploadErrorMessage(d.error));
+        return;
+      }
+      setOriginalImage(d.data.url);
+    } catch {
+      setUploadError(tStudio('uploadErrors.fallback'));
+    } finally {
+      setUploading(false);
+      releasePreview();
+      setUploadPreview(null);
+    }
+  };
+
   const inputPanel = (
     <div className="space-y-4">
       <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2">
         <Label>{tEdit('originalImage')} *</Label>
-        {originalImage ? (
-          <div className="relative inline-block">
-            <Image src={originalImage} alt="" width={400} height={160} className="h-40 w-full rounded-lg object-cover border" unoptimized />
-            <button type="button" onClick={() => { setOriginalImage(null); setResultImage(null); }} className="absolute top-2 end-2 rounded-full bg-[var(--color-error)] p-1 text-white"><X className="h-3 w-3" /></button>
+        {(uploadPreview ?? originalImage) ? (
+          <div className="relative inline-block w-full">
+            <Image src={(uploadPreview ?? originalImage)!} alt="" width={400} height={160} className={cn('h-40 w-full rounded-lg object-cover border transition-opacity', uploading && 'opacity-40')} unoptimized />
+            {uploading ? (
+              <span className="absolute inset-0 flex items-center justify-center" aria-live="polite"><Loader2 className="h-6 w-6 animate-spin text-[var(--color-text-muted)]" /></span>
+            ) : (
+              <button type="button" onClick={() => { setOriginalImage(null); setResultImage(null); setUploadError(''); }} className="absolute top-2 end-2 rounded-full bg-[var(--color-error)] p-1 text-white"><X className="h-3 w-3" /></button>
+            )}
           </div>
         ) : (
           <button type="button" onClick={() => fileRef.current?.click()} className="flex flex-col items-center gap-2 w-full rounded-lg border-2 border-dashed border-[var(--color-border)] p-8 hover:border-primary-300 transition-colors">
             <Upload className="h-8 w-8 text-[var(--color-text-muted)]" /><span className="text-sm text-[var(--color-text-muted)]">{tEdit('uploadImage')}</span>
           </button>
         )}
-        <input ref={fileRef} type="file" accept="image/*" onChange={async (e) => {
-          const f = e.target.files?.[0]; if (!f) return;
-          setOriginalImage(URL.createObjectURL(f));
-          try { const fd = new FormData(); fd.append('file', f); fd.append('bucket', 'uploads'); const res = await fetch('/api/upload', { method: 'POST', body: fd }); const d = await res.json(); if (d.success && d.data?.url) setOriginalImage(d.data.url); } catch { /* blob fallback */ }
-        }} className="hidden" />
+        {/* Matches what /api/upload accepts. `image/*` advertised formats the
+            server refuses, and the refusal had nowhere to go. */}
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={handleFileChange} className="hidden" />
+        {uploadError && <p className="text-xs text-[var(--color-error)]">{uploadError}</p>}
       </div>
       <div className="space-y-2">
         <Label>{tEdit('editType')}</Label>

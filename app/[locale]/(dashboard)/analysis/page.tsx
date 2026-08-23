@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,16 +28,25 @@ import { RecentWork } from '@/components/shared/RecentWork';
 
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
+// The NESTED arrays are optional too, not just the top-level sections. The route
+// validates the model's shape now, but rows written before that guard existed
+// are still restored here out of `generations.output`, and `swot` being truthy
+// says nothing about `swot.strengths` being an array — that dereference is what
+// took the whole studio down through the segment error boundary.
 interface Analysis {
-  swot?: { strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[] };
-  personas?: { name: string; age: string; role: string; goals: string; pain_points: string; channels: string }[];
-  competitors?: { name: string; strengths: string; weaknesses: string; market_share: string }[];
-  usp?: { statement: string; positioning: string; differentiators: string[] };
-  gtm?: { strategy: string; channels: string[]; tactics: string[] };
-  pricing?: { recommendation: string; model: string; tiers: string[] };
-  roadmap?: { day_30: string[]; day_60: string[]; day_90: string[] };
-  kpis?: { metric: string; target: string; timeframe: string }[];
+  swot?: { strengths?: string[]; weaknesses?: string[]; opportunities?: string[]; threats?: string[] };
+  personas?: { name?: string; age?: string; role?: string; goals?: string; pain_points?: string; channels?: string }[];
+  competitors?: { name?: string; strengths?: string; weaknesses?: string; market_share?: string }[];
+  usp?: { statement?: string; positioning?: string; differentiators?: string[] };
+  gtm?: { strategy?: string; channels?: string[]; tactics?: string[] };
+  pricing?: { recommendation?: string; model?: string; tiers?: string[] };
+  roadmap?: { day_30?: string[]; day_60?: string[]; day_90?: string[] };
+  kpis?: { metric?: string; target?: string; timeframe?: string }[];
 }
+
+/** A list the UI iterates. A missing key must cost one empty quadrant, never the
+ *  whole analysis the customer paid 3 credits for. */
+const list = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value : []);
 
 export default function AnalysisPage(): React.ReactElement {
   const t = useTranslations();
@@ -119,7 +129,7 @@ export default function AnalysisPage(): React.ReactElement {
         place the result exists. Without this list, closing the tab destroys
         work the customer already paid for.
       */}
-      <RecentWork studio="analysis" onRestore={(output) => setAnalysis(output.analysis as Analysis)} refreshKey={runs} />
+      <RecentWork studio="analysis" onRestore={(output) => setAnalysis(output.analysis !== null && typeof output.analysis === 'object' ? (output.analysis as Analysis) : null)} refreshKey={runs} />
     </div>
   );
 
@@ -135,10 +145,10 @@ export default function AnalysisPage(): React.ReactElement {
     const s = analysis?.swot;
     if (!s) return <></>;
     const quadrants = [
-      { title: tAn('strengths'), items: s.strengths, color: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' },
-      { title: tAn('weaknesses'), items: s.weaknesses, color: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800' },
-      { title: tAn('opportunities'), items: s.opportunities, color: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' },
-      { title: tAn('threats'), items: s.threats, color: 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' },
+      { title: tAn('strengths'), items: list(s.strengths), color: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' },
+      { title: tAn('weaknesses'), items: list(s.weaknesses), color: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800' },
+      { title: tAn('opportunities'), items: list(s.opportunities), color: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' },
+      { title: tAn('threats'), items: list(s.threats), color: 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' },
     ];
     return (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{quadrants.map((q) => (<div key={q.title} className={cn('rounded-lg border p-4', q.color)}><h4 className="font-semibold text-sm mb-2">{q.title}</h4><ul className="space-y-1">{q.items.map((item, i) => (<li key={i} className="text-xs">• {item}</li>))}</ul></div>))}</div>);
   };
@@ -162,13 +172,13 @@ export default function AnalysisPage(): React.ReactElement {
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-2">
         <div className="flex gap-1 overflow-x-auto flex-1">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2 hover:bg-surface-2/80')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
-        <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => openPdfInNewTab(generateAnalysisPdf(analysis, businessName))}><FileText className="h-3 w-3" />PDF</Button>
+        <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => { if (!openPdfInNewTab(generateAnalysisPdf(analysis, businessName))) toast.error(tStudio('popupBlocked')); }}><FileText className="h-3 w-3" />PDF</Button>
       </div>
       {activeTab === 'swot' && renderSwot()}
-      {activeTab === 'personas' && (<div className="space-y-3">{analysis.personas?.map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>{tAn('role')}:</strong> {p.role}</p><p><strong>{tAn('personaGoals')}:</strong> {p.goals}</p><p><strong>{tAn('challenges')}:</strong> {p.pain_points}</p><p><strong>{tAn('channels')}:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
-      {activeTab === 'competitors' && (<div className="space-y-3">{analysis.competitors?.map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 dark:bg-green-900/30 rounded p-2"><strong>{tAn('strength')}:</strong> {c.strengths}</div><div className="bg-red-50 dark:bg-red-900/30 rounded p-2"><strong>{tAn('weakness')}:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
-      {activeTab === 'roadmap' && analysis.roadmap && (<div className="space-y-4">{(['day_30', 'day_60', 'day_90'] as const).map((period) => (<Card key={period}><CardHeader className="pb-2"><CardTitle className="text-sm">{period === 'day_30' ? tAn('day30') : period === 'day_60' ? tAn('day60') : tAn('day90')}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{analysis.roadmap?.[period]?.map((item, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500 mt-0.5">●</span>{item}</li>))}</ul></CardContent></Card>))}</div>)}
-      {activeTab === 'kpis' && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{analysis.kpis?.map((kpi, i) => (<Card key={i}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--color-brand)]">{kpi.target}</p><p className="text-xs font-medium mt-1">{kpi.metric}</p><p className="text-[10px] text-[var(--color-text-muted)]">{kpi.timeframe}</p></CardContent></Card>))}</div>)}
+      {activeTab === 'personas' && (<div className="space-y-3">{list(analysis.personas).map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>{tAn('role')}:</strong> {p.role}</p><p><strong>{tAn('personaGoals')}:</strong> {p.goals}</p><p><strong>{tAn('challenges')}:</strong> {p.pain_points}</p><p><strong>{tAn('channels')}:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
+      {activeTab === 'competitors' && (<div className="space-y-3">{list(analysis.competitors).map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 dark:bg-green-900/30 rounded p-2"><strong>{tAn('strength')}:</strong> {c.strengths}</div><div className="bg-red-50 dark:bg-red-900/30 rounded p-2"><strong>{tAn('weakness')}:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
+      {activeTab === 'roadmap' && analysis.roadmap && (<div className="space-y-4">{(['day_30', 'day_60', 'day_90'] as const).map((period) => (<Card key={period}><CardHeader className="pb-2"><CardTitle className="text-sm">{period === 'day_30' ? tAn('day30') : period === 'day_60' ? tAn('day60') : tAn('day90')}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(analysis.roadmap?.[period]).map((item, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500 mt-0.5">●</span>{item}</li>))}</ul></CardContent></Card>))}</div>)}
+      {activeTab === 'kpis' && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{list(analysis.kpis).map((kpi, i) => (<Card key={i}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--color-brand)]">{kpi.target}</p><p className="text-xs font-medium mt-1">{kpi.metric}</p><p className="text-[10px] text-[var(--color-text-muted)]">{kpi.timeframe}</p></CardContent></Card>))}</div>)}
     </div>
   );
 

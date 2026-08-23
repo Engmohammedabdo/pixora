@@ -12,9 +12,66 @@ import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
+/**
+ * The product photo must be one the SERVER can read, not one that only means
+ * something inside the customer's tab.
+ *
+ * `z.string().min(1)` accepted `blob:http://localhost:3000/8f2c-…`, which is
+ * what PhotoshootForm sent whenever /api/upload refused the file (HEIC, GIF,
+ * AVIF, anything over 10MB) — the refusal was discarded client-side and the
+ * object URL was submitted instead. This schema passed it, the generations row
+ * was inserted, up to 8 credits were reserved, and only then did
+ * lib/ai/gemini.ts refuse it ("only HTTPS URLs allowed"). The customer watched
+ * a long spinner for a generic failure, was refunded, and retrying the same
+ * file failed identically forever.
+ *
+ * TWO forms are readable server-side and both are accepted:
+ *   - `https://`, which lib/ai/gemini.ts:59-63 fetches through its host
+ *     allowlist;
+ *   - `data:image/`, which lib/ai/gemini.ts:53-57 decodes INLINE before any of
+ *     that — no fetch, no timeout, no allowlist. It is the best-supported
+ *     reference form, not a refused one, and it is what this product actually
+ *     produces: lib/storage/persist-image.ts returns a data: URL whenever the
+ *     storage upload fails, unconditionally on a watermarked free plan because
+ *     that is the fail-CLOSED path keeping the watermark on. An earlier version
+ *     of this guard refused `data:` on the claim that gemini.ts rejects it and
+ *     that nothing here sends one; both were wrong, and it turned a working
+ *     re-shoot of a generated image into a hard 400 during exactly the degraded
+ *     storage state it was built to survive.
+ *
+ * The unbounded-payload concern the old comment raised is real but belongs to
+ * `generations.input`, not to the request — see inputImageRef() below.
+ *
+ * Stated on the RAW string and checked BEFORE the insert, so a blob:, http: or
+ * relative string costs nothing. Raw bytes rather than `new URL()` for the same
+ * reason lib/storage/uploaded-url.ts gives: what is stored is the string the
+ * client sent, so anything a parser would normalise is a value we checked but
+ * did not write.
+ */
+const readableImageUrl = z
+  .string()
+  .min(1)
+  .refine((v) => v.startsWith('https://') || v.startsWith('data:image/'), {
+    message: 'must be an https:// URL the server can fetch, or an inline data:image/ payload (blob:, http: and relative URLs cannot be read server-side)',
+  });
+
+/**
+ * What gets recorded in `generations.input`.
+ *
+ * An inline product photo is a legitimate input but an unbounded one — the
+ * measured payloads run to 2.8 MB — and that column is JSONB every admin screen
+ * reads row by row. Record that one was supplied; the bytes stay in memory,
+ * where the six model calls are the only things that need them.
+ */
+function inputImageRef(url: string): string {
+  if (!url.startsWith('data:')) return url;
+  const mime = url.slice(5).split(';')[0] || 'image';
+  return `[inline ${mime} reference, ${url.length} chars]`;
+}
+
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
-  productImageUrl: z.string().min(1),
+  productImageUrl: readableImageUrl,
   environment: z.enum(['white_studio', 'lifestyle', 'nature', 'urban', 'luxury', 'festive']),
   shots: z.union([z.literal(1), z.literal(3), z.literal(6)]),
   notes: z.string().max(500).optional(),
@@ -88,7 +145,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: user.id, project_id: projectId,
         studio: 'photoshoot',
         model: 'gemini',
-        input: { ...input },
+        // Never the raw payload: `...input` would spill a multi-megabyte inline
+        // product photo into this JSONB column. See inputImageRef().
+        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl) },
         credits_used: creditCost,
         status: 'processing',
       })

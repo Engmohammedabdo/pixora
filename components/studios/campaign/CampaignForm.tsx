@@ -35,6 +35,19 @@ interface CampaignFormProps {
 const DIALECTS = ['saudi', 'emirati', 'egyptian', 'gulf', 'formal'] as const;
 const PLATFORMS = ['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook'] as const;
 
+/**
+ * The same decomposition app/api/studios/campaign/route.ts reserves against —
+ * kept in step with it deliberately: this form showed a flat CREDIT_COSTS.campaign
+ * that did not move when the customer unchecked "Generate All Images", which is
+ * how the overcharge stayed invisible. The route is the authority; if the price
+ * ever splits differently, it changes there first and this follows.
+ */
+const CAMPAIGN_POSTS = 9;
+const campaignCost = (withImages: boolean): number =>
+  withImages
+    ? CREDIT_COSTS.campaign
+    : Math.max(1, CREDIT_COSTS.campaign - CAMPAIGN_POSTS * CREDIT_COSTS.image['1080p']);
+
 export function CampaignForm({ onSubmit, isLoading, initialDescription }: CampaignFormProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
@@ -56,7 +69,11 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
 
   const isValid = productDescription.length >= 10 && targetAudience.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
-  const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.campaign > balance;
+  // Tracks the checkbox, so the figure on the button matches what the route
+  // actually reserves — and a customer who cannot afford the full campaign is
+  // no longer blocked from the text-only one they CAN afford.
+  const cost = campaignCost(generateImages);
+  const cannotAfford = creditsStatus === 'ready' && cost > balance;
 
   const handleSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -184,7 +201,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
 
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-        <CreditCost cost={CREDIT_COSTS.campaign} />
+        <CreditCost cost={cost} />
         <div className="flex items-center gap-2">
           {cannotAfford && (
             <Button asChild variant="default" size="sm">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,7 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
-import { Upload, X, Sparkles, Palette, Shuffle } from 'lucide-react';
+import { Upload, X, Sparkles, Palette, Shuffle, Loader2 } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
 
 interface CreatorFormProps {
@@ -46,6 +46,17 @@ const RANDOM_PROMPTS = [
 
 const STYLES = ['photographic', 'illustrative', 'minimalist', 'bold'] as const;
 
+/**
+ * What POST /api/upload actually accepts. The picker used to say `image/*`, so
+ * every HEIC from a phone, every GIF and every AVIF was offered, refused with a
+ * 400, and the refusal thrown away — the handler only acted on success, and a
+ * 400 resolves normally so the `catch` never ran. The blob: preview stayed on
+ * screen and was submitted as `referenceImageUrl`, which lib/ai/gemini.ts
+ * refuses (non-https) AFTER the route has already reserved the credits.
+ */
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB — the limit /api/upload enforces
+
 export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormProps): React.ReactElement {
   const t = useTranslations('creator');
   const tStudio = useTranslations('studio');
@@ -58,6 +69,19 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const [variations, setVariations] = useState<1 | 4>(1);
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  // A rejected pick is not just a message, it is a state the form must not
+  // generate from. The reference image is optional, so `isValid` never looked at
+  // it — after a refused HEIC the button stayed live and one press charged full
+  // price (up to 4 variations at 4K) for an image made from the prompt alone,
+  // silently ignoring the file the customer had just chosen.
+  const [pickRejected, setPickRejected] = useState(false);
+  // The object URL lives here and ONLY here, for the seconds the bytes are in
+  // flight. It must never become `referenceImage`: that value is posted to the
+  // route as `referenceImageUrl`, and a blob: string is meaningless to the server.
+  const [preview, setPreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
 
   const { brandKits, defaultKit } = useBrandKits();
@@ -75,7 +99,12 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const selectedKit = projectKit ?? (useBrandKit ? defaultKit : undefined);
 
   const creditCost = CREDIT_COSTS.image[resolution] * variations;
-  const isValid = prompt.length >= 10;
+  // The reference image is optional, but neither an upload still in flight nor
+  // a pick we refused is: submitting either would silently generate WITHOUT the
+  // image the user just picked, and charge full price for it. A refusal is
+  // cleared by choosing a supported file or by dismissing it below — both are
+  // the customer saying what they want, which one line of red text is not.
+  const isValid = prompt.length >= 10 && !uploading && !pickRejected;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && creditCost > balance;
 
@@ -94,25 +123,80 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
     });
   };
 
+  const releasePreview = (): void => {
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current);
+      previewRef.current = null;
+    }
+  };
+  useEffect(() => releasePreview, []);
+
+  /** The field is empty again: no file, no refusal, nothing holding Generate down. */
+  const clearReferenceImage = (): void => {
+    setReferenceImage(null);
+    setUploadError('');
+    setPickRejected(false);
+  };
+
+  /** /api/upload answers with a machine code; anything we have no wording for
+   *  is still a failure the user must see, never a silent one. */
+  const uploadErrorMessage = (code: unknown): string => {
+    const known = ['invalid_type', 'file_too_large', 'storage_not_configured', 'unauthorized'];
+    return tStudio(`uploadErrors.${typeof code === 'string' && known.includes(code) ? code : 'fallback'}`);
+  };
+
   const handleRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
+    // Reset first: picking the same file twice fires no change event otherwise,
+    // so a retry after a rejected file would do nothing at all.
+    e.target.value = '';
     if (!file) return;
 
-    // Show local preview immediately
-    setReferenceImage(URL.createObjectURL(file));
+    setUploadError('');
+    // A new pick supersedes the previous verdict, good or bad.
+    setPickRejected(false);
+    // The old file is not what the user means any more. Clearing it is what
+    // keeps a rejected pick from silently generating against the previous one.
+    setReferenceImage(null);
 
-    // Upload to server to get a real URL the API can access
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError(tStudio('uploadErrors.invalid_type'));
+      setPickRejected(true);
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadError(tStudio('uploadErrors.file_too_large'));
+      setPickRejected(true);
+      return;
+    }
+
+    releasePreview();
+    const localPreview = URL.createObjectURL(file);
+    previewRef.current = localPreview;
+    setPreview(localPreview);
+    setUploading(true);
+
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('bucket', 'uploads');
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success && data.data?.url) {
-        setReferenceImage(data.data.url);
+      // A 400 RESOLVES — it does not throw. Checking only the success branch is
+      // what let a refused upload look identical to an accepted one.
+      const data = (await res.json()) as { success?: boolean; error?: string; data?: { url?: string } };
+      if (!res.ok || !data.success || !data.data?.url) {
+        setUploadError(uploadErrorMessage(data.error));
+        setPickRejected(true);
+        return;
       }
+      setReferenceImage(data.data.url);
     } catch {
-      // Keep blob URL as fallback for preview
+      setUploadError(tStudio('uploadErrors.fallback'));
+      setPickRejected(true);
+    } finally {
+      setUploading(false);
+      releasePreview();
+      setPreview(null);
     }
   };
 
@@ -136,23 +220,56 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       {/* Reference Image */}
       <div className="space-y-2">
         <Label>{t('referenceImage')}</Label>
-        {referenceImage ? (
+        {(preview ?? referenceImage) ? (
           <div className="relative inline-block">
-            <Image src={referenceImage} alt="" width={96} height={96} className="h-24 w-24 rounded-lg object-cover border" unoptimized />
-            <button
-              type="button"
-              onClick={() => setReferenceImage(null)}
-              className="absolute -top-2 -end-2 rounded-full bg-[var(--color-error)] p-1 text-white"
-            >
-              <X className="h-3 w-3" />
-            </button>
+            <Image
+              src={(preview ?? referenceImage)!}
+              alt=""
+              width={96}
+              height={96}
+              className={cn('h-24 w-24 rounded-lg object-cover border transition-opacity', uploading && 'opacity-40')}
+              unoptimized
+            />
+            {uploading ? (
+              <span className="absolute inset-0 flex items-center justify-center" aria-live="polite">
+                <Loader2 className="h-5 w-5 animate-spin text-[var(--color-text-muted)]" />
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={clearReferenceImage}
+                className="absolute -top-2 -end-2 rounded-full bg-[var(--color-error)] p-1 text-white"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         ) : (
           <label className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--color-border)] p-3 cursor-pointer hover:border-primary-300 transition-colors">
             <Upload className="h-4 w-4 text-[var(--color-text-muted)]" />
             <span className="text-sm text-[var(--color-text-muted)]">{t('referenceImage')}</span>
-            <input type="file" accept="image/*" onChange={handleRefImageUpload} className="hidden" />
+            {/* Matches what /api/upload accepts. `image/*` advertised formats the
+                server refuses, and the refusal had nowhere to go. */}
+            <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={handleRefImageUpload} className="hidden" />
           </label>
+        )}
+        {uploadError && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-xs text-[var(--color-error)]">{uploadError}</p>
+            {/* Generate stays down while a pick is refused, and the field shows
+                the picker again rather than an X — so without this the customer
+                who simply wants to generate from the prompt has no way forward.
+                Dismissing is them saying so, not us assuming it. */}
+            {pickRejected && (
+              <button
+                type="button"
+                onClick={clearReferenceImage}
+                className="text-xs underline text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                {tStudio('continueWithoutImage')}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

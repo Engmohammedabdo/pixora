@@ -9,7 +9,7 @@ import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt,
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -40,6 +40,27 @@ const CampaignPostSchema = z.object({
  * this, never against what the model happened to return.
  */
 const EXPECTED_POSTS = 9;
+
+/**
+ * The dialect name and guideline buildCampaignPrompt() sends, duplicated rather
+ * than imported because lib/ai/prompts/campaign.ts does not export its
+ * DIALECT_MAP — keep the two in step.
+ *
+ * Needed because the override branch below composes the brief by hand and had
+ * no dialect line: the customer picked مصري, paid 12 credits for it and
+ * `generations.input` recorded `dialect: "egyptian"`, while the model was never
+ * told — verbatim the "the row looked like it was used" defect the composing
+ * override exists to remove. Dialect is the most load-bearing field in the
+ * built prompt: it sets the persona, the caption language, the tone-of-voice
+ * language and the closing guideline.
+ */
+const DIALECTS: Record<z.infer<typeof InputSchema>['dialect'], { name: string; guideline: string }> = {
+  saudi: { name: 'Saudi Arabian', guideline: 'Use Saudi expressions, avoid formal Arabic, add local flavor' },
+  emirati: { name: 'Emirati', guideline: 'UAE-specific references, cosmopolitan yet local' },
+  egyptian: { name: 'Egyptian', guideline: 'Egyptian humor and warmth, colloquial Egyptian' },
+  gulf: { name: 'Pan-Gulf', guideline: 'Pan-Gulf friendly, avoids country-specific slang' },
+  formal: { name: 'Modern Standard Arabic', guideline: 'Professional فصحى, clear and eloquent' },
+};
 
 function parseJsonFromText(text: string): unknown {
   // Try to extract JSON array from the text (handle markdown code blocks)
@@ -89,8 +110,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // Use admin-configured cost or default
-    const creditCost = getEffectiveCost(studioConfig, 'campaign');
+    // Use admin-configured cost or default, DECOMPOSED — see EXPECTED_POSTS
+    // above: the flat price is 9 images x the 1080p image price plus a remainder
+    // that buys the nine text posts. The form has always offered a "Generate All
+    // Images" checkbox, so reserving the flat price unconditionally charged the
+    // 12-credit campaign for the 3-credit half of it, and nothing downstream
+    // could return the difference — both the image recount and the partial
+    // refund are reached only when images were actually asked for, and with the
+    // box unchecked every image slot is null by construction.
+    const perImageCost = CREDIT_COSTS.image['1080p'];
+    const fullCost = getEffectiveCost(studioConfig, 'campaign');
+    // Clamped at 1, so an admin override set at or below the image half cannot
+    // make the text-only campaign reserve nothing and generate for free.
+    const textCost = Math.max(1, fullCost - EXPECTED_POSTS * perImageCost);
+    const creditCost = input.generateImages ? fullCost : textCost;
 
     // Fetch brand kit
     let brandName: string | undefined;
@@ -104,16 +137,56 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandName = kit?.name;
     }
 
+    // The safety filter runs HERE, on the customer's own text, before anything
+    // branches on the admin override. buildCampaignPrompt() is the only caller of
+    // sanitizePrompt on this path, so while the override REPLACED the built
+    // prompt, setting one in /admin/settings switched the prompt filter off for
+    // a 12-credit paid surface — and PromptBlockedError, the 400 + `term`
+    // response the UI is built to render, could never fire. A filter an
+    // unrelated setting can disable is not a filter.
+    //
+    // All THREE free-text fields go through it, each capped at its own schema
+    // maximum so the two branches truncate identically. Filtering only the
+    // product description left the 500-character audience and the 200-character
+    // occasion reaching the model unfiltered on both branches —
+    // buildCampaignPrompt sanitizes only the description too, so nothing
+    // downstream covered them.
+    const safeProductDescription = sanitizePrompt(input.productDescription, 2000);
+    const safeTargetAudience = sanitizePrompt(input.targetAudience, 500);
+    const safeOccasion = input.occasion ? sanitizePrompt(input.occasion, 200) : undefined;
+
     // Build prompt (check for admin override first)
     const promptOverride = await getEffectivePrompt('campaign');
-    const prompt = promptOverride || buildCampaignPrompt({
-      productDescription: input.productDescription,
-      targetAudience: input.targetAudience,
-      dialect: input.dialect,
-      platform: input.platform,
-      occasion: input.occasion,
-      brandName,
-    });
+    // The override COMPOSES with the client brief, it does not replace it.
+    // `promptOverride || build(...)` dropped every field the customer filled in —
+    // product, audience, platform, occasion, brand — while `generations.input`
+    // still recorded them, so the row looked like they had been used. The labels
+    // below are buildCampaignPrompt's own, so an override written against the
+    // default prompt's shape still reads as one prompt.
+    let prompt: string;
+    if (promptOverride) {
+      // Same name and guideline the default prompt sends — see DIALECTS above
+      // for why an override that drops the dialect charges for a campaign the
+      // customer did not order.
+      const dialectInfo = DIALECTS[input.dialect];
+      prompt = `${promptOverride}\n\nClient Brief:`;
+      prompt += `\n- Product/Service: ${safeProductDescription}`;
+      prompt += `\n- Target Audience: ${safeTargetAudience}`;
+      prompt += `\n- Dialect: ${dialectInfo.name}`;
+      prompt += `\n- Platform: ${input.platform}`;
+      if (safeOccasion) prompt += `\n- Occasion/Season: ${safeOccasion}`;
+      if (brandName) prompt += `\n- Brand: ${brandName}`;
+      prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
+    } else {
+      prompt = buildCampaignPrompt({
+        productDescription: safeProductDescription,
+        targetAudience: safeTargetAudience,
+        dialect: input.dialect,
+        platform: input.platform,
+        occasion: safeOccasion,
+        brandName,
+      });
+    }
 
     // Create generation record
     const { data: generation, error: genError } = await supabase
@@ -147,6 +220,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         required: creditCost,
       }, { status: 402 });
     }
+
+    // Credits already returned to the user inside the try below. The catch
+    // refunds the reservation, and refunding it WHOLE after a partial refund has
+    // landed mints credits: refund_credits caps only the slice routed to the
+    // purchased pool (supabase/migrations/033_refund_to_source_pool.sql:279) and
+    // credits the full p_amount to the balance regardless (033:284-286). The
+    // partial refund below now fires on `refundAmount > 0`, i.e. on the
+    // images-OFF path too, so a short response followed by any throw before the
+    // return — the finalize write, the asset write — would refund a 3-credit
+    // reservation twice over. Declared out here because a `let` inside the try
+    // is not in scope in the catch. Mirrors creator.
+    let refundedSoFar = 0;
 
     try {
     // Generate campaign text
@@ -265,31 +350,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       imageUrl: postImages[i],
     }));
 
-    // Partial refund: a failed image is still worth exactly what a 1080p image
-    // costs everywhere else (CREDIT_COSTS.image['1080p']) — the flat 12-credit
-    // campaign price already decomposes as 9 posts x 1 credit/image = 9,
-    // leaving 3 of the 12 for the text generation. The text posts are valid
-    // regardless of image failures, so this stays a success response with a
-    // partial refund, never an error.
+    // Partial refund. TWO independent shortfalls, summed, because a short
+    // campaign usually produces both at once:
     //
-    // Capped at `creditCost` — the amount actually reserved for this
-    // generation — never the raw failedImageCount x per-image price. The
-    // reservation itself is untouched; the cap only guards against ever
-    // refunding more than was charged (e.g. if the AI ever returns more than
-    // the requested 9 posts, failedImageCount x price could otherwise exceed
-    // the 12 credits actually reserved, which would mint credits).
+    //  - images the customer paid for and did not receive. One is worth exactly
+    //    what a 1080p image costs everywhere else (`perImageCost`), which is the
+    //    same decomposition the reservation above is built from. Zero by
+    //    construction when images were not requested, so this term needs no
+    //    gate of its own.
+    //  - posts the model never wrote. This used to sit INSIDE the
+    //    `generateImages` gate, so a four-post response with images switched off
+    //    refunded nothing at all — and even with images on, only the image share
+    //    of the five missing posts came back, never the text share the customer
+    //    had also paid for. `textCost` is what the nine posts cost, so an
+    //    under-delivering model owes back the share of it that never arrived.
+    //
+    // Floored, never rounded: the text share of one post is a fraction of a
+    // credit, and rounding up across a short campaign refunds more than was
+    // charged. Capped at `creditCost` — the amount actually reserved — so a
+    // model that over-delivers can never mint credits. The posts that did
+    // arrive are valid work, so this stays a success response, never an error.
+    const missingPosts = Math.max(0, EXPECTED_POSTS - posts.length);
+    const refundAmount = Math.min(
+      failedImageCount * perImageCost + Math.floor((missingPosts * textCost) / EXPECTED_POSTS),
+      creditCost
+    );
+
     let balanceAfterPartialRefund = reserveResult.newBalance;
     let actualCreditsCharged = creditCost;
-    if (input.generateImages && failedImageCount > 0) {
-      const refundAmount = Math.min(failedImageCount * CREDIT_COSTS.image['1080p'], creditCost);
+    if (refundAmount > 0) {
       const partialRefund = await refundCredits({
         userId: user.id, amount: refundAmount,
-        description: `Partial refund: ${failedImageCount}/${EXPECTED_POSTS} campaign images not delivered (${refundAmount} credits returned)`,
+        description: `Partial refund: ${missingPosts}/${EXPECTED_POSTS} posts and ${failedImageCount}/${EXPECTED_POSTS} images not delivered (${refundAmount} credits returned)`,
         generationId: generation.id,
       });
       if (partialRefund.success) {
         balanceAfterPartialRefund = partialRefund.newBalance;
         actualCreditsCharged = creditCost - refundAmount;
+        refundedSoFar += refundAmount;
       }
     }
 
@@ -334,11 +432,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
     } catch (genError) {
-      const refundResult = await refundCredits({
-        userId: user.id, amount: creditCost,
-        description: `Refund: campaign generation failed`,
-        generationId: generation?.id,
-      });
+      // Refund what is still outstanding, never the whole reservation again:
+      // the partial refund above may already have returned part of it, and
+      // refund_credits does not net a second payout against the first
+      // (033_refund_to_source_pool.sql:284-286 credits p_amount unconditionally,
+      // and only the purchased-pool slice is capped, 033:279). Worked example
+      // without this: images off, model returns 4 posts, 1 credit partially
+      // refunded, then a throw refunds 3 more — 4 credits back against a
+      // 3-credit reservation, i.e. minted.
+      const outstanding = creditCost - refundedSoFar;
+      const refundResult: { success: boolean } = outstanding > 0
+        ? await refundCredits({
+            userId: user.id, amount: outstanding,
+            description: `Refund: campaign generation failed`,
+            generationId: generation?.id,
+          })
+        : { success: true };
       if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.

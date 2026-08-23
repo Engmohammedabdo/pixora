@@ -21,6 +21,50 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
 });
 
+/*
+ * The model's JSON is input we did not write, and it was trusted on shape.
+ * `Array.isArray(parsed) && parsed.length > 0` accepted `[{}]`, the route
+ * finalized it as `completed` and kept the 14 credits, and the page then threw
+ * on `scene.visual_description.substring(...)`. A render throw trips the segment
+ * error boundary, so the customer paid 14 credits and got a generic Arabic error
+ * where the storyboard should be — with no way to reach the output at all.
+ *
+ * Shape is therefore checked HERE, before finalizing, so a wrong shape takes the
+ * existing parse-failure branch (refund + `generation_parse_failed`) instead of
+ * being sold. What is stored and returned is the PARSED value, so the row
+ * RecentWork restores months from now is the normalized one too.
+ */
+
+/** A field the UI prints. A number where prose was asked for is not worth a
+ *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
+const printable = z
+  .union([z.string(), z.number(), z.boolean()])
+  .transform((v) => String(v))
+  .catch('');
+
+const numeric = z
+  .union([z.number(), z.string()])
+  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
+  .catch(0);
+
+// Only `visual_description` is required: a scene without one is not a scene, and
+// that is the field the page dereferences. Everything else is decoration — one
+// thin field must never cost the customer the whole 14 credits.
+const SceneSchema = z
+  .object({
+    scene_number: numeric,
+    visual_description: z.string().min(1),
+    dialogue: printable,
+    camera_angle: printable,
+    camera_movement: printable,
+    duration_seconds: numeric,
+    mood: printable,
+    music_note: printable,
+  })
+  .loose();
+
+const ScenesSchema = z.array(SceneSchema).min(1);
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = await createServerClient();
@@ -92,13 +136,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Unparseable output = failure + refund. The old fallback shipped a canned
     // storyboard whose ninth scene was a PyraSuite advert, billed at full price.
-    let scenes: Record<string, unknown>[];
+    let scenes: z.infer<typeof ScenesSchema>;
     try {
       const jsonMatch = (result.text || '').match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error('model returned no JSON array');
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('empty scene list');
-      scenes = parsed;
+      // Valid JSON of the WRONG shape is a parse failure too — it throws here so
+      // it lands in the same refund branch, never in `completed`.
+      scenes = ScenesSchema.parse(JSON.parse(jsonMatch[0]));
     } catch {
       if (generation) {
         await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);

@@ -4,32 +4,78 @@
  * or converted server-side with a headless browser later.
  */
 
+/*
+ * Everything in this file renders MODEL OUTPUT. The studio routes now validate
+ * the shape before they finalize, but rows written before that guard existed
+ * are still restored out of `generations.output` by RecentWork and handed
+ * straight back here — so nothing below may assume a field is present, and
+ * every field is typed optional to force that at compile time.
+ *
+ * `txt()` also ESCAPES, because these strings are interpolated into markup that
+ * goes to `document.write`: an unescaped `<` in a caption the model wrote is
+ * markup, not text.
+ */
+
+/** Coerce a model-supplied value to printable text WITHOUT escaping. Only for
+ *  values that are about to be split/inspected before being escaped. */
+function plain(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function txt(value: unknown): string {
+  return plain(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** A list the document iterates over. A missing key must cost one empty
+ *  section, never the whole export. */
+function list<T>(value: readonly T[] | undefined | null): readonly T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+/** Is there anything under this key worth printing a heading over?
+ *
+ *  Presence is no longer the question. The studio schemas default every array
+ *  the model omitted to `[]` and every field to `''`, so the key now EXISTS on
+ *  sections the model never produced — and gating on `analysis.personas ?`
+ *  printed "شخصيات المشتري" above an empty grid. */
+function hasContent(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasContent);
+  if (value !== null && typeof value === 'object') return Object.values(value).some(hasContent);
+  return plain(value).trim().length > 0;
+}
+
 interface CampaignPost {
-  scenario: string;
-  caption: string;
-  tov: string;
-  schedule: string;
-  hashtags: string;
+  scenario?: string | null;
+  caption?: string | null;
+  tov?: string | null;
+  schedule?: string | null;
+  hashtags?: string | null;
   imageUrl?: string | null;
 }
 
 interface AnalysisData {
-  swot?: { strengths: string[]; weaknesses: string[]; opportunities: string[]; threats: string[] };
-  personas?: { name: string; age: string; role: string; goals: string; pain_points: string }[];
-  competitors?: { name: string; strengths: string; weaknesses: string; market_share: string }[];
-  usp?: { statement: string; positioning: string; differentiators: string[] };
-  roadmap?: { day_30: string[]; day_60: string[]; day_90: string[] };
-  kpis?: { metric: string; target: string; timeframe: string }[];
+  swot?: { strengths?: string[]; weaknesses?: string[]; opportunities?: string[]; threats?: string[] } | null;
+  personas?: { name?: string; age?: string; role?: string; goals?: string; pain_points?: string }[] | null;
+  competitors?: { name?: string; strengths?: string; weaknesses?: string; market_share?: string }[] | null;
+  usp?: { statement?: string; positioning?: string; differentiators?: string[] } | null;
+  roadmap?: { day_30?: string[]; day_60?: string[]; day_90?: string[] } | null;
+  kpis?: { metric?: string; target?: string; timeframe?: string }[] | null;
 }
 
 interface StoryboardScene {
-  scene_number: number;
-  visual_description: string;
-  dialogue: string;
-  camera_angle: string;
-  camera_movement: string;
-  duration_seconds: number;
-  mood: string;
+  scene_number?: number;
+  visual_description?: string;
+  dialogue?: string;
+  camera_angle?: string;
+  camera_movement?: string;
+  duration_seconds?: number;
+  mood?: string;
 }
 
 function wrapInHtml(title: string, content: string): string {
@@ -74,94 +120,114 @@ ${content}
 }
 
 export function generateCampaignPdf(posts: CampaignPost[], title?: string): string {
-  const postCards = posts.map((post, i) => `
+  const postCards = list(posts).map((post, i) => `
     <div class="post-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <h3>منشور ${i + 1}</h3>
-        <span class="badge">${post.schedule}</span>
+        <span class="badge">${txt(post.schedule)}</span>
       </div>
-      <p style="color:#4F46E5;font-weight:600;margin-bottom:6px;">${post.tov}</p>
-      <p style="font-size:14px;margin-bottom:8px;">${post.caption}</p>
-      <p class="meta" style="margin-bottom:4px;"><strong>المشهد:</strong> ${post.scenario}</p>
-      <div style="margin-top:8px;">${post.hashtags.split(/\s+/).map(h => `<span class="tag">${h}</span>`).join('')}</div>
+      <p style="color:#4F46E5;font-weight:600;margin-bottom:6px;">${txt(post.tov)}</p>
+      <p style="font-size:14px;margin-bottom:8px;">${txt(post.caption)}</p>
+      <p class="meta" style="margin-bottom:4px;"><strong>المشهد:</strong> ${txt(post.scenario)}</p>
+      <div style="margin-top:8px;">${plain(post.hashtags).split(/\s+/).filter(Boolean).map(h => `<span class="tag">${txt(h)}</span>`).join('')}</div>
     </div>
   `).join('');
 
   return wrapInHtml('خطة الحملة', `
     <h1>خطة الحملة التسويقية</h1>
-    <p class="subtitle">${title || 'حملة من 9 منشورات'} — ${new Date().toLocaleDateString('ar-SA')}</p>
+    <p class="subtitle">${txt(title) || 'حملة من 9 منشورات'} — ${new Date().toLocaleDateString('ar-SA')}</p>
     ${postCards}
   `);
 }
 
 export function generateAnalysisPdf(analysis: AnalysisData, businessName?: string): string {
-  const swotHtml = analysis.swot ? `
+  const swotHtml = analysis.swot && hasContent(analysis.swot) ? `
     <h2>تحليل SWOT</h2>
     <div class="swot-grid">
-      <div class="swot-box swot-s"><h3>نقاط القوة</h3><ul>${analysis.swot.strengths.map(s => `<li>${s}</li>`).join('')}</ul></div>
-      <div class="swot-box swot-w"><h3>نقاط الضعف</h3><ul>${analysis.swot.weaknesses.map(s => `<li>${s}</li>`).join('')}</ul></div>
-      <div class="swot-box swot-o"><h3>الفرص</h3><ul>${analysis.swot.opportunities.map(s => `<li>${s}</li>`).join('')}</ul></div>
-      <div class="swot-box swot-t"><h3>التهديدات</h3><ul>${analysis.swot.threats.map(s => `<li>${s}</li>`).join('')}</ul></div>
+      <div class="swot-box swot-s"><h3>نقاط القوة</h3><ul>${list(analysis.swot.strengths).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
+      <div class="swot-box swot-w"><h3>نقاط الضعف</h3><ul>${list(analysis.swot.weaknesses).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
+      <div class="swot-box swot-o"><h3>الفرص</h3><ul>${list(analysis.swot.opportunities).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
+      <div class="swot-box swot-t"><h3>التهديدات</h3><ul>${list(analysis.swot.threats).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
     </div>` : '';
 
-  const personasHtml = analysis.personas ? `
+  const personasHtml = hasContent(analysis.personas) ? `
     <h2>شخصيات المشتري</h2>
-    <div class="grid-3">${analysis.personas.map(p => `
-      <div class="card"><h3>${p.name} — ${p.age}</h3><p class="meta">${p.role}</p>
-      <p style="font-size:13px;margin-top:8px;"><strong>الأهداف:</strong> ${p.goals}</p>
-      <p style="font-size:13px;"><strong>التحديات:</strong> ${p.pain_points}</p></div>
+    <div class="grid-3">${list(analysis.personas).map(p => `
+      <div class="card"><h3>${txt(p.name)} — ${txt(p.age)}</h3><p class="meta">${txt(p.role)}</p>
+      <p style="font-size:13px;margin-top:8px;"><strong>الأهداف:</strong> ${txt(p.goals)}</p>
+      <p style="font-size:13px;"><strong>التحديات:</strong> ${txt(p.pain_points)}</p></div>
     `).join('')}</div>` : '';
 
-  const roadmapHtml = analysis.roadmap ? `
+  const roadmapHtml = analysis.roadmap && hasContent(analysis.roadmap) ? `
     <h2>خارطة الطريق</h2>
     <div class="grid-3">
-      <div class="card"><h3>30 يوم</h3><ul>${analysis.roadmap.day_30.map(s => `<li>${s}</li>`).join('')}</ul></div>
-      <div class="card"><h3>60 يوم</h3><ul>${analysis.roadmap.day_60.map(s => `<li>${s}</li>`).join('')}</ul></div>
-      <div class="card"><h3>90 يوم</h3><ul>${analysis.roadmap.day_90.map(s => `<li>${s}</li>`).join('')}</ul></div>
+      <div class="card"><h3>30 يوم</h3><ul>${list(analysis.roadmap.day_30).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
+      <div class="card"><h3>60 يوم</h3><ul>${list(analysis.roadmap.day_60).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
+      <div class="card"><h3>90 يوم</h3><ul>${list(analysis.roadmap.day_90).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
     </div>` : '';
 
-  const kpisHtml = analysis.kpis ? `
+  const kpisHtml = hasContent(analysis.kpis) ? `
     <h2>مؤشرات الأداء</h2>
-    <div class="grid-2">${analysis.kpis.map(k => `
-      <div class="card" style="text-align:center;"><p style="font-size:24px;font-weight:bold;color:#6366F1;">${k.target}</p>
-      <p style="font-size:13px;font-weight:600;">${k.metric}</p><p class="meta">${k.timeframe}</p></div>
+    <div class="grid-2">${list(analysis.kpis).map(k => `
+      <div class="card" style="text-align:center;"><p style="font-size:24px;font-weight:bold;color:#6366F1;">${txt(k.target)}</p>
+      <p style="font-size:13px;font-weight:600;">${txt(k.metric)}</p><p class="meta">${txt(k.timeframe)}</p></div>
     `).join('')}</div>` : '';
 
   return wrapInHtml('التحليل التسويقي', `
-    <h1>التحليل التسويقي${businessName ? ` — ${businessName}` : ''}</h1>
+    <h1>التحليل التسويقي${businessName ? ` — ${txt(businessName)}` : ''}</h1>
     <p class="subtitle">تحليل شامل CMO-level — ${new Date().toLocaleDateString('ar-SA')}</p>
     ${swotHtml}${personasHtml}${roadmapHtml}${kpisHtml}
   `);
 }
 
 export function generateStoryboardPdf(scenes: StoryboardScene[], concept?: string): string {
-  const sceneCards = scenes.map(s => `
+  const sceneCards = list(scenes).map((s, i) => `
     <div class="scene-card" style="display:grid;grid-template-columns:80px 1fr;gap:12px;">
       <div style="background:#F1F5F9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🎬</div>
       <div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-weight:600;">Scene ${s.scene_number}</span>
-          <span class="badge">${s.duration_seconds}s — ${s.mood}</span>
+          <span style="font-weight:600;">Scene ${txt(s.scene_number) || i + 1}</span>
+          <span class="badge">${txt(s.duration_seconds)}s — ${txt(s.mood)}</span>
         </div>
-        <p style="font-size:12px;color:#64748B;margin-bottom:4px;" dir="ltr">${s.visual_description}</p>
-        <p style="font-size:14px;font-weight:500;margin-bottom:4px;">${s.dialogue}</p>
-        <div><span class="tag">📷 ${s.camera_angle}</span><span class="tag">🎥 ${s.camera_movement}</span></div>
+        <p style="font-size:12px;color:#64748B;margin-bottom:4px;" dir="ltr">${txt(s.visual_description)}</p>
+        <p style="font-size:14px;font-weight:500;margin-bottom:4px;">${txt(s.dialogue)}</p>
+        <div><span class="tag">📷 ${txt(s.camera_angle)}</span><span class="tag">🎥 ${txt(s.camera_movement)}</span></div>
       </div>
     </div>
   `).join('');
 
   return wrapInHtml('ستوري بورد', `
     <h1>ستوري بورد الفيديو</h1>
-    <p class="subtitle">${concept || 'فيديو تسويقي'} — ${new Date().toLocaleDateString('ar-SA')}</p>
+    <p class="subtitle">${txt(concept) || 'فيديو تسويقي'} — ${new Date().toLocaleDateString('ar-SA')}</p>
     <div style="display:grid;gap:12px;">${sceneCards}</div>
   `);
 }
 
-export function openPdfInNewTab(html: string): void {
+/**
+ * Opens the generated document in a new tab and asks the browser to print it.
+ *
+ * Returns FALSE when the tab could not be opened, so the caller can say so.
+ * `window.open` returning null is the normal case here, not the exotic one: an
+ * in-app webview (Instagram / WhatsApp open every link in one, and that is how
+ * most of this market arrives), iOS Safari with its default "Block Pop-ups",
+ * or any desktop popup blocker all return null. This used to be an `if (win)`
+ * with no else — the button simply did nothing, forever, with nothing on screen.
+ */
+export function openPdfInNewTab(html: string): boolean {
   const win = window.open('', '_blank');
-  if (win) {
+  if (!win) return false;
+  try {
     win.document.write(html);
     win.document.close();
-    setTimeout(() => win.print(), 500);
+  } catch {
+    // A webview can hand back a window it then refuses to let us write to.
+    return false;
   }
+  // Half a second is long enough for the user to close the tab, and print() on
+  // a closed window throws — which would surface as an unhandled rejection in a
+  // timer, far away from anything that could report it.
+  setTimeout(() => {
+    if (!win.closed) win.print();
+  }, 500);
+  return true;
 }

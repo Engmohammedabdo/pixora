@@ -15,13 +15,44 @@ const intlMiddleware = createIntlMiddleware(routing);
 // anyone who forgets a password, since Supabase Auth has no mailer.
 const publicPaths = ['/login', '/signup', '/callback', '/privacy', '/terms', '/pricing', '/waitlist', '/contact', '/forgot-password', '/reset-password', '/opengraph-image'];
 
+const LOCALES: readonly string[] = routing.locales;
+
+/**
+ * The locale prefix of a path, or null when it has none.
+ *
+ * Every locale read below used to be `pathname.split('/')[1] || 'ar'`, which never
+ * asks whether the first segment IS a locale. On `/login` it answered `'login'`,
+ * so the redirect built from it became `/login/login` — whose first segment is
+ * again `'login'`, so the next pass built the same URL again. Locale-less
+ * `/login`, `/signup`, `/pricing` and `/dashboard` were an infinite redirect loop
+ * in production, and `/pricing` is exactly the URL a launch announcement links to.
+ *
+ * Matching against the configured list is what makes the answer total: a segment
+ * either is a locale or the path has none, with no third case left for a later
+ * reader to guess at.
+ */
+function localeOf(pathname: string): string | null {
+  const first = pathname.split('/')[1];
+  return first && LOCALES.includes(first) ? first : null;
+}
+
+/** The path with its locale prefix removed, or unchanged when it has none. */
+function stripLocale(pathname: string): string {
+  const locale = localeOf(pathname);
+  if (!locale) return pathname || '/';
+  return pathname.slice(locale.length + 1) || '/';
+}
+
 function isPublicPath(pathname: string): boolean {
   // Root path (before locale redirect)
   if (pathname === '/') return true;
   // Landing page: /ar or /en (exact locale root)
   if (/^\/[a-z]{2}\/?$/.test(pathname)) return true;
-  // Strip locale prefix and check against public paths
-  const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}/, '') || '/';
+  // Strip locale prefix and check against public paths. The old version cut two
+  // characters off unconditionally, turning '/login' into 'gin' and '/pricing'
+  // into 'icing', so no locale-less public path ever matched this list and all
+  // of them fell through to the authenticated branch below.
+  const pathWithoutLocale = stripLocale(pathname);
   if (pathWithoutLocale === '/' || pathWithoutLocale === '') return true;
   return publicPaths.some((path) => pathWithoutLocale.startsWith(path));
 }
@@ -157,6 +188,40 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
           return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
         }
 
+        // A ban has to be enforced HERE, not per route. Until this line existed
+        // the ONLY ban check in the product was in the page-navigation branch
+        // below, so a banned account lost nothing but HTML: every studio, every
+        // credit spend and every paid route stayed open to it, and grepping
+        // `banned` across app/api and lib returned zero hits outside the admin
+        // panel's own read/write of the column. Banning also did not revoke the
+        // Supabase session — the sole signOut() is in the page branch and
+        // therefore fires only if the banned user chooses to load a page, which
+        // is the one thing they no longer need to do.
+        //
+        // Cost, stated so nobody deletes it as "an extra query": one primary-key
+        // select on `profiles` per authenticated API request, the same read the
+        // page branch already makes per navigation. There is no cheaper place for
+        // it — the flag lives in a table, not in the JWT, so no claim on the token
+        // can answer this without a round trip.
+        //
+        // Fails OPEN on a read error, deliberately. For a session that just
+        // passed getUser(), the only way this select fails is the database being
+        // unreachable — and then every route behind this check is failing anyway,
+        // so a fail-closed version would turn an outage into a wall of "banned"
+        // for paying customers. The second layer covering that window is the
+        // GoTrue-side revocation performed at ban time in
+        // app/api/admin/users/[id]/route.ts, which stops the refresh token from
+        // outliving the ban.
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('banned')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.banned) {
+          return NextResponse.json({ success: false, error: 'banned' }, { status: 403 });
+        }
+
         return response;
       }
     }
@@ -206,9 +271,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // Redirect logged-in users away from auth pages (login/signup only, NOT landing page)
   if (user) {
-    const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}/, '') || '/';
+    const pathWithoutLocale = stripLocale(pathname);
     if (['/login', '/signup'].some((p) => pathWithoutLocale.startsWith(p))) {
-      const locale = pathname.split('/')[1] || 'ar';
+      const locale = localeOf(pathname) ?? routing.defaultLocale;
       return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
     }
 
@@ -224,7 +289,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     if (profile?.banned) {
       // Sign out banned user and redirect to login
       await supabase.auth.signOut();
-      const locale = pathname.split('/')[1] || 'ar';
+      const locale = localeOf(pathname) ?? routing.defaultLocale;
       return NextResponse.redirect(new URL(`/${locale}/login?error=banned`, request.url));
     }
 
@@ -249,7 +314,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     if (!profile?.onboarding_completed) {
       const isDashboardRoot = pathWithoutLocale === '/dashboard' || pathWithoutLocale === '/';
       if (isDashboardRoot) {
-        const locale = pathname.split('/')[1] || 'ar';
+        const locale = localeOf(pathname) ?? routing.defaultLocale;
         return NextResponse.redirect(new URL(`/${locale}/onboarding`, request.url));
       }
     }
@@ -257,7 +322,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // Redirect non-logged-in users to login (protected pages only)
   if (!user) {
-    const locale = pathname.split('/')[1] || 'ar';
+    const locale = localeOf(pathname) ?? routing.defaultLocale;
     return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
   }
 

@@ -6,11 +6,20 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
-import { generateTTS } from '@/lib/ai/tts-router';
+import { generateTTS, PremiumVoiceUnavailableError } from '@/lib/ai/tts-router';
 import { MODELS } from '@/lib/ai/models';
 import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
+
+/**
+ * The tier that buys exactly the narrator the fallback path produces. Used here as
+ * a RATE CARD, not as anyone's plan: when tts-router reports `usedFallback`, the
+ * customer received standard-path audio and must be billed at the standard-path
+ * rate, whatever their subscription says. Reading the rate out of the plan table
+ * rather than restating 1-credit-per-15s keeps one formula.
+ */
+const FALLBACK_RATE_PLAN = 'starter';
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -181,9 +190,56 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: refundAwareErrorCode(refundResult, 'generation_failed') }, { status: 500 });
     }
 
+    // Charge for what was DELIVERED, not for what the plan sells.
+    //
+    // calculateVoiceoverCost() derives the price from the plan alone (3 credits/20s
+    // for pro+, 1 credit/15s below it), but tts-router serves the standard path
+    // whenever the premium one is unconfigured or fails — the 404 first-run state
+    // lib/ai/elevenlabs.ts warns about. Nothing re-derived the price from the path
+    // that actually ran, so a Pro customer paid the premium rate for standard-tier
+    // audio, every time, silently.
+    //
+    // A NAMED premium narrator is never substituted at all: tts-router throws
+    // PremiumVoiceUnavailableError and the catch above returns the whole
+    // reservation. This branch only ever settles a generic-role voice that has a
+    // genuine equivalent on the standard path.
+    //
+    // Must run BEFORE finalizeGeneration: marking the row terminal takes it out of
+    // reconcile_orphaned_generations()'s scan window, i.e. out of reach of the one
+    // thing that could still pay the customer back if this route dies mid-refund.
+    let creditsCharged = creditCost;
+    let balanceAfterRefund = reserveResult.newBalance;
+    if (ttsResult.usedFallback) {
+      // Math.min: a rate card that is ever re-tiered above the customer's own must
+      // not turn a refund into a second charge. The worst case is we refund nothing.
+      const deliveredCost = Math.min(
+        calculateVoiceoverCost(safeScript.length, parseFloat(input.speed), FALLBACK_RATE_PLAN),
+        creditCost
+      );
+      const overcharge = creditCost - deliveredCost;
+      if (overcharge > 0) {
+        const fallbackRefund = await refundCredits({
+          userId: user.id, amount: overcharge,
+          description: `Partial refund: voiceover delivered on the standard path (${overcharge} credits returned)`,
+          generationId: generation.id,
+        });
+        // Only rewrite credits_used once the credits are actually back. Recording
+        // the lower figure over a refund that did not land makes the row disagree
+        // with the ledger, and every admin revenue number reads off this column —
+        // the failed refund itself is already logged as `[credits][OWED]`.
+        if (fallbackRefund.success) {
+          creditsCharged = deliveredCost;
+          balanceAfterRefund = fallbackRefund.newBalance;
+        }
+      } else {
+        creditsCharged = deliveredCost;
+      }
+    }
+
     // Update generation record
     if (generation) {
       await finalizeGeneration(supabase, generation.id, {
+        credits_used: creditsCharged,
         status: 'completed',
         // Correct the model now that the provider is known. The row was inserted
         // before generation from the PLAN's provider, but tts-router falls back
@@ -196,6 +252,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           provider: ttsResult.provider,
           enhanced: ttsResult.enhanced,
           mock: ttsResult.mock,
+          usedFallback: ttsResult.usedFallback,
         },
       }, 'voiceover');
 
@@ -217,8 +274,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         provider: ttsResult.provider,
         enhanced: ttsResult.enhanced,
         mock: ttsResult.mock,
-        creditsUsed: creditCost,
-        newBalance: reserveResult.newBalance,
+        // The UI renders this as "بايرا استخدمت مسار بديل" — a stated notice, not
+        // a badge the customer has to decode. `creditsUsed` is the settled figure,
+        // so the two agree: a different path ran and the charge followed it.
+        usedFallback: ttsResult.usedFallback,
+        creditsUsed: creditsCharged,
+        newBalance: balanceAfterRefund,
       },
     });
   } catch (error) {
@@ -227,6 +288,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     if (error instanceof PromptBlockedError) {
       return NextResponse.json({ success: false, error: 'prompt_blocked', term: error.blockedTerm }, { status: 400 });
+    }
+    // The chosen narrator could not speak and has no honest stand-in. Credits were
+    // already returned in full by the catch around generateTTS above; this only
+    // decides what the customer is told. 503, not 500: the voice exists and is on
+    // their plan — it is the path to it that is down.
+    if (error instanceof PremiumVoiceUnavailableError) {
+      console.error('Voiceover premium path unavailable:', error.message);
+      return NextResponse.json({ success: false, error: 'premium_voice_unavailable' }, { status: 503 });
     }
     console.error('Voiceover API error:', error);
     return NextResponse.json({ success: false, error: 'generation_failed' }, { status: 500 });

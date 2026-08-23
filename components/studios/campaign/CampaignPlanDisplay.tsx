@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -117,7 +118,10 @@ export function CampaignPlanDisplay({
           {copiedIndex === -1 ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copiedIndex === -1 ? tStudio('copied') : t('copyAll')}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => openPdfInNewTab(generateCampaignPdf(posts))} className="gap-1">
+        {/* A blocked popup used to be silent on the 12-credit studio — the
+            button did nothing at all, which in an in-app webview
+            (Instagram/WhatsApp) is the common case here, not the exotic one. */}
+        <Button size="sm" variant="outline" onClick={() => { if (!openPdfInNewTab(generateCampaignPdf(posts))) toast.error(tStudio('popupBlocked')); }} className="gap-1">
           <FileText className="h-3 w-3" />
           {t('exportPdf')}
         </Button>

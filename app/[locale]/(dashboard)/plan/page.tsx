@@ -31,13 +31,23 @@ const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as co
 const DURATIONS = ['30', '60', '90'] as const;
 type Duration = (typeof DURATIONS)[number];
 
+// The NESTED arrays are optional too, not just the top-level sections. The route
+// validates the model's shape now, but rows written before that guard existed
+// are still restored here out of `generations.output`, and `plan.budget` being
+// truthy says nothing about `plan.budget.breakdown` being an array — that
+// dereference is what took the whole studio down through the segment error
+// boundary, with the 5 credits already spent.
 interface Plan {
-  objectives?: { goal: string; kpi: string; target: string }[];
-  channels?: { name: string; budget_pct: number; strategy: string }[];
-  calendar?: { week: number; content: string[]; channel: string }[];
-  budget?: { total: string; breakdown: { item: string; amount: string; pct: number }[] };
-  kpis?: { metric: string; target: string; tracking: string }[];
+  objectives?: { goal?: string; kpi?: string; target?: string }[];
+  channels?: { name?: string; budget_pct?: number; strategy?: string }[];
+  calendar?: { week?: number; content?: string[]; channel?: string }[];
+  budget?: { total?: string; breakdown?: { item?: string; amount?: string; pct?: number }[] };
+  kpis?: { metric?: string; target?: string; tracking?: string }[];
 }
+
+/** A list the UI iterates. A missing key must cost one empty tab, never the
+ *  whole plan the customer paid 5 credits for. */
+const list = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value : []);
 
 export default function PlanPage(): React.ReactElement {
   const t = useTranslations();
@@ -128,7 +138,7 @@ export default function PlanPage(): React.ReactElement {
         after the tab closes. `refreshKey` is the current plan object, so a run
         that just finished appears without a reload.
       */}
-      <RecentWork studio="plan" onRestore={(output) => setPlan(output.plan as Plan)} refreshKey={runs} />
+      <RecentWork studio="plan" onRestore={(output) => setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null)} refreshKey={runs} />
     </div>
   );
 
@@ -157,10 +167,10 @@ export default function PlanPage(): React.ReactElement {
   ) : (
     <div className="space-y-4">
       <div className="flex gap-1 overflow-x-auto pb-2">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
-      {activeTab === 'objectives' && (<div className="space-y-3">{plan.objectives?.map((obj, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm">{obj.goal}</h4><div className="flex gap-4 mt-2 text-xs text-[var(--color-text-secondary)]"><span>KPI: {obj.kpi}</span><Badge variant="secondary">{obj.target}</Badge></div></CardContent></Card>))}</div>)}
-      {activeTab === 'channels' && (<div className="space-y-3">{plan.channels?.map((ch, i) => (<Card key={i}><CardContent className="p-4"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold text-sm">{ch.name}</h4><Badge variant="default">{ch.budget_pct}%</Badge></div><p className="text-xs text-[var(--color-text-secondary)]">{ch.strategy}</p></CardContent></Card>))}</div>)}
-      {activeTab === 'calendar' && (<div className="space-y-3">{plan.calendar?.map((week) => (<Card key={week.week}><CardHeader className="pb-2"><CardTitle className="text-sm">{tPlan('week')} {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{week.content.map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
-      {activeTab === 'budget' && plan.budget && (<div className="space-y-3"><Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-[var(--color-brand)]">{plan.budget.total}</p><p className="text-xs text-[var(--color-text-muted)] mt-1">{tPlan('totalBudget')}</p></CardContent></Card><div className="space-y-2">{plan.budget.breakdown.map((item, i) => (<div key={i} className="flex items-center justify-between text-sm"><span>{item.item}</span><div className="flex items-center gap-2"><span className="font-medium">{item.amount}</span><Badge variant="secondary" className="text-[10px]">{item.pct}%</Badge></div></div>))}</div></div>)}
+      {activeTab === 'objectives' && (<div className="space-y-3">{list(plan.objectives).map((obj, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm">{obj.goal}</h4><div className="flex gap-4 mt-2 text-xs text-[var(--color-text-secondary)]"><span>KPI: {obj.kpi}</span><Badge variant="secondary">{obj.target}</Badge></div></CardContent></Card>))}</div>)}
+      {activeTab === 'channels' && (<div className="space-y-3">{list(plan.channels).map((ch, i) => (<Card key={i}><CardContent className="p-4"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold text-sm">{ch.name}</h4><Badge variant="default">{ch.budget_pct}%</Badge></div><p className="text-xs text-[var(--color-text-secondary)]">{ch.strategy}</p></CardContent></Card>))}</div>)}
+      {activeTab === 'calendar' && (<div className="space-y-3">{list(plan.calendar).map((week, wi) => (<Card key={wi}><CardHeader className="pb-2"><CardTitle className="text-sm">{tPlan('week')} {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(week.content).map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
+      {activeTab === 'budget' && plan.budget && (<div className="space-y-3"><Card><CardContent className="p-4 text-center"><p className="text-3xl font-bold text-[var(--color-brand)]">{plan.budget.total}</p><p className="text-xs text-[var(--color-text-muted)] mt-1">{tPlan('totalBudget')}</p></CardContent></Card><div className="space-y-2">{list(plan.budget.breakdown).map((item, i) => (<div key={i} className="flex items-center justify-between text-sm"><span>{item.item}</span><div className="flex items-center gap-2"><span className="font-medium">{item.amount}</span><Badge variant="secondary" className="text-[10px]">{item.pct}%</Badge></div></div>))}</div></div>)}
     </div>
   );
 

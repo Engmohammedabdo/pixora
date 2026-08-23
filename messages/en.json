@@ -71,7 +71,12 @@
     "resetLinkInvalid": "This link doesn't work — it has either expired or already been used.",
     "resetLinkMissing": "The link is incomplete. Open it from the email exactly as it was sent.",
     "resetRequestNew": "Request a new link",
-    "setPasswordSubtitle": "Choose a new password for your account"
+    "setPasswordSubtitle": "Choose a new password for your account",
+    "errorBanned": "Your account has been suspended. If you think this is a mistake, contact us and we will review it.",
+    "errorGoogleInviteRequired": "Google sign-in works only for accounts that already exist. Registration is currently invite-only — use your invite link, or join the waitlist.",
+    "errorOauthCancelled": "Google sign-in was cancelled.",
+    "errorOauthFailed": "We could not complete Google sign-in. Try again, or sign in with your email and password.",
+    "errorSignInBlocked": "We couldn't complete sign-in for this account. If this keeps happening, contact us and we will look into it."
   },
   "nav": {
     "home": "Home",
@@ -226,7 +231,8 @@
       "dialect_not_available": "This dialect isn't available on your current plan",
       "network": "Connection problem — check your internet and retry",
       "fallback": "Something unexpected went wrong. Please try again",
-      "project_not_found": "Project not found or not yours"
+      "project_not_found": "Project not found or not yours",
+      "premium_voice_unavailable": "The narrator you picked can't be reached right now. Pyra never swaps in a different voice, so your credits were returned in full — pick another voice or try again shortly"
     },
     "pyraPath": "Pyra path 🦊",
     "failed": "Generation failed",
@@ -238,7 +244,16 @@
     },
     "recentWorkTitle": "Your previous work",
     "recentWorkHint": "Click any item to open it again. Your work is saved even if you close the page.",
-    "recentWorkFailed": "Could not open this one right now. Try again."
+    "recentWorkFailed": "Could not open this one right now. Try again.",
+    "popupBlocked": "Your browser blocked the new tab. Allow pop-ups for this site and try again, or open the page in a regular browser instead of the Instagram or WhatsApp in-app one.",
+    "uploadErrors": {
+      "invalid_type": "Unsupported image format — use PNG, JPG or WEBP",
+      "file_too_large": "Image is larger than 10MB — shrink it and try again",
+      "storage_not_configured": "Image uploads are unavailable right now. Please try again shortly",
+      "unauthorized": "Session expired — sign in again, then upload the image",
+      "fallback": "Could not upload the image. Please try again"
+    },
+    "continueWithoutImage": "Continue without a reference image"
   },
   "creator": {
     "title": "Image Creator",
@@ -330,7 +345,8 @@
     "loadFailed": "Could not load your files. Please try again.",
     "deleted": "{count, plural, one{Deleted 1 file} other{Deleted # files}}",
     "deleteFailed": "Delete failed",
-    "deleteError": "Something went wrong while deleting"
+    "deleteError": "Something went wrong while deleting",
+    "downloadFailed": "Could not download the file. Please try again."
   },
   "plan": {
     "businessName": "Business Name",
@@ -432,7 +448,8 @@
     "pyraVoicePro": "🌟 Pyra Voice Pro",
     "enhanced": "Enhanced",
     "maxDuration": "Max: {seconds}s",
-    "proBadge": "🌟 Pro"
+    "proBadge": "🌟 Pro",
+    "fallbackNotice": "Pyra used an alternate path — the charge was adjusted to match what was delivered"
   },
   "edit": {
     "originalImage": "Original Image",

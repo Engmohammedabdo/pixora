@@ -18,6 +18,42 @@ function getBaseUrl(request: NextRequest): string {
   return new URL(request.url).origin;
 }
 
+/**
+ * A provider/GoTrue failure reduced to one of OUR codes.
+ *
+ * The provider's own text never goes on the wire. `error_description` is
+ * attacker-influenceable and its destination is a page we render, so what leaves
+ * this function is an allowlist of strings chosen here — the login page then uses
+ * the code to SELECT a translated message rather than to display anything.
+ */
+function classifyAuthError(
+  error: string | null,
+  errorCode: string | null,
+  description: string | null
+): string {
+  const haystack = `${error ?? ''} ${errorCode ?? ''} ${description ?? ''}`.toLowerCase();
+
+  // The commonest failure on this deployment, and the reason this function
+  // exists: a first-time Google sign-in is an INSERT into auth.users, which the
+  // invite gate (migration 035) refuses. Postgres cannot get a clean message out
+  // through GoTrue, so it arrives as unexpected_failure / "Database error saving
+  // new user" — the same string signup/page.tsx matches on, for the same reason.
+  // `signup_disabled` is what GoTrue answers when signups are off at its own level.
+  if (
+    haystack.includes('database error') ||
+    haystack.includes('signup_disabled') ||
+    haystack.includes('signups not allowed')
+  ) {
+    return 'invite_required';
+  }
+
+  // The user pressed cancel on Google's consent screen. Telling them sign-in
+  // "failed" would be a lie about their own deliberate action.
+  if (haystack.includes('access_denied')) return 'oauth_cancelled';
+
+  return 'oauth_failed';
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
@@ -25,6 +61,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const baseUrl = getBaseUrl(request);
 
   const referralCode = searchParams.get('ref');
+
+  // GoTrue bounces a failed sign-in back to this exact URL with error /
+  // error_code / error_description and NO code. This route used to look at
+  // nothing but `code`, so every one of those fell through to a bare redirect to
+  // /login carrying nothing — the user pressed "Continue with Google", was sent
+  // back to the same form, and was never told why. Forever, since the usual
+  // cause (no invite) does not change by retrying.
+  //
+  // Only the QUERY STRING is readable here. GoTrue returns OAuth errors as query
+  // params, but anything it ever puts in the URL fragment never reaches the
+  // server at all — which is why the login page keeps a generic fallback.
+  const oauthError = searchParams.get('error');
+  const oauthErrorCode = searchParams.get('error_code');
+  const oauthErrorDescription = searchParams.get('error_description');
+
+  if (oauthError || oauthErrorCode || oauthErrorDescription) {
+    const reason = classifyAuthError(oauthError, oauthErrorCode, oauthErrorDescription);
+    return NextResponse.redirect(`${baseUrl}/${locale}/login?error=${reason}`);
+  }
 
   if (code) {
     // Destination is decided after the session exists — a first-time user should
@@ -99,7 +154,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       return response;
     }
+
+    // The code was present but would not exchange — expired, replayed, or issued
+    // to a different client. Generic on purpose: a gate refusal never lands here
+    // (GoTrue creates the user before it redirects, so that failure arrives as
+    // the error params handled above), so there is nothing more specific to say
+    // than "try again".
+    return NextResponse.redirect(`${baseUrl}/${locale}/login?error=oauth_failed`);
   }
 
+  // Neither a code nor an error: somebody opened /callback directly. Nothing
+  // failed, so claim nothing.
   return NextResponse.redirect(`${baseUrl}/${locale}/login`);
 }

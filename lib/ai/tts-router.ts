@@ -25,6 +25,34 @@ interface TTSResult {
   provider: 'openai' | 'elevenlabs';
   mock: boolean;
   enhanced: boolean;
+  /**
+   * True when the plan sold the premium path but the standard one actually ran.
+   * The route MUST reprice from this flag, never from the plan — the plan is what
+   * was bought, this is what was delivered.
+   */
+  usedFallback: boolean;
+}
+
+/**
+ * The premium path was the one that routed, and it could not deliver. There is no
+ * honest substitute: every target in OPENAI_VOICE_MAP is one of OpenAI's English
+ * voices, so whatever the customer picked collapses to an American English voice
+ * reading Arabic. Handing that back is not a degraded version of what the customer
+ * chose, it is a different product, so the request fails and the reservation is
+ * returned in full.
+ *
+ * This is the EXPECTED first-run state, not a rare edge: lib/ai/elevenlabs.ts warns
+ * in its own header that Voice Library ids must be added to the account before the
+ * API accepts them, and until they are every one of these ids 404s.
+ */
+export class PremiumVoiceUnavailableError extends Error {
+  readonly voice: string;
+
+  constructor(voice: string, detail: string) {
+    super(`premium_voice_unavailable: ${voice} (${detail})`);
+    this.name = 'PremiumVoiceUnavailableError';
+    this.voice = voice;
+  }
 }
 
 const OPENAI_VOICE_MAP: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'> = {
@@ -36,6 +64,27 @@ const OPENAI_VOICE_MAP: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'no
   male: 'onyx',
   female: 'nova',
 };
+
+/**
+ * Standard-path voices that can honestly stand in for an Arabic read.
+ *
+ * Keyed on the OpenAI voice we would actually HAND BACK — never on the key the
+ * customer picked. The rule used to be "is this key in ELEVENLABS_ARABIC_VOICES",
+ * which is a naming convention, not a capability: on pro/business/agency every
+ * selectable voice routes to the premium provider, and getElevenLabsVoiceId()
+ * resolves the generic roles (male_pro, female_youth…) to a real Arabic narrator
+ * via its el_arabic_male_1 default. So a Pro customer on the page default
+ * "male_pro" was quietly swapped from an Arabic voice to 'onyx' — the exact
+ * substitution this file exists to refuse. Anything derived from the shape of the
+ * key reintroduces that bug; only the delivered voice's own ability decides.
+ *
+ * Every entry in OPENAI_VOICE_MAP is one of OpenAI's English voices, so nothing
+ * qualifies today and this set is empty — deliberately a set rather than a bare
+ * `false` so that adding a genuinely Arabic-capable standard voice is one
+ * reviewable line, and so the line has to name that voice rather than a key
+ * pointing at it.
+ */
+const ARABIC_CAPABLE_STANDARD_VOICES = new Set<string>();
 
 const DIALECT_PROMPTS: Record<string, string> = {
   saudi: 'Rewrite the following text in Saudi Arabian Arabic dialect (اللهجة السعودية). Keep the meaning but use Saudi expressions and vocabulary.',
@@ -117,7 +166,7 @@ async function generateWithOpenAI(
   enhanced: boolean
 ): Promise<TTSResult> {
   if (!process.env.OPENAI_API_KEY) {
-    return { audioBuffer: Buffer.alloc(0), provider: 'openai', mock: true, enhanced };
+    return { audioBuffer: Buffer.alloc(0), provider: 'openai', mock: true, enhanced, usedFallback: false };
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -135,7 +184,7 @@ async function generateWithOpenAI(
   });
 
   const audioBuffer = Buffer.from(await mp3.arrayBuffer());
-  return { audioBuffer, provider: 'openai', mock: false, enhanced };
+  return { audioBuffer, provider: 'openai', mock: false, enhanced, usedFallback: false };
 }
 
 async function generateWithElevenLabs(
@@ -157,13 +206,55 @@ async function generateWithElevenLabs(
     });
 
     if (result.mock) {
-      // ElevenLabs not configured — fallback to OpenAI
-      return generateWithOpenAI(script, input, config, enhanced);
+      // Premium provider not configured (missing or placeholder key).
+      return fallBackToStandard(script, input, config, enhanced, 'provider not configured');
     }
 
-    return { audioBuffer: result.audioBuffer, provider: 'elevenlabs', mock: false, enhanced };
-  } catch {
-    // ElevenLabs failed — fallback to OpenAI
-    return generateWithOpenAI(script, input, config, enhanced);
+    return { audioBuffer: result.audioBuffer, provider: 'elevenlabs', mock: false, enhanced, usedFallback: false };
+  } catch (err) {
+    // 401, 404 (voice id not added to the account), rate limit, network — from the
+    // customer's side these are one event: the voice they chose did not speak.
+    // The unconfigured branch above runs inside this try, so its refusal arrives
+    // here as a throw. Re-dispatching it would call the standard path anyway and
+    // undo the refusal.
+    if (err instanceof PremiumVoiceUnavailableError) throw err;
+    return fallBackToStandard(script, input, config, enhanced, err instanceof Error ? err.message : String(err));
   }
+}
+
+/**
+ * The premium path could not deliver. Two outcomes, and the difference is whether
+ * the voice we would hand back can do the job the customer paid for — an Arabic
+ * read — not whether the key they picked looks premium:
+ *
+ *  - No Arabic-capable standard voice for it: throw, and let the route refund the
+ *    whole reservation. Reaching here at all means the premium path routed, i.e.
+ *    the customer was on the tier that sells Arabic narrators; quietly reading
+ *    their Arabic in an English voice is the defect this function exists to
+ *    prevent, whatever the substitution is billed at.
+ *  - An Arabic-capable standard voice exists: deliver it — but flagged, because
+ *    the route must then bill it at the rate of the path that ran and say so in
+ *    the response. A degraded delivery at full price is the same theft as no
+ *    delivery at full price.
+ */
+async function fallBackToStandard(
+  script: string,
+  input: TTSInput,
+  config: VoiceoverCostConfig,
+  enhanced: boolean,
+  detail: string
+): Promise<TTSResult> {
+  // The standard voice this key resolves to is the whole question — `alloy` when
+  // the map has no entry, which is as English as the rest of them.
+  const standardVoice = OPENAI_VOICE_MAP[input.voice] ?? 'alloy';
+  if (!ARABIC_CAPABLE_STANDARD_VOICES.has(standardVoice)) {
+    throw new PremiumVoiceUnavailableError(input.voice, detail);
+  }
+
+  // Server-side only — never surfaced to the user, who is told "بايرا استخدمت
+  // مسار بديل" and nothing about which engine that is.
+  console.warn(`[tts] premium path unavailable for voice "${input.voice}" — serving the standard path and repricing (${detail})`);
+
+  const result = await generateWithOpenAI(script, input, config, enhanced);
+  return { ...result, usedFallback: true };
 }

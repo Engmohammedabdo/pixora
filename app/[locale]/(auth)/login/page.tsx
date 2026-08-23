@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Link } from '@/i18n/routing';
@@ -18,6 +19,41 @@ export default function LoginPage(): React.ReactElement {
   const [loading, setLoading] = useState(false);
 
   const supabase = createBrowserClient();
+  const searchParams = useSearchParams();
+
+  // Everything that redirects TO this page carries its reason in ?error=, and
+  // until this existed the page rendered none of them. Two separate flows landed
+  // users here in silence: middleware's ban redirect (/login?error=banned), and
+  // every Google sign-in bounced by the invite gate — the login page shows the
+  // Google button unconditionally, but a first-time Google sign-in is an INSERT
+  // into auth.users, which the gate refuses. Both put the user back in front of
+  // the same form with nothing on screen and nothing to try differently.
+  //
+  // The parameter SELECTS a translated string; it is never rendered. An unknown
+  // value falls back to the generic failure rather than to silence, so a code
+  // added in the callback route can never quietly regress this page to the
+  // blank-form behaviour this block exists to end.
+  const errorCode = searchParams.get('error');
+  const redirectMessages: Record<string, string> = {
+    // Deliberately NOT "your account has been suspended", even though middleware
+    // sends this code only after it has signed a banned account out.
+    //
+    // Arriving here proves nothing: ?error=banned is a query parameter, so anyone
+    // can mail a customer a link on the real product domain that accuses them, in
+    // their own language, of being banned. An accusation rendered on the strength
+    // of a URL is a free social-engineering primitive and a support-ticket
+    // generator, and it costs the genuinely banned user nothing to lose — they
+    // cannot get in either way, and the wording below still points them at us.
+    //
+    // If a later reader wants the explicit wording back, it needs something this
+    // page can VERIFY — proof that the app itself just performed the sign-out, not a
+    // parameter it was handed. Swapping the string back on its own re-opens the hole.
+    banned: t('errorSignInBlocked'),
+    invite_required: t('errorGoogleInviteRequired'),
+    oauth_cancelled: t('errorOauthCancelled'),
+    oauth_failed: t('errorOauthFailed'),
+  };
+  const redirectMessage = errorCode ? redirectMessages[errorCode] ?? t('errorOauthFailed') : null;
 
   const handleLogin = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -60,6 +96,36 @@ export default function LoginPage(): React.ReactElement {
         <CardDescription>{t('loginSubtitle')}</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Suppressed once the user has a fresh error of their own: the reason
+            they were redirected here is stale the moment they try to sign in. */}
+        {redirectMessage && !error && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-[var(--color-error)] bg-[var(--color-surface-2)] p-3"
+          >
+            <p className="text-sm text-[var(--color-error)]">{redirectMessage}</p>
+            {errorCode === 'invite_required' && (
+              <Link
+                href="/waitlist"
+                className="mt-2 inline-block text-sm text-[var(--color-link)] hover:underline"
+              >
+                {t('joinWaitlist')}
+              </Link>
+            )}
+            {/* The generic wording above carries no next step of its own, so the
+                one route out has to be on screen: a real ban is not something the
+                customer can resolve at this form. */}
+            {errorCode === 'banned' && (
+              <Link
+                href="/contact"
+                className="mt-2 inline-block text-sm text-[var(--color-link)] hover:underline"
+              >
+                {t('contactSupport')}
+              </Link>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">{t('email')}</Label>

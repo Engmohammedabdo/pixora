@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useUser } from '@/hooks/useUser';
 import { useRouter, usePathname } from '@/i18n/routing';
 import { useTheme } from 'next-themes';
@@ -55,8 +55,11 @@ export default function SettingsPage(): React.ReactElement {
     } catch { toast.error(t('networkError')); } finally { setSaving(false); }
   };
 
-  const currentLocale = pathname.startsWith('/en') ? 'en' : 'ar';
-  const switchLocale = currentLocale === 'ar' ? 'en' : 'ar';
+  // usePathname from i18n/routing strips the locale prefix, so read the active
+  // locale from next-intl directly — pathname is '/settings', never '/en/settings',
+  // which made `startsWith('/en')` a constant false and marked العربية active for
+  // every English user. Same fix TopBar.tsx already carries.
+  const currentLocale = useLocale();
 
   const initials = profile?.name
     ? profile.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)

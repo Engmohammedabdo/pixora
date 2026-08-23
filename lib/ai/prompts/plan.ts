@@ -15,15 +15,37 @@ interface PlanPromptInput {
 export function buildPlanPrompt(input: PlanPromptInput): string {
   const { businessName, industry, goals, targetMarket, budget, duration, stage } = input;
 
-  let prompt = `You are a Senior Marketing Strategist with expertise in ${industry} businesses.`;
+  // This builder imported sanitizePrompt and never called it, so `plan` was the
+  // one paid studio with NO prompt filter in front of the model — and the
+  // PromptBlockedError arm in app/api/studios/plan/route.ts was unreachable
+  // code, meaning the 400 + `term` response the UI renders could never appear
+  // for a plan user. An unused import is exactly why tsc and eslint stayed
+  // green over it, so scripts/tests/safety.test.ts now drives this builder.
+  //
+  // EVERY field below is free text the customer typed and every one of them is
+  // interpolated into the prompt, so every one is sanitized — not just the
+  // "main" one. The caps mirror the route's own Zod maxima
+  // (app/api/studios/plan/route.ts InputSchema) so the builder holds the limit
+  // itself rather than trusting whoever calls it.
+  const safeBusinessName = sanitizePrompt(businessName, 200);
+  const safeIndustry = sanitizePrompt(industry, 100);
+  const safeStage = stage ? sanitizePrompt(stage, 100) : '';
+  const safeTargetMarket = sanitizePrompt(targetMarket, 500);
+  const safeBudget = sanitizePrompt(budget, 200);
+  // Per goal, not over the joined string: the schema caps each goal at 200
+  // chars and allows ten of them, so sanitizing after the join would apply one
+  // 200-char cap to the whole list and silently drop the later goals.
+  const safeGoals = goals.map((g) => sanitizePrompt(g, 200));
+
+  let prompt = `You are a Senior Marketing Strategist with expertise in ${safeIndustry} businesses.`;
 
   prompt += `\n\nBusiness Information:`;
-  prompt += `\n- Name: ${businessName}`;
-  prompt += `\n- Industry: ${industry}`;
-  prompt += `\n- Stage: ${stage || 'Growth'}`;
-  prompt += `\n- Target Market: ${targetMarket}`;
-  prompt += `\n- Monthly Budget: ${budget}`;
-  prompt += `\n- Primary Goals: ${goals.join(', ')}`;
+  prompt += `\n- Name: ${safeBusinessName}`;
+  prompt += `\n- Industry: ${safeIndustry}`;
+  prompt += `\n- Stage: ${safeStage || 'Growth'}`;
+  prompt += `\n- Target Market: ${safeTargetMarket}`;
+  prompt += `\n- Monthly Budget: ${safeBudget}`;
+  prompt += `\n- Primary Goals: ${safeGoals.join(', ')}`;
 
   prompt += `\n\nCreate a detailed ${duration}-day marketing plan. Return as valid JSON:`;
   prompt += `\n{`;

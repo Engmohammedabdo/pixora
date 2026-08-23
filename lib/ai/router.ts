@@ -1,6 +1,7 @@
 import { generateImage as geminiImage, generateText as geminiText } from './gemini';
 import { generateImage as openaiImage, generateText as openaiText } from './openai';
 import { generateFlux } from './replicate';
+import { isValidApiKey } from './utils';
 import { getModelConfig, getEnabledModels, type ModelConfig } from '@/lib/admin/settings';
 import type { AIModel, Studio } from '@/types/studios';
 
@@ -72,6 +73,42 @@ const IMAGE_INPUT_CAPABLE: AIModel[] = ['gemini'];
 const IMAGE_FALLBACK_ORDER: AIModel[] = ['gemini', 'gpt', 'flux'];
 const TEXT_FALLBACK_ORDER: AIModel[] = ['gemini', 'gpt'];
 
+/** The env var each adapter reads to decide real-vs-mock. */
+const MODEL_CREDENTIAL_ENV: Record<AIModel, string> = {
+  gemini: 'GOOGLE_GEMINI_API_KEY',
+  gpt: 'OPENAI_API_KEY',
+  flux: 'REPLICATE_API_TOKEN',
+};
+
+/**
+ * Drop providers this deployment has no usable key for.
+ *
+ * rejectMockInProduction() already treats an unconfigured provider as an outage,
+ * but it can only find out AFTER the adapter has run — and generateFlux() with no
+ * REPLICATE_API_TOKEN sleeps 2.5s imitating a real call before handing back its
+ * placeholder (lib/ai/replicate.ts:29). So a generation whose earlier providers
+ * failed paid 2.5s to reach a provider that was never going to answer, and the
+ * `provider_unavailable: flux` thrown at the end of that wait then OVERWROTE
+ * `lastError` — leaving the customer, and the logs, blaming the one provider that
+ * was never configured instead of the one that actually broke.
+ *
+ * The knowledge needed to make that call is an environment variable, so it belongs
+ * before the first network call rather than after the last one.
+ *
+ * Production only: in development the mock adapters ARE the intended behaviour, and
+ * rejectMockInProduction deliberately leaves them alone.
+ *
+ * If nothing is configured the unfiltered list is returned on purpose. That is a
+ * broken deployment, not a routing decision, and letting the normal loop run means
+ * it surfaces as `provider_unavailable` — which names the cause — instead of an
+ * empty-order error that reads like a bug in the studio the customer was using.
+ */
+function withCredentials(models: AIModel[]): AIModel[] {
+  if (process.env.NODE_ENV !== 'production') return models;
+  const usable = models.filter((m) => isValidApiKey(process.env[MODEL_CREDENTIAL_ENV[m]]));
+  return usable.length > 0 ? usable : models;
+}
+
 const MAX_RETRIES = 3;
 
 async function withRetry<T>(
@@ -120,20 +157,35 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
   const enabledModels = getEnabledModels(modelConfig) as AIModel[];
   const adminOrder = enabledModels.length > 0 ? enabledModels : IMAGE_FALLBACK_ORDER;
 
-  let fallbackOrder = enabledModels.includes(preferredModel)
+  const preferredOrder = enabledModels.includes(preferredModel)
     ? [preferredModel, ...adminOrder.filter((m) => m !== preferredModel)]
     : [...adminOrder];
 
   // An image-to-image request may only run on providers that forward the image.
+  //
+  // The narrowing happens BEFORE withCredentials, and that order is the whole
+  // point. withCredentials' "never hand back an empty order" guard protects
+  // whatever list it is given; run first, it protected the FULL order and this
+  // filter emptied the result afterwards — so a production box with no
+  // GOOGLE_GEMINI_API_KEY dropped gemini for want of a key and then told the admin
+  // "No image-capable model is enabled", sending them to the model toggles, which
+  // were fine.
+  //
+  // Narrowed first, each message is answerable by the thing it names: an empty
+  // capable set really is a toggle problem, while a capable set with no usable key
+  // keeps its guard (withCredentials returns the capable list unfiltered) and the
+  // loop surfaces `provider_unavailable: gemini`, which names the missing key.
+  let candidates = preferredOrder;
   if (input.referenceImageUrl) {
-    const capable = fallbackOrder.filter((m) => IMAGE_INPUT_CAPABLE.includes(m));
-    if (capable.length === 0) {
+    candidates = preferredOrder.filter((m) => IMAGE_INPUT_CAPABLE.includes(m));
+    if (candidates.length === 0) {
       throw new Error(
         'No image-capable model is enabled. Editing and product photography require a model that accepts an input image.'
       );
     }
-    fallbackOrder = capable;
   }
+
+  const fallbackOrder = withCredentials(candidates);
 
   let lastError: Error | null = null;
 
@@ -197,9 +249,11 @@ export async function generateText(input: TextGenerationInput): Promise<Generati
   const enabledTextModels = getEnabledModels(modelConfig).filter(m => TEXT_FALLBACK_ORDER.includes(m as AIModel)) as AIModel[];
   const textOrder = enabledTextModels.length > 0 ? enabledTextModels : TEXT_FALLBACK_ORDER;
 
-  const fallbackOrder = textOrder.includes(preferredModel)
-    ? [preferredModel, ...textOrder.filter((m) => m !== preferredModel)]
-    : [...textOrder];
+  const fallbackOrder = withCredentials(
+    textOrder.includes(preferredModel)
+      ? [preferredModel, ...textOrder.filter((m) => m !== preferredModel)]
+      : [...textOrder]
+  );
 
   let lastError: Error | null = null;
 
