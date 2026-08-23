@@ -108,6 +108,31 @@ prove Postfix on this box is loading the matching private key and signing outbou
 With `adkim=s` and `p=reject`, "DKIM is probably fine" is not good enough —
 **§5 checks it against a real inbox** rather than inferring it from DNS.
 
+**Resolved 2026-08-23: it signs.** Confirmed two independent ways, neither of them DNS.
+
+On the server, the private half is present and Postfix routes mail through the milter:
+
+```
+/tmp/docker-mailserver/opendkim/keys/pyramedia.info/mail.private   (1704 bytes)
+smtpd_milters     = $dkim_milter $dmarc_milter $rspamd_milter
+non_smtpd_milters = $dkim_milter          # dkim_milter = inet:localhost:8891
+```
+
+And in the mail log for a real message the app sent through `lib/email/client.ts`:
+
+```
+opendkim: DKIM-Signature field added (s=mail, d=pyramedia.info)
+postfix/smtp: relay=gmail-smtp-in.l.google.com, status=sent (250 2.0.0 OK … gsmtp)
+```
+
+`d=` is the **bare** domain, which is what `adkim=s` requires — a signature at
+`d=mail.pyramedia.info` would have passed DKIM and still been rejected. Gmail accepted
+the message and it arrived in the inbox.
+
+`npm run check:mail` still prints a WARN here, and that is correct: the script reads DNS
+and the SMTP banner only, and neither can see a private key. The warning means
+"unprovable from here", not "unproven".
+
 ---
 
 ## 3. Two systems, one set of credentials
@@ -123,24 +148,48 @@ from the login page.
 
 ---
 
-## 4. Get the mailbox and test it before configuring anything
+## 4. The mailbox — DONE, and this is what it is
 
-The mailbox lives on the **Coolify** mail service, not cPanel. Open the mail service in
-Coolify and read its environment / mailbox configuration for the account and password —
-whatever the stack exposes (the address must be at `@pyramedia.info`; see §2).
+**Configured and proved end to end on 2026-08-23. Mail is live.**
 
-Put them in your local `.env.local`:
+The mail service is `docker-mailserver` (`ghcr.io/docker-mailserver/docker-mailserver`)
+in the Coolify project **Email**, service `l4kg4csg00cwcgo488cw4k8o`, container
+`mailserver`. It holds twelve mailboxes at `@pyramedia.info`. It stores passwords as
+SHA-512 hashes on a volume, so **no password is readable from Coolify** — the panel
+shows no env vars for this service at all. A password can only be set, never recovered:
+
+```
+setup email list
+setup email add    <address> <password>
+setup email update <address> <password>
+```
+
+Run those inside the `mailserver` container. With no shell on `72.61.148.81`, the
+Coolify scheduled-task runner will do it (`run_once`), which is how the current
+mailbox was created.
+
+The app sends as a dedicated mailbox created for it:
 
 ```
 SMTP_HOST=mail.pyramedia.info
 SMTP_PORT=587
-SMTP_USER=support@pyramedia.info
+SMTP_USER=not-reply@pyramedia.info
 SMTP_PASS=<the mailbox password>
-EMAIL_FROM="PyraSuite <support@pyramedia.info>"
+EMAIL_FROM="PyraSuite <not-reply@pyramedia.info>"
+EMAIL_REPLY_TO=support@pyramedia.info
 ```
 
-The SMTP **username is the full address** — `support@pyramedia.info`, not `support`.
+`EMAIL_REPLY_TO` is not decoration. The From address is a no-reply, but an invite is the
+whole funnel and people DO reply to it — without this, every reply lands in a mailbox
+nobody reads. `support@pyramedia.info` exists and is read.
+
+The SMTP **username is the full address** — `not-reply@pyramedia.info`, not `not-reply`.
 This is the single most common mistake and it fails as `535 authentication failed`.
+
+> **The password in use is weak** (chosen deliberately by the founder). Port 587 is open
+> to the internet and this account can send DKIM-signed, DMARC-aligned mail AS the
+> domain, so a brute force would hand an attacker phishing-grade sending and blacklist
+> the IP. Rotating it is one command in the container plus one env update on the app.
 
 First, check the parts that need no password — DNS, alignment and the TLS handshake:
 
@@ -210,7 +259,7 @@ If you do, set the same credentials from §4 on the **Supabase** service in Cool
 ```
 SMTP_HOST=mail.pyramedia.info
 SMTP_PORT=587
-SMTP_USER=support@pyramedia.info
+SMTP_USER=not-reply@pyramedia.info
 SMTP_PASS=<the mailbox password>
 SMTP_SENDER_NAME=PyraSuite
 SMTP_ADMIN_EMAIL=support@pyramedia.info

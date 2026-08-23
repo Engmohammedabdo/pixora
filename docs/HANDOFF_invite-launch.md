@@ -1,17 +1,39 @@
 # Handoff: switching on the invite-only launch
 
-**Status: code DONE and merged. One credential missing, and it is the only thing left.**
-
-Everything the app needs to run an invite-only launch is built, verified against the live
-database, and on `main`. What is *not* done is configuration that lives in Coolify, which
-this session could not reach.
-
-**Start here:** get a **Coolify API token** (Coolify → Settings → API Tokens). Every open
-item below needs it and nothing else.
+> ## ✅ RESOLVED 2026-08-23 — mail is live, the code is deployed
+>
+> The Coolify API token arrived and every open item below was closed. Kept as the record
+> of *how*, because the DMARC constraint in §2 and the mail-host correction still decide
+> anything you do to email later.
+>
+> **What actually happened, and what was wrong in the plan below:**
+>
+> - **`support@` was not used.** A dedicated `not-reply@pyramedia.info` mailbox was
+>   created instead, with `EMAIL_REPLY_TO=support@pyramedia.info` so replies to an invite
+>   still reach a human. Both are at the bare domain, so §2 is satisfied.
+> - **The mailbox password is NOT readable from Coolify**, contrary to step 1 below.
+>   `docker-mailserver` stores SHA-512 hashes on a volume and the service exposes no env
+>   vars at all. A password can only be *set*: `setup email add|update <addr> <pass>`
+>   inside the `mailserver` container.
+> - **DKIM signing is proved, not assumed** (step 3): `opendkim: DKIM-Signature field
+>   added (s=mail, d=pyramedia.info)` — the bare domain, which is what `adkim=s`
+>   requires — followed by `status=sent (250 … gsmtp)` from Gmail, for a message sent by
+>   the production container. The server is also **not** an open relay.
+> - **`REPLICATE_API_TOKEN` (step 5) was not filled in.** The router now filters out any
+>   provider without usable credentials before the first network call, so the empty token
+>   costs nothing instead of a dead 2.5s stop whose error masked the real failure.
+> - **`git push` does NOT deploy.** Coolify's GitHub webhook is not firing — every
+>   deployment record is `is_webhook: false`. Trigger the deploy explicitly.
+> - **Still open by the founder's decision:** the admin password is unrotated, and the
+>   new mailbox password is weak on an internet-facing port 587.
+>
+> A separate audit run the same day found the launch's real blocker, which is not in this
+> document at all: every locale-less URL (`/login`, `/pricing`) was an infinite redirect
+> loop in production. See the "Launch readiness" section of `CLAUDE.md`.
 
 ---
 
-## The one blocker
+## The one blocker (historical — resolved)
 
 `coolify.pyramedia.cloud` (→ `72.61.148.81`) answers, but its API returns
 `{"message":"Unauthenticated."}` and SSH refuses the only key on this machine:

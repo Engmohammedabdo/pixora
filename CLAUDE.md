@@ -280,12 +280,87 @@ is configured.
 **Still needed to switch it on:** `EMAIL_FROM` + `SMTP_HOST` on the app service. Until
 then the page says so and offers `/contact` instead of claiming a send.
 
+### Launch readiness — fixed 2026-08-23 (the round that shipped the invite launch)
+
+A seven-dimension audit produced 100 candidate observations; adversarial verification
+confirmed 24 and **refuted 24 of 48 that reached a verdict** — treat any unverified
+finding in this repo as a hypothesis, not a defect.
+
+**The one that was already live in production:**
+
+```
+/login   -> 307 -> /login/login -> ... 10 hops deep, still going
+/pricing -> 307 -> /pricing/login
+```
+
+Every URL without a locale prefix was an **infinite redirect loop**, measured against
+production. `pathname.split('/')[1] || 'ar'` never asked whether the first segment IS a
+locale, so `/login` built a redirect to `/login/login`, whose first segment is again
+`login`. `/pricing` is the URL a launch announcement links to. Fixed with
+`localeOf()`/`stripLocale()` in `middleware.ts`, which match against `routing.locales` —
+so a segment either is a locale or the path has none, with no third case. Verified on a
+real production build across 20 paths, logged in and out, plus `/ab/`, `/xx`, `/en-GB/`:
+every one terminates in ≤ 2 hops.
+
+| Defect | State |
+|--------|-------|
+| Locale-less URLs were an infinite redirect loop **in production** | ✅ fixed — verified live |
+| A mid-period plan switch re-granted a full month of credits; the reverse destroyed a paid-for balance | ✅ fixed — `lib/credits/plan-switch.ts` |
+| A rejected image upload was swallowed: thumbnail rendered from the `blob:` URL, Generate enabled, credits reserved, request died in the model client. Three of nine studios unusable, forever, with no message | ✅ fixed — all three forms + server-side backstop |
+| Premium voiceovers billed at the premium rate could be served an American-English voice reading Arabic | ✅ fixed — refuses the substitution, refunds, discloses |
+| Campaign charged the full 12 credits with "Generate All Images" unchecked — 12 for the 3-credit half | ✅ fixed — price decomposed, form tracks the checkbox |
+| Storyboard (14cr), plan (5cr) and analysis (3cr) marked malformed model output `completed`, kept the credits, then threw while rendering it | ✅ fixed — shape validated before finalizing; renderers survive partial output |
+| The asset library download button never downloaded — cross-origin `<a download>` is ignored, so it navigated the customer out of the app | ✅ fixed — the one page whose purpose is retrieving finished work |
+| A banned account kept full API access; the ban only blocked HTML page loads | ✅ fixed — enforced in the `/api/*` branch, session revoked |
+| `lib/ai/prompts/plan.ts` imported `sanitizePrompt` and never called it, making the plan route's `PromptBlockedError` handler dead code | ✅ fixed — plan and analysis now sanitize **before** the credit reservation |
+| `prebuild` ran `npx tsx` with `tsx` undeclared, so every production Docker build fetched `tsx@latest` + an esbuild binary from the registry, unpinned, mid-build | ✅ fixed — declared and locked |
+| An empty `REPLICATE_API_TOKEN` made flux a dead 2.5s stop whose thrown error then **overwrote** the real gemini/gpt failure | ✅ fixed — providers without credentials are filtered out before the first network call |
+
+**The money rule took three attempts, and the first two both shipped as taps.** This is
+the most reusable lesson in this round:
+
+1. Stated on the **event** (*has this switch already granted?*) — defeated, because every
+   switch in a down-up cycle is a genuine, distinct tier change, indistinguishable from
+   honest churn.
+2. Stated on the **resulting balance** (cap the balance at the new allowance) — defeated,
+   because balance is a number the customer moves by spending. Spend 600, drop a tier,
+   come back, collect the difference, repeat. It passed every single-step check.
+3. Stated on **credits already granted this period** — the one quantity spending cannot
+   move. Plus a clamp to the new tier in **both** directions: Stripe prorates a
+   downgrade, so leaving the higher tier's credits in place pays the customer twice.
+
+Attempt 2 was caught only by adversarial review, and only because the review was asked to
+walk the attack as a *sequence*. `scripts/tests/plan-switch.test.ts` therefore runs
+sequences, not cases, and is a build gate.
+
+**Six defects were introduced by these fixes and caught by review before shipping** —
+the same pattern as every previous round. Two were blockers, both in the money fix above.
+The others: a new error code that was never added to `KNOWN_ERROR_CODES`, so its message
+was unreachable and customers saw a generic failure; a scheme guard that refused `data:`
+URLs on the claim that "gemini.ts refuses a non-https reference image", which is the
+opposite of what `fetchReferenceImage()` does; a schema `refine` that counted array
+**length** while every leaf `.catch('')`-defaulted, so `{"objectives":[{},{}]}` passed as
+a finished deliverable; and a login page that rendered "your account is suspended" from
+an unauthenticated `?error=` parameter, i.e. a free social-engineering primitive.
+
+**Still open (known, not fixed here):**
+- Plan switching is **not reachable today** — the live Stripe account has zero billing-portal
+  configurations and `subscription_update` is off by default. If it is ever enabled, re-read
+  the plan-switch rule first.
+- `ADMIN_PASSWORD` is weak and unrotated (founder's decision, 2026-08-23).
+- The `not-reply@pyramedia.info` mailbox password is weak, and port 587 is internet-facing.
+- Coolify's GitHub webhook does not fire: every deployment is `is_webhook: false`, so a
+  `git push` does **not** deploy. Trigger the deploy explicitly.
+- The app has **no healthcheck** (`health_check_enabled: false`), which is why Coolify
+  reports `running:unknown` rather than `running:healthy`. Note `/` returns 307, so a
+  healthcheck on `/` would fail — point it at `/ar`.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
 |------|-----------|
-| Transactional email — app side | ⚠️ **built, unconfigured — the last thing gating the invite launch.** `lib/email/` sends the invite, the password-reset link, the dunning notice and the waitlist confirmation. Set `EMAIL_FROM` plus `SMTP_HOST` on the **app** service to switch it on; unset is a supported no-op state, `/api/auth/recover` answers 503 rather than pretending, and `/admin/invites` reports `skipped` per address rather than claiming a send. **The mail server is `mail.pyramedia.info` on the Coolify box (`72.61.148.81`), NOT the cPanel/Bluehost host** — every earlier doc said cPanel and was wrong. `npm run check:mail` verifies DNS, DMARC alignment and the TLS handshake without a password. See `docs/EMAIL_SETUP.md`. |
-| Password reset | ⚠️ **built, waits only on the app's own SMTP.** It no longer depends on the Supabase service at all: `app/api/auth/recover/route.ts` mints the token with `admin.generateLink()` and sends it on this app's transport. Corrects a claim this file used to make — `recovery_sent_at` is **not** evidence of a send; `generateLink()` stamps it and sends nothing. See the "Password reset — rebuilt 2026-08-23" section above. |
+| Transactional email — app side | ✅ **LIVE on production since 2026-08-23.** Sends as `PyraSuite <not-reply@pyramedia.info>` with `EMAIL_REPLY_TO=support@pyramedia.info`, through `mail.pyramedia.info:587` (STARTTLS; **465 is closed and times out** rather than failing cleanly). The mail service is `docker-mailserver` in the Coolify project **Email** — NOT cPanel/Bluehost, which every doc before 2026-08-23 claimed. Mailbox passwords are SHA-512 hashes on a volume, so **none is readable from Coolify**; a password can only be set, via `setup email add/update` inside the `mailserver` container. Proved end to end, not inferred: `opendkim: DKIM-Signature field added (s=mail, d=pyramedia.info)` — the **bare** domain, which is what `adkim=s` requires — then `status=sent (250 … gsmtp)` from Gmail, for a message sent by the production container (`10.0.13.1`). The server is **not** an open relay (`554 5.7.1 Relay access denied` unauthenticated). See `docs/EMAIL_SETUP.md`. |
+| Password reset | ✅ **works on production.** `POST /api/auth/recover` returns **200** (it returned 503 until the SMTP variables were set), and returns the *same* 200 for an unknown address so it cannot be used to enumerate customers. `app/api/auth/recover/route.ts` mints the token with `admin.generateLink()` and sends it on this app's own transport, so it does not depend on the Supabase service at all. Note `recovery_sent_at` is **not** evidence of a send — `generateLink()` stamps it and sends nothing. See "Password reset — rebuilt 2026-08-23" above. |
 | Transactional email — auth side (GoTrue) | ❌ **unconfigured, and now optional.** Signup confirmation and magic link are still GoTrue's, configured with `SMTP_*` on the **Supabase** service. Neither is in use: `/auth/v1/settings` reports `mailer_autoconfirm: true` and the magic-link control was removed from the login page. |
 | Support channel | ✅ built — `/[locale]/contact` (public), stored in `support_messages`, read at `/admin/support`. Stores rather than emails on purpose, so it works with no provider configured. |
 | Tax invoice / VAT | ❌ none — and correctly so. Below the AED 375,000 threshold there is no TRN and it is *prohibited* to issue a document stating VAT. Becomes real work at registration. Credit refunds/clawback are handled (see money path round 2). |
@@ -518,9 +593,15 @@ npx tsc --noEmit # TypeScript check
 
 ```bash
 npm run check:invariants   # 12 rules; --update-baseline after fixing known debt
-npm run test:safety        # 65 checks over the prompt filter
+npm run test:safety        # 72 checks over the prompt filter
 npm run test:uploads       # 37 checks over the brand-kit logo validator
+npm run test:plan-switch   # 15 checks over the mid-period plan-switch credit rule
 ```
+
+`test:plan-switch` runs **sequences**, not cases, and that is the point: the rule it
+guards had a version that passed every single-step check and still minted credits on the
+second lap of a down-up cycle. If you change `lib/credits/plan-switch.ts`, add the new
+attack as a sequence.
 
 Needs the live database, so **not** a build gate — run it after applying 042 or
 touching either side of the logo rule:
