@@ -120,16 +120,22 @@ SMTP_ADMIN_EMAIL=support@pyramedia.info
 ```
 
 Same credentials as §3.1 — one mailbox covers both systems.
+
+> **Optional now.** Password reset moved into the app on 2026-08-23 and needs only the
+> app-side `EMAIL_FROM` + `SMTP_HOST` from §3.1. This section covers signup
+> confirmation and magic link, neither of which this product uses. `NEXT_PUBLIC_AUTH_EMAIL_ENABLED`
+> is gone with it — the "forgot password" link is always shown, because the page it
+> leads to now either sends the link or says exactly why it cannot.
+
 - Restart the Supabase service afterwards. Some Coolify templates prefix these
   `GOTRUE_SMTP_*` — match whatever that service already uses; the wrong prefix fails
-  silently and looks identical to the current broken state.
-- **Then set on the app:** `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true`. That un-hides the
-  "forgot password" link, which is deliberately hidden while reset cannot work.
-- **Check:** request a reset, then
-  `SELECT email, recovery_sent_at FROM auth.users ORDER BY recovery_sent_at DESC NULLS LAST LIMIT 1;`
-  A timestamp appearing is the proof.
-- Also translate GoTrue's email templates — they are English-only and left-to-right,
-  and this is the one message a locked-out Arabic customer must be able to read.
+  silently.
+- **Do not check with `recovery_sent_at`.** It is stamped by `admin.generateLink()`
+  too, which sends nothing — the app's own reset route calls it on every request. The
+  column says a token was minted, not that mail left the building. Read the app logs
+  for `[email]` / `[recover]` lines instead.
+- If you do enable it, translate GoTrue's templates — they are English-only and
+  left-to-right.
 
 **Before SMTP is set, a tester who forgets their password is locked out permanently.**
 Your only repair is to delete their account from `/admin/users` and re-invite them.

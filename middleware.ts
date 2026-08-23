@@ -106,6 +106,17 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       // never from the request body, so a logged-out sender cannot file a ticket
       // that appears to come from someone else.
       '/api/support',
+      // Password reset. Requiring a session here is a contradiction: the caller
+      // is by definition someone who cannot get one. Left out of this list it
+      // returned 401 to every locked-out customer — which is how the first
+      // version of the route behaved until it was actually exercised.
+      //
+      // The handler is built for the exposure: it decides mail availability
+      // from configuration BEFORE it looks at the address, throttles per source
+      // AND per address through the atomic RPC, stores only a hash of the
+      // address in the counter, and returns a byte-identical body whether or
+      // not the account exists.
+      '/api/auth/recover',
     ];
 
     const isPublicApi = publicApiPaths.some((p) => pathname.startsWith(p));

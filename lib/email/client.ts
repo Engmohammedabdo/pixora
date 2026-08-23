@@ -96,6 +96,21 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
+/**
+ * Whether a message could actually leave the building.
+ *
+ * Callers that must NOT claim success when nothing was sent check this FIRST,
+ * before touching the account they were asked about. Password reset is the
+ * example: deciding after the lookup would mean the "we cannot send mail"
+ * response is only ever returned for addresses that exist, which turns an
+ * outage notice into an account-enumeration oracle. This function reads only
+ * environment, never input, so its answer is the same for every caller.
+ */
+export function isEmailConfigured(): boolean {
+  if (!process.env.EMAIL_FROM) return false;
+  return Boolean(process.env.SMTP_HOST || process.env.RESEND_API_KEY);
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const from = input.from || process.env.EMAIL_FROM;
 

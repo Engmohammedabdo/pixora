@@ -3,6 +3,9 @@ import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin();
 
+/** Next sets NODE_ENV itself; no environment variable can spoof it. */
+const isDev = process.env.NODE_ENV !== 'production';
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
@@ -36,13 +39,22 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // 'unsafe-eval' removed: it is a dev/HMR requirement, and the production
-              // bundle was checked against this policy before shipping. 'unsafe-inline'
-              // stays, and that is real remaining debt rather than an oversight — Next.js
-              // App Router injects inline bootstrap scripts, and the nonce-based
-              // alternative forces every one of this app's 133 prerendered pages to
-              // render dynamically. Worth doing; not worth pretending is done.
-              "script-src 'self' 'unsafe-inline' https://js.stripe.com https://vercel.live",
+              // 'unsafe-eval' is out of PRODUCTION and stays out — the production
+              // bundle was checked against this policy before shipping.
+              //
+              // It is back in DEVELOPMENT because removing it there was a mistake
+              // with an obvious symptom nobody looked for: Next's dev server serves
+              // eval-based modules and source maps, so with the directive gone the
+              // client bundle throws `EvalError` before hydration, React never
+              // attaches, and every form on the site falls back to a native GET.
+              // `npm run dev` produced a completely inert app. The original comment
+              // even said "it is a dev/HMR requirement" — and then removed it
+              // unconditionally anyway, which is the whole lesson: knowing a
+              // constraint is not the same as encoding it.
+              //
+              // Keyed off NODE_ENV, which Next sets itself and no environment
+              // variable can spoof (same reasoning as the webhook signature bypass).
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co",

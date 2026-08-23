@@ -1,5 +1,5 @@
 import { sendEmail, type SendEmailResult } from './client';
-import { paymentFailedEmail, waitlistWelcomeEmail } from './templates';
+import { passwordResetEmail, paymentFailedEmail, waitlistWelcomeEmail } from './templates';
 import { getPlan } from '@/lib/stripe/plans';
 import { routing } from '@/i18n/routing';
 
@@ -46,5 +46,27 @@ export async function sendWaitlistWelcomeEmail(params: {
 }): Promise<SendEmailResult> {
   const locale = normaliseLocale(params.locale);
   const content = waitlistWelcomeEmail(locale, params.name);
+  return sendEmail({ to: params.email, ...content });
+}
+
+/**
+ * Send a password-reset link the app generated itself.
+ *
+ * The link comes from `auth.admin.generateLink({ type: 'recovery' })`, which
+ * mints a real GoTrue recovery token and does NOT send anything — that is the
+ * whole point. Supabase Auth's own mailer is configured on a different service
+ * and never was, so this is the only transport that exists.
+ *
+ * Like every other send here, this returns rather than throws; the caller must
+ * still answer the customer, and must not vary that answer by whether the
+ * account exists.
+ */
+export async function sendPasswordResetEmail(params: {
+  email: string;
+  resetUrl: string;
+  locale?: string | null;
+}): Promise<SendEmailResult> {
+  const locale = normaliseLocale(params.locale);
+  const content = passwordResetEmail(locale, params.resetUrl);
   return sendEmail({ to: params.email, ...content });
 }

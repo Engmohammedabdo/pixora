@@ -86,24 +86,26 @@ export default function LoginPage(): React.ReactElement {
               dir="ltr"
               className="rtl:placeholder-shown:text-right"
             />
-            {/* Hidden until Supabase Auth has SMTP. The reset form itself is
-                untouched and still reachable at /forgot-password — it just says
-                "check your email" and nothing is ever sent, because GoTrue has no
-                mailer on this deployment. Verified: recovery_sent_at is NULL for
-                every user who has ever existed.
+            {/* Shown unconditionally again. It used to be gated on
+                NEXT_PUBLIC_AUTH_EMAIL_ENABLED because the destination lied: it said
+                "check your email" and Supabase Auth had no mailer, so a locked-out
+                tester was told there was a way back when there was not.
 
-                Advertising a recovery path that cannot recover anyone is the single
-                worst thing to put in front of a hand-picked cohort: the moment one
-                of them forgets a password, they are locked out permanently and the
-                product told them there was a way back. Re-enable together with the
-                magic-link block once SMTP_* is set — docs/EMAIL_SETUP.md. */}
-            {process.env.NEXT_PUBLIC_AUTH_EMAIL_ENABLED === 'true' && (
-              <div className="text-end">
-                <Link href="/forgot-password" className="text-xs text-[var(--color-link)] hover:underline">
-                  {t('forgotPassword')}
-                </Link>
-              </div>
-            )}
+                Both halves of that are fixed. /forgot-password now posts to
+                /api/auth/recover, which generates the link itself and sends it on
+                THIS app's mail transport — no dependency on the Supabase service's
+                SMTP at all. And when no mail backend is configured it says so
+                plainly and offers the contact page, instead of claiming a send.
+
+                So hiding the link is now the worse option: an invisible link leaves
+                a locked-out customer with no path and no explanation, while a
+                visible one leads to a page that either sends the link or tells them
+                exactly why it cannot and where to go instead. */}
+            <div className="text-end">
+              <Link href="/forgot-password" className="text-xs text-[var(--color-link)] hover:underline">
+                {t('forgotPassword')}
+              </Link>
+            </div>
           </div>
 
           {error && (
@@ -136,16 +138,24 @@ export default function LoginPage(): React.ReactElement {
         </Button>
 
         {/* The magic-link block that used to sit here is removed, not disabled.
-            Supabase Auth has no SMTP configured on this deployment — verified,
-            `recovery_sent_at` is NULL for every user who has ever existed — so
-            `signInWithOtp` returns no error, the UI set magicLinkSent=true, and the
+            Supabase Auth has no SMTP configured on this deployment, so
+            `signInWithOtp` returned no error, the UI set magicLinkSent=true, and the
             mail never arrived. A control that reports success and does nothing is
             worse than a missing one, and this is the page invited testers are sent
             to. It also created accounts as a side effect (`shouldCreateUser`
             defaults to true), which is a second door into an invite-only product.
 
-            Bring it back when SMTP_* is set on the Supabase service — see
-            docs/EMAIL_SETUP.md. The same applies to the "forgot password" link. */}
+            Evidence, corrected: an earlier version of this comment cited
+            `recovery_sent_at IS NULL for every user`. That is no longer sound — the
+            column is stamped by `admin.generateLink()` too, which sends nothing, and
+            a verification run in this repo has stamped it. The claim now rests on
+            `/auth/v1/settings` reporting `mailer_autoconfirm: true` and on every
+            account having `email_confirmed_at == created_at` to the millisecond,
+            which is what auto-confirm does when there is no mailer to confirm through.
+
+            Password reset no longer waits on any of this — it moved to
+            /api/auth/recover and this app's own transport. Magic link could follow
+            the same route if it is ever wanted; nobody has asked for it. */}
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-[var(--color-text-secondary)]">

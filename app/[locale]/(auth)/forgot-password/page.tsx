@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { createBrowserClient } from '@/lib/supabase/client';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,25 +16,50 @@ export default function ForgotPasswordPage(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const supabase = createBrowserClient();
-
+  /**
+   * Posts to our own route, not to `supabase.auth.resetPasswordForEmail()`.
+   *
+   * That call asks Supabase Auth to send the mail, and Supabase Auth is a
+   * separate service whose SMTP has never been configured — verified live:
+   * `/auth/v1/settings` reports `mailer_autoconfirm: true`. So the old flow
+   * could not deliver anything, and answered with GoTrue's raw English error.
+   *
+   * The route below generates the recovery link itself and sends it on the mail
+   * transport this app owns. Its response is deliberately identical whether or
+   * not the address has an account, so nothing here may say "we sent you a
+   * link" — only "if the account exists, it is on its way".
+   */
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/${locale}/reset-password`,
-    });
+    try {
+      const res = await fetch('/api/auth/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, locale }),
+      });
 
-    if (resetError) {
-      setError(resetError.message);
+      if (res.ok) {
+        setSent(true);
+        return;
+      }
+
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      // `email_unavailable` is the one failure the customer must be told
+      // plainly: no link is coming and waiting will not help. It is safe to
+      // show because the route decides it from configuration alone, before it
+      // looks at the address — so it reveals nothing about the account.
+      if (json.error === 'email_unavailable') setError(t('resetEmailUnavailable'));
+      else if (json.error === 'rate_limited') setError(t('resetRateLimited'));
+      else if (json.error === 'invalid_email') setError(t('resetInvalidEmail'));
+      else setError(t('resetFailed'));
+    } catch {
+      setError(t('resetFailed'));
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSent(true);
-    setLoading(false);
   };
 
   return (
@@ -49,8 +73,9 @@ export default function ForgotPasswordPage(): React.ReactElement {
       <CardContent>
         {sent ? (
           <div className="space-y-4 text-center">
+            <p className="text-sm font-medium">{t('resetLinkSent')}</p>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              {t('resetLinkSent')}
+              {t('resetLinkSentHint')}
             </p>
             <Link href="/login">
               <Button variant="outline" className="w-full">
@@ -74,7 +99,14 @@ export default function ForgotPasswordPage(): React.ReactElement {
             </div>
 
             {error && (
-              <p className="text-sm text-[var(--color-error)]">{error}</p>
+              <div className="space-y-1">
+                <p className="text-sm text-[var(--color-error)]">{error}</p>
+                {error === t('resetEmailUnavailable') && (
+                  <Link href="/contact" className="text-sm text-[var(--color-link)] hover:underline">
+                    {t('contactSupport')}
+                  </Link>
+                )}
+              </div>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>

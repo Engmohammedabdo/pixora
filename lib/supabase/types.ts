@@ -447,6 +447,20 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      // Migration 039. The atomic keyed throttle: one
+      // `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, so concurrent callers
+      // serialise on the row lock instead of all reading the same count.
+      // Returns TRUE when the attempt is allowed. SECURITY DEFINER, EXECUTE to
+      // service_role only. Used by admin login and by POST /api/auth/recover.
+      consume_login_attempt: {
+        Args: {
+          p_key: string;
+          p_max: number;
+          /** A Postgres interval literal, e.g. '15 minutes'. */
+          p_window: string;
+        };
+        Returns: boolean;
+      };
       // Migration 031. Atomic, idempotent top-up grant. Keyed on the Stripe payment
       // intent, so replaying the same webhook event returns already_granted:true and
       // writes nothing. service_role only.

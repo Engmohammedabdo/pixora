@@ -10,6 +10,118 @@ worst defect in the money path.
 
 ---
 
+## 2026-08-23 — Password reset that can actually reset a password
+
+`app/api/auth/recover/route.ts`, `app/[locale]/(auth)/{forgot,reset}-password/page.tsx`,
+`lib/email/{client,send,templates}.ts`, `lib/throttle.ts`, `middleware.ts`,
+`next.config.ts`, `supabase/migrations/043_throttle_table_is_general_purpose.sql`.
+
+### It could never have worked, for two independent reasons
+
+Reset was `supabase.auth.resetPasswordForEmail()` — Supabase Auth's job. Supabase
+Auth is a **different Coolify service** with its own SMTP, and it has never had any.
+Measured, not assumed: `/auth/v1/settings` reports `mailer_autoconfirm: true`, and all
+three accounts have `email_confirmed_at` equal to `created_at` to the millisecond,
+which is exactly what auto-confirm does when there is no mailer to confirm through.
+
+And even with SMTP configured it would still have failed, because GoTrue builds its
+`action_link` from `API_EXTERNAL_URL` — here the **internal** docker host:
+
+    http://supabase-kong:8000/auth/v1/verify?token=…&type=recovery&redirect_to=…
+
+`supabase-kong` resolves only inside the compose network. Every reset email GoTrue
+would have sent carried a link that is dead in any inbox. Found by generating one and
+looking at it, which is the only way it could have been found.
+
+### What it does now
+
+`POST /api/auth/recover` mints the token itself with
+`admin.generateLink({ type: 'recovery' })` — which sends nothing — builds a link to
+our own reset page carrying `properties.hashed_token`, and puts it on the transport
+this app already uses for the dunning notice. One SMTP configuration, on the service
+the app owns, instead of two.
+
+Two rules shaped the route, and each cost something to satisfy:
+
+- **The answer must not depend on whether the account exists.** Unknown address, known
+  address, failed send — the same 200. The send is deliberately **not awaited**:
+  awaiting it made the known-address arm pay for a full SMTP transaction and turned the
+  route into a timing oracle, defeating by the clock what the identical body was there
+  to prevent.
+- **"We cannot send mail at all" is decided BEFORE the lookup.** Deciding after would
+  mean the 503 is only ever returned for addresses that exist — an honest outage notice
+  becoming the leak the first rule forbids. Verified: with no backend configured, a real
+  and an unknown address get byte-identical 503s and no throttle row is written for
+  either.
+
+Throttled per source (5/15min) and per address (3/60min) through migration 039's
+atomic RPC. The per-address counter key is a SHA-256 prefix; the address is never
+stored.
+
+### The defect adversarial review caught was the entire feature
+
+`@supabase/ssr` hard-codes `flowType: 'pkce'` **after** spreading caller options, so no
+caller can change it. `generateLink` issues an **implicit**-flow link. auth-js throws
+`AuthPKCEGrantCodeExchangeError: Not a valid PKCE flow url.` before any network call —
+no session, no `PASSWORD_RECOVERY` event, and a reset form whose button is disabled
+forever with nothing on screen explaining why.
+
+The old code never hit this because a PKCE client asks for a `?code=` link and gets
+one. **Swapping the issuer flipped the link's flow while the consumer stayed pinned to
+the other one** — the kind of break that no type checker sees and no build fails on.
+The page now redeems the token with `verifyOtp({ token_hash, type: 'recovery' })`, an
+explicit call that does not care about flow type and still writes the session to
+cookies.
+
+The same review found the reset page had **no failure surface at all**: an expired or
+already-used link — which the email itself calls the normal case — rendered a greyed
+button and zero text. It now has four states, and the two failure states name the
+problem and offer a new link.
+
+### Also fixed here
+
+- **`npm run dev` produced a completely inert app.** The security stage removed
+  `'unsafe-eval'` from the CSP unconditionally, and its own comment said "it is a
+  dev/HMR requirement" while removing it anyway. Next's dev server serves eval-based
+  modules, so the client bundle threw `EvalError` before hydration and every form on
+  the site fell back to a native GET. Restored for development only, keyed off
+  `NODE_ENV`; verified against `.next/routes-manifest.json` that the production build
+  still ships no `unsafe-eval`.
+- **`/api/auth/recover` returned 401 to every caller** until it was added to the
+  middleware's public list — requiring a session from someone who by definition cannot
+  get one. Found by calling it, not by reading it.
+- The "forgot password" link is shown again. It was hidden behind
+  `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` because the destination lied; now it either sends
+  the link or says plainly why it cannot and points at `/contact`. An invisible link
+  leaves a locked-out customer with no path and no explanation.
+- The reset page's subtitle was the forgot-password one, telling someone who had
+  already clicked their link to "enter your email and we'll send you a reset link".
+
+### Documentation that had become false
+
+`docs/EMAIL_SETUP.md` sent the operator to configure SMTP on the **Supabase** service
+to fix password reset — after this change, that configures a service which no longer
+sends the message they are trying to unblock. It also said a timestamp appearing in
+`auth.users.recovery_sent_at` proves SMTP is wired. **It proves nothing:** that column
+is stamped by `admin.generateLink()`, which sends no mail, and the app's own reset
+route calls it on every request. An earlier claim in this repo that "no auth email has
+ever been sent, `recovery_sent_at` is NULL for every user" rested on that column and
+has been corrected at every site that repeated it — `CLAUDE.md`, `SETUP.md`,
+`.env.local.example`, and the login page's own comment.
+
+**Verified:** `generateLink` → `verifyOtp` establishes a session for the right user
+against the live service, and a second use of the same token returns `403 Email link
+is invalid or has expired`. All four page states rendered in both locales. Route
+behaviour exercised end to end: unknown address 200, fourth request 429, real address
+with a dead SMTP host 200 with an identical body plus a `REACHABLE CUSTOMER NOT
+REACHED` log, no backend 503 for both address kinds with zero counters written.
+Migration 043 rehearsed rolled-back, then applied. Gates: `tsc`, `lint`, invariants
+12/12, `[safety] 65`, `[uploaded-url] 37`, `[logo-parity] 41`, clean production build.
+
+**Still needed to switch it on:** `EMAIL_FROM` + `SMTP_HOST` on the app service.
+
+---
+
 ## 2026-08-23 — Data integrity: writes nobody checked, and a logo that was never uploaded
 
 `supabase/migrations/042_brand_kit_logo_shape.sql`, `lib/supabase/generation-writes.ts`,

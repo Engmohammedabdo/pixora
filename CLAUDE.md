@@ -222,12 +222,68 @@ re-probed independently as `authenticated` — all six hostile shapes returned
 every one. Gates: `tsc` clean, `lint` clean, invariants 12/12, `[safety] 65`,
 `[uploaded-url] 37`, clean production build.
 
+### Password reset — rebuilt 2026-08-23
+
+A customer who forgot their password had no way back into a paid account, and the
+page told them a link was on its way. Two independent reasons it could never have
+worked, both measured rather than reasoned about:
+
+1. **Nothing was sending.** Reset was `supabase.auth.resetPasswordForEmail()`, i.e.
+   GoTrue's job, and GoTrue is a separate Coolify service whose SMTP has never been
+   set. `/auth/v1/settings` reports `mailer_autoconfirm: true`, and every account has
+   `email_confirmed_at == created_at` to the millisecond — what auto-confirm does when
+   there is no mailer to confirm through.
+2. **The link was unreachable anyway.** GoTrue builds `action_link` from
+   `API_EXTERNAL_URL`, which here is the *internal* docker host
+   `http://supabase-kong:8000`. Even with SMTP configured, the message would have
+   carried a link that resolves nowhere outside the compose network.
+
+Now: `POST /api/auth/recover` mints the token with `admin.generateLink()` (which sends
+nothing), builds a link to our own reset page carrying `properties.hashed_token`, and
+sends it on the app's transport. The page redeems it with
+`verifyOtp({ token_hash, type: 'recovery' })`.
+
+**Two rules the route is built around**, both of which cost a redesign to satisfy:
+
+- *The answer must not depend on whether the account exists.* Unknown address, known
+  address, failed send — the same 200. The send is **not awaited**, because awaiting it
+  made the known-address arm pay for a whole SMTP transaction and turned the route into
+  a timing oracle for a product whose customer list is its business.
+- *"We cannot send mail at all" is decided BEFORE the lookup.* Deciding after would
+  mean the 503 is only ever returned for addresses that exist — an outage notice
+  becoming the leak the first rule forbids.
+
+Throttled per source (5/15min) and per address (3/60min) through migration 039's
+atomic RPC; the counter stores a SHA-256 prefix, never the address.
+
+**One defect in this fix was caught by adversarial review before shipping, and it was
+the whole feature:** `@supabase/ssr` hard-codes `flowType: 'pkce'` *after* spreading
+caller options, so the implicit-flow fragment GoTrue's verify endpoint redirects with
+is rejected by our own client — `AuthPKCEGrantCodeExchangeError`, thrown before any
+network call, leaving no session, no event, and a reset form whose button is disabled
+forever with nothing on screen. The old code did not hit this only because a PKCE
+client asks for a `?code=` link and gets one. **Swapping the issuer flipped the link's
+flow while the consumer stayed pinned to the other.** `verifyOtp` sidesteps flow type
+entirely. The same review found the reset page had no failure surface at all — an
+expired link, which the email itself says is the normal case, rendered a greyed-out
+button and zero text.
+
+**Verified live:** `generateLink` → `verifyOtp` establishes a session for the right
+user and a second use returns `403 Email link is invalid or has expired`; all three
+page states render in both locales; the route returns an identical body for a real and
+an unknown address, 429 at the cap, and 503 with zero counters written when no backend
+is configured.
+
+**Still needed to switch it on:** `EMAIL_FROM` + `SMTP_HOST` on the app service. Until
+then the page says so and offers `/contact` instead of claiming a send.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
 |------|-----------|
-| Transactional email — app side | ⚠️ **built, unconfigured.** `lib/email/` sends the dunning notice and waitlist confirmation. Set `RESEND_API_KEY` + `EMAIL_FROM` to switch it on; unset is a supported no-op state. |
-| Transactional email — auth side | ❌ **still broken.** Password reset is sent by Supabase Auth, not this app, and needs `SMTP_*` on the Supabase service in Coolify. Verified: `recovery_sent_at` is NULL for every user — no auth email has ever been sent. See `docs/EMAIL_SETUP.md`. |
+| Transactional email — app side | ⚠️ **built, unconfigured.** `lib/email/` sends the dunning notice, the waitlist confirmation and — since 2026-08-23 — the password-reset link. Set `EMAIL_FROM` plus `SMTP_HOST` (or `RESEND_API_KEY`) on the **app** service to switch it on; unset is a supported no-op state, and `/api/auth/recover` answers 503 rather than pretending. |
+| Password reset | ⚠️ **built, waits only on the app's own SMTP.** It no longer depends on the Supabase service at all: `app/api/auth/recover/route.ts` mints the token with `admin.generateLink()` and sends it on this app's transport. Corrects a claim this file used to make — `recovery_sent_at` is **not** evidence of a send; `generateLink()` stamps it and sends nothing. See the "Password reset — rebuilt 2026-08-23" section above. |
+| Transactional email — auth side (GoTrue) | ❌ **unconfigured, and now optional.** Signup confirmation and magic link are still GoTrue's, configured with `SMTP_*` on the **Supabase** service. Neither is in use: `/auth/v1/settings` reports `mailer_autoconfirm: true` and the magic-link control was removed from the login page. |
 | Support channel | ✅ built — `/[locale]/contact` (public), stored in `support_messages`, read at `/admin/support`. Stores rather than emails on purpose, so it works with no provider configured. |
 | Tax invoice / VAT | ❌ none — and correctly so. Below the AED 375,000 threshold there is no TRN and it is *prohibited* to issue a document stating VAT. Becomes real work at registration. Credit refunds/clawback are handled (see money path round 2). |
 | Teams | 🗑️ **removed 2026-08-23.** Was a UI shell with mock members that also sold Business at $59/mo for a 5-seat team — a claim `lib/stripe/plans.ts` had already pulled from checkout. Page, nav entry and i18n namespace all deleted. |

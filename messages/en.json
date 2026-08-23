@@ -42,7 +42,7 @@
     "resetPasswordTitle": "Reset Password",
     "resetPasswordSubtitle": "Enter your email and we'll send you a reset link",
     "sendResetLink": "Send Reset Link",
-    "resetLinkSent": "Reset link sent! Check your email",
+    "resetLinkSent": "Reset link sent, if the account exists",
     "newPassword": "New Password",
     "confirmPassword": "Confirm Password",
     "resetPassword": "Set Password",
@@ -60,7 +60,18 @@
     "alreadyHaveAccount": "Already have an account?",
     "inviteRequired": "You need an invite to create an account. Join the waitlist and we will reach out.",
     "inviteInvalid": "That invite is not valid, or it has already been used. Let us know if this is a mistake.",
-    "alreadyRegistered": "That email is already registered. Try signing in instead."
+    "alreadyRegistered": "That email is already registered. Try signing in instead.",
+    "resetLinkSentHint": "If an account exists for that address, the link is on its way. Check spam too.",
+    "resetEmailUnavailable": "Our email service isn't running right now, so we can't send the link. Contact us and we'll help you get back in.",
+    "resetRateLimited": "Too many attempts in a short time. Wait a little and try again.",
+    "resetInvalidEmail": "Enter a valid email address.",
+    "resetFailed": "Something went wrong. Try again in a moment.",
+    "contactSupport": "Contact us",
+    "resetVerifying": "Checking your link...",
+    "resetLinkInvalid": "This link doesn't work — it has either expired or already been used.",
+    "resetLinkMissing": "The link is incomplete. Open it from the email exactly as it was sent.",
+    "resetRequestNew": "Request a new link",
+    "setPasswordSubtitle": "Choose a new password for your account"
   },
   "nav": {
     "home": "Home",

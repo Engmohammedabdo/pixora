@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
+import { Link } from '@/i18n/routing';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,30 +18,62 @@ export default function ResetPasswordPage(): React.ReactElement {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  /**
+   * `checking` -> `ready` when the token is redeemed, or `invalid`/`missing`.
+   *
+   * A boolean was not enough. The previous version had `sessionReady` alone and
+   * rendered the form regardless: an expired or already-used link — the normal
+   * case, since the email says the link works once — produced a greyed-out
+   * button and ZERO text. The customer had no way to learn what went wrong and
+   * no prompt to ask for another link, so the only remaining move was to leave.
+   */
+  const [state, setState] = useState<'checking' | 'ready' | 'invalid' | 'missing'>('checking');
+  const searchParams = useSearchParams();
 
   const supabase = createBrowserClient();
 
   useEffect(() => {
-    // Supabase auto-handles the recovery token from the URL
-    // Listen for the PASSWORD_RECOVERY event to know when session is ready
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setSessionReady(true);
-      }
-    });
+    /**
+     * Redeem the token explicitly rather than letting the client detect one in
+     * the URL.
+     *
+     * `@supabase/ssr` hard-codes `flowType: 'pkce'` after spreading caller
+     * options, so URL detection REJECTS the implicit-flow fragment GoTrue's own
+     * verify endpoint redirects with — `AuthPKCEGrantCodeExchangeError: Not a
+     * valid PKCE flow url.`, thrown before any network call, leaving no session
+     * and no PASSWORD_RECOVERY event. `verifyOtp` is a direct call, so the
+     * client's flow type never enters into it, and the SSR client still writes
+     * the resulting session to cookies — which is what makes the redirect to
+     * the dashboard at the end of this page work.
+     */
+    const tokenHash = searchParams.get('token_hash');
 
-    // Also check if there's already an active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let cancelled = false;
+    (async (): Promise<void> => {
+      // An existing session is legitimate: a signed-in user changing their
+      // password, or a second render after a successful redemption.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (session) {
-        setSessionReady(true);
+        setState('ready');
+        return;
       }
-    });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
+      if (!tokenHash) {
+        setState('missing');
+        return;
+      }
+
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: 'recovery',
+      });
+      if (cancelled) return;
+      setState(verifyError ? 'invalid' : 'ready');
+    })();
+
+    return () => { cancelled = true; };
+  }, [supabase, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -77,10 +111,25 @@ export default function ResetPasswordPage(): React.ReactElement {
         <CardTitle className="text-2xl font-bold text-[var(--color-brand)]">
           {t('resetPassword')}
         </CardTitle>
-        <CardDescription>{t('resetPasswordSubtitle')}</CardDescription>
+        <CardDescription>{t('setPasswordSubtitle')}</CardDescription>
       </CardHeader>
       <CardContent>
-        {success ? (
+        {state === 'checking' ? (
+          <p className="text-sm text-center text-[var(--color-text-secondary)]">
+            {t('resetVerifying')}
+          </p>
+        ) : state === 'invalid' || state === 'missing' ? (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-[var(--color-error)]">
+              {state === 'invalid' ? t('resetLinkInvalid') : t('resetLinkMissing')}
+            </p>
+            <Link href="/forgot-password">
+              <Button variant="outline" className="w-full">
+                {t('resetRequestNew')}
+              </Button>
+            </Link>
+          </div>
+        ) : success ? (
           <div className="text-center">
             <p className="text-sm text-[var(--color-text-secondary)]">
               {t('resetSuccess')}
@@ -117,7 +166,7 @@ export default function ResetPasswordPage(): React.ReactElement {
               <p className="text-sm text-[var(--color-error)]">{error}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || !sessionReady}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '...' : t('resetPassword')}
             </Button>
           </form>

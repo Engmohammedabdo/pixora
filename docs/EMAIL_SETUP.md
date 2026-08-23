@@ -27,10 +27,18 @@ DNS changes at all** — and the From address is the real inbox, so replies just
 
 | | Sent by | Configured on | Covers |
 |---|---|---|---|
-| **Auth email** | Supabase Auth (GoTrue) | the **Supabase** service in Coolify | password reset, confirmation, magic link |
-| **App email** | this Next.js app | the **app** service in Coolify | payment-failure notice, waitlist confirmation |
+| **App email** | this Next.js app | the **app** service in Coolify | **password reset**, payment-failure notice, waitlist confirmation |
+| **Auth email** | Supabase Auth (GoTrue) | the **Supabase** service in Coolify | signup confirmation, magic link — neither of which this product uses |
 
-Same SMTP credentials in both places. Set it up once, paste it twice.
+**Password reset moved.** It used to be GoTrue's job and that is why it never worked:
+GoTrue is a different service with its own SMTP, and it has none. As of the
+2026-08-23 change the app generates the recovery link itself
+(`app/api/auth/recover/route.ts`) and sends it on the transport below.
+
+So **there is one place to configure**, the app service, and section 4 is now
+optional — signup confirmation is off (`mailer_autoconfirm: true`) and the
+magic-link control was removed from the login page. Configure it only if you want
+those back.
 
 ---
 
@@ -112,6 +120,21 @@ server to mail them.
 fire that event once per attempt over roughly three weeks; mailing on every one is how
 a recoverable card problem turns into an unsubscribe.
 
+**Password reset** — the link a locked-out customer clicks. The app calls
+`auth.admin.generateLink({ type: 'recovery' })`, which mints a real token and sends
+nothing, then puts that token in its own Arabic-first email. Two things about the
+implementation are worth knowing before you change any of it, because both were found
+by testing rather than by reading:
+
+- GoTrue builds its `action_link` from `API_EXTERNAL_URL`, which on this deployment is
+  the **internal** docker host `http://supabase-kong:8000` — dead in any inbox. The
+  route therefore does not use `action_link` at all; it builds a link to our own
+  `/[locale]/reset-password` carrying `properties.hashed_token`.
+- `@supabase/ssr` hard-codes `flowType: 'pkce'`, so the implicit-flow fragment
+  GoTrue's verify endpoint redirects with is **rejected** by our own client. The reset
+  page redeems the token with `verifyOtp({ token_hash, type: 'recovery' })` instead,
+  which does not care about flow type and still writes the session to cookies.
+
 ### What it deliberately does not send
 
 **Receipts** — Stripe already emails one on every successful charge and hosts the
@@ -122,22 +145,19 @@ a second, worse receipt.
 
 ---
 
-## 4. Auth email — the password-reset fix
+## 4. Auth email — optional, and no longer what unlocks password reset
 
-A **Coolify change on the Supabase service**, not a code change. Nothing in this repo
-sends these; GoTrue does, from its own templates.
+> **This section used to be the fix. It is not any more.** Password reset moved to the
+> app in the 2026-08-23 change; setting SMTP on the app service (§3) is all it needs.
+> An earlier version of this file sent you here instead, and following it would have
+> configured a service that no longer sends the message you were trying to unblock.
 
-Verified against the live database — no auth email has ever been sent:
+What GoTrue still owns: **signup confirmation** and **magic link**. Neither is in use —
+`/auth/v1/settings` reports `mailer_autoconfirm: true`, so signups are confirmed
+without email, and the magic-link control was removed from the login page. Configure
+this only if you want one of those back.
 
-```sql
-SELECT recovery_sent_at IS NOT NULL, confirmation_sent_at IS NOT NULL FROM auth.users;
--- every row: false, false
-```
-
-Signup still works because GoTrue runs with autoconfirm on. **Password reset has no
-such fallback**, so today the form says "check your email" and nothing is sent.
-
-Set on the **Supabase** service:
+If you do, set the same credentials from §1 on the **Supabase** service in Coolify:
 
 ```
 SMTP_HOST=mail.pyramedia.info
@@ -148,39 +168,23 @@ SMTP_SENDER_NAME=PyraSuite
 SMTP_ADMIN_EMAIL=support@pyramedia.info
 ```
 
-Restart the Supabase service afterwards; GoTrue reads these once at boot.
+Restart the Supabase service afterwards; GoTrue reads these once at boot. Depending on
+the Coolify template they may need a `GOTRUE_SMTP_*` prefix — match whatever that
+service already uses, because the wrong prefix fails silently.
 
-Depending on the Coolify template these may be prefixed `GOTRUE_SMTP_*`. Match
-whatever that service already uses — the wrong prefix fails silently and looks
-identical to the current broken state.
+### Do NOT verify with `recovery_sent_at`
 
-### Then turn the UI back on
+An earlier version of this file said a timestamp appearing in
+`auth.users.recovery_sent_at` proves SMTP is wired. **It proves nothing.** That column
+is also stamped by `auth.admin.generateLink()`, which sends no mail at all — the app's
+own reset route calls it on every request, and so does any maintenance script. The
+column measures "a recovery token was minted", not "a message left the building".
 
-On the app: `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true`
-
-The "forgot password" link stays hidden until you set this, because advertising a
-recovery path that cannot recover anyone is the worst thing to put in front of a
-hand-picked cohort.
-
-### Confirm it actually worked
-
-Request a reset from `/ar/forgot-password`, then:
-
-```sql
-SELECT email, recovery_sent_at FROM auth.users ORDER BY recovery_sent_at DESC NULLS LAST LIMIT 1;
-```
-
-`recovery_sent_at` moving from NULL to a timestamp is GoTrue reporting it handed the
-message to SMTP. That is what distinguishes "SMTP is wired" from "the form pretended
-to send".
-
-### While you are in there
-
-GoTrue's default templates are English-only and left-to-right. On an Arabic-first
-product, the reset email is the one message a locked-out customer must be able to
-read. Translate at least the reset and confirmation templates and set `dir="rtl"`.
-
----
+Verify by reading the app's logs instead. `POST /api/auth/recover` logs
+`[recover] REACHABLE CUSTOMER NOT REACHED` with the transport's own error whenever a
+link was generated and the send failed, and `[email] SMTP send failed …` carries the
+server's words — `535 authentication failed` and `Sender address rejected` being the
+two everyone hits first. Silence on both is the success signal.
 
 ## The honest trade-off, and when to revisit
 
@@ -215,3 +219,22 @@ node scripts/db/apply.js --check "DELETE FROM waitlist WHERE source='smtp-test'"
 If nothing arrives, read the app logs before touching DNS again — an `[email]` line
 tells you whether the app tried and the server refused (the reason is logged verbatim)
 or whether nothing is configured at all.
+
+### And check the one that matters most
+
+```bash
+curl -s -o /dev/null -w '%{http_code}
+' -X POST https://pyrasuite.pyramedia.cloud/api/auth/recover   -H 'Content-Type: application/json'   -d '{"email":"you@your-real-account.com","locale":"ar"}'
+```
+
+- `503` means the app has no mail backend — `EMAIL_FROM` plus `SMTP_HOST` are not both
+  set on the app service. Nothing was attempted and nobody's rate limit was spent.
+- `200` means it accepted the request. It says the same thing for an address with no
+  account, on purpose, so a stranger cannot use this endpoint to discover who your
+  customers are — which is also why the only way to know a real send failed is the log
+  line, not the response.
+- `429` means you have already asked three times for that address this hour.
+
+Then open the link that arrives. It should land on `/[locale]/reset-password` and show
+the password form. If it shows "الرابط ده مش شغال" the token was already used or
+expired — request a fresh one; each link works exactly once.

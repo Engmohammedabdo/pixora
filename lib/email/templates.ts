@@ -184,3 +184,49 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Password reset
+//
+// Sent by THIS app, not by Supabase Auth. Auth email is configured on a
+// different service in Coolify and never was, so `resetPasswordForEmail()` had
+// no transport — a customer who forgot their password had no way back into a
+// paid account. Routing it through the mail server the app already uses means
+// one SMTP configuration instead of two, and an Arabic-first message instead of
+// GoTrue's English default template.
+//
+// The link is a bearer credential: anyone holding it can set the password. So
+// the copy says what to do if the request was not theirs, and says nothing
+// about whether an account exists — this email is only ever sent to an address
+// that has one, and the HTTP response never differs either way.
+// ───────────────────────────────────────────────────────────────────────────
+
+export function passwordResetEmail(locale: Locale, resetUrl: string): EmailContent {
+  if (locale === 'ar') {
+    const paragraphs = [
+      'وصلنا طلب لتغيير كلمة السر بتاعت حسابك في PyraSuite.',
+      'اضغط الزرار تحت وتقدر تحط كلمة سر جديدة على طول. الرابط صالح لفترة قصيرة ومرة واحدة بس.',
+    ];
+    const cta = { label: 'اختار كلمة سر جديدة', url: resetUrl };
+    const footnote =
+      'لو مش انت اللي طلبت ده، تجاهل الرسالة — كلمة السر بتاعتك ماتغيرتش، ومحدش يقدر يغيّرها من غير الرابط ده.';
+    return {
+      subject: 'تغيير كلمة السر — PyraSuite',
+      html: layout({ locale, heading: 'كلمة سر جديدة', paragraphs, cta, footnote }),
+      text: toText(paragraphs, cta, footnote),
+    };
+  }
+
+  const paragraphs = [
+    'We received a request to change the password on your PyraSuite account.',
+    'Use the button below to set a new one. The link is short-lived and works once.',
+  ];
+  const cta = { label: 'Choose a new password', url: resetUrl };
+  const footnote =
+    'If this was not you, ignore this email — your password has not changed, and nobody can change it without this link.';
+  return {
+    subject: 'Reset your password — PyraSuite',
+    html: layout({ locale, heading: 'Set a new password', paragraphs, cta, footnote }),
+    text: toText(paragraphs, cta, footnote),
+  };
+}
