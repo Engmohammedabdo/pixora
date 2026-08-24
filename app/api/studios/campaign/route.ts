@@ -92,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
       return NextResponse.json(
-        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
+        { success: false, error: 'maintenance_mode' },
         { status: 503 }
       );
     }

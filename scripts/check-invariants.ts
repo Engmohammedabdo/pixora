@@ -51,6 +51,7 @@
 
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
+import { KNOWN_ERROR_CODES } from '../lib/studio-errors';
 
 const ROOT = process.cwd();
 
@@ -1166,6 +1167,65 @@ function writeBaselineFile(entries: string[]): void {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// Invariant: studio-error-codes
+// ---------------------------------------------------------------------------
+
+const studioErrorCodes: Invariant = {
+  id: 'studio-error-codes',
+  title: 'Every error a studio route returns is a registered code with a message in both locales',
+  why:
+    'mapApiError (lib/studio-errors.ts) resolves anything not in KNOWN_ERROR_CODES ' +
+    'to `fallback`, so an unregistered code — or an English sentence returned where ' +
+    'a code belongs — makes the Arabic message written for that case unreachable ' +
+    'and shows the customer a generic failure instead. Seven routes returned ' +
+    '"System is under maintenance" as the error STRING while `maintenance_mode` sat ' +
+    'registered with copy in both locales, and all nine returned an unregistered ' +
+    'failed_to_create_generation. A registered code with no message is just as ' +
+    'unreachable, so the second pass checks both message files too.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+    // ONLY the customer-facing response shape. `generations.error` labels (written
+    // by failGeneration) and console.error() strings are not codes the customer
+    // ever sees, and flagging them would make the rule noisy enough to be deleted.
+    const patterns = [
+      /success:\s*false,\s*error:\s*'([^']+)'/g,
+      /refundAwareErrorCode\([^,]+,\s*'([^']+)'\)/g,
+    ];
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+      for (const re of patterns) {
+        re.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(content))) {
+          if (KNOWN_ERROR_CODES.has(m[1])) continue;
+          violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+        }
+      }
+    }
+    // A registered code with no message is as unreachable as an unregistered one.
+    const ar = JSON.parse(readFileSync(join(ROOT, 'messages', 'ar.json'), 'utf8'));
+    const en = JSON.parse(readFileSync(join(ROOT, 'messages', 'en.json'), 'utf8'));
+    for (const code of KNOWN_ERROR_CODES) {
+      const inAr = ar?.studio?.errors?.[code];
+      const inEn = en?.studio?.errors?.[code];
+      if (!inAr || !inEn) {
+        const missing = [!inAr ? 'ar' : null, !inEn ? 'en' : null].filter(Boolean).join(' and ');
+        violations.push({
+          file: 'messages/{ar,en}.json',
+          line: 1,
+          text: `studio.errors.${code} is missing from ${missing}`,
+        });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Invariant: prompt-input-bounded
 // ---------------------------------------------------------------------------
 
@@ -1296,6 +1356,7 @@ const INVARIANTS: Invariant[] = [
   noVhDialogOverride,
   noArabicLiteralsInTsx,
   contrastTokens,
+  studioErrorCodes,
   promptInputBounded,
   promptBuilderSanitized,
 ];

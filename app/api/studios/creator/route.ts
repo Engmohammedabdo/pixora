@@ -97,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
       return NextResponse.json(
-        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
+        { success: false, error: 'maintenance_mode' },
         { status: 503 }
       );
     }
@@ -333,7 +333,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }, 'creator');
         return NextResponse.json({
           success: false,
-          error: refundAwareErrorCode(refundResult, 'All generation attempts failed. Credits refunded.'),
+          // Was the English sentence 'All generation attempts failed. Credits
+          // refunded.' — not a registered code, so mapApiError collapsed it to the
+          // generic fallback and the Arabic customer was never told their credits
+          // had come back, which is the one thing that sentence existed to say.
+          error: refundAwareErrorCode(refundResult, 'generation_failed'),
         }, { status: 500 });
       }
 

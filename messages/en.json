@@ -232,7 +232,8 @@
       "network": "Connection problem — check your internet and retry",
       "fallback": "Something unexpected went wrong. Please try again",
       "project_not_found": "Project not found or not yours",
-      "premium_voice_unavailable": "The narrator you picked can't be reached right now. Pyra never swaps in a different voice, so your credits were returned in full — pick another voice or try again shortly"
+      "premium_voice_unavailable": "The narrator you picked can't be reached right now. Pyra never swaps in a different voice, so your credits were returned in full — pick another voice or try again shortly",
+      "failed_to_create_generation": "We couldn't start this generation. Please try again in a moment."
     },
     "pyraPath": "Pyra path 🦊",
     "failed": "Generation failed",

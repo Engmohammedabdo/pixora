@@ -33,11 +33,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'maintenance_mode' }, { status: 503 });
     }
     const studioConfig = await getStudioConfig();
     if (!isStudioEnabled(studioConfig, 'edit')) {
-      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
     }
 
     const body = await req.json();
