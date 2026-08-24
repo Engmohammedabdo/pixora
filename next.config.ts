@@ -54,12 +54,27 @@ const nextConfig: NextConfig = {
               //
               // Keyed off NODE_ENV, which Next sets itself and no environment
               // variable can spoof (same reasoning as the webhook signature bypass).
-              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live`,
+              // The three googletagmanager/google-analytics entries below are
+              // load-bearing for components/analytics/GoogleAnalytics.tsx. GA4
+              // needs all three directives, and a missing one fails SILENTLY —
+              // the browser refuses the request, nothing throws, and the
+              // property just reads as "no traffic". If GA is ever removed,
+              // remove these too; if analytics stops reporting, check here
+              // FIRST, before assuming the tag is wrong.
+              //
+              // Note these are NOT the multi-tenant wildcards the comment above
+              // warns about. Nobody can register a subdomain under
+              // google-analytics.com or analytics.google.com — Google operates
+              // every one — whereas *.supabase.co handed an origin to any
+              // stranger with a free account. The wildcard is required because
+              // GA4 routes collection regionally (region1.google-analytics.com
+              // and friends), so the exact host is not known ahead of time.
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live https://www.googletagmanager.com`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co",
+              "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co https://www.googletagmanager.com https://*.google-analytics.com",
               "media-src 'self' blob: https://*.pyramedia.cloud",
-              "connect-src 'self' https://api.stripe.com https://api.openai.com https://generativelanguage.googleapis.com https://api.replicate.com https://api.elevenlabs.io https://*.pyramedia.cloud",
+              "connect-src 'self' https://api.stripe.com https://api.openai.com https://generativelanguage.googleapis.com https://api.replicate.com https://api.elevenlabs.io https://*.pyramedia.cloud https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com",
               "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",

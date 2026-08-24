@@ -8,6 +8,7 @@ import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { OG_CONTENT } from '@/lib/seo/og-content';
 import '../globals.css';
 
@@ -139,6 +140,10 @@ export default async function RootLayout({
             </ThemeProvider>
           </DirectionProvider>
         </NextIntlClientProvider>
+        {/* Outside the provider tree on purpose — it needs no locale, no theme
+            and no query client, and keeping it last means the tag can never
+            delay hydration of the app itself. */}
+        <GoogleAnalytics />
       </body>
     </html>
   );

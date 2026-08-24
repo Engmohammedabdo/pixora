@@ -642,7 +642,8 @@ the component headers.
 | Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. The logo is uploaded and now shown on the brand-kit card, and that is all it does — the copy says so. **Colours and voice now reach creator, campaign and edit; colours reach photoshoot and storyboard** (2026-08-24 — campaign fetched only the NAME until then, while its builder had declared `brandVoice`/`brandColors` since it was written). |
 | Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. **2026-08-24: `campaign` joined them** via a separate `RETRIEVABLE_STUDIOS` list — its nine captions live only in `output` too, and with images unchecked it writes ZERO asset rows. Its output is not reliably small (persist-image returns inline `data:` URLs on four degradation paths), so the detail route strips inline images by VALUE and enforces a 256 kB ceiling. |
 | Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
-| Error tracking (Sentry) / product analytics (PostHog) | ❌ env vars declared, empty, never read by any line of code. |
+| Error tracking (Sentry) | ❌ env vars declared, empty, never read by any line of code. |
+| Product analytics | ⚠️ **GA4 only** (`components/analytics/GoogleAnalytics.tsx`, 2026-08-24). Mounted from `app/[locale]/layout.tsx` so it covers both locales and NOT `/admin/*` — verified absent from `admin/login.html` and `_not-found.html` in the build output. Production-only unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set. **It depends on three CSP directives in `next.config.ts` and fails SILENTLY if one is dropped** — an empty property looks exactly like no traffic. PostHog remains absent: its env vars are still declared, empty and unread. |
 
 ---
 
@@ -845,6 +846,11 @@ ELEVENLABS_API_KEY=
 # App
 NEXT_PUBLIC_APP_URL=https://pyrasuite.pyramedia.cloud
 NEXT_PUBLIC_DEFAULT_LOCALE=ar
+
+# Analytics — OPTIONAL. GA4 falls back to a hardcoded measurement id in
+# components/analytics/GoogleAnalytics.tsx, so production reports without this.
+# Set it to run the tag locally, preferably against a throwaway property.
+NEXT_PUBLIC_GA_MEASUREMENT_ID=
 ```
 
 ---

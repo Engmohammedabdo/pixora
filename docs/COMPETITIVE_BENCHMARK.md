@@ -270,10 +270,12 @@ These are payload and network proxies.
 | 65 | JSON-LD structured data | **FAIL — 0 blocks** on `/ar`. No `Organization`, `SoftwareApplication`, `Product`/`Offer`, or `FAQPage` — despite having 8 FAQs and 5 priced plans ready to mark up. | **FAIL — free rich-result eligibility being left on the floor** |
 | 66 | `og:image` present | **FAIL** — `og:title`, `og:description`, `og:locale`, `og:type` present; **no `og:image`** — while `twitter:card` is set to `summary_large_image`. Every WhatsApp/X/LinkedIn share renders a blank card. | **FAIL — worst possible combination for a share-driven Arabic market** |
 | 67 | Canonical URL | **FAIL** — no `<link rel="canonical">` found in the live HTML | **FAIL** |
-| 68 | Product analytics installed | **FAIL** — no `gtag`, GTM, PostHog, Plausible, Clarity, Hotjar or Umami in the live HTML; none in `package.json` | **FAIL** |
+| 68 | Product analytics installed | ✅ **fixed 2026-08-24** — GA4 (`G-L45LDQPRKJ`) via `components/analytics/GoogleAnalytics.tsx`, mounted from `app/[locale]/layout.tsx:146`. Present in **46 of 62** prerendered documents, i.e. all 23 `ar` + 23 `en`; deliberately absent from the 15 `/admin/*` pages (own `<html>`, `noindex`) and the 404. Production builds only, so localhost never lands in the property. Required three CSP directives (`next.config.ts:57-72`) — without them the tag is served and silently collects **nothing**. | **PASS** |
 | 69 | Error monitoring installed | **FAIL** — no Sentry or equivalent in `package.json` | **FAIL — you cannot see failed generations in production** |
 
-**Scorecard total: 69 criteria — 27 PASS, 34 FAIL, 3 PARTIAL/UNVERIFIED, 5 informational.**
+**Scorecard total: 69 criteria — 28 PASS, 33 FAIL, 3 PARTIAL/UNVERIFIED, 5 informational.**
+<!-- #68 moved FAIL -> PASS on 2026-08-24 when GA4 was installed. -->
+
 The engine and the money-safety layer are strong. The *shopfront* and the *measurement* are weak.
 
 ---
