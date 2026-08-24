@@ -11,6 +11,23 @@ interface AnalysisPromptInput {
   stage?: string;
 }
 
+/**
+ * Slug -> the English industry name a model can reason about.
+ *
+ * app/[locale]/(dashboard)/analysis/page.tsx:42 stores the SLUG and renders the
+ * translated label separately, so the raw value was being interpolated into the
+ * persona line. Keys must stay in step with INDUSTRIES there.
+ */
+const INDUSTRY_NAMES: Record<string, string> = {
+  restaurant: 'restaurant and food service',
+  clinic: 'healthcare and clinics',
+  retail: 'retail',
+  saas: 'software as a service',
+  real_estate: 'real estate',
+  education: 'education',
+  other: '',
+};
+
 // v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   const { businessName, industry, description, competitors, targetMarket, painPoints, stage } = input;
@@ -22,34 +39,53 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   const safeBusinessName = sanitizePrompt(businessName, 200);
   const safeIndustry = sanitizePrompt(industry, 100);
   const safeTargetMarket = sanitizePrompt(targetMarket, 500);
-  const safeStage = sanitizePrompt(stage || 'Growth', 100);
+  // Same invented fact plan.ts carried: `Growth` whenever `stage` is absent, which
+  // is ALWAYS, because nothing in the product collects it.
+  const safeStage = stage ? sanitizePrompt(stage, 100) : '';
   const safePainPoints = sanitizePrompt(painPoints || 'Not specified', 1000);
   const safeCompetitorList = sanitizePrompt(
     competitors.filter(Boolean).join(', ') || 'Not specified',
     1000
   );
 
-  let prompt = `You are a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${safeIndustry} industry.`;
+  // The page stores the SLUG (analysis/page.tsx:42) and renders the translated
+  // label separately, so the raw value reached the persona line and produced
+  // "20+ years of experience in the other industry". `other` degrades to a general
+  // marketer rather than naming a category that does not exist.
+  const industryName = INDUSTRY_NAMES[industry] ?? '';
+  const persona = industryName
+    ? `a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${industryName} industry`
+    : 'a world-class Chief Marketing Officer (CMO) with 20+ years of cross-industry experience';
+
+  let prompt = `You are ${persona}.`;
 
   prompt += `\n\nBusiness Under Analysis:`;
   prompt += `\n- Name: ${safeBusinessName}`;
   prompt += `\n- Industry: ${safeIndustry}`;
   prompt += `\n- Description: ${safeDesc}`;
-  prompt += `\n- Current Stage: ${safeStage}`;
+  if (safeStage) prompt += `\n- Current Stage: ${safeStage}`;
   prompt += `\n- Target Market: ${safeTargetMarket}`;
   prompt += `\n- Main Competitors: ${safeCompetitorList}`;
   prompt += `\n- Current Challenges: ${safePainPoints}`;
 
+  // EVERY key below is one the route's AnalysisSchema parses AND a surface renders.
+  //
+  // Removed 2026-08-24: `usp`, `gtm` and `pricing` (whole sections nothing displays
+  // or exports), `messaging` on personas, and `pricing`/`digital_presence` on
+  // competitors. The customer paid tokens for all of it and never saw any of it.
+  //
+  // `kpis` was the sharper defect: this asked for `target_30d`/`target_90d` while
+  // the schema, the page and the PDF all read `target` and `timeframe` — so every
+  // KPI card rendered a blank headline number. The three now agree.
+  //
+  // Do not add a key here without pointing at the code that prints it.
   prompt += `\n\nProvide a comprehensive marketing analysis. Return as valid JSON with these exact keys:`;
   prompt += `\n{`;
   prompt += `\n  "swot": { "strengths": ["4-5 items"], "weaknesses": ["4-5 items"], "opportunities": ["4-5 items"], "threats": ["4-5 items"] },`;
-  prompt += `\n  "personas": [{ "name": "", "age": "", "role": "", "goals": "", "pain_points": "", "channels": "", "messaging": "" }],`;
-  prompt += `\n  "competitors": [{ "name": "", "strengths": "", "weaknesses": "", "market_share": "", "pricing": "", "digital_presence": "" }],`;
-  prompt += `\n  "usp": { "statement": "One powerful sentence", "positioning": "", "differentiators": ["3 items"], "taglines": ["3 Arabic taglines"] },`;
-  prompt += `\n  "gtm": { "strategy": "", "primary_channel": "", "channels": [""], "tactics": [""], "partnerships": [""] },`;
-  prompt += `\n  "pricing": { "recommendation": "", "model": "", "tiers": [""], "justification": "" },`;
+  prompt += `\n  "personas": [{ "name": "", "age": "", "role": "", "goals": "", "pain_points": "", "channels": "" }],`;
+  prompt += `\n  "competitors": [{ "name": "", "strengths": "", "weaknesses": "", "market_share": "" }],`;
   prompt += `\n  "roadmap": { "day_30": ["5 actions"], "day_60": ["5 actions"], "day_90": ["5 actions"] },`;
-  prompt += `\n  "kpis": [{ "metric": "", "target_30d": "", "target_90d": "", "tracking": "" }]`;
+  prompt += `\n  "kpis": [{ "metric": "", "target": "the headline number", "timeframe": "" }]`;
   prompt += `\n}`;
 
   prompt += `\n\nAll text content in Arabic. Be specific, actionable, and tailored to the market context.`;

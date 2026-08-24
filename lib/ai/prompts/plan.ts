@@ -37,12 +37,17 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // 200-char cap to the whole list and silently drop the later goals.
   const safeGoals = goals.map((g) => sanitizePrompt(g, 200));
 
+  const weeks = Math.max(1, Math.round(duration / 7));
+
   let prompt = `You are a Senior Marketing Strategist with expertise in ${safeIndustry} businesses.`;
 
   prompt += `\n\nBusiness Information:`;
   prompt += `\n- Name: ${safeBusinessName}`;
   prompt += `\n- Industry: ${safeIndustry}`;
-  prompt += `\n- Stage: ${safeStage || 'Growth'}`;
+  // Only when the caller actually has one. This used to emit `Growth` whenever
+  // `stage` was absent — which is ALWAYS, because nothing in the product collects
+  // it — so every plan ever generated was steered by an invented fact.
+  if (safeStage) prompt += `\n- Stage: ${safeStage}`;
   prompt += `\n- Target Market: ${safeTargetMarket}`;
   prompt += `\n- Monthly Budget: ${safeBudget}`;
   prompt += `\n- Primary Goals: ${safeGoals.join(', ')}`;
@@ -53,10 +58,17 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   prompt += `\n  "channels": [{ "name": "", "budget_pct": 0, "strategy": "detailed approach" }],`;
   prompt += `\n  "calendar": [{ "week": 1, "content": ["items"], "channel": "" }],`;
   prompt += `\n  "budget": { "total": "", "breakdown": [{ "item": "", "amount": "", "pct": 0 }] },`;
-  prompt += `\n  "kpis": [{ "metric": "", "target": "", "tracking": "how to measure" }],`;
-  prompt += `\n  "quick_wins": ["5-7 immediate actions for first 2 weeks"],`;
-  prompt += `\n  "risks": [{ "risk": "", "probability": "High/Medium/Low", "mitigation": "" }]`;
+  prompt += `\n  "kpis": [{ "metric": "", "target": "", "tracking": "how to measure" }]`;
   prompt += `\n}`;
+
+  // The customer picks 30/60/90 days, and it reached the prose above and nothing
+  // else — so the model returned a calendar of whatever length it felt like.
+  prompt += `\n\nThe calendar must have exactly ${weeks} entries, one per week, numbered 1..${weeks}, covering the full ${duration} days.`;
+
+  // `quick_wins` and `risks` were removed 2026-08-24: no screen renders them and no
+  // export reads them, so the customer paid tokens for output that was parsed,
+  // stored and discarded. Do not add a field here without pointing at the code
+  // that prints it.
 
   prompt += `\n\nAll text in Arabic. Be specific, actionable, and realistic for the given budget.`;
   prompt += `\nReturn ONLY valid JSON.`;
