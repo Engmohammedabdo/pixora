@@ -298,7 +298,7 @@ const msgNoEmpty: Invariant = {
 
 const generationFinalized: Invariant = {
   id: 'generation-finalized',
-  title: "No studio route marks a generation 'completed' with a raw, unchecked update",
+  title: 'No studio route marks a generation terminal with a raw, unchecked update',
   why:
     'A generation leaves reconcile_orphaned_generations()\'s scan window ' +
     '(status IN (\'pending\',\'processing\')) only by being marked terminal. A ' +
@@ -310,7 +310,13 @@ const generationFinalized: Invariant = {
     'confirms via RETURNING, and logs a REFUND RISK line when it cannot. ' +
     'This check exists because the conversion missed photoshoot: the import ' +
     'was added, the asset write was converted, and the completion write was ' +
-    'left behind — tsc and eslint both stayed green.',
+    'left behind — tsc and eslint both stayed green. ' +
+    'The same reasoning applies to `failed`, and more sharply: a route that ' +
+    'marks a row failed when its refund did NOT land converts a recoverable ' +
+    'failure into stranded credits, because the reconciler deliberately leaves ' +
+    'a refund-failed row alone for the next run (028 ELSE branch) and can no ' +
+    'longer see it. Use failGeneration(), which refuses to write unless the ' +
+    'credits are provably settled.',
   async check(): Promise<Violation[]> {
     const violations: Violation[] = [];
     const files = listFiles(['app/api/studios'], ['.ts', '.tsx'], false).filter((f) =>
@@ -327,7 +333,13 @@ const generationFinalized: Invariant = {
       while ((m = stmtRe.exec(content))) {
         const stmt = m[0];
         if (!/\.update\s*\(/.test(stmt)) continue;
-        if (!/status:\s*['"]completed['"]/.test(stmt)) continue;
+        // BOTH terminal statuses, not just 'completed'. `failed` is equally terminal:
+        // reconcile_orphaned_generations() scans `status IN ('pending','processing')`
+        // (028:161), so writing EITHER value removes the row from the one automated
+        // payout left. This rule matched only 'completed' until 2026-08-24, and 25 raw
+        // `status: 'failed'` writes sat behind that gap in all nine routes — five of
+        // them executing BEFORE the refund they were supposed to follow.
+        if (!/status:\s*['"](?:completed|failed)['"]/.test(stmt)) continue;
         violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
       }
     }
