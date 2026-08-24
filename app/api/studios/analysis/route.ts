@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
-import { buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
+import { ANALYSIS_PROMPT_VERSION, buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const creditCost = CREDIT_COSTS.analysis;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
+      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input, promptVersion: ANALYSIS_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while

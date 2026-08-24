@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
-import { persistGeneratedImage } from '@/lib/storage/persist-image';
+import { persistGeneratedImage, formatFromUrl } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
@@ -134,7 +134,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (generation) {
       await finalizeGeneration(supabase, generation.id, { status: 'completed', output: { imageUrl: result.url, mock: result.mock } }, 'edit');
-      await insertAssets(supabase, [{ user_id: user.id, generation_id: generation.id, type: 'image', url: result.url || '' }], 'edit');
+      // `format` was omitted here and nowhere else, so every edit export and library
+      // download was named .png regardless of the bytes — the same wrong-extension
+      // defect that was fixed for the export ZIP.
+      await insertAssets(supabase, [{ user_id: user.id, generation_id: generation.id, type: 'image', url: result.url || '', format: formatFromUrl(result.url || '') }], 'edit');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, imageUrl: result.url, mock: result.mock, creditsUsed: CREDIT_COST, newBalance: reserveResult.newBalance } });

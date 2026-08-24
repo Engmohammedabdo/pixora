@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
-import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
+import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: user.id, project_id: projectId,
         studio: 'campaign',
         model: 'gemini',
-        input: { ...input, fullPrompt: prompt },
+        input: { ...input, fullPrompt: prompt, promptVersion: CAMPAIGN_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })

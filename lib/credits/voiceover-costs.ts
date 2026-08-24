@@ -13,8 +13,21 @@ export interface VoiceoverCostConfig {
   voicesAvailable: string[];
   toneEnabled: boolean;
   enhanceEnabled: boolean;
-  watermark: boolean;
 }
+
+/*
+ * REMOVED 2026-08-24: `watermark: boolean` on this config.
+ *
+ * It had ZERO readers — grep for `config.watermark` returns nothing — so free-tier
+ * voiceover audio has always shipped unmarked while this file claimed otherwise.
+ * A config field asserting a protection that does not exist is worse than no field:
+ * it is the shape that let free-plan IMAGES ship with empty boxes for a week
+ * (see CLAUDE.md on assertTextRenderingAvailable).
+ *
+ * Marking audio is real work — an audible tag or an inaudible mark — and is not in
+ * scope here. `lib/stripe/plans.ts` keeps its own `watermark` flag, which IS read,
+ * and governs images only.
+ */
 
 const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
   free: {
@@ -26,7 +39,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro'],
     toneEnabled: false,
     enhanceEnabled: false,
-    watermark: true,
   },
   starter: {
     creditsPerUnit: 1,
@@ -37,7 +49,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal'],
     toneEnabled: false,
     enhanceEnabled: true,
-    watermark: false,
   },
   pro: {
     creditsPerUnit: 3,
@@ -48,7 +59,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
   business: {
     creditsPerUnit: 3,
@@ -59,7 +69,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
   agency: {
     creditsPerUnit: 3,
@@ -70,7 +79,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
 };
 

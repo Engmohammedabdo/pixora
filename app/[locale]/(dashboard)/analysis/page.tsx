@@ -84,7 +84,9 @@ export default function AnalysisPage(): React.ReactElement {
   const [runs, setRuns] = useState(0);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
-  const isValid = businessName.length >= 2 && industry && description.length >= 10 && targetMarket.length >= 5;
+  // `industry` was checked for truthiness only, while the route requires min(2) —
+  // a one-character industry passed the gate and failed the request.
+  const isValid = businessName.length >= 2 && industry.length >= 2 && description.length >= 10 && targetMarket.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.analysis > balance;
   const { profile } = useUser();

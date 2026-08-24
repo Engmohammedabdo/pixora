@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
-import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
+import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: 'gemini',
         // Never the raw payload: `...input` would spill a multi-megabyte inline
         // product photo into this JSONB column. See inputImageRef().
-        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl) },
+        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl), promptVersion: PHOTOSHOOT_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })

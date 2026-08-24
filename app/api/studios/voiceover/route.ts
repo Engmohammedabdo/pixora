@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { VOICEOVER_PROMPT_VERSION } from '@/lib/ai/prompts/voiceover';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // voiceover was filed under a model that never produced it.
       model: config.provider === 'elevenlabs' ? MODELS.elevenlabs : MODELS.openaiTts,
       status: 'processing',
-      input: { ...input, planId, provider: config.provider },
+      input: { ...input, planId, provider: config.provider, promptVersion: VOICEOVER_PROMPT_VERSION },
       credits_used: creditCost,
     }).select().single();
 

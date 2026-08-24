@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
-import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
+import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getMaxResolution } from '@/lib/stripe/plans';
@@ -26,7 +27,11 @@ const InputSchema = z.object({
   style: z.string().max(100).default('photographic'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
-  referenceImageUrl: z.string().url().optional(),
+  // `z.string().url()` accepted blob: and http: — neither readable server-side —
+  // and an unbounded data: payload. edit and photoshoot were fixed for this; creator
+  // was the one image studio that never got it, and it also wrote the raw payload
+  // into generations.input via a bare ...input spread.
+  referenceImageUrl: readableImageUrl.optional(),
 });
 
 /**
@@ -206,7 +211,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: input.model,
         // Verified above — this is the resolved id, never the raw client value.
         project_id: projectId,
-        input: { ...input, fullPrompt },
+        // `...input` wrote the raw reference payload into this JSONB column — up to
+        // 20 MB of base64 in a row every admin screen reads. Record that one was
+        // supplied; the bytes stay in memory, where only the model call needs them.
+        // edit and photoshoot already did this.
+        input: {
+          ...input,
+          fullPrompt,
+          promptVersion: CREATOR_PROMPT_VERSION,
+          ...(input.referenceImageUrl ? { referenceImageUrl: inputImageRef(input.referenceImageUrl) } : {}),
+        },
         credits_used: totalCost,
         status: 'processing',
       })

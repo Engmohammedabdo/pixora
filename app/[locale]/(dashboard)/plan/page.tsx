@@ -95,7 +95,16 @@ export default function PlanPage(): React.ReactElement {
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
-  const isValid = businessName.length >= 2 && goals.length > 0 && targetMarket.length >= 5;
+  // Must match app/api/studios/plan/route.ts's InputSchema exactly. It requires
+  // `industry` (min 2) and `budget` (min 1) and this gate checked neither, so
+  // Generate was enabled with an empty industry and the customer got an instant
+  // 400 naming no field.
+  const isValid =
+    businessName.length >= 2 &&
+    industry.length >= 2 &&
+    goals.length > 0 &&
+    targetMarket.length >= 5 &&
+    budget.length >= 1;
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
