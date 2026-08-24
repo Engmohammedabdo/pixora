@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle",
+    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -22,7 +22,8 @@
     "test:reference-image": "npx tsx scripts/tests/reference-image.test.ts",
     "test:rate-limit": "npx tsx scripts/tests/rate-limit-parallel.ts",
     "test:retrievable-output": "npx tsx scripts/tests/retrievable-output.test.ts",
-    "test:settle": "npx tsx scripts/tests/settle.test.ts"
+    "test:settle": "npx tsx scripts/tests/settle.test.ts",
+    "test:provider-retry": "npx tsx scripts/tests/provider-retry.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

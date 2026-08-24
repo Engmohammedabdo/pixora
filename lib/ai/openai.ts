@@ -1,6 +1,7 @@
 import type { AIModel } from '@/types/studios';
 import { isValidApiKey } from './utils';
 import { MODELS, openaiImageSize } from './models';
+import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -39,7 +40,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
     return { url: getMockImageUrl(), model: 'gpt', mock: true };
   }
 
-  const response = await fetch('https://api.openai.com/v1/images/generations', {
+  const response = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -51,10 +52,12 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
       n: 1,
       size: openaiImageSize(options.resolution),
     }),
-  });
+  }, PROVIDER_TIMEOUTS.image, 'gpt');
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    // Classified, so the retry policy can tell a 503 (worth another attempt) from a
+    // 401 (a rotated key — three attempts is three paid failures).
+    throw new ProviderPermanentError(`OpenAI API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();
@@ -105,18 +108,18 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
     body.temperature = options.temperature || 0.7;
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-  });
+  }, PROVIDER_TIMEOUTS.text, 'gpt');
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    throw new Error(`OpenAI text API error: ${response.status}${detail ? ` — ${detail.slice(0, 200)}` : ''}`);
+    throw new ProviderPermanentError(`OpenAI text API error: ${response.status}${detail ? ` — ${detail.slice(0, 200)}` : ''}`, response.status);
   }
 
   const data = await response.json();

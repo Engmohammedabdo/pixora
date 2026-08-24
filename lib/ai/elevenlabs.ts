@@ -1,5 +1,6 @@
 import { MODELS } from './models';
 import { isValidApiKey } from './utils';
+import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
 
 /**
  * ElevenLabs TTS client for Arabic voice generation.
@@ -83,7 +84,7 @@ export async function generateElevenLabsSpeech(options: ElevenLabsOptions): Prom
 
   const { stability, similarityBoost } = options;
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://api.elevenlabs.io/v1/text-to-speech/${options.voiceId}`,
     {
       method: 'POST',
@@ -100,12 +101,14 @@ export async function generateElevenLabsSpeech(options: ElevenLabsOptions): Prom
           speed: options.speed ?? 1.0,
         },
       }),
-    }
+    },
+    PROVIDER_TIMEOUTS.tts,
+    'elevenlabs'
   );
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
+    throw new ProviderPermanentError(`ElevenLabs API error: ${response.status} - ${errorText}`, response.status);
   }
 
   const audioBuffer = Buffer.from(await response.arrayBuffer());

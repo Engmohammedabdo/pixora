@@ -4,6 +4,7 @@ import { generateFlux } from './replicate';
 import { isValidApiKey } from './utils';
 import { getModelConfig, getEnabledModels, type ModelConfig } from '@/lib/admin/settings';
 import type { AIModel, Studio } from '@/types/studios';
+import { isRetryable } from './http';
 
 // Cached model config to avoid DB hit on every generation
 let modelConfigCache: { data: ModelConfig; fetchedAt: number } | null = null;
@@ -121,6 +122,13 @@ async function withRetry<T>(
       return await fn();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      // A permanent error will fail identically on the next attempt. Retrying it
+      // bills us three times for one certain failure, delays the customer's refund
+      // by the backoff, and multiplies across a fan-out: one image request became
+      // up to 9 upstream calls and a nine-post campaign up to 81. The errors it
+      // retried hardest were the ones that could never succeed — a rotated key, a
+      // wrong model id, a host we ourselves refused.
+      if (!isRetryable(error)) throw lastError;
       if (i < retries - 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
       }

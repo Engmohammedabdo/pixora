@@ -3,6 +3,7 @@ import { isAllowedImageHost } from './allowed-hosts';
 import { MAX_REFERENCE_IMAGE_BYTES } from '@/lib/storage/reference-image';
 import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
+import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -117,7 +118,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   // received a 1K image while 4K was charged at 4x.
   const model = imageSize === '4K' ? MODELS.geminiImagePro : MODELS.geminiImage;
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -129,11 +130,15 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
           imageConfig: { imageSize },
         },
       }),
-    }
+    },
+    PROVIDER_TIMEOUTS.image,
+    'gemini'
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini image API error: ${response.status}`);
+    // Classified, so the retry policy can tell a 503 (worth another attempt) from
+    // a 401 (a rotated key — three attempts is three paid failures).
+    throw new ProviderPermanentError(`Gemini image API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();
@@ -162,7 +167,7 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
     return { text: getMockCampaignText(), model: 'gemini', mock: true };
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.geminiText}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -174,11 +179,13 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
           temperature: options.temperature || 0.7,
         },
       }),
-    }
+    },
+    PROVIDER_TIMEOUTS.text,
+    'gemini'
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini text API error: ${response.status}`);
+    throw new ProviderPermanentError(`Gemini text API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();

@@ -1,6 +1,7 @@
 import type { AIModel } from '@/types/studios';
 import { MODELS } from './models';
 import { isValidApiKey } from './utils';
+import { PROVIDER_TIMEOUTS, ProviderPermanentError, ProviderTimeoutError, fetchWithTimeout } from './http';
 
 interface GenerateFluxOptions {
   prompt: string;
@@ -39,8 +40,10 @@ export async function generateFlux(options: GenerateFluxOptions): Promise<AIResu
 
   const size = sizeMap[options.resolution] || sizeMap['1080p'];
 
+  const startedAt = Date.now();
+
   // Start prediction
-  const createResponse = await fetch('https://api.replicate.com/v1/predictions', {
+  const createResponse = await fetchWithTimeout('https://api.replicate.com/v1/predictions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -54,10 +57,10 @@ export async function generateFlux(options: GenerateFluxOptions): Promise<AIResu
         height: size.height,
       },
     }),
-  });
+  }, PROVIDER_TIMEOUTS.image, 'flux');
 
   if (!createResponse.ok) {
-    throw new Error(`Replicate API error: ${createResponse.status}`);
+    throw new ProviderPermanentError(`Replicate API error: ${createResponse.status}`, createResponse.status);
   }
 
   const prediction = await createResponse.json();
@@ -71,11 +74,20 @@ export async function generateFlux(options: GenerateFluxOptions): Promise<AIResu
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const pollResponse = await fetch(
+    // A poll loop needs a deadline for the WHOLE operation, not just each poll —
+    // otherwise a prediction that never finishes still hangs, holding the credit
+    // reservation open until the reconciler finds it.
+    if (Date.now() - startedAt > PROVIDER_TIMEOUTS.image) {
+      throw new ProviderTimeoutError('flux', PROVIDER_TIMEOUTS.image);
+    }
+
+    const pollResponse = await fetchWithTimeout(
       `https://api.replicate.com/v1/predictions/${result.id}`,
       {
         headers: { Authorization: `Bearer ${apiToken}` },
-      }
+      },
+      PROVIDER_TIMEOUTS.image,
+      'flux'
     );
 
     result = await pollResponse.json();
