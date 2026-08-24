@@ -1294,8 +1294,15 @@ const promptBuilderSanitized: Invariant = {
       (f) => !/(safety|versions)\.ts$/.test(f)
     );
     for (const file of files) {
-      const content = readFileSync(file, 'utf8');
+      const raw = readFileSync(file, 'utf8');
       const rel = toRel(file);
+
+      // Blank out comments, preserving offsets so line numbers stay right. These
+      // files document the defects they fixed by QUOTING the old code, and a rule
+      // that flags its own documentation is a rule someone deletes.
+      const content = raw
+        .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+        .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
 
       const stringFields = new Set<string>();
       const ifaceRe = /interface\s+\w*PromptInput\s*\{([\s\S]*?)\n\}/g;

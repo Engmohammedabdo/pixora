@@ -18,6 +18,7 @@ export const PROMPT_VERSIONS: Record<string, string> = {
   marketing_plan: 'v3.0',
   voiceover_enhancer: 'v2.0',
   prompt_builder: 'v2.0',
+  edit: 'v1.0',
 };
 
 /**

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { EDIT_PROMPT_VERSION, buildEditPrompt } from '@/lib/ai/prompts/edit';
 import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
       user_id: user.id, project_id: projectId, studio: 'edit', model: 'gemini', status: 'processing',
-      input: { imageUrl: inputImageRef(input.imageUrl), editDescription: input.editDescription, editType: input.editType },
+      input: { imageUrl: inputImageRef(input.imageUrl), editDescription: input.editDescription, editType: input.editType, promptVersion: EDIT_PROMPT_VERSION },
       credits_used: CREDIT_COST,
     }).select().single();
 
@@ -94,7 +95,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // never did, so the catch for PromptBlockedError below was unreachable and
       // the two highest-risk image surfaces had no filter at all.
       const safeDescription = sanitizePrompt(input.editDescription);
-      const prompt = `Image editing - ${input.editType.replace(/_/g, ' ')}: ${safeDescription}`;
+      // `edit` was the only studio with no prompt file: the whole prompt was a slug
+      // turned into two English words, with nothing telling the model that a
+      // reference image was attached or that the customer's photo had to survive.
+      const prompt = buildEditPrompt({
+        editType: input.editType,
+        editDescription: safeDescription,
+      });
       // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
       // the gemini branch. With 'gpt' the image to edit never reached the model, so
       // "edit this photo" generated an unrelated picture from the instruction alone.
