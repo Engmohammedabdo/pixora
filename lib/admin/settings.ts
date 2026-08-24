@@ -47,15 +47,22 @@ export function isStudioEnabled(config: StudioConfig, studio: string): boolean {
   return config[studio].enabled !== false;
 }
 
-export function getEffectiveCost(config: StudioConfig, studio: string, resolution?: string): number {
-  const override = config[studio]?.costs;
-  if (override) {
-    if (resolution && override[resolution] !== undefined) return override[resolution];
-    if (override['default'] !== undefined) return override['default'];
-  }
-  // Fall back to code defaults
-  return getStudioCost(studio, resolution);
-}
+/*
+ * REMOVED 2026-08-24: getEffectiveCost(), the admin per-studio credit-price override.
+ *
+ * Credit prices are CODE, not config, and deliberately so.
+ * components/pricing/StudioCostTable.tsx is a PUBLIC, unauthenticated page that
+ * statically imports CREDIT_COSTS and tells the visitor "These are the real
+ * per-action costs — the same numbers you see inside the product". It cannot read a
+ * database override, so an override could only ever make that page lie, with no
+ * correcting path. It was also dead in 7 of the 9 routes, so the knob's real effect
+ * was to make two studios disagree with the published price list.
+ *
+ * Verified before removing: `studio_config` was '{}' on the live database, so no
+ * customer's price changed.
+ *
+ * To change a price: edit lib/credits/costs.ts and deploy.
+ */
 
 // ============ Model Config ============
 

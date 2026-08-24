@@ -8,7 +8,8 @@ import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioCost } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Calculate credit cost (use admin override if set)
-    const creditCost = getEffectiveCost(studioConfig, 'creator', input.resolution);
+    const creditCost = getStudioCost('creator', input.resolution);
     const totalCost = creditCost * input.variations;
 
     // Never trust a client-supplied project id: verify it belongs to the caller

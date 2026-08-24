@@ -6,7 +6,8 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioCost } from '@/lib/credits/costs';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // refund are reached only when images were actually asked for, and with the
     // box unchecked every image slot is null by construction.
     const perImageCost = CREDIT_COSTS.image['1080p'];
-    const fullCost = getEffectiveCost(studioConfig, 'campaign');
+    const fullCost = getStudioCost('campaign');
     // Clamped at 1, so an admin override set at or below the image half cannot
     // make the text-only campaign reserve nothing and generate for free.
     const textCost = Math.max(1, fullCost - EXPECTED_POSTS * perImageCost);

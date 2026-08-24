@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { getStudioCost } from '@/lib/credits/costs';
 import { EDIT_PROMPT_VERSION, buildEditPrompt } from '@/lib/ai/prompts/edit';
 import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
@@ -20,7 +21,10 @@ const InputSchema = z.object({
   editType: z.enum(['background_replace', 'object_remove', 'color_change', 'text_add', 'style_transfer']),
 });
 
-const CREDIT_COST = 1;
+// Read from the one table, not restated here. Every studio price lives in
+// lib/credits/costs.ts, which is also what the PUBLIC pricing page imports — a
+// second copy is how the published list and the charge drift apart.
+const CREDIT_COST = getStudioCost('edit');
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
