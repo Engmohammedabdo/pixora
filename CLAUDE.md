@@ -355,6 +355,176 @@ an unauthenticated `?error=` parameter, i.e. a free social-engineering primitive
   reports `running:unknown` rather than `running:healthy`. Note `/` returns 307, so a
   healthcheck on `/` would fail — point it at `/ar`.
 
+### Nine-studio hardening — 2026-08-24
+
+A full audit of all nine studios (194 agents across 15 review units, every finding
+attacked by independent skeptics) produced **79 distinct defects and no blockers**.
+67% of what the finders filed was downgraded on verification, and six claims were
+refuted outright — treat any unverified finding in this repo as a hypothesis.
+
+The audit report, with every finding and its verdict:
+https://claude.ai/code/artifact/d89501a0-e49d-4c4f-8084-d35e98cbc180
+
+**The through-line: the studios were sound, and what they had was drift.** Nine
+copies of the same fifty-line preamble, diverging one route at a time. Almost
+everything below is a divergence between copies, and each fix is paired with a gate
+so the divergence cannot come back.
+
+#### Money
+
+| Defect | State |
+|--------|-------|
+| The `generation-finalized` invariant matched only `status: 'completed'`, so **25 raw `status: 'failed'` writes** across all nine routes passed the build | ✅ fixed — the rule now matches any terminal status, proved by reintroducing one |
+| A route that marked a row `failed` when its refund had NOT landed removed it from `reconcile_orphaned_generations()`'s scan window — the last automated payout — stranding the credits | ✅ fixed — `failGeneration()` refuses to write unless the credits are provably settled |
+| `analysis:213`, `plan:197`, `storyboard:148`, `campaign:258`, `photoshoot:275` wrote `failed` **before** `refundCredits()` was even called | ✅ fixed — the refund runs first and the write is conditional on it |
+| On a reservation failure the row was closed regardless of cause; if `reserve_credits` committed and only the reply was lost, the customer was charged with **no refund attempted and no `[credits][OWED]` line** | ✅ fixed — only `insufficient_credits`, a verdict from the RPC body (`017:31`), proves nothing was charged |
+| Voiceover priced and duration-capped on the submitted script while synthesising an LLM **rewrite** of it that nothing measured. On pro/business/agency `toneEnabled` is true, so this fired on essentially **every paid request** | ✅ fixed — `maxCharsForBudget()` bounds the rewrite; one settlement reprices on `synthesizedChars` **and** the rate actually served, composing both inputs instead of refunding their overlap twice |
+| creator and photoshoot wrote `credits_used` from the INTENDED figure without consulting `refundResult.success`, so a failed partial refund told the ledger, every admin revenue number and the customer that credits came back | ✅ fixed — `settleCharge()`; a charge only ever drops from a refund that landed |
+| Campaign generated one paid image per post the model returned, uncapped, against a nine-image price | ✅ fixed — truncated to `EXPECTED_POSTS` at parse |
+| Storyboard's schema accepted 1 of the 9 scenes sold for 14 credits | ✅ fixed — `.min(EXPECTED_SCENES)` into the existing full-refund branch |
+| Plan's completeness gate passed on `kpis` alone — a section no screen renders | ✅ fixed — the gate lists only rendered sections |
+| photoshoot hardcoded `'1080p'`, so **every paid plan received a 1K product photo** while the plans sell 2K/4K | ✅ fixed — the plan is read once, above the reservation, and decides resolution **and** watermark |
+
+**Why `failGeneration()` refuses rather than retries harder.** Leaving a row in
+`processing` costs at most one reconciler tick and **cannot double-pay**: 028 derives
+what it owes from the ledger (`SUM(usage) - SUM(refund)`), so a refund that did land
+leaves nothing owed and the row is skipped untouched. Writing `failed` over a refund
+that did not land is unrecoverable by any automated path. `creator/route.ts` already
+followed this rule at exactly one of its four sites; that site is now the helper.
+
+#### Security
+
+| Defect | State |
+|--------|-------|
+| creator's DEFAULT prompt path sent `style` and every brand-kit column to the image model with no filter and no cap — the admin-override branch had been fixed, the branch every customer hits had not | ✅ fixed |
+| storyboard (14 credits) never called `sanitizePrompt` in the route; `style`/`platform`/`brandKitName` went raw and `concept` was filtered AFTER the reservation | ✅ fixed — enums for the closed sets, sanitize before the money moves |
+| voiceover `tone` was `z.string()`, interpolated raw into the LLM rewrite prompt **whose output is read aloud on a paid generation** | ✅ fixed — `z.enum` + a `TONE_INSTRUCTIONS` table; the value now selects a row |
+| campaign sent MODEL-authored `post.scenario` straight to the image model — the only image path that never met the filter, and therefore the way around it | ✅ fixed — a blocked scenario drops that one image and is refunded, never the campaign |
+| The SSRF allowlist matched by **bare suffix**. Measured against the old rule: `xplacehold.co`, `notreplicate.delivery` and `xoaidalleapiprodscus.blob.core.windows.net` were all ACCEPTED — the last because an Azure Blob account name is the first label and is chosen by whoever opens the account | ✅ fixed — exact host or proper subdomain, one copy, `[image-host] 18` |
+| The inline `data:` reference image had no ceiling while the https path was capped at 20 MB — and edit and photoshoot held byte-identical copies of the rule, so fixing one would have left the other open | ✅ fixed — `lib/storage/reference-image.ts`, `[reference-image] 12` |
+| `brand_kits` never received a column-level GRANT lockdown, so `name`/`brand_voice` were writable to any string over PostgREST | ✅ fixed — **migration 044** |
+
+**The filter went in the BUILDER, not the route schema, and that was measured rather
+than assumed.** A zod v4 transform was tested against this repo's actual 4.3.6: a
+throw inside one is NOT wrapped into a `ZodError`, so the `400 + term` response would
+have survived. It was rejected anyway because a route `InputSchema` only sees the
+request body, and three of these channels never pass through one — the brand-kit
+columns come from a `SELECT` and campaign's image prompt comes from the text model's
+own output. The prompt builder is where all three converge.
+
+**`brand_kits` before migration 044**, measured: `anon` and `authenticated` both held
+`DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE`. Rehearsed in a rolled-back
+transaction (5/5 probes), applied, then re-probed **independently as `authenticated`**:
+unbounded `name` → `23514`, unbounded `brand_voice` → `23514`, `TRUNCATE` → `42501`,
+legitimate insert and rename → OK.
+
+#### Output quality
+
+| Defect | State |
+|--------|-------|
+| No text studio asked for JSON: five paid deliverables were regex-scraped from prose at temperature 0.7 | ✅ fixed — an OpenAPI-subset `responseSchema` per studio at temperature 0.2, with the regex scrape LEFT IN as the degradation path |
+| `temperature: options.temperature \|\| 0.7` coerced a deliberate `0` back to `0.7` in both clients, silently discarding any low-temperature request | ✅ fixed — `??` |
+| plan and analysis told the model the business was at **'Growth' stage** whenever `stage` was absent — which is ALWAYS, because nothing collects it | ✅ fixed |
+| The analysis prompt asked for `kpis[].target_30d`/`target_90d` while the schema, the page and the PDF all read `target`/`timeframe` — so every KPI card rendered a blank headline number | ✅ fixed — the three now agree |
+| `quick_wins`, `risks`, `usp`, `gtm`, `pricing` and several leaf fields were generated, stored and rendered by nothing | ✅ removed from the requested shape |
+| The 30/60/90-day choice reached the prose and nothing else | ✅ fixed — the prompt states the exact week count |
+| The raw industry SLUG was interpolated into the CMO persona, producing "20+ years of experience in **the other industry**" | ✅ fixed — slug→name table; `other` degrades to cross-industry |
+| Every plan, analysis and storyboard was generated in **Arabic regardless of locale** | ✅ fixed — the page sends `locale`; the Gulf/MENA market instruction stays in both languages |
+| **`edit` had no prompt file at all**: the whole prompt was a slug turned into two English words, with nothing telling the model a reference image was attached or that the customer's photo had to survive | ✅ fixed — `lib/ai/prompts/edit.ts`, five modes with real direction |
+| creator unconditionally ordered the model to "STRICTLY PRESERVE" an original that does not exist on the text-to-image path, then contradicted itself a line later | ✅ fixed — conditional on `hasReferenceImage` |
+| campaign fetched only the brand kit's NAME while `buildCampaignPrompt` had declared `brandVoice`/`brandColors` since it was written | ✅ fixed — including through the admin-override composer, which silently drops any field not added there too |
+| Campaign images were generated from one bare model sentence with none of the platform framing, brand colours or no-text rule every other image gets | ✅ fixed |
+| The photoshoot BRAND block asked for colour "in the set dressing" and was appended to `white_studio`, which specifies "no props" | ✅ fixed — a preset defines the scene; the brand kit tints what sits in it |
+| prompt-builder returned ANY JSON array as success, and its prompt used none of its context | ✅ fixed — schema stated on CONTENT, not length |
+
+#### What the customer sees
+
+| Defect | State |
+|--------|-------|
+| **Seven of nine routes returned raw English prose** where a registered code belongs, so `mapApiError` collapsed it to the generic fallback and the Arabic maintenance/disabled copy was unreachable | ✅ fixed + a new `studio-error-codes` invariant |
+| `failed_to_create_generation` was returned by all nine routes and was not registered | ✅ fixed — registered with copy in both locales |
+| creator's all-variations-failed path returned an English sentence, so the customer was never told their credits came back — the one thing that sentence existed to say | ✅ fixed |
+| A campaign's nine captions were destroyed by a reload; with images unchecked, ZERO asset rows are written and 3 credits of strategy vanished | ✅ fixed — `RETRIEVABLE_STUDIOS` + `stripInlineImages()` + a 256 kB ceiling |
+| **The competitor-analysis PDF had no competitors section** — the type was declared and rendered nowhere | ✅ fixed, and placed first |
+| The plan studio had **no export at all** | ✅ fixed — `generatePlanPdf` |
+| A restored past run was exported under whatever name was currently typed in the form | ✅ fixed — `onRestore` hands back `input` as well as `output` |
+| storyboard truncated its own 14-credit deliverable to 80 characters with an unconditional ellipsis | ✅ fixed — CSS clamp, so the full text stays selectable and reaches the PDF |
+| analysis rendered a blank panel when a section was missing — which its own completeness gate PERMITS, and SWOT is the default tab | ✅ fixed — all five tabs say so |
+| creator's error panel REPLACED images the customer had already paid for, with no dismiss, and its only button re-spent credits | ✅ fixed |
+| Downloads were named `.png` regardless of the bytes; photoshoot also numbered by FILTERED index | ✅ fixed — `formatFromUrl` + the true shot index |
+| Campaign's Copy and Copy All ignored the clipboard rejection — in the studio whose deliverable is text meant to be copied | ✅ fixed |
+| Every image failing showed nine empty tiles with no message and no notice of the refund | ✅ fixed |
+| Plan's Generate was enabled with an empty `industry`, which the route requires — instant 400 naming no field | ✅ fixed — the gate matches the schema |
+| **ElevenLabs accepts speed 0.7–1.2**; the studio offered five speeds and the availability check was BACKWARDS — free/starter (OpenAI, 0.25–4.0) got the restricted set, pro/business/agency got all five | ✅ fixed — clamped, and availability follows the provider |
+| The dialect/tone rewrite failing was swallowed by a bare `catch {}` returning `enhanced:false` — indistinguishable from "nothing to enhance" | ✅ fixed — logged and disclosed |
+| **Tailwind 3.4.19 silently drops `X-[var(--token)]/NN`**, so 16 elements across the landing, pricing and contact pages rendered with no background or border | ✅ fixed — `color-mix`, verified against the BUILT stylesheet before and after |
+
+#### Platform
+
+| Defect | State |
+|--------|-------|
+| `lib/rate-limit.ts` was the last check-then-act limiter and the **only throttle in front of all nine paid studios**. `checkKeyedRateLimit` additionally failed **OPEN** and keyed on the **leftmost** `x-forwarded-for` entry — the attacker-chosen one, and defect #3 from migration 039's own header | ✅ fixed — atomic `consumeAttempt()`, fails closed, nearest hop. Proved with 25 parallel calls against a cap of 5 → exactly 5 |
+| No provider call had a deadline and `withRetry` retried EVERY error class, so one image request became up to 9 upstream calls and a nine-post campaign up to 81 — hardest on errors that could never succeed (rotated key, wrong model id, our own refusals) | ✅ fixed — `lib/ai/http.ts` deadlines + `isRetryable()` |
+| The same 20 MB reference image was fetched once per shot and again per retry | ✅ fixed — in-flight dedupe; 6 concurrent calls → 1 fetch, nothing retained |
+| `getStudioConfig`/`getEffectivePrompt` were uncached and built a fresh service-role client per call, in a serial chain in front of every model call | ✅ fixed — `memoizeWithTtl`, with an inflight guard so N cold-cache requests make ONE query |
+| `GET /api/generations/[id]` fetched the 904 kB–2.8 MB blob it then refused to serve | ✅ fixed — decides on metadata alone |
+| 8 of 9 routes hardcoded `model: 'gemini'` and never corrected it, so admin per-model reliability was wrong and API cost understated ~5× on mis-attributed runs | ✅ fixed |
+| The admin per-studio credit-price knob was dead in 7 of 9 routes, while `StudioCostTable.tsx` is a PUBLIC page that statically imports `CREDIT_COSTS` and calls them "the real per-action costs" | ✅ removed — prices are code. Verified `studio_config` was `'{}'` live before removing it |
+| `versions.ts` versioned nothing: zero importers, no generation had ever recorded one | ✅ fixed — seven routes write `promptVersion` into `generations.input` (JSONB, no migration) |
+| `VoiceoverCostConfig.watermark` had ZERO readers, so free-tier audio has always shipped unmarked while the config claimed otherwise | ✅ removed, with the truth recorded where the field was |
+
+#### Four new build gates
+
+`check-invariants` is now **15 rules**. The four added here exist because each defect
+class above was found by an audit, and without a gate the next instance is found by
+the next audit — or not at all:
+
+- **`generation-finalized`** widened from `'completed'` to any terminal status.
+- **`studio-error-codes`** — every error a route returns is registered AND has a message in both locales (a registered code with no message is just as unreachable).
+- **`prompt-input-bounded`** — every `z.string()` in a studio `InputSchema` carries a bound.
+- **`prompt-builder-sanitized`** — a builder interpolates only `safe*` identifiers. **This one found 19 violations across five builders the audit never flagged.** It ignores comments, because these files document their own history by quoting the old code.
+
+All four were proved by deliberately reintroducing a violation and watching the build fail.
+
+**Test gates: 14 files, 800 checks.** New here: `generation-terminal` (11),
+`voiceover-budget` (508), `image-host` (18), `reference-image` (12),
+`retrievable-output` (21), `settle` (12), `provider-retry` (20),
+`response-schemas` (28), `prompts` (36). Plus `rate-limit` (4) which needs the live
+database and is therefore NOT a prebuild gate, like `logo-parity`.
+
+#### Six audit claims that did NOT survive verification
+
+Recorded because this repo's rule is that a ✅ must name a `file:line`, and a
+corrected claim is worth as much as a fixed defect:
+
+- **storyboard's `PromptBlockedError` handler is reachable.** `buildStoryboardPrompt` does call `sanitizePrompt`. This is not the `plan.ts` case. The real defects there were different (filter after the reservation; unfiltered `style`/`platform`).
+- **creator's brand kit DOES reach the model.** `creator/route.ts` does `.select('*')` and passes the whole row. Only the campaign half of that finding was real.
+- **The maintenance-prose defect was in 7 routes, but not the ones named** — `campaign` and `creator` were already correct; `voiceover` was missed.
+- **`failed_to_create_generation` was returned by all nine routes**, not two.
+- **The fallback badge was not unrenderable** — it renders today in creator and voiceover, fed from the API response rather than `generations.model`. Two different problems.
+- **prompt-builder's four output types do not link to non-existent studios.** They are output TYPES (image/video/copy/campaign), not studio links. No UI change was made.
+
+#### Still open, deliberately
+
+- **`withStudio()` — the shared route preamble.** Measured at **35.5% of executable
+  studio-route lines** (the audit's 26% was low). It is the fix that would make the
+  drift class structurally impossible rather than repeatedly caught, and it is real
+  debt. It was NOT done: it touches all nine routes, every one of which was heavily
+  edited in this round, and the plan for it calls for a design review of the wrapper
+  signature before implementation. `docs/superpowers/plans/2026-08-24-studio-business-integrity.md`
+  Task 8 has the measurements and the divergence list.
+- **Raw Tailwind palette classes** (`bg-green-50` etc.) across ~25 files. These
+  already carry `dark:` variants, so this is style-consistency debt against the
+  CSS-variable rule, not a legibility defect. A token set should be designed before
+  a sweep, not during one.
+- **`FallbackNotice` is still duplicated** in `CreatorPreview` and `voiceover/page.tsx`.
+- **The `costs` save path in the admin studio UI is inert but still plumbed** — the
+  inputs are read-only now, and the values it stores are read by nothing.
+- **Nothing in this round was verified against a live model.** Every fix is
+  gate-verified (tsc, lint, 15 invariants, 800 test checks, clean production build)
+  and the database work was probed against the live database — but no studio was run
+  end to end against a real provider. Do that before deploying.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -370,8 +540,8 @@ an unauthenticated `?error=` parameter, i.e. a free social-engineering primitive
 | Prompt templates + history | ⚠️ components written (242 lines), zero imports. Cheap to activate. |
 | API access (sold on Agency tier) | ❌ absent — and correctly removed from the plan features. |
 | Arabic text inside generated images | ❌ not handled; prompts actively forbid it. |
-| Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. The logo is uploaded and now shown on the brand-kit card, and that is all it does — the copy says so. Colours reach creator and photoshoot, the voice reaches creator. |
-| Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. |
+| Brand kit logo/fonts reaching the model | ❌ zero references to `logo` anywhere in `lib/ai/`. The logo is uploaded and now shown on the brand-kit card, and that is all it does — the copy says so. **Colours and voice now reach creator, campaign and edit; colours reach photoshoot and storyboard** (2026-08-24 — campaign fetched only the NAME until then, while its builder had declared `brandVoice`/`brandColors` since it was written). |
+| Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. **2026-08-24: `campaign` joined them** via a separate `RETRIEVABLE_STUDIOS` list — its nine captions live only in `output` too, and with images unchecked it writes ZERO asset rows. Its output is not reliably small (persist-image returns inline `data:` URLs on four degradation paths), so the detail route strips inline images by VALUE and enforces a 256 kB ceiling. |
 | Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
 | Error tracking (Sentry) / product analytics (PostHog) | ❌ env vars declared, empty, never read by any line of code. |
 
@@ -519,8 +689,8 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **44 files** in `supabase/migrations/`, latest `043_throttle_table_is_general_purpose.sql`.
-  `public.schema_migrations` records 22 of them (022 → 043, contiguous) because
+- **45 files** in `supabase/migrations/`, latest `044_brand_kits_column_lockdown.sql`.
+  `public.schema_migrations` records 23 of them (022 → 044, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
   it predates the ledger, not that it was skipped. Verified against the live
   database 2026-08-23; an earlier version of this file stopped at 042.
@@ -592,11 +762,25 @@ npx tsc --noEmit # TypeScript check
 **Build gates** (`prebuild`, so a regression fails the build rather than shipping):
 
 ```bash
-npm run check:invariants   # 12 rules; --update-baseline after fixing known debt
-npm run test:safety        # 72 checks over the prompt filter
-npm run test:uploads       # 37 checks over the brand-kit logo validator
-npm run test:plan-switch   # 15 checks over the mid-period plan-switch credit rule
+npm run check:invariants        # 15 rules; --update-baseline is for no-arabic-literals ONLY
+npm run test:safety             # 82 checks over the prompt filter and the builders
+npm run test:uploads            # 37 checks over the brand-kit logo validator
+npm run test:plan-switch        # 15 checks over the mid-period plan-switch credit rule
+npm run test:generation-terminal #  11 checks: a row is only closed once credits are settled
+npm run test:voiceover-budget   # 508 checks: the char budget is the exact inverse of the price
+npm run test:image-host         #  18 checks: the SSRF allowlist is a HOST rule, not a suffix
+npm run test:reference-image    #  12 checks: an inline reference image is bounded
+npm run test:retrievable-output #  21 checks: a retrievable output can never be multi-megabyte
+npm run test:settle             #  12 checks: a charge only drops from a refund that landed
+npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
+npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
+npm run test:prompts            #  36 golden-string checks over the prompt builders
 ```
+
+**800 checks across 14 files.** Several exist because the defect they guard was
+invisible in review — `test:prompts` catches a prompt that "reads fine" while
+inventing a business stage the product never collects, and `test:voiceover-budget`
+catches a price computed from a different string than the one the customer hears.
 
 `test:plan-switch` runs **sequences**, not cases, and that is the point: the rule it
 guards had a version that passed every single-step check and still minted credits on the
@@ -608,4 +792,5 @@ touching either side of the logo rule:
 
 ```bash
 npm run test:logo-parity   # one corpus through both the TS validator and the SQL guard
+npm run test:rate-limit    # 25 genuinely parallel calls against a cap of 5 -> exactly 5
 ```
