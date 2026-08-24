@@ -19,7 +19,8 @@
     "test:generation-terminal": "npx tsx scripts/tests/generation-terminal.test.ts",
     "test:voiceover-budget": "npx tsx scripts/tests/voiceover-budget.test.ts",
     "test:image-host": "npx tsx scripts/tests/image-host.test.ts",
-    "test:reference-image": "npx tsx scripts/tests/reference-image.test.ts"
+    "test:reference-image": "npx tsx scripts/tests/reference-image.test.ts",
+    "test:rate-limit": "npx tsx scripts/tests/rate-limit-parallel.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

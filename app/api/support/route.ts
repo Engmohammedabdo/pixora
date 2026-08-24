@@ -43,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Lower than the waitlist's 5/min: a person writing in sends one message, maybe
     // two. Anything faster is a script, and each row here costs storage the founder
     // has to read through.
-    if (!(await checkKeyedRateLimit(`support:${ip}`, 3, 60_000))) {
+    if (!(await checkKeyedRateLimit(`support:${ip}`, 3, 1))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
