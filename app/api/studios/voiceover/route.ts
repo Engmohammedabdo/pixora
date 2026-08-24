@@ -328,6 +328,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         duration: deliveredDuration,
         provider: ttsResult.provider,
         enhanced: ttsResult.enhanced,
+        // The customer paid the premium rate for a dialect; if the rewrite failed they
+        // received a plain reading of their own text and nothing said so.
+        enhancementRejected: ttsResult.enhancementRejected,
         mock: ttsResult.mock,
         // The UI renders this as "بايرا استخدمت مسار بديل" — a stated notice, not
         // a badge the customer has to decode. `creditsUsed` is the settled figure,

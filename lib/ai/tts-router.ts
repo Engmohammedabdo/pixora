@@ -165,8 +165,14 @@ async function enhanceScript(script: string, dialect: string, tone: string, conf
       }
       return { text: enhanced, enhanced: true, rejected: false };
     }
-  } catch {
-    // Enhancement failed — use original text
+  } catch (e: unknown) {
+    // A bare `catch {}` returned { enhanced: false } here, which is INDISTINGUISHABLE
+    // from "there was nothing to enhance". So a customer on a paid tier picked مصري,
+    // was charged the premium rate, received a plain فصحى reading of their own text,
+    // and nothing — not the response, not a log line — said the dialect had not been
+    // applied. `rejected: true` is what makes it visible to the route and the page.
+    console.error(`[tts] dialect/tone rewrite failed; speaking the original instead: ${String(e)}`);
+    return { text: script, enhanced: false, rejected: true };
   }
 
   return { text: script, enhanced: false, rejected: false };

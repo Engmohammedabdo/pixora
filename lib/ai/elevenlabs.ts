@@ -12,7 +12,10 @@ interface ElevenLabsOptions {
   voiceId: string;
   stability?: number;     // 0-1, lower = more expressive
   similarityBoost?: number; // 0-1, higher = more consistent
-  speed?: number;         // 0.5-2.0
+  /** ElevenLabs accepts 0.7-1.2 only (verified against their docs 2026-08-24).
+   *  The old comment here said 0.5-2.0, and that false statement is what the whole
+   *  dead-end rested on. Clamped below rather than passed through. */
+  speed?: number;
 }
 
 interface ElevenLabsResult {
@@ -84,6 +87,20 @@ export async function generateElevenLabsSpeech(options: ElevenLabsOptions): Prom
 
   const { stability, similarityBoost } = options;
 
+  // ElevenLabs supports speed 0.7-1.2 and rejects anything else. The studio offers
+  // 0.5 / 0.75 / 1 / 1.25 / 1.5, so THREE of the five were guaranteed failures on
+  // the premium engine — and the failure surfaced as a message blaming the VOICE,
+  // sending the customer to change something that was never the problem.
+  // Clamped, not rejected: a 1.25x read at 1.2x is what the customer asked for to
+  // within 4%, and a dead end is not.
+  const ELEVENLABS_MIN_SPEED = 0.7;
+  const ELEVENLABS_MAX_SPEED = 1.2;
+  const requestedSpeed = options.speed ?? 1.0;
+  const speed = Math.min(ELEVENLABS_MAX_SPEED, Math.max(ELEVENLABS_MIN_SPEED, requestedSpeed));
+  if (speed !== requestedSpeed) {
+    console.warn(`[elevenlabs] speed ${requestedSpeed} is outside the supported 0.7-1.2 range; clamped to ${speed}.`);
+  }
+
   const response = await fetchWithTimeout(
     `https://api.elevenlabs.io/v1/text-to-speech/${options.voiceId}`,
     {
@@ -98,7 +115,7 @@ export async function generateElevenLabsSpeech(options: ElevenLabsOptions): Prom
         voice_settings: {
           stability: stability ?? 0.5,
           similarity_boost: similarityBoost ?? 0.75,
-          speed: options.speed ?? 1.0,
+          speed,
         },
       }),
     },

@@ -450,7 +450,8 @@
     "enhanced": "Enhanced",
     "maxDuration": "Max: {seconds}s",
     "proBadge": "🌟 Pro",
-    "fallbackNotice": "Pyra used an alternate path — the charge was adjusted to match what was delivered"
+    "fallbackNotice": "Pyra used an alternate path — the charge was adjusted to match what was delivered",
+    "dialectNotApplied": "We couldn't apply the dialect this time, so your script was read as written. Try again."
   },
   "edit": {
     "originalImage": "Original Image",
