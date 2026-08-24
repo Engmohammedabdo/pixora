@@ -49,7 +49,7 @@ export function NavBar(): React.ReactElement {
       variants={fadeIn}
       initial="hidden"
       animate="visible"
-      className={`sticky top-0 z-header bg-[var(--color-surface)]/70 backdrop-blur-xl transition-[border-color] duration-300 ${
+      className={`sticky top-0 z-header bg-[color-mix(in_srgb,var(--color-surface)_70%,transparent)] backdrop-blur-xl transition-[border-color] duration-300 ${
         scrolled ? 'border-b border-[var(--color-surface-2)]' : 'border-b border-transparent'
       }`}
     >
@@ -104,7 +104,7 @@ export function NavBar(): React.ReactElement {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden overflow-hidden border-t border-[var(--color-surface-2)] bg-[var(--color-surface)]/95 backdrop-blur-xl"
+            className="md:hidden overflow-hidden border-t border-[var(--color-surface-2)] bg-[color-mix(in_srgb,var(--color-surface)_95%,transparent)] backdrop-blur-xl"
           >
             <div className="px-4 py-4 space-y-3">
               {NAV_LINKS.map((link) => {

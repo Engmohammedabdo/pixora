@@ -46,10 +46,10 @@ export function StudioCostTable(): React.ReactElement {
         </h2>
         <p className="mb-10 text-center text-[var(--color-text-secondary)]">{t('subtitle')}</p>
 
-        <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)]/50">
+        <div className="overflow-x-auto rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)]">
           <table className="w-full border-collapse text-start">
             <thead>
-              <tr className="border-b border-[var(--color-border)]/50 bg-[var(--color-surface-2)]">
+              <tr className="border-b border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] bg-[var(--color-surface-2)]">
                 <th className="p-4 text-start text-sm font-semibold text-[var(--color-text-primary)]">
                   {t('studioHeader')}
                 </th>
@@ -62,7 +62,7 @@ export function StudioCostTable(): React.ReactElement {
               {STUDIO_ROWS.map((row) => {
                 const Icon = row.icon;
                 return (
-                  <tr key={row.key} className="border-b border-[var(--color-border)]/30 last:border-0">
+                  <tr key={row.key} className="border-b border-[color-mix(in_srgb,var(--color-border)_30%,transparent)] last:border-0">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-2)]">

@@ -9,7 +9,7 @@ import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
-import { formatFromUrl } from '@/lib/storage/persist-image';
+import { formatFromUrl } from '@/lib/storage/image-format';
 import Image from 'next/image';
 import { Download, AlertTriangle } from 'lucide-react';
 

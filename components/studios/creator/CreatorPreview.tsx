@@ -12,7 +12,7 @@ import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
-import { formatFromUrl } from '@/lib/storage/persist-image';
+import { formatFromUrl } from '@/lib/storage/image-format';
 import { Download, RefreshCw, AlertTriangle, Pencil, Info, X } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 

@@ -50,7 +50,7 @@ export default function PricingSection() {
                 className={`relative rounded-2xl border p-6 bg-[var(--color-surface)] flex flex-col ${
                   isPro
                     ? 'border-primary-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]'
-                    : 'border-[var(--color-border)]/50'
+                    : 'border-[color-mix(in_srgb,var(--color-border)_50%,transparent)]'
                 }`}
               >
                 {isPro && (

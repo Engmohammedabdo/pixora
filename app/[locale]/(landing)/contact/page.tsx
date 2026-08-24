@@ -53,7 +53,7 @@ export default async function ContactPage({
     <>
       <main className="mx-auto max-w-3xl px-6 py-16">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-brand)]/10">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)]">
             <LifeBuoy className="h-7 w-7 text-[var(--color-brand)]" />
           </div>
           <h1 className="mb-3 text-3xl font-bold font-cairo">{t('title')}</h1>

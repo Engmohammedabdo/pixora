@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getPlan } from '@/lib/stripe/plans';
 import { applyWatermark, urlToBuffer } from '@/lib/image/watermark';
+// Re-exported so every existing server-side import keeps working. It lives in its
+// own module because CLIENT components need it too, and this file imports sharp.
+export { formatFromUrl } from './image-format';
+import { EXTENSIONS } from './image-format';
 
 interface PersistOptions {
   userId: string;
@@ -181,30 +185,7 @@ export async function persistGeneratedImage(
  * containing JPEG bytes. Falls back to png when the URL carries no extension
  * (the data: fallback path).
  */
-export function formatFromUrl(url: string): string {
-  // A data: URL has no extension — but it does carry the mime type, and the
-  // old `?? 'png'` threw it away. That is not a hypothetical: on an unwatermarked
-  // plan a storage failure returns the provider's `data:${mime};base64,…`
-  // verbatim (lib/ai/gemini.ts builds it from the provider's declared type), and
-  // 13 of the 25 live asset rows are data: URLs. Every JPEG among them was filed
-  // as png and exported as `campaign-1.png` containing JPEG bytes.
-  if (url.startsWith('data:')) {
-    const comma = url.indexOf(',');
-    const meta = url.slice(5, comma === -1 ? undefined : comma);
-    const mime = meta.split(';')[0].trim().toLowerCase();
-    return EXTENSIONS[mime] ?? 'png';
-  }
-  const match = url.match(/\.([a-z0-9]+)(?:\?|$)/i);
-  return match ? match[1].toLowerCase() : 'png';
-}
 
-const EXTENSIONS: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  // Not a registered type, but providers emit it and it means the same thing.
-  'image/jpg': 'jpg',
-  'image/webp': 'webp',
-};
 
 /**
  * Identify an image from its magic bytes.

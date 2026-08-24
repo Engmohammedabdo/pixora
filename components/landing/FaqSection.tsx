@@ -31,11 +31,11 @@ export function FaqSection(): React.ReactElement {
             return (
               <div
                 key={num}
-                className="rounded-xl border border-[var(--color-border)]/50 overflow-hidden"
+                className="rounded-xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] overflow-hidden"
               >
                 <button
                   onClick={() => toggle(index)}
-                  className="w-full flex items-center justify-between p-5 text-start hover:bg-[var(--color-surface-2)]/50 transition-colors"
+                  className="w-full flex items-center justify-between p-5 text-start hover:bg-[color-mix(in_srgb,var(--color-surface-2)_50%,transparent)] transition-colors"
                 >
                   <span className="font-medium text-[var(--color-text-primary)]">
                     {t(`faq.q${num}`)}

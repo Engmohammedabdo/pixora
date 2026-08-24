@@ -42,7 +42,7 @@ export function ValuePillars(): React.ReactElement {
                 key={pillar.titleKey}
                 variants={fadeInUp}
                 whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                className="rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)]/80 p-6 backdrop-blur-sm"
+                className="rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] bg-[color-mix(in_srgb,var(--color-surface)_80%,transparent)] p-6 backdrop-blur-sm"
               >
                 <div className="mb-4 w-fit rounded-xl bg-primary-50 p-3 dark:bg-primary-900/30">
                   <Icon className="h-6 w-6 text-primary-600 dark:text-primary-400" />

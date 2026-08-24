@@ -61,9 +61,9 @@ export function WaitlistForm({ source = 'landing' }: Props): React.ReactElement 
     return (
       <div
         role="status"
-        className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--color-success)] bg-[var(--color-success)]/10 px-6 py-8 text-center"
+        className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--color-success)] bg-[color-mix(in_srgb,var(--color-success)_10%,transparent)] px-6 py-8 text-center"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-success)]/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-success)_20%,transparent)]">
           <Check className="h-6 w-6 text-[var(--color-success)]" />
         </div>
         <p className="text-lg font-bold">{t('successTitle')}</p>
