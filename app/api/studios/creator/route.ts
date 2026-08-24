@@ -112,12 +112,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
-    // Enforce resolution limit based on user's plan
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
+    // Three INDEPENDENT reads that used to run strictly one after another, in front
+    // of the first model call: the plan (for the resolution cap), the project id
+    // (ownership), and the brand kit. None of them needs another's answer, so they
+    // are one round trip's latency instead of three. The auth check and the rate
+    // limit deliberately stay above this — they GATE the work rather than race it.
+    const [profileResult, projectId, brandKitResult] = await Promise.all([
+      supabase.from('profiles').select('plan_id').eq('id', user.id).single(),
+      resolveProjectId(supabase, user.id, input.projectId),
+      input.brandKitId
+        ? supabase.from('brand_kits').select('*').eq('id', input.brandKitId).eq('user_id', user.id).single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    // Enforce resolution limit based on the customer's plan
+    const profile = profileResult.data;
     const maxRes = getMaxResolution(profile?.plan_id || 'free');
     const resOrder: string[] = ['1080p', '2K', '4K'];
     if (resOrder.indexOf(input.resolution) > resOrder.indexOf(maxRes)) {
@@ -131,24 +140,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const creditCost = getStudioCost('creator', input.resolution);
     const totalCost = creditCost * input.variations;
 
-    // Never trust a client-supplied project id: verify it belongs to the caller
-    // before filing work into it.
-    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    // Never trust a client-supplied project id: resolveProjectId (above, in the
+    // Promise.all) verifies it belongs to the caller before any work is filed into it.
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // Fetch brand kit if provided
-    let brandKit = null;
-    if (input.brandKitId) {
-      const { data } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandKit = data;
-    }
+    const brandKit = brandKitResult.data;
 
     // The safety filter runs HERE, on the customer's own text, before anything
     // branches on the admin override. buildCreatorPrompt() is the only caller of
