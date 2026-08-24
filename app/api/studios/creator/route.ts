@@ -454,6 +454,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
       credits_used: creditsCharged,
       status: 'completed',
+      // creator already tracked which model served (resultModel) and echoed it in
+      // the response, but never wrote it to the row the admin views read.
+      model: resultModel,
     }, 'creator');
 
     // Save assets (one per successful image)

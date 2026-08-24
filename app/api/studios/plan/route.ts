@@ -234,7 +234,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await finalizeGeneration(supabase, generation.id, { output: { plan, mock: result.mock }, status: 'completed' }, 'plan');
+      await finalizeGeneration(supabase, generation.id, {
+        output: { plan, mock: result.mock },
+        status: 'completed',
+        // Record the model that ACTUALLY served. The row is inserted before
+        // generation from the PREFERRED model, but the router falls back — so a
+        // gpt-served run stayed filed under gemini forever, and six admin surfaces
+        // read this column. MODEL_COSTS is gemini 0.002 vs gpt 0.01, so every
+        // mis-attributed run also understated estimated API cost 5x.
+        model: result.model,
+      }, 'plan');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
