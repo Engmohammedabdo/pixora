@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 /**
@@ -98,6 +98,24 @@ export const metadata: Metadata = {
     shortcut: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
+};
+
+/**
+ * Colours the browser chrome on mobile — the Android Chrome address bar and the
+ * iOS status bar once installed. Nothing served one before 2026-08-24, so both
+ * fell back to the browser default.
+ *
+ * A `viewport` export, NOT `metadata.themeColor`: Next moved it out of Metadata
+ * in 14 and the old position now only earns a deprecation warning.
+ *
+ * #4F46E5 is `--color-brand` (app/globals.css:50), i.e. primary-600. The value
+ * that was in public/manifest.json was #6366F1 — primary-500, one step lighter
+ * and not the brand token. The icon package shipped by the designer says
+ * #4F46E5 too, so the manifest was the odd one out and has been aligned rather
+ * than followed.
+ */
+export const viewport: Viewport = {
+  themeColor: '#4F46E5',
 };
 
 export default function RootLayout({
