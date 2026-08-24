@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { STORYBOARD_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -171,7 +172,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     try {
     const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName });
-    const result = await generateText({ prompt, maxTokens: 8192 });
+    const result = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: STORYBOARD_RESPONSE_SCHEMA,
+    });
 
     // Unparseable output = failure + refund. The old fallback shipped a canned
     // storyboard whose ninth scene was a PyraSuite advert, billed at full price.

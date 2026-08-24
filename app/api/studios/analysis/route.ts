@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { ANALYSIS_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -208,7 +209,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let analysis: z.infer<typeof AnalysisSchema>;
     try {
       const prompt = buildAnalysisPrompt(safeInput);
-      result = await generateText({ prompt, maxTokens: 8192 });
+      result = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: ANALYSIS_RESPONSE_SCHEMA,
+    });
 
       // Unparseable output = failure + refund. The old fallback returned canned
       // text containing PyraSuite's OWN pricing page ("مبتدئ: $12/شهر") as if it

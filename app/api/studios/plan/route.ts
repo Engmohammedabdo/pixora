@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { PLAN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -199,7 +200,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     try {
     const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10) });
-    const result = await generateText({ prompt, maxTokens: 8192 });
+    const result = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: PLAN_RESPONSE_SCHEMA,
+    });
 
     // A model response we cannot parse is a FAILURE, not a result. Previously this
     // fell back to canned Arabic filler, marked the generation `completed` and

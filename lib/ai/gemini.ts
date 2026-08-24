@@ -15,6 +15,14 @@ interface GenerateTextOptions {
   prompt: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * An OpenAPI-3.0-subset schema. When present the request ASKS the model for JSON
+   * of this shape instead of hoping that prose written at temperature 0.7 happens
+   * to contain a parseable object. The regex scrape at each call site stays in
+   * place on purpose, so a model or endpoint that ignores this degrades to the
+   * previous behaviour rather than failing.
+   */
+  responseSchema?: Record<string, unknown>;
 }
 
 interface AIResult {
@@ -176,7 +184,12 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
         contents: [{ parts: [{ text: options.prompt }] }],
         generationConfig: {
           maxOutputTokens: options.maxTokens || 4096,
-          temperature: options.temperature || 0.7,
+          // `??`, not `||`: a deliberate temperature of 0 — which is what a
+          // schema-constrained request wants — was coerced back to 0.7.
+          temperature: options.temperature ?? 0.7,
+          ...(options.responseSchema
+            ? { responseMimeType: 'application/json', responseSchema: options.responseSchema }
+            : {}),
         },
       }),
     },

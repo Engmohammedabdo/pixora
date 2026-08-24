@@ -12,6 +12,14 @@ interface GenerateTextOptions {
   prompt: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * An OpenAPI-3.0-subset schema. When present the request ASKS the model for JSON
+   * of this shape instead of hoping that prose written at temperature 0.7 happens
+   * to contain a parseable object. The regex scrape at each call site stays in
+   * place on purpose, so a model or endpoint that ignores this degrades to the
+   * previous behaviour rather than failing.
+   */
+  responseSchema?: Record<string, unknown>;
 }
 
 interface AIResult {
@@ -105,7 +113,20 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
     body.max_completion_tokens = options.maxTokens || 4096;
   } else {
     body.max_tokens = options.maxTokens || 4096;
-    body.temperature = options.temperature || 0.7;
+    // `??`, not `||`: a deliberate temperature of 0 — which is what a
+    // schema-constrained request wants — was coerced back to 0.7.
+    body.temperature = options.temperature ?? 0.7;
+  }
+
+  if (options.responseSchema) {
+    // strict:false deliberately. Strict mode demands additionalProperties:false and
+    // every property listed in `required`; the schema this shares with the Gemini
+    // path satisfies neither, and a 400 here costs all five studios their fallback
+    // provider — the same failure shape documented above for max_tokens.
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'studio_output', strict: false, schema: options.responseSchema },
+    };
   }
 
   const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {

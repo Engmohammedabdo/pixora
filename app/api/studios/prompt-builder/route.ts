@@ -1,6 +1,7 @@
 import { failGeneration } from '@/lib/supabase/generation-writes';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { PROMPT_BUILDER_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
 import { buildPromptBuilderPrompt } from '@/lib/ai/prompts/prompt-builder';
@@ -64,7 +65,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Every other studio sanitizes before the model sees the text; this one
     // never did, so the user's description reached the model unfiltered.
     const prompt = buildPromptBuilderPrompt({ ...input, description: sanitizePrompt(input.description) });
-    const result = await generateText({ prompt });
+    const result = await generateText({
+      prompt,
+      temperature: 0.2,
+      responseSchema: PROMPT_BUILDER_RESPONSE_SCHEMA,
+    });
 
     // No credits are charged here, so there is nothing to refund — but returning
     // canned results as if the model had answered is still dishonest. Report the

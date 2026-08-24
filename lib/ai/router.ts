@@ -36,6 +36,9 @@ interface TextGenerationInput {
   model?: AIModel;
   maxTokens?: number;
   temperature?: number;
+  /** Passed to BOTH provider arms. Missing one arm means the fallback silently
+   *  reverts to scraping prose, which is the defect this exists to remove. */
+  responseSchema?: Record<string, unknown>;
 }
 
 interface GenerationResult {
@@ -275,12 +278,14 @@ export async function generateText(input: TextGenerationInput): Promise<Generati
               prompt: input.prompt,
               maxTokens: input.maxTokens,
               temperature: input.temperature,
+              responseSchema: input.responseSchema,
             });
           case 'gpt':
             return openaiText({
               prompt: input.prompt,
               maxTokens: input.maxTokens,
               temperature: input.temperature,
+              responseSchema: input.responseSchema,
             });
           default:
             throw new Error(`Text generation not supported for model: ${model}`);

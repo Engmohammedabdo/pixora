@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { CAMPAIGN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
@@ -253,7 +254,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Nine posts x five fields of Arabic does not fit in the 4096 default, so a
     // full-length campaign truncated mid-JSON and the whole 12-credit run failed to
     // parse. Every other multi-item text studio already raises this to 8192.
-    const textResult = await generateText({ prompt, maxTokens: 8192 });
+    const textResult = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: CAMPAIGN_RESPONSE_SCHEMA,
+    });
 
     // Parse and validate the output
     let posts: z.infer<typeof CampaignPostSchema>[];
