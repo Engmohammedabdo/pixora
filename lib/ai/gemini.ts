@@ -1,5 +1,6 @@
 import type { AIModel } from '@/types/studios';
 import { isAllowedImageHost } from './allowed-hosts';
+import { MAX_REFERENCE_IMAGE_BYTES } from '@/lib/storage/reference-image';
 import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
 
@@ -41,12 +42,19 @@ function getMockImageUrl(): string {
  * endpoints, localhost services) and the bytes would be handed to the model.
  * Mirrors the protections already applied in lib/image/watermark.ts.
  */
-const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
 
 async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
   if (imageUrl.startsWith('data:')) {
     const [header, data] = imageUrl.split(',');
     if (!data) throw new Error('invalid data URL');
+    // The https path below is capped at MAX_REFERENCE_IMAGE_BYTES and this one was
+    // not, so the inline form was the way in that skipped the ceiling. base64
+    // decodes to 3 bytes per 4 characters, so this bounds the payload WITHOUT
+    // allocating it — checking Buffer.byteLength after decoding would mean doing the
+    // very allocation this guard exists to prevent.
+    if (Math.floor((data.length * 3) / 4) > MAX_REFERENCE_IMAGE_BYTES) {
+      throw new Error('image too large');
+    }
     return { mimeType: header.slice(5).split(';')[0] || 'image/png', base64: data };
   }
 
