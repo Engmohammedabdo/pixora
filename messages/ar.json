@@ -517,7 +517,8 @@
     "descriptionPlaceholder": "وصف مفصل عن عملك...",
     "competitorPlaceholder": "منافس {number}",
     "targetMarketPlaceholder": "مثال: شركات صغيرة ومتوسطة في السعودية",
-    "painPointsPlaceholder": "أبرز التحديات الحالية..."
+    "painPointsPlaceholder": "أبرز التحديات الحالية...",
+    "sectionEmpty": "هذا القسم ما رجع من بايرا هالمرة. جرّب تولّد مرة ثانية."
   },
   "settings": {
     "title": "الإعدادات",

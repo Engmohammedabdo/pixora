@@ -517,7 +517,8 @@
     "descriptionPlaceholder": "A detailed description of your business...",
     "competitorPlaceholder": "Competitor {number}",
     "targetMarketPlaceholder": "Example: SMBs in Saudi Arabia",
-    "painPointsPlaceholder": "Your biggest current challenges..."
+    "painPointsPlaceholder": "Your biggest current challenges...",
+    "sectionEmpty": "Pyra didn't return this section this time. Try generating again."
   },
   "settings": {
     "title": "Settings",
