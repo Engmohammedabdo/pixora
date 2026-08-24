@@ -5,6 +5,7 @@ import { ValuePillars } from '@/components/landing/ValuePillars';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { InteractiveDemo } from '@/components/landing/InteractiveDemo';
 import { StudiosShowcase } from '@/components/landing/StudiosShowcase';
+import { ComparisonSection } from '@/components/landing/ComparisonSection';
 import StatsSection from '@/components/landing/StatsSection';
 import PricingSection from '@/components/landing/PricingSection';
 import { SocialProof } from '@/components/landing/SocialProof';
@@ -42,6 +43,10 @@ export default async function LandingPage({
         <HowItWorks />
         <InteractiveDemo />
         <StudiosShowcase />
+        {/* Placed after the studios and before pricing on purpose: the comparison
+            only lands once the reader knows what the nine studios are, and it is
+            what makes the price feel like a different category of purchase. */}
+        <ComparisonSection />
         <StatsSection />
         <PricingSection />
         <SocialProof />

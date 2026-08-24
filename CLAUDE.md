@@ -525,6 +525,105 @@ corrected claim is worth as much as a fixed defect:
   and the database work was probed against the live database — but no studio was run
   end to end against a real provider. Do that before deploying.
 
+### One document per route — fixed 2026-08-24
+
+**Every English page and the entire admin panel were rendering right-to-left in
+production**, and had been since the app was built. Measured, not inferred:
+**61 of the 64 prerendered documents carried two `<html>` start tags** — 23 ar,
+23 en, 15 admin.
+
+```
+/en          <html lang="ar" dir="rtl">                  <- app/layout.tsx
+             <html lang="en" dir="ltr" class="__variable_...">   <- the branch
+/admin/login <html lang="ar" dir="rtl">
+             <html lang="en" dir="ltr" class="dark">
+```
+
+`app/layout.tsx`, `app/[locale]/layout.tsx` and `app/admin/layout.tsx` each
+rendered an `<html>`, and **the App Router root layout wraps every nested
+segment layout, always** — there is no "only when nothing else matched" case.
+The second `<html>` is serialised inside the first one's `<body>`, which puts
+the parser in the "in body" insertion mode, whose rule for a stray `<html>` is
+to **merge only the attributes NOT already present**. So the root's `lang`/`dir`
+won and the branch's were discarded, while `class` — which the root did not set
+— was merged in.
+
+The comment that stood in `app/layout.tsx` asserted the opposite: that the other
+two layouts were "each self-contained … so this root layout never double-wraps
+them", and that the file was "effectively only ever reached for the rare
+genuinely-unmatched top-level path". Both halves were false when written. **It
+was a hardcoded list of filenames pretending to be a rule.**
+
+| Defect | State |
+|--------|-------|
+| Every `/en/*` page served `lang="ar" dir="rtl"` — mirrored layout, bidi-mangled mixed text, and `lang="ar"` on English content for Google and screen readers | ✅ fixed |
+| Every `/admin/*` page did the same, against a layout explicitly asking for `lang="en" dir="ltr"` | ✅ fixed |
+| `<body>` is a singleton under the same merge rule, so admin's `bg-slate-950 text-slate-100` had **never once applied** — the root's `min-h-screen antialiased` won | ✅ fixed |
+| Admin's mobile sidebar is `fixed inset-y-0 start-0` closed with a **physical** `-translate-x-full` (`AdminLayout.tsx:48-50`); under the inherited RTL, `start-0` resolved to the right edge while the transform still moved left, so the closed drawer translated **into** the viewport | ✅ fixed by restoring LTR |
+| The `--font-*` variables reached `/ar` and `/en` only because `class` was the one attribute that merged, and reached admin and the top-level 404 **not at all** — `getComputedStyle(document.documentElement).fontFamily` on `/admin/login` returned `"Times New Roman"` | ✅ fixed — `app/fonts.ts` |
+| `/favicon.ico` and `/icon-192.png` both 404'd, and `public/manifest.json` pointed at that same missing `icon-192.png` | ✅ fixed |
+
+**Why the fonts broke rather than degrading.** `app/globals.css:86-99` states
+`[lang='ar'] { font-family: var(--font-tajawal), sans-serif }`. The trailing
+`sans-serif` does not rescue it: a `var()` whose custom property is undefined
+and which carries no fallback *inside the parentheses* makes the whole
+declaration invalid at computed-value time — the rest of the stack goes down
+with it. `font-family` is inherited and `<html>` has no parent, so it lands on
+the initial value: the UA default serif.
+
+**The shape.** `app/layout.tsx` is now a pass-through returning `{children}`;
+the document belongs to whichever segment knows its locale. This is what
+next-intl's own example ships at the tag pinning `next: ^15.5.0`, byte-identical
+at the installed v4.8.3. The file must still **exist** — every route needs a root
+layout or `next build` exits 1, and `next dev` silently *writes one back into
+`app/` for you*. Having the root keep `<html>` and read the locale itself was
+rejected: `setRequestLocale()` runs *below* the root, so next-intl would fall
+through to `headers()` and force all 129 prerendered pages dynamic — the exact
+cost `app/[locale]/layout.tsx:16-25` records paying to avoid — and it cannot
+distinguish the admin branch at all.
+
+**Why nothing caught it for this long.** `tsc`, `eslint`, all 15 invariants and
+a clean production build were green the entire time. Next's own
+`Missing <html> and <body> tags in the root layout` check is a **dev-only** scan
+of the response stream (`validateRootLayout: dev`), satisfied by *any* layout in
+the chain — it fires when a document has **zero** `<html>`, never when it has
+two. React 19 treats `<html>`/`<body>` as host singletons so hydration does not
+throw; it is not silent though — `acquireSingletonInstance()` logs
+"You are mounting a new %s component when a previous one has not first
+unmounted" (`react-dom-client.development.js:22639`) in development, and that
+console error was there the whole time.
+
+**The gate: `npm run test:root-document`** (62 checks, in `prebuild`). It walks
+the **actual layout chain** of every routable leaf and asserts exactly one
+document owner — deliberately *not* an allowlist of filenames, because an
+allowlist of filenames is precisely what the false comment was. Two details cost
+a review round each:
+
+- Attribute checks run against the extracted `<html …>` **start tag**, not the
+  file. A file-wide `/\bdir=/` is satisfied by `<DirectionProvider dir={dir}>`,
+  so deleting the `<html>`'s own `dir` — *the production defect itself* — would
+  have passed on the branch serving 46 of the 61 affected documents.
+- Comments are stripped with `check-invariants.ts`'s `stripComments()` state
+  machine, moved to `scripts/lib/strip-comments.ts` for the purpose. A regex that
+  blanks from the first `//` to end of line also blanks inside string literals,
+  so an `<html>` sharing a line with a URL becomes invisible and the gate
+  certifies a tree in which the bug has returned.
+
+All three were proved by reintroducing the violation: restoring the root
+`<html>` fails 48 of 66; deleting `dir={dir}` from the `<html>` while
+`DirectionProvider` keeps it fails 1 of 62; an `<html>` sharing a line with
+`'https://x'` is still seen.
+
+**Verified:** 62 of 62 prerendered artifacts now carry exactly one `<html>`,
+none carry zero. Live on a production build: `/ar` → `ar/rtl`, `/en` and
+`/en/pricing` → `en/ltr`, `/admin/login` → `en/ltr` + `dark` + font variables,
+`/foo/bar.txt` → 404 with a complete document. `getComputedStyle` on
+`/admin/login` now returns `Inter`, and `body` carries `bg-slate-950`.
+
+**This round also changed the landing page** (`InteractiveDemo`, new
+`ComparisonSection`) — see the commit for the reasoning, which is recorded in
+the component headers.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -775,9 +874,10 @@ npm run test:settle             #  12 checks: a charge only drops from a refund 
 npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
 npm run test:prompts            #  36 golden-string checks over the prompt builders
+npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
 ```
 
-**800 checks across 14 files.** Several exist because the defect they guard was
+**862 checks across 15 files.** Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.

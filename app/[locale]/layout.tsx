@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Cairo, Tajawal, Inter } from 'next/font/google';
+import { fontVariables } from '@/app/fonts';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -24,31 +24,11 @@ export function generateStaticParams(): { locale: string }[] {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-// Self-hosted via next/font — fetched and served from our own origin at
-// build time, so there is no runtime request to the Google Fonts CDN, and
-// next/font auto-generates a size-adjusted fallback so there is no layout
-// shift when the real face swaps in. Weights match the previous @import
-// exactly so no typography regresses.
-const cairo = Cairo({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-cairo',
-});
-
-const tajawal = Tajawal({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '700'],
-  display: 'swap',
-  variable: '--font-tajawal',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-inter',
-});
+// The three loader calls that stood here moved to app/fonts.ts on 2026-08-24,
+// unchanged. They are needed by three documents now, not one: this file no
+// longer supplies the <html> for /admin/* or for the top-level 404, because it
+// never did — it only appeared to, via a merge that discarded everything except
+// `class`. See app/fonts.ts and the note in app/layout.tsx.
 
 export async function generateMetadata({
   params,
@@ -146,7 +126,7 @@ export default async function RootLayout({
       lang={locale}
       dir={dir}
       suppressHydrationWarning
-      className={`${cairo.variable} ${tajawal.variable} ${inter.variable}`}
+      className={fontVariables}
     >
       <body className="min-h-screen antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>

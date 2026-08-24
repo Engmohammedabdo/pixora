@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Sparkles, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/routing';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { PLANS } from '@/lib/stripe/plans';
 
 /**
  * "See what Pyra can do" — with the brief on one side and the result on the other.
@@ -24,8 +25,30 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
  * The brief beside each one is the other half of the point. Briefs in this market
  * arrive as WhatsApp messages in dialect, not as filled-in forms — showing the
  * sentence a client would actually send is what makes "write it in Arabic" concrete.
- * The deliverables underneath carry real prices read from `CREDIT_COSTS`, so the
- * marketing page can never quote a number the checkout disagrees with.
+ *
+ * ── WHY THE PER-ITEM CREDIT PRICES ARE GONE ────────────────────────────────
+ * Each deliverable used to carry its own credit pill, plus a summed "total" row.
+ * Three reasons that was wrong HERE, none of which is a reason to hide prices:
+ *
+ *   1. This section is 4th on the page; `PricingSection` is 7th. A first-time
+ *      visitor reads "12 credits" with nothing to measure it against, and an
+ *      unanchored cost beside a deliverable does not read as cheap — it reads as
+ *      metered, in the one section whose entire job is to create desire.
+ *   2. `/pricing` already renders `StudioCostTable` — every studio, every price,
+ *      from this same `CREDIT_COSTS`. The pills duplicated that table three
+ *      sections early, minus the plan context that makes it legible.
+ *   3. It buried the actual argument. The coffee brief totals 19 credits out of a
+ *      200-credit Starter plan; that ratio is the persuasive fact, and "19 كريدت"
+ *      does not convey it.
+ *
+ * So the deliverables stay — they are what makes the claim "one sentence → a
+ * campaign, a plan AND this image" instead of "one sentence → this image" — and
+ * the one number that survives is stated against the plan that pays for it.
+ *
+ * Both halves of that line still come from the modules checkout reads
+ * (`CREDIT_COSTS`, `PLANS`), so the marketing page cannot quote a figure the
+ * checkout disagrees with. Verified across all four briefs: 19, 21, 23 and 27
+ * credits — every one under a seventh of a Starter month.
  */
 
 interface Example {
@@ -73,8 +96,19 @@ const EXAMPLES: Example[] = [
   },
 ];
 
+/**
+ * The plan the credit total is measured against.
+ *
+ * Starter, not Free: Free is 25 credits, so every brief on this page would read as
+ * most of the month and the line would argue against the product. Starter is also
+ * the first paid tier, which is the decision this section is trying to move a
+ * visitor toward.
+ */
+const ANCHOR_PLAN = PLANS.starter;
+
 export function InteractiveDemo(): React.ReactElement {
   const t = useTranslations('landing');
+  const locale = useLocale();
   const [activeIndex, setActiveIndex] = useState(0);
   const active = EXAMPLES[activeIndex];
   const total = active.deliverables.reduce((sum, d) => sum + d.credits, 0);
@@ -144,23 +178,27 @@ export function InteractiveDemo(): React.ReactElement {
                 {active.deliverables.map((d) => (
                   <li key={d.key} className="flex items-center gap-3 px-5 py-3">
                     <Check className="h-4 w-4 flex-shrink-0 text-emerald-500" aria-hidden="true" />
-                    <span className="flex-1 text-sm leading-relaxed text-[var(--color-text-primary)]">
+                    <span className="text-sm leading-relaxed text-[var(--color-text-primary)]">
                       {t(`demo.deliverables.${d.key}`)}
-                    </span>
-                    <span className="whitespace-nowrap rounded-full bg-[var(--color-surface-2)] px-2.5 py-1 text-xs font-medium tabular-nums text-[var(--color-text-secondary)]">
-                      {t('demo.creditsShort', { count: d.credits })}
                     </span>
                   </li>
                 ))}
-                <li className="flex items-center gap-3 bg-[var(--color-surface-2)] px-5 py-3">
-                  <span className="flex-1 text-sm font-semibold text-[var(--color-text-primary)]">
-                    {t('demo.total')}
-                  </span>
-                  <span className="whitespace-nowrap rounded-full bg-primary-500 px-3 py-1 text-xs font-semibold tabular-nums text-white">
-                    {t('demo.creditsShort', { count: total })}
-                  </span>
-                </li>
               </ul>
+
+              {/* The one number that survives, stated against the plan that buys it.
+                  Every figure is passed as a STRING on purpose: locale `ar` has no
+                  numberFormat override, so an ICU number argument renders as
+                  Arabic-Indic digits (١٩) while /pricing — where this line sends the
+                  reader — interpolates raw JSX and shows Latin (19). Same number, two
+                  scripts, one page apart. A string passes through ICU untouched. */}
+              <p className="mt-3 px-1 text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                {t('demo.valueAnchor', {
+                  credits: String(total),
+                  planCredits: String(ANCHOR_PLAN.credits),
+                  planPrice: String(ANCHOR_PLAN.price),
+                  planName: locale === 'ar' ? ANCHOR_PLAN.nameAr : ANCHOR_PLAN.name,
+                })}
+              </p>
             </div>
 
             {/* ── What came back ──────────────────────────────────────────── */}
