@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { getMaxResolution } from '@/lib/stripe/plans';
 import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
@@ -69,6 +70,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
+    // The plan decides the resolution the customer is SOLD. This read used to sit
+    // after Promise.all because it only fed the watermark decision, which is why
+    // every paid plan received a 1K product photo while lib/stripe/plans.ts sells
+    // Starter 2K and Pro/Business/Agency 4K. Read once, used for both.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = profile?.plan_id || 'free';
+    const shotResolution = getMaxResolution(planId);
+
     const creditCost = SHOT_COSTS[input.shots] || 8;
 
     // Fetch brand kit
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: 'gemini',
         // Never the raw payload: `...input` would spill a multi-megabyte inline
         // product photo into this JSONB column. See inputImageRef().
-        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl), promptVersion: PHOTOSHOOT_PROMPT_VERSION },
+        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl), resolution: shotResolution, promptVersion: PHOTOSHOOT_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })
@@ -166,20 +179,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return generateImage({
         prompt,
         model: 'gemini',
-        resolution: '1080p',
+        resolution: shotResolution,
         referenceImageUrl: input.productImageUrl,
       }).catch(() => null);
     });
 
     const results = await Promise.all(shotPromises);
 
-    // Fetch user plan for watermark check
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
-    const planId = profile?.plan_id || 'free';
+    // `planId` is read once, above the reservation — it decides BOTH the resolution
+    // the customer is sold and whether the watermark is required.
 
     // Pyra returns images as data: URLs. persistGeneratedImage watermarks the
     // buffer and uploads it once — a second pass to watermark in place would
