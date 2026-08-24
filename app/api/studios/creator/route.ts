@@ -4,6 +4,7 @@ import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
@@ -298,6 +299,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Tracks the balance actually left after any partial refund below. Stays at
     // the reservation's balance when no partial refund is needed.
     let balanceAfterPartialRefund = reserveResult.newBalance;
+    // What the customer was ACTUALLY charged. Starts at the reservation and only
+    // drops when a refund is CONFIRMED landed. This route used to state the charge
+    // as `imageUrls.length * creditCost` — the intended figure — in both the ledger
+    // and the response, so a partial refund that failed told the customer and every
+    // admin revenue number that credits came back when they had not.
+    let creditsCharged = totalCost;
 
     if (input.variations === 4) {
       // Generate 4 variations — track individual successes/failures
@@ -398,9 +405,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
           generationId: generation.id,
         });
+        const settled = settleCharge(totalCost, refundAmount, partialRefund.success);
+        creditsCharged = settled.charged;
         if (partialRefund.success) {
           balanceAfterPartialRefund = partialRefund.newBalance;
-          refundedSoFar += refundAmount;
+          // Only advance by what LANDED: `outstanding = totalCost - refundedSoFar`
+          // in the outer catch depends on it, and over-advancing mints credits.
+          refundedSoFar += settled.refunded;
         }
       }
 
@@ -437,7 +448,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // from `generations.credits_used` overstates income.
     await finalizeGeneration(supabase, generation.id, {
       output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
-      credits_used: imageUrls.length * creditCost,
+      credits_used: creditsCharged,
       status: 'completed',
     }, 'creator');
 
@@ -463,9 +474,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         mock: hasMock,
         usedFallback: hasUsedFallback,
         originalModel: resultOriginalModel,
-        creditsUsed: imageUrls.length * creditCost,
+        creditsUsed: creditsCharged,
         totalReserved: totalCost,
-        refunded: (input.variations - imageUrls.length) * creditCost,
+        refunded: totalCost - creditsCharged,
         newBalance: balanceAfterPartialRefund,
       },
     });

@@ -4,6 +4,7 @@ import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
@@ -250,6 +251,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Partial failure: return the credits for the shots that never arrived.
     let balanceAfter = reserveResult.newBalance;
+    // What the customer was ACTUALLY charged. `actualCost` is the INTENDED figure;
+    // writing it to the ledger and the response without checking that the refund
+    // landed told the customer credits came back when they had not.
+    let creditsCharged = creditCost;
     if (actualCost < creditCost) {
       const refundAmount = creditCost - actualCost;
       const partial = await refundCredits({
@@ -257,16 +262,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         description: `Refund: ${input.shots - successfulShots} of ${input.shots} photoshoot shots failed`,
         generationId: generation?.id,
       });
+      const settled = settleCharge(creditCost, refundAmount, partial.success);
+      creditsCharged = settled.charged;
       if (partial.success) {
         balanceAfter = partial.newBalance;
-        refundedSoFar += refundAmount;
+        // Only advance by what LANDED — the outer catch's
+        // `outstanding = creditCost - refundedSoFar` depends on it.
+        refundedSoFar += settled.refunded;
       }
     }
 
     // Update generation with actual cost
     await finalizeGeneration(supabase, generation.id, {
       output: { shots, mock: shots.some((s) => s.mock) },
-      credits_used: actualCost,
+      credits_used: creditsCharged,
       status: 'completed',
     }, 'photoshoot');
 
@@ -288,7 +297,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         generationId: generation.id,
         shots,
-        creditsUsed: actualCost,
+        creditsUsed: creditsCharged,
         newBalance: balanceAfter,
       },
     });
