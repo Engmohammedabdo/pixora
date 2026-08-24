@@ -2,7 +2,6 @@ import OpenAI from 'openai';
 import { MODELS } from './models';
 import { generateElevenLabsSpeech, getElevenLabsVoiceId, getToneSettings } from './elevenlabs';
 import { generateText } from './router';
-import { buildVoiceOverPrompt } from './prompts/voiceover';
 import { getVoiceoverConfig, type VoiceoverCostConfig } from '@/lib/credits/voiceover-costs';
 
 /**
@@ -103,6 +102,21 @@ const OPENAI_VOICE_MAP: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'no
  */
 const ARABIC_CAPABLE_STANDARD_VOICES = new Set<string>();
 
+/**
+ * The delivery instruction for each tone. A TABLE, not an interpolation: the
+ * caller's value now only ever selects a row, so no string a customer sends can
+ * reach the prompt. Same shape as DIALECT_PROMPTS below, and the same reason — the
+ * tone branch was the one place a raw request field was pasted into a prompt whose
+ * output becomes the audio the customer is billed for. Keys must stay in step with
+ * TONES in app/api/studios/voiceover/route.ts and TONE_SETTINGS in lib/ai/elevenlabs.ts.
+ */
+const TONE_INSTRUCTIONS: Record<string, string> = {
+  professional: 'formal and authoritative',
+  friendly: 'warm and conversational',
+  energetic: 'excited and dynamic',
+  calm: 'calm and soothing',
+};
+
 const DIALECT_PROMPTS: Record<string, string> = {
   saudi: 'Rewrite the following text in Saudi Arabian Arabic dialect (اللهجة السعودية). Keep the meaning but use Saudi expressions and vocabulary.',
   emirati: 'Rewrite the following text in Emirati Arabic dialect (اللهجة الإماراتية). Keep the meaning but use UAE expressions.',
@@ -121,8 +135,13 @@ async function enhanceScript(script: string, dialect: string, tone: string, conf
   }
 
   const dialectPrompt = DIALECT_PROMPTS[dialect] || '';
-  const tonePrompt = tone && config.toneEnabled
-    ? `Also adjust the tone to be: ${tone}. Make it sound ${tone === 'professional' ? 'formal and authoritative' : tone === 'friendly' ? 'warm and conversational' : tone === 'energetic' ? 'excited and dynamic' : 'calm and soothing'}.`
+  const toneInstruction = config.toneEnabled ? TONE_INSTRUCTIONS[tone] : undefined;
+  // An unrecognised tone yields no instruction at all, exactly as an unrecognised
+  // dialect yields no dialect prompt on the line above. The old ternary had no such
+  // exit: anything that was not one of three named strings fell through to
+  // 'calm and soothing' and was still pasted in verbatim.
+  const tonePrompt = toneInstruction
+    ? `Also adjust the tone so it sounds ${toneInstruction}.`
     : '';
 
   if (!dialectPrompt && !tonePrompt) {

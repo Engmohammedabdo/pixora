@@ -314,10 +314,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
     if (input.generateImages && posts.length > 0) {
-      const imagePromises = posts.map(async (post) => {
+      const imagePromises = posts.map(async (post, i) => {
+        // `post.scenario` is MODEL-authored text going straight to the image model,
+        // and it was the only image path in the product that never met the filter.
+        // The customer's own text IS filtered, above — which is exactly what made
+        // this the way around it: steer the text model with a brief that passes, and
+        // whatever scenario it writes is handed to the image model verbatim.
+        //
+        // Blocked => drop THIS image, never the campaign. Nine text posts and up to
+        // eight other images are legitimate delivered work, and this block runs
+        // inside the try, so throwing would reach the outer catch and refund the
+        // whole reservation over one bad scenario. Returning null needs no new
+        // branch: failedImageCount is sized from what was DELIVERED, so the partial
+        // refund below already pays the customer back for a dropped image.
+        let safeScenario: string;
+        try {
+          safeScenario = sanitizePrompt(post.scenario, 2000);
+        } catch (e: unknown) {
+          if (!(e instanceof PromptBlockedError)) throw e;
+          console.error(
+            `[campaign] post ${i} image skipped, model-written scenario blocked on "${e.blockedTerm}"`
+          );
+          return null;
+        }
+
         try {
           const imgResult = await generateImage({
-            prompt: post.scenario,
+            prompt: safeScenario,
             model: 'gemini',
             resolution: '1080p',
           });

@@ -21,13 +21,27 @@ import { refundAwareErrorCode } from '@/lib/studio-errors';
  */
 const FALLBACK_RATE_PLAN = 'starter';
 
+/**
+ * The four tones this studio actually sells. app/[locale]/(dashboard)/voiceover/page.tsx:40
+ * offers exactly these and lib/ai/elevenlabs.ts keys TONE_SETTINGS on the same four,
+ * so `tone: z.string()` was an unbounded, unfiltered value on the ONE field
+ * lib/ai/tts-router.ts interpolates raw into a rewrite prompt — whose OUTPUT is what
+ * the narrator reads aloud on a paid generation. An enum makes the set of reachable
+ * prompts finite rather than merely filtered, which is what `speed` below already does.
+ *
+ * `voice` and `dialect` are bounded at runtime instead, against the plan's own
+ * allowlists further down, and reach only Record lookups — never a template literal.
+ * The `.max()` here is hygiene, not the guard.
+ */
+const TONES = ['professional', 'friendly', 'energetic', 'calm'] as const;
+
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
   script: z.string().min(1).max(2000),
-  voice: z.string(),
-  dialect: z.string(),
+  voice: z.string().max(50),
+  dialect: z.string().max(50),
   speed: z.enum(['0.5', '0.75', '1', '1.25', '1.5']),
-  tone: z.string(),
+  tone: z.enum(TONES),
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
