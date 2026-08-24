@@ -63,7 +63,21 @@ const SceneSchema = z
   })
   .loose();
 
-const ScenesSchema = z.array(SceneSchema).min(1);
+/**
+ * The number of scenes a storyboard is sold as and priced for: the prompt asks for
+ * "exactly 9 scenes" (lib/ai/prompts/storyboard.ts) and the flat 14-credit price is
+ * built on that. Mirrors campaign's EXPECTED_POSTS.
+ */
+const EXPECTED_SCENES = 9;
+
+/**
+ * `.min(1)` accepted one scene of the nine that were sold, marked the row completed
+ * and kept all 14 credits. A storyboard is not a bag of independent items like a
+ * campaign's posts — its scene durations must sum to the requested video length, so
+ * a short response is unusable rather than partial. Refusing here routes it into the
+ * existing parse-failure branch: full refund, `generation_parse_failed`, free retry.
+ */
+const ScenesSchema = z.array(SceneSchema).min(EXPECTED_SCENES);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {

@@ -88,11 +88,20 @@ const PlanSchema = z
   // empty strings. Only the fields the page and the PDF actually print are
   // considered, so a section of unrendered junk cannot vouch for itself.
   .refine((p) => {
+    // Only sections the customer can actually SEE may vouch for a plan. The page
+    // renders exactly four tabs — objectives, channels, calendar, budget
+    // (plan/page.tsx:146-149) — and there is no generatePlanPdf, so nothing else
+    // consumes the parsed object either.
+    //
+    // `kpis` used to sit in this list. It is parsed and stored and rendered nowhere,
+    // so a response carrying nothing but kpis passed the gate, was finalized
+    // `completed`, kept the 5 credits, and left the customer looking at four empty
+    // tabs with no error. Do not add a section here without first pointing at the
+    // code that prints it.
     const sections: unknown[] = [
       p.objectives.map((o) => [o.goal, o.kpi, o.target]),
       p.channels.map((c) => [c.name, c.strategy]),
       p.calendar.map((w) => [w.content, w.channel]),
-      p.kpis.map((k) => [k.metric, k.target, k.tracking]),
       p.budget?.breakdown.map((b) => [b.item, b.amount]) ?? [],
     ];
     return sections.some(hasPrintableText);

@@ -246,7 +246,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     try {
     // Generate campaign text
-    const textResult = await generateText({ prompt });
+    // Nine posts x five fields of Arabic does not fit in the 4096 default, so a
+    // full-length campaign truncated mid-JSON and the whole 12-credit run failed to
+    // parse. Every other multi-item text studio already raises this to 8192.
+    const textResult = await generateText({ prompt, maxTokens: 8192 });
 
     // Parse and validate the output
     let posts: z.infer<typeof CampaignPostSchema>[];
@@ -262,7 +265,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // to recover afterwards either. prompt-builder
       // already guards exactly this at its own parse site.
       if (arr.length === 0) throw new Error('campaign returned no posts');
-      posts = arr.map((p: unknown) => CampaignPostSchema.parse(p));
+      // Sold as nine, priced as nine (12 credits = 9 images x 1 + 3 text), refunded
+      // against nine. The image loop below iterates THIS array, so an over-delivering
+      // model used to drive one paid image generation per extra post — 20 posts meant
+      // 20 image calls, 20 asset rows and 20 stored posts against a 9-image price.
+      //
+      // And `.map(parse)` threw on the FIRST malformed entry, discarding eight good
+      // posts and refunding everything. The partial-refund path below was built for
+      // exactly this — it sizes the refund from EXPECTED_POSTS minus what arrived —
+      // so dropping a bad post pays the customer back for it and delivers the rest.
+      posts = arr
+        .slice(0, EXPECTED_POSTS)
+        .map((p: unknown) => {
+          const parsed = CampaignPostSchema.safeParse(p);
+          return parsed.success ? parsed.data : null;
+        })
+        .filter((p): p is z.infer<typeof CampaignPostSchema> => p !== null);
+      if (posts.length === 0) throw new Error('campaign returned no usable posts');
     } catch {
       // AI returned invalid JSON — treat as failure
       // The refund runs BEFORE the terminal write, and the write is conditional on
