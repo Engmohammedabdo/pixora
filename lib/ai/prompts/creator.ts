@@ -9,11 +9,14 @@ interface CreatorPromptInput {
   brandKit?: BrandKit | null;
   mood?: string;
   platform?: string;
+  /** True when the router will actually attach a reference image. Preservation
+   *  instructions are only correct when there is something to preserve. */
+  hasReferenceImage?: boolean;
 }
 
 // v2.0 — matches system-prompts.md creator_image_v1
 export function buildCreatorPrompt(input: CreatorPromptInput): string {
-  const { userPrompt, style, resolution, brandKit, mood, platform } = input;
+  const { userPrompt, style, resolution, brandKit, mood, platform, hasReferenceImage } = input;
 
   // EVERY value interpolated below reaches the image model, so every value below
   // meets the filter. Sanitizing only `userPrompt` is how the gap stayed open:
@@ -61,8 +64,16 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
   prompt += `\n- Resolution: ${safeResolution}`;
 
   prompt += `\n\nTechnical Requirements:`;
-  prompt += `\n- STRICTLY PRESERVE all original brand elements`;
-  prompt += `\n- STRICTLY PRESERVE original product appearance and branding`;
+  if (hasReferenceImage) {
+    // Only meaningful when the router actually attached an image. Emitted
+    // unconditionally — as it was — this ordered the model to preserve an original
+    // that does not exist on the text-to-image path, and then contradicted itself
+    // one line later by asking for a free composition. Creator is a TEXT-to-image
+    // studio by default; `edit` is where preservation is always correct.
+    prompt += `\n- A reference image is attached. Treat it as the subject.`;
+    prompt += `\n- PRESERVE the subject's shape, proportions, colours, materials and any printed text exactly`;
+    prompt += `\n- Change only the setting, lighting and composition described above`;
+  }
   prompt += `\n- NO extra text, logos, or watermarks unless specified`;
   prompt += `\n- Professional studio lighting unless otherwise specified`;
   prompt += `\n- High contrast, commercially appealing composition`;

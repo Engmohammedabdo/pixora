@@ -201,6 +201,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           style: input.style,
           resolution: input.resolution,
           brandKit,
+          hasReferenceImage: Boolean(input.referenceImageUrl),
         });
 
     // Create generation record

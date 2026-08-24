@@ -132,14 +132,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Fetch brand kit
     let brandName: string | undefined;
+    let brandVoice: string | undefined;
+    let brandColors: string | undefined;
     if (input.brandKitId) {
       const { data: kit } = await supabase
         .from('brand_kits')
-        .select('name')
+        .select('*')
         .eq('id', input.brandKitId)
         .eq('user_id', user.id)
         .single();
       brandName = kit?.name;
+      // buildCampaignPrompt has declared brandVoice and brandColors since it was
+      // written and this caller never passed them, so a customer who attached a
+      // brand kit got a NAME and nothing else. creator/route.ts already selects '*'.
+      brandVoice = kit?.brand_voice ?? undefined;
+      brandColors = kit
+        ? `Primary ${kit.primary_color}, Secondary ${kit.secondary_color}, Accent ${kit.accent_color}`
+        : undefined;
     }
 
     // The safety filter runs HERE, on the customer's own text, before anything
@@ -181,6 +190,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       prompt += `\n- Platform: ${input.platform}`;
       if (safeOccasion) prompt += `\n- Occasion/Season: ${safeOccasion}`;
       if (brandName) prompt += `\n- Brand: ${brandName}`;
+      // The override composer restates the builder's own labels by hand, so a field
+      // added to buildCampaignPrompt and not added here is silently dropped whenever
+      // an admin sets an override — which is the exact defect the DIALECTS comment
+      // above records from the last time it happened.
+      if (brandVoice) prompt += `\n- Brand Voice: ${sanitizePrompt(brandVoice, 500)}`;
+      if (brandColors) prompt += `\n- Brand Colors: ${sanitizePrompt(brandColors, 200)}`;
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
       prompt = buildCampaignPrompt({
@@ -190,6 +205,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         platform: input.platform,
         occasion: safeOccasion,
         brandName,
+        brandVoice,
+        brandColors,
       });
     }
 
@@ -323,6 +340,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // do this — campaign was the only studio silently dropping failed images
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
+    // Computed once, not once per post: nine identical sanitizePrompt calls buy
+    // nothing.
+    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
+
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {
         // `post.scenario` is MODEL-authored text going straight to the image model,
@@ -348,9 +369,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           return null;
         }
 
+        // `post.scenario` alone is ONE model-written sentence. Every other image in
+        // the product goes to the model with platform framing, brand colours and the
+        // no-text rule; this path had none of it, which is why campaign images looked
+        // nothing like the rest of the product's output.
+        const imagePrompt =
+          `Create a professional social media image.` +
+          `\n- Scene: ${safeScenario}` +
+          `\n- Platform: ${input.platform}` +
+          (safeBrandColorsLine ? `\n- Brand Colors: ${safeBrandColorsLine}` : '') +
+          `\n\nTechnical Requirements:` +
+          // Kept even though these are social posts: CLAUDE.md records that Arabic
+          // text inside generated images is not handled, and the caption is
+          // delivered as text alongside the image.
+          `\n- NO text, logos or watermarks in the image` +
+          `\n- Professional lighting, high contrast, commercially appealing composition` +
+          `\n- Composed for ${input.platform}`;
+
         try {
           const imgResult = await generateImage({
-            prompt: safeScenario,
+            prompt: imagePrompt,
             model: 'gemini',
             resolution: '1080p',
           });
