@@ -9,6 +9,7 @@ import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
+import { formatFromUrl } from '@/lib/storage/persist-image';
 import Image from 'next/image';
 import { Download, AlertTriangle } from 'lucide-react';
 
@@ -81,7 +82,13 @@ export function PhotoshootPreview({
     void downloadFiles(
       shots
         .filter((shot) => shot.url)
-        .map((shot, i) => ({ url: shot.url as string, filename: `pyrasuite-photoshoot-${i + 1}.png` }))
+        // `shot.index`, not the FILTERED position: numbering by `i` meant a view
+        // with any failed shot produced pyrasuite-photoshoot-1 for what the badge
+        // on screen calls shot 3.
+        .map((shot) => ({
+          url: shot.url as string,
+          filename: `pyrasuite-photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`,
+        }))
     );
   };
 
@@ -114,7 +121,7 @@ export function PhotoshootPreview({
                     variant="secondary"
                     className="gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                     aria-label={tShoot('downloadShot', { number: shot.index + 1 })}
-                    onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.png`)}
+                    onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`)}
                   >
                     <Download className="h-4 w-4" />
                   </Button>

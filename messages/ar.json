@@ -275,7 +275,9 @@
     "fourVariations": "4 تنويعات",
     "emptyState": "النتيجة ستظهر هنا",
     "surpriseMe": "فاجئني بفكرة",
-    "editImage": "تعديل الصورة"
+    "editImage": "تعديل الصورة",
+    "generatedImageAlt": "صورة مولّدة بواسطة بايرا",
+    "generatedImageAltNumbered": "صورة مولّدة بواسطة بايرا رقم {number}"
   },
   "photoshoot": {
     "title": "تصوير المنتجات",

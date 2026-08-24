@@ -12,7 +12,8 @@ import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
-import { Download, RefreshCw, AlertTriangle, Pencil, Info } from 'lucide-react';
+import { formatFromUrl } from '@/lib/storage/persist-image';
+import { Download, RefreshCw, AlertTriangle, Pencil, Info, X } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 
 interface CreatorPreviewProps {
@@ -38,6 +39,7 @@ export function CreatorPreview({
 }: CreatorPreviewProps): React.ReactElement {
   const t = useTranslations('studio');
   const tCreator = useTranslations('creator');
+  const tCommon = useTranslations('common');
   const [hasConfettied, setHasConfettied] = useState(false);
   const { balance, status: creditsStatus } = useCredits();
   const { profile } = useUser();
@@ -68,7 +70,12 @@ export function CreatorPreview({
     );
   }
 
-  if (error) {
+  // Only when there is nothing to show. This used to return unconditionally, so an
+  // error REPLACED images the customer had already paid for — a 4-variation run
+  // where one variation failed hid the three that succeeded behind a panel with no
+  // dismiss, whose only button spent credits on the identical request again. When
+  // there ARE images, the error is rendered alongside them below instead.
+  if (error && imageUrls.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
         <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
@@ -92,17 +99,38 @@ export function CreatorPreview({
     );
   }
 
+  // `.png` regardless of the bytes: on a storage failure the URL is a data: URL
+  // carrying the provider's real mime, so JPEG and WebP downloads were named .png
+  // and opened wrong. formatFromUrl() is the helper the export ZIP already uses.
   const handleDownload = (url: string, index: number): void => {
-    void downloadFile(url, `pyrasuite-${Date.now()}-${index}.png`);
+    void downloadFile(url, `pyrasuite-${Date.now()}-${index}.${formatFromUrl(url)}`);
   };
 
   const handleDownloadAll = (): void => {
     const stamp = Date.now();
-    void downloadFiles(imageUrls.map((url, i) => ({ url, filename: `pyrasuite-${stamp}-${i}.png` })));
+    void downloadFiles(imageUrls.map((url, i) => ({ url, filename: `pyrasuite-${stamp}-${i}.${formatFromUrl(url)}` })));
   };
 
   return (
     <div className="space-y-4">
+      {/* A partial failure: some variations arrived and some did not. Shown ABOVE
+          the images rather than instead of them, with a dismiss, because the images
+          below are work the customer has already paid for. */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span className="flex-1">{error.message}</span>
+          <button
+            type="button"
+            onClick={onDismissError}
+            aria-label={tCommon('close')}
+            className="flex-shrink-0 rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Notifications */}
       {usedFallback && (
         <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
@@ -126,7 +154,7 @@ export function CreatorPreview({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imageUrls[0]}
-              alt="Generated image"
+              alt={tCreator("generatedImageAlt")}
               className="w-full h-auto"
             />
           </div>
@@ -144,7 +172,7 @@ export function CreatorPreview({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={url}
-                  alt={`Generated image ${i + 1}`}
+                  alt={tCreator("generatedImageAltNumbered", { number: i + 1 })}
                   className="w-full h-auto"
                 />
                 <button
