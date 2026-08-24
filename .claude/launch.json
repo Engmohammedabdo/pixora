@@ -15,7 +15,10 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
-        "start"
+        "start",
+        "--",
+        "-p",
+        "3001"
       ],
       "port": 3001
     }
