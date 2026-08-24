@@ -201,7 +201,15 @@ export default function StoryboardPage(): React.ReactElement {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-1.5 text-[11px]">
-            <p className="text-[var(--color-text-secondary)]" dir="ltr">{text(scene.visual_description).substring(0, 80)}...</p>
+            {/*
+              Was `.substring(0, 80)` with an ellipsis appended UNCONDITIONALLY,
+              on the most expensive text deliverable in the product — so a
+              14-credit storyboard showed 80 characters of each scene, and even a
+              40-character line read as though something had been cut. Clamped in
+              CSS instead: the full text stays selectable, copyable, and present
+              for the PDF export.
+            */}
+            <p className="text-[var(--color-text-secondary)] line-clamp-3" dir="ltr">{text(scene.visual_description)}</p>
             <p className="font-medium">{text(scene.dialogue)}</p>
             <div className="flex flex-wrap gap-1">
               <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Camera className="h-2 w-2" />{text(scene.camera_angle)}</Badge>

@@ -166,6 +166,18 @@ export function generateAnalysisPdf(analysis: AnalysisData, businessName?: strin
       <div class="card"><h3>90 يوم</h3><ul>${list(analysis.roadmap.day_90).map(s => `<li>${txt(s)}</li>`).join('')}</ul></div>
     </div>` : '';
 
+  // The section the studio is NAMED for. `competitors` was declared on
+  // AnalysisData and rendered nowhere, so تحليل المنافسين exported a PDF with no
+  // competitors in it — while the tab beside it showed them on screen. Placed
+  // first for the same reason.
+  const competitorsHtml = hasContent(analysis.competitors) ? `
+    <h2>المنافسون</h2>
+    <div class="grid-2">${list(analysis.competitors).map(c => `
+      <div class="card"><h3>${txt(c.name)}</h3><p class="meta">${txt(c.market_share)}</p>
+      <p style="font-size:13px;margin-top:8px;"><strong>نقاط القوة:</strong> ${txt(c.strengths)}</p>
+      <p style="font-size:13px;"><strong>نقاط الضعف:</strong> ${txt(c.weaknesses)}</p></div>
+    `).join('')}</div>` : '';
+
   const kpisHtml = hasContent(analysis.kpis) ? `
     <h2>مؤشرات الأداء</h2>
     <div class="grid-2">${list(analysis.kpis).map(k => `
@@ -176,7 +188,61 @@ export function generateAnalysisPdf(analysis: AnalysisData, businessName?: strin
   return wrapInHtml('التحليل التسويقي', `
     <h1>التحليل التسويقي${businessName ? ` — ${txt(businessName)}` : ''}</h1>
     <p class="subtitle">تحليل شامل CMO-level — ${new Date().toLocaleDateString('ar-SA')}</p>
-    ${swotHtml}${personasHtml}${roadmapHtml}${kpisHtml}
+    ${competitorsHtml}${swotHtml}${personasHtml}${roadmapHtml}${kpisHtml}
+  `);
+}
+
+interface PlanData {
+  objectives?: { goal?: string; kpi?: string; target?: string }[] | null;
+  channels?: { name?: string; budget_pct?: number; strategy?: string }[] | null;
+  calendar?: { week?: number; content?: string[]; channel?: string }[] | null;
+  budget?: { total?: string; breakdown?: { item?: string; amount?: string; pct?: number }[] } | null;
+}
+
+/**
+ * A marketing plan as a PDF.
+ *
+ * The plan studio had NO export at all — a 5-credit deliverable that could be read
+ * on screen and nowhere else, while analysis and storyboard both exported. The four
+ * sections below are exactly the four tabs the page renders; `kpis` is deliberately
+ * absent, because exporting a section the screen does not show is the same defect as
+ * the competitors section above in reverse.
+ */
+export function generatePlanPdf(plan: PlanData, businessName?: string): string {
+  const objectivesHtml = hasContent(plan.objectives) ? `
+    <h2>الأهداف</h2>
+    <div class="grid-2">${list(plan.objectives).map(o => `
+      <div class="card"><h3>${txt(o.goal)}</h3>
+      <p style="font-size:13px;margin-top:8px;"><strong>المؤشر:</strong> ${txt(o.kpi)}</p>
+      <p class="meta">${txt(o.target)}</p></div>
+    `).join('')}</div>` : '';
+
+  const channelsHtml = hasContent(plan.channels) ? `
+    <h2>القنوات</h2>
+    <div class="grid-2">${list(plan.channels).map(c => `
+      <div class="card"><h3>${txt(c.name)} — ${txt(c.budget_pct)}%</h3>
+      <p style="font-size:13px;margin-top:8px;">${txt(c.strategy)}</p></div>
+    `).join('')}</div>` : '';
+
+  const calendarHtml = hasContent(plan.calendar) ? `
+    <h2>التقويم</h2>
+    ${list(plan.calendar).map(w => `
+      <div class="card" style="margin-bottom:10px;"><h3>الأسبوع ${txt(w.week)} — ${txt(w.channel)}</h3>
+      <ul>${list(w.content).map(c => `<li>${txt(c)}</li>`).join('')}</ul></div>
+    `).join('')}` : '';
+
+  const budgetHtml = plan.budget && hasContent(plan.budget) ? `
+    <h2>الميزانية</h2>
+    <div class="card" style="text-align:center;"><p style="font-size:24px;font-weight:bold;color:#6366F1;">${txt(plan.budget.total)}</p>
+    <p class="meta">إجمالي الميزانية</p></div>
+    <div class="grid-2" style="margin-top:10px;">${list(plan.budget.breakdown).map(b => `
+      <div class="card"><h3>${txt(b.item)}</h3><p class="meta">${txt(b.amount)} — ${txt(b.pct)}%</p></div>
+    `).join('')}</div>` : '';
+
+  return wrapInHtml('الخطة التسويقية', `
+    <h1>الخطة التسويقية${businessName ? ` — ${txt(businessName)}` : ''}</h1>
+    <p class="subtitle">خطة تسويقية شاملة — ${new Date().toLocaleDateString('ar-SA')}</p>
+    ${objectivesHtml}${channelsHtml}${calendarHtml}${budgetHtml}
   `);
 }
 

@@ -19,7 +19,9 @@ import { cn } from '@/lib/utils';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
-import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
+import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp, FileText } from 'lucide-react';
+import { toast } from 'sonner';
+import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
@@ -188,7 +190,12 @@ export default function PlanPage(): React.ReactElement {
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Calendar className="h-12 w-12" /><p className="text-sm mt-4">{tPlan('emptyState')}</p></div>
   ) : (
     <div className="space-y-4">
-      <div className="flex gap-1 overflow-x-auto pb-2">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+      <div className="flex items-center gap-2 pb-2">
+        <div className="flex gap-1 overflow-x-auto flex-1">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+        {/* The plan studio had no export at all: a 5-credit deliverable readable
+            on screen and nowhere else, while analysis and storyboard both had one. */}
+        <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => { if (!openPdfInNewTab(generatePlanPdf(plan, businessName))) toast.error(tStudio('popupBlocked')); }}><FileText className="h-3 w-3" />PDF</Button>
+      </div>
       {activeTab === 'objectives' && (<div className="space-y-3">{list(plan.objectives).map((obj, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm">{obj.goal}</h4><div className="flex gap-4 mt-2 text-xs text-[var(--color-text-secondary)]"><span>KPI: {obj.kpi}</span><Badge variant="secondary">{obj.target}</Badge></div></CardContent></Card>))}</div>)}
       {activeTab === 'channels' && (<div className="space-y-3">{list(plan.channels).map((ch, i) => (<Card key={i}><CardContent className="p-4"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold text-sm">{ch.name}</h4><Badge variant="default">{ch.budget_pct}%</Badge></div><p className="text-xs text-[var(--color-text-secondary)]">{ch.strategy}</p></CardContent></Card>))}</div>)}
       {activeTab === 'calendar' && (<div className="space-y-3">{list(plan.calendar).map((week, wi) => (<Card key={wi}><CardHeader className="pb-2"><CardTitle className="text-sm">{tPlan('week')} {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(week.content).map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
