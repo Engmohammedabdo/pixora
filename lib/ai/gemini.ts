@@ -52,7 +52,31 @@ function getMockImageUrl(): string {
  * Mirrors the protections already applied in lib/image/watermark.ts.
  */
 
-async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
+/**
+ * In-flight requests for the same reference image, keyed by URL.
+ *
+ * photoshoot fans out up to SIX shots in one Promise.all and hands every one of
+ * them the SAME customer photo, so the same file — capped at 20 MB — was
+ * downloaded and base64-encoded once per shot. Retries multiplied it further.
+ *
+ * Deduped only while IN FLIGHT, deliberately: the entry is deleted as soon as it
+ * settles, so the six parallel shots share one fetch and nothing holds 20 MB of
+ * image bytes in module scope afterwards.
+ */
+const referenceImageInFlight = new Map<string, Promise<{ mimeType: string; base64: string }>>();
+
+function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
+  const existing = referenceImageInFlight.get(imageUrl);
+  if (existing) return existing;
+
+  const pending = fetchReferenceImageUncached(imageUrl).finally(() => {
+    referenceImageInFlight.delete(imageUrl);
+  });
+  referenceImageInFlight.set(imageUrl, pending);
+  return pending;
+}
+
+async function fetchReferenceImageUncached(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
   if (imageUrl.startsWith('data:')) {
     const [header, data] = imageUrl.split(',');
     if (!data) throw new Error('invalid data URL');
