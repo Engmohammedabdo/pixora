@@ -9,6 +9,12 @@ interface AnalysisPromptInput {
   targetMarket: string;
   painPoints: string;
   stage?: string;
+  /**
+   * The locale the customer is READING the app in. Defaults to Arabic, which is
+   * what this prompt used to hardcode — so an English-locale customer paid full
+   * price for a deliverable they may not be able to read.
+   */
+  locale?: string;
 }
 
 /**
@@ -30,11 +36,12 @@ const INDUSTRY_NAMES: Record<string, string> = {
 
 // v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
-  const { businessName, industry, description, competitors, targetMarket, painPoints, stage } = input;
+  const { businessName, industry, description, competitors, targetMarket, painPoints, stage , locale } = input;
   // EVERY value interpolated below reaches the model, so every value below meets
   // the filter. Sanitizing only `description` was never the rule — it was the only
   // field anyone had got to. `competitors` is customer-supplied too and is joined
   // into one line, so it is filtered after the join.
+  const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeDesc = sanitizePrompt(description);
   const safeBusinessName = sanitizePrompt(businessName, 200);
   const safeIndustry = sanitizePrompt(industry, 100);
@@ -88,8 +95,8 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   prompt += `\n  "kpis": [{ "metric": "", "target": "the headline number", "timeframe": "" }]`;
   prompt += `\n}`;
 
-  prompt += `\n\nAll text content in Arabic. Be specific, actionable, and tailored to the market context.`;
-  prompt += `\nInclude local market insights and cultural nuances.`;
+  prompt += `\n\nAll text content in ${outputLanguage}. Be specific, actionable, and tailored to the market context.`;
+  prompt += `\nInclude local Gulf/MENA market insights and cultural nuances — the market is the Gulf whichever language the customer reads in.`;
   prompt += `\nReturn ONLY valid JSON.`;
 
   return prompt;

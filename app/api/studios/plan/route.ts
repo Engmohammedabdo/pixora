@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { routing } from '@/i18n/routing';
 import { PLAN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
@@ -14,6 +15,10 @@ import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
+  // The API sits outside app/[locale], so the caller's language is not recoverable
+  // server-side — and profiles.locale is a dead column (lib/stripe/locale.ts).
+  // Optional, so any existing caller keeps working and defaults to Arabic.
+  locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
@@ -199,7 +204,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10) });
+    const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10), locale: input.locale ?? routing.defaultLocale });
     const result = await generateText({
       prompt,
       maxTokens: 8192,

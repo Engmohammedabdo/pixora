@@ -9,15 +9,22 @@ interface StoryboardPromptInput {
   brandName?: string;
   targetAudience?: string;
   keyMessage?: string;
+  /**
+   * The locale the customer is READING the app in. Defaults to Arabic, which is
+   * what this prompt used to hardcode — so an English-locale customer paid full
+   * price for a deliverable they may not be able to read.
+   */
+  locale?: string;
 }
 
 // v2.0 — matches system-prompts.md storyboard_v1
 export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
-  const { concept, duration, style, platform, brandName, targetAudience, keyMessage } = input;
+  const { concept, duration, style, platform, brandName, targetAudience, keyMessage , locale } = input;
 
   // Belt AND braces, exactly as lib/ai/prompts/plan.ts does: the route filters before
   // the money moves, and the builder filters again so no future caller can reach the
   // model around it.
+  const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeConcept = sanitizePrompt(concept);
   const safeStyle = sanitizePrompt(style, 100);
   const safePlatform = sanitizePrompt(platform, 100);
@@ -47,7 +54,7 @@ export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
   prompt += `\n  "scene_number": 1,`;
   prompt += `\n  "title": "Short scene title",`;
   prompt += `\n  "visual_description": "Detailed description in English for image generation — describe composition, subjects, colors, lighting, action",`;
-  prompt += `\n  "dialogue": "Spoken text or voice-over in Arabic",`;
+  prompt += `\n  "dialogue": "Spoken text or voice-over in ${outputLanguage}",`;
   prompt += `\n  "on_screen_text": "Any text on screen (or null)",`;
   prompt += `\n  "camera_angle": "Wide Shot | Medium Shot | Close-Up | Extreme Close-Up | POV | Aerial",`;
   prompt += `\n  "camera_movement": "Static | Pan Left | Pan Right | Zoom In | Zoom Out | Dolly | Handheld",`;

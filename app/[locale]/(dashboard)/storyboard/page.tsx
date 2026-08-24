@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,9 @@ const text = (value: unknown): string =>
 
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
+  // The API sits outside app/[locale], so the deliverable's language has to be
+  // sent explicitly — an en-locale customer used to pay full price for Arabic.
+  const locale = useLocale();
   // Scoped, not an arrow wrapper: `tStudio` takes one
   // argument and silently drops the values a message needs, so an ICU
   // placeholder like {term} rendered as literal text.
@@ -103,7 +106,7 @@ export default function StoryboardPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/storyboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept, duration, style, platform, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
+        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -111,7 +114,7 @@ export default function StoryboardPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, setBalance, tStudio, projectId, projectBrandKitId]);
+  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };

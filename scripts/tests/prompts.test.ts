@@ -99,6 +99,31 @@ const planInput = {
   contains('storyboard: the duration reaches the model', s, '30');
 }
 
+// ---- The deliverable is written in the language the customer reads. ----
+{
+  const ar = buildPlanPrompt({ ...planInput, locale: 'ar' });
+  const en = buildPlanPrompt({ ...planInput, locale: 'en' });
+  contains('plan/ar: asks for Arabic', ar, 'All text in Arabic');
+  contains('plan/en: asks for English', en, 'All text in English');
+  omits('plan/en: does not also demand Arabic', en, 'All text in Arabic');
+  contains('plan: defaults to Arabic when no locale is given', buildPlanPrompt(planInput), 'All text in Arabic');
+}
+{
+  const base = {
+    businessName: 'Acme', industry: 'retail', description: 'a shop',
+    competitors: ['A'], targetMarket: 'UAE', painPoints: 'none',
+  };
+  contains('analysis/en: asks for English', buildAnalysisPrompt({ ...base, locale: 'en' }), 'All text content in English');
+  contains('analysis/ar: asks for Arabic', buildAnalysisPrompt({ ...base, locale: 'ar' }), 'All text content in Arabic');
+  // The market is the Gulf whichever language the customer reads in.
+  contains('analysis/en: still targets the Gulf market', buildAnalysisPrompt({ ...base, locale: 'en' }), 'Gulf/MENA');
+}
+{
+  const sb = { concept: 'a launch film', duration: 30, style: 'cinematic', platform: 'tiktok' };
+  contains('storyboard/en: dialogue in English', buildStoryboardPrompt({ ...sb, locale: 'en' }), 'voice-over in English');
+  contains('storyboard/ar: dialogue in Arabic', buildStoryboardPrompt({ ...sb, locale: 'ar' }), 'voice-over in Arabic');
+}
+
 if (failures > 0) {
   console.log(`\n[prompts] ${failures} of ${checks} checks FAILED`);
   process.exit(1);

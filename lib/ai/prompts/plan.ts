@@ -9,11 +9,17 @@ interface PlanPromptInput {
   budget: string;
   duration: number;
   stage?: string;
+  /**
+   * The locale the customer is READING the app in. Defaults to Arabic, which is
+   * what this prompt used to hardcode — so an English-locale customer paid full
+   * price for a deliverable they may not be able to read.
+   */
+  locale?: string;
 }
 
 // v2.0 — matches system-prompts.md marketing_plan_v1
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  const { businessName, industry, goals, targetMarket, budget, duration, stage } = input;
+  const { businessName, industry, goals, targetMarket, budget, duration, stage , locale } = input;
 
   // This builder imported sanitizePrompt and never called it, so `plan` was the
   // one paid studio with NO prompt filter in front of the model — and the
@@ -27,6 +33,7 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // "main" one. The caps mirror the route's own Zod maxima
   // (app/api/studios/plan/route.ts InputSchema) so the builder holds the limit
   // itself rather than trusting whoever calls it.
+  const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeBusinessName = sanitizePrompt(businessName, 200);
   const safeIndustry = sanitizePrompt(industry, 100);
   const safeStage = stage ? sanitizePrompt(stage, 100) : '';
@@ -70,7 +77,7 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // stored and discarded. Do not add a field here without pointing at the code
   // that prints it.
 
-  prompt += `\n\nAll text in Arabic. Be specific, actionable, and realistic for the given budget.`;
+  prompt += `\n\nAll text in ${outputLanguage}. Be specific, actionable, and realistic for the given budget.`;
   prompt += `\nReturn ONLY valid JSON.`;
 
   return prompt;

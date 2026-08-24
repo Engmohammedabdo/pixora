@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,9 @@ const list = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value 
 
 export default function PlanPage(): React.ReactElement {
   const t = useTranslations();
+  // The API sits outside app/[locale], so the deliverable's language has to be
+  // sent explicitly — an en-locale customer used to pay full price for Arabic.
+  const locale = useLocale();
   // Scoped, not an arrow wrapper: `tStudio` takes one
   // argument and silently drops the values a message needs, so an ICU
   // placeholder like {term} rendered as literal text.
@@ -112,7 +115,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -120,7 +123,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
