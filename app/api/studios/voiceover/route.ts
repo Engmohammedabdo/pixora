@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { VOICEOVER_PROMPT_VERSION } from '@/lib/ai/prompts/voiceover';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { generateTTS, PremiumVoiceUnavailableError } from '@/lib/ai/tts-router';
 import { MODELS } from '@/lib/ai/models';
-import { calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
+import { maxCharsForBudget, calculateVoiceoverCost, estimateVoiceoverDuration, getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -21,13 +22,27 @@ import { refundAwareErrorCode } from '@/lib/studio-errors';
  */
 const FALLBACK_RATE_PLAN = 'starter';
 
+/**
+ * The four tones this studio actually sells. app/[locale]/(dashboard)/voiceover/page.tsx:40
+ * offers exactly these and lib/ai/elevenlabs.ts keys TONE_SETTINGS on the same four,
+ * so `tone: z.string()` was an unbounded, unfiltered value on the ONE field
+ * lib/ai/tts-router.ts interpolates raw into a rewrite prompt — whose OUTPUT is what
+ * the narrator reads aloud on a paid generation. An enum makes the set of reachable
+ * prompts finite rather than merely filtered, which is what `speed` below already does.
+ *
+ * `voice` and `dialect` are bounded at runtime instead, against the plan's own
+ * allowlists further down, and reach only Record lookups — never a template literal.
+ * The `.max()` here is hygiene, not the guard.
+ */
+const TONES = ['professional', 'friendly', 'energetic', 'calm'] as const;
+
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
   script: z.string().min(1).max(2000),
-  voice: z.string(),
-  dialect: z.string(),
+  voice: z.string().max(50),
+  dialect: z.string().max(50),
   speed: z.enum(['0.5', '0.75', '1', '1.25', '1.5']),
-  tone: z.string(),
+  tone: z.enum(TONES),
 });
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -42,11 +57,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'maintenance_mode' }, { status: 503 });
     }
     const studioConfig = await getStudioConfig();
     if (!isStudioEnabled(studioConfig, 'voiceover')) {
-      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -114,7 +129,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // voiceover was filed under a model that never produced it.
       model: config.provider === 'elevenlabs' ? MODELS.elevenlabs : MODELS.openaiTts,
       status: 'processing',
-      input: { ...input, planId, provider: config.provider },
+      input: { ...input, planId, provider: config.provider, promptVersion: VOICEOVER_PROMPT_VERSION },
       credits_used: creditCost,
     }).select().single();
 
@@ -134,8 +149,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
-      return NextResponse.json({ success: false, error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed', required: creditCost }, { status: 402 });
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'voiceover');
+      }
+      return NextResponse.json({ success: false, error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed', required: creditCost }, { status: 402 });
     }
 
     let ttsResult: Awaited<ReturnType<typeof generateTTS>>;
@@ -149,6 +175,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         speed: input.speed,
         tone: input.tone,
         planId,
+        maxScriptChars: maxCharsForBudget(creditCost, parseFloat(input.speed), planId),
       });
 
       // Upload audio to storage
@@ -165,7 +192,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     } catch (genError) {
       const refundResult = await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: voiceover generation failed`, generationId: generation?.id });
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'voiceover');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
@@ -185,55 +217,74 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         generationId: generation?.id,
       });
       if (generation) {
-        await supabase.from('generations').update({ status: 'failed', error: 'audio_upload_failed' }).eq('id', generation.id);
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'audio_upload_failed',
+        }, 'voiceover');
       }
       return NextResponse.json({ success: false, error: refundAwareErrorCode(refundResult, 'generation_failed') }, { status: 500 });
     }
 
     // Charge for what was DELIVERED, not for what the plan sells.
     //
-    // calculateVoiceoverCost() derives the price from the plan alone (3 credits/20s
-    // for pro+, 1 credit/15s below it), but tts-router serves the standard path
-    // whenever the premium one is unconfigured or fails — the 404 first-run state
-    // lib/ai/elevenlabs.ts warns about. Nothing re-derived the price from the path
-    // that actually ran, so a Pro customer paid the premium rate for standard-tier
-    // audio, every time, silently.
+    // ONE settlement, not two. The charge can be wrong for two independent reasons
+    // and they compose, so computing them as separate refunds would return the
+    // overlap twice:
+    //
+    //  1. the premium path was sold but the standard one actually ran
+    //     (`usedFallback`) — tts-router serves the standard path whenever the
+    //     premium one is unconfigured or fails, and nothing used to re-derive the
+    //     price from the path that ran, so a Pro customer paid the premium rate for
+    //     standard-tier audio, every time, silently;
+    //  2. the script that was PRICED is not the script that was SPOKEN
+    //     (`synthesizedChars`) — estimatedDuration, the plan duration cap and
+    //     creditCost were all computed from `safeScript`, and then generateTTS ran
+    //     an LLM rewrite of it and synthesised the rewrite. On pro/business/agency
+    //     `toneEnabled` is true, so that rewrite fires on essentially every paid
+    //     request. Only the free plan was ever immune.
     //
     // A NAMED premium narrator is never substituted at all: tts-router throws
     // PremiumVoiceUnavailableError and the catch above returns the whole
     // reservation. This branch only ever settles a generic-role voice that has a
     // genuine equivalent on the standard path.
     //
+    // Math.min against creditCost: a delivered cost ABOVE the quote must never
+    // become a second charge. The budget passed to generateTTS already makes that
+    // arm unreachable — a rewrite over budget is discarded, not spoken — so this is
+    // a belt on top of braces, and the worst case is that we refund nothing.
+    //
     // Must run BEFORE finalizeGeneration: marking the row terminal takes it out of
     // reconcile_orphaned_generations()'s scan window, i.e. out of reach of the one
     // thing that could still pay the customer back if this route dies mid-refund.
+    const ratePlan = ttsResult.usedFallback ? FALLBACK_RATE_PLAN : planId;
+    const deliveredCost = Math.min(
+      calculateVoiceoverCost(ttsResult.synthesizedChars, parseFloat(input.speed), ratePlan),
+      creditCost
+    );
+    const deliveredDuration = estimateVoiceoverDuration(
+      ttsResult.synthesizedChars,
+      parseFloat(input.speed)
+    );
+
     let creditsCharged = creditCost;
     let balanceAfterRefund = reserveResult.newBalance;
-    if (ttsResult.usedFallback) {
-      // Math.min: a rate card that is ever re-tiered above the customer's own must
-      // not turn a refund into a second charge. The worst case is we refund nothing.
-      const deliveredCost = Math.min(
-        calculateVoiceoverCost(safeScript.length, parseFloat(input.speed), FALLBACK_RATE_PLAN),
-        creditCost
-      );
-      const overcharge = creditCost - deliveredCost;
-      if (overcharge > 0) {
-        const fallbackRefund = await refundCredits({
-          userId: user.id, amount: overcharge,
-          description: `Partial refund: voiceover delivered on the standard path (${overcharge} credits returned)`,
-          generationId: generation.id,
-        });
-        // Only rewrite credits_used once the credits are actually back. Recording
-        // the lower figure over a refund that did not land makes the row disagree
-        // with the ledger, and every admin revenue number reads off this column —
-        // the failed refund itself is already logged as `[credits][OWED]`.
-        if (fallbackRefund.success) {
-          creditsCharged = deliveredCost;
-          balanceAfterRefund = fallbackRefund.newBalance;
-        }
-      } else {
+    const overcharge = creditCost - deliveredCost;
+    if (overcharge > 0) {
+      const settlement = await refundCredits({
+        userId: user.id, amount: overcharge,
+        description: `Partial refund: voiceover delivered ${deliveredDuration}s at the ${ratePlan} rate (${overcharge} credits returned)`,
+        generationId: generation.id,
+      });
+      // Only rewrite credits_used once the credits are actually back. Recording the
+      // lower figure over a refund that did not land makes the row disagree with the
+      // ledger, and every admin revenue number reads off this column — the failed
+      // refund is already logged as `[credits][OWED]`.
+      if (settlement.success) {
         creditsCharged = deliveredCost;
+        balanceAfterRefund = settlement.newBalance;
       }
+    } else {
+      creditsCharged = deliveredCost;
     }
 
     // Update generation record
@@ -248,9 +299,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         model: ttsResult.provider === 'elevenlabs' ? MODELS.elevenlabs : MODELS.openaiTts,
         output: {
           audioUrl,
-          duration: estimatedDuration,
+          duration: deliveredDuration,
           provider: ttsResult.provider,
           enhanced: ttsResult.enhanced,
+          enhancementRejected: ttsResult.enhancementRejected,
           mock: ttsResult.mock,
           usedFallback: ttsResult.usedFallback,
         },
@@ -270,9 +322,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       data: {
         generationId: generation?.id,
         audioUrl,
-        duration: estimatedDuration,
+        // What was actually spoken, not what was submitted. The player badge reads
+        // this (voiceover/page.tsx), so quoting the pre-rewrite estimate here told
+        // the customer the length of a script that was never read aloud.
+        duration: deliveredDuration,
         provider: ttsResult.provider,
         enhanced: ttsResult.enhanced,
+        // The customer paid the premium rate for a dialect; if the rewrite failed they
+        // received a plain reading of their own text and nothing said so.
+        enhancementRejected: ttsResult.enhancementRejected,
         mock: ttsResult.mock,
         // The UI renders this as "بايرا استخدمت مسار بديل" — a stated notice, not
         // a badge the customer has to decode. `creditsUsed` is the settled figure,

@@ -1,23 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { routing } from '@/i18n/routing';
+import { STORYBOARD_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
-import { buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
+import { STORYBOARD_PROMPT_VERSION, buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
+  // The API sits outside app/[locale], so the caller's language is not recoverable
+  // server-side — and profiles.locale is a dead column (lib/stripe/locale.ts).
+  // Optional, so any existing caller keeps working and defaults to Arabic.
+  locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
   concept: z.string().min(10).max(2000),
   duration: z.enum(['15', '30', '60']),
-  style: z.string().min(1).max(100),
-  platform: z.string().min(1).max(100),
+  // Both are closed sets in the only client that posts here
+  // (app/[locale]/(dashboard)/storyboard/page.tsx:103-104), and an enum makes the
+  // set of reachable prompts finite rather than merely filtered. Same shape as
+  // `dialect` in campaign and `duration` two lines above.
+  style: z.enum(['cinematic', 'ugc', 'animation', 'documentary']),
+  platform: z.enum(['instagram_reel', 'tiktok', 'youtube', 'tv']),
   brandKitId: z.string().uuid().optional(),
 });
 
@@ -63,7 +73,21 @@ const SceneSchema = z
   })
   .loose();
 
-const ScenesSchema = z.array(SceneSchema).min(1);
+/**
+ * The number of scenes a storyboard is sold as and priced for: the prompt asks for
+ * "exactly 9 scenes" (lib/ai/prompts/storyboard.ts) and the flat 14-credit price is
+ * built on that. Mirrors campaign's EXPECTED_POSTS.
+ */
+const EXPECTED_SCENES = 9;
+
+/**
+ * `.min(1)` accepted one scene of the nine that were sold, marked the row completed
+ * and kept all 14 credits. A storyboard is not a bag of independent items like a
+ * campaign's posts — its scene durations must sum to the requested video length, so
+ * a short response is unusable rather than partial. Refusing here routes it into the
+ * existing parse-failure branch: full refund, `generation_parse_failed`, free retry.
+ */
+const ScenesSchema = z.array(SceneSchema).min(EXPECTED_SCENES);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -77,11 +101,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'maintenance_mode' }, { status: 503 });
     }
     const studioConfig = await getStudioConfig();
     if (!isStudioEnabled(studioConfig, 'storyboard')) {
-      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -96,14 +120,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const creditCost = CREDIT_COSTS.storyboard;
 
+    // Sanitize BEFORE the insert and BEFORE the reservation, so a blocked word costs
+    // nothing. plan and analysis already do this; storyboard was the one that charged
+    // first and filtered second — at 14 credits, the most expensive place to get that
+    // order wrong. PromptBlockedError thrown here reaches the OUTER catch directly,
+    // which returns 400 + `term` with no credits moved and no orphan row.
+    const safeConcept = sanitizePrompt(input.concept, 2000);
+
     let brandKitName: string | undefined;
     if (input.brandKitId) {
       const { data: brandKit } = await supabase.from('brand_kits').select('name').eq('id', input.brandKitId).eq('user_id', user.id).single();
-      brandKitName = brandKit?.name;
+      // `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
+      // 042 constrains logo_url alone), so a customer can PATCH `name` to any string
+      // over PostgREST and app/api/brand-kits/route.ts's max(100) never runs.
+      brandKitName = brandKit?.name ? sanitizePrompt(String(brandKit.name), 100) : undefined;
     }
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, brandKitName }, credits_used: creditCost, status: 'processing',
+      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, concept: safeConcept, brandKitName, promptVersion: STORYBOARD_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while
@@ -118,21 +152,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
       userId: user.id, amount: creditCost,
-      studio: 'storyboard', description: `Storyboard - ${input.concept.substring(0, 50)}`,
+      studio: 'storyboard', description: `Storyboard - ${safeConcept.substring(0, 50)}`,
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'storyboard');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: creditCost,
       }, { status: 402 });
     }
 
     try {
-    const prompt = buildStoryboardPrompt({ ...input, duration: parseInt(input.duration, 10), brandName: brandKitName });
-    const result = await generateText({ prompt, maxTokens: 8192 });
+    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, locale: input.locale ?? routing.defaultLocale });
+    const result = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: STORYBOARD_RESPONSE_SCHEMA,
+    });
 
     // Unparseable output = failure + refund. The old fallback shipped a canned
     // storyboard whose ninth scene was a PyraSuite advert, billed at full price.
@@ -144,14 +194,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // it lands in the same refund branch, never in `completed`.
       scenes = ScenesSchema.parse(JSON.parse(jsonMatch[0]));
     } catch {
-      if (generation) {
-        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
-      }
+      // The refund runs BEFORE the terminal write, and the write is conditional on
+      // it. Marking the row failed first — as this did — hands the credits nowhere
+      // if the refund then fails: the row is already out of the reconciler's scan.
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: storyboard parse failure',
         generationId: generation?.id,
       });
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_parse_failed',
+        }, 'storyboard');
+      }
       return NextResponse.json({
         success: false,
         error: refundAwareErrorCode(refundResult, 'generation_parse_failed'),
@@ -159,7 +215,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await finalizeGeneration(supabase, generation.id, { output: { scenes, mock: result.mock }, status: 'completed' }, 'storyboard');
+      await finalizeGeneration(supabase, generation.id, {
+        output: { scenes, mock: result.mock },
+        status: 'completed',
+        // Record the model that ACTUALLY served. The row is inserted before
+        // generation from the PREFERRED model, but the router falls back — so a
+        // gpt-served run stayed filed under gemini forever, and six admin surfaces
+        // read this column. MODEL_COSTS is gemini 0.002 vs gpt 0.01, so every
+        // mis-attributed run also understated estimated API cost 5x.
+        model: result.model,
+      }, 'storyboard');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, scenes, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
@@ -169,7 +234,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         description: `Refund: storyboard generation failed`,
         generationId: generation?.id,
       });
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'storyboard');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {

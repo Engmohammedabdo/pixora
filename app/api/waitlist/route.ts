@@ -36,7 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const ip = getRequestIp(request);
-    if (!(await checkKeyedRateLimit(`waitlist:${ip}`, 5, 60_000))) {
+    if (!(await checkKeyedRateLimit(`waitlist:${ip}`, 5, 1))) {
       return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 

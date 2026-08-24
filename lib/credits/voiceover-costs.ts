@@ -13,8 +13,21 @@ export interface VoiceoverCostConfig {
   voicesAvailable: string[];
   toneEnabled: boolean;
   enhanceEnabled: boolean;
-  watermark: boolean;
 }
+
+/*
+ * REMOVED 2026-08-24: `watermark: boolean` on this config.
+ *
+ * It had ZERO readers — grep for `config.watermark` returns nothing — so free-tier
+ * voiceover audio has always shipped unmarked while this file claimed otherwise.
+ * A config field asserting a protection that does not exist is worse than no field:
+ * it is the shape that let free-plan IMAGES ship with empty boxes for a week
+ * (see CLAUDE.md on assertTextRenderingAvailable).
+ *
+ * Marking audio is real work — an audible tag or an inaudible mark — and is not in
+ * scope here. `lib/stripe/plans.ts` keeps its own `watermark` flag, which IS read,
+ * and governs images only.
+ */
 
 const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
   free: {
@@ -26,7 +39,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro'],
     toneEnabled: false,
     enhanceEnabled: false,
-    watermark: true,
   },
   starter: {
     creditsPerUnit: 1,
@@ -37,7 +49,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal'],
     toneEnabled: false,
     enhanceEnabled: true,
-    watermark: false,
   },
   pro: {
     creditsPerUnit: 3,
@@ -48,7 +59,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
   business: {
     creditsPerUnit: 3,
@@ -59,7 +69,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
   agency: {
     creditsPerUnit: 3,
@@ -70,7 +79,6 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     voicesAvailable: ['male_pro', 'female_pro', 'male_youth', 'female_youth', 'male_formal', 'el_arabic_male_1', 'el_arabic_male_2', 'el_arabic_female_1', 'el_arabic_female_2', 'el_arabic_formal', 'el_premium_1', 'el_premium_2'],
     toneEnabled: true,
     enhanceEnabled: true,
-    watermark: false,
   },
 };
 
@@ -94,4 +102,30 @@ export function calculateVoiceoverCost(scriptLength: number, speed: number, plan
  */
 export function estimateVoiceoverDuration(scriptLength: number, speed: number): number {
   return Math.round((scriptLength / 5) / speed);
+}
+
+/**
+ * The longest script that still costs `creditCost` AND still fits the plan's
+ * duration cap — i.e. the exact inverse of calculateVoiceoverCost, bounded by
+ * maxDurationSeconds.
+ *
+ * WHY THIS EXISTS: the route prices and cap-checks the script the customer typed,
+ * then tts-router hands an LLM REWRITE of it to the provider. Without a budget the
+ * rewrite is bounded only by maxTokens, so a longer one delivers audio nobody paid
+ * for and breaches the plan's own limit, and a shorter one charges for silence.
+ *
+ * Derivation, against calculateVoiceoverCost above:
+ *   cost    = max(1, ceil(ceil((len/5)/speed) / unitSeconds)) * creditsPerUnit
+ *   so      units      = cost / creditsPerUnit
+ *           maxSeconds = units * unitSeconds
+ *           len        <= maxSeconds * speed * 5
+ * and independently the cap requires len <= maxDurationSeconds * speed * 5.
+ * The smaller of the two wins; floored, because a partial character buys nothing.
+ */
+export function maxCharsForBudget(creditCost: number, speed: number, planId: string): number {
+  const config = getVoiceoverConfig(planId);
+  const units = Math.max(1, Math.floor(creditCost / config.creditsPerUnit));
+  const secondsAffordable = units * config.unitSeconds;
+  const secondsAllowed = Math.min(secondsAffordable, config.maxDurationSeconds);
+  return Math.max(1, Math.floor(secondsAllowed * speed * 5));
 }

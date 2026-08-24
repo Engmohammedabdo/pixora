@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { isTextStudio } from '@/lib/studios/text-output';
+import { MAX_RETRIEVABLE_OUTPUT_BYTES, isRetrievableStudio, stripInlineImages } from '@/lib/studios/text-output';
 
 /**
  * GET /api/generations/[id] — one text generation, including its output.
@@ -44,9 +44,13 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    // Decide on METADATA alone. Selecting `output` up front meant pulling the
+    // 904 kB – 2.8 MB blob an image studio stores across the wire specifically so
+    // it could be discarded on the very next line. Two small queries beat one huge
+    // one, and the refusal path now costs nothing.
+    const { data: meta, error } = await supabase
       .from('generations')
-      .select('id, studio, status, input, output, credits_used, created_at, project_id')
+      .select('id, studio, status, input, credits_used, created_at, project_id')
       .eq('id', id)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -56,15 +60,41 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'fetch_failed' }, { status: 500 });
     }
 
-    if (!data) {
+    if (!meta) {
       return NextResponse.json({ success: false, error: 'not_found' }, { status: 404 });
     }
 
-    if (!isTextStudio(data.studio as string)) {
+    if (!isRetrievableStudio(meta.studio as string)) {
       return NextResponse.json({ success: false, error: 'unsupported_studio' }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, data });
+    const { data: stored, error: outputError } = await supabase
+      .from('generations')
+      .select('output')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (outputError) {
+      console.error('[generations] output fetch failed:', outputError.message);
+      return NextResponse.json({ success: false, error: 'fetch_failed' }, { status: 500 });
+    }
+
+    // TWO independent guards, because campaign joined this set and its output is
+    // not reliably small: lib/storage/persist-image.ts hands back a base64 `data:`
+    // URL on four degradation paths, so a campaign row can carry nine inline
+    // images. The stripper covers the source known today; the byte ceiling covers
+    // the one nobody has thought of yet.
+    const output = stripInlineImages(stored?.output ?? null);
+    const bytes = Buffer.byteLength(JSON.stringify(output ?? null), 'utf8');
+    if (bytes > MAX_RETRIEVABLE_OUTPUT_BYTES) {
+      console.error(
+        `[generations] ${id} (${meta.studio}) refused: stored output is ${bytes} bytes after stripping inline images, over the ${MAX_RETRIEVABLE_OUTPUT_BYTES} ceiling.`
+      );
+      return NextResponse.json({ success: false, error: 'unsupported_studio' }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, data: { ...meta, output } });
   } catch (error) {
     console.error('[generations] unexpected:', error instanceof Error ? error.message : error);
     return NextResponse.json({ success: false, error: 'server_error' }, { status: 500 });

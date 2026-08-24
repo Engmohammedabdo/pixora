@@ -2,7 +2,6 @@ import OpenAI from 'openai';
 import { MODELS } from './models';
 import { generateElevenLabsSpeech, getElevenLabsVoiceId, getToneSettings } from './elevenlabs';
 import { generateText } from './router';
-import { buildVoiceOverPrompt } from './prompts/voiceover';
 import { getVoiceoverConfig, type VoiceoverCostConfig } from '@/lib/credits/voiceover-costs';
 
 /**
@@ -18,6 +17,13 @@ interface TTSInput {
   speed: string;
   tone: string;
   planId: string;
+  /**
+   * The longest script the caller has already priced and cap-checked. A dialect or
+   * tone rewrite longer than this is discarded rather than synthesised — the
+   * customer must never receive audio they were not quoted, and must never be
+   * walked through their own plan's duration cap by a rewrite nobody measured.
+   */
+  maxScriptChars: number;
 }
 
 interface TTSResult {
@@ -31,7 +37,17 @@ interface TTSResult {
    * was bought, this is what was delivered.
    */
   usedFallback: boolean;
+  /** Length of the text actually handed to the provider. The route reprices on this. */
+  synthesizedChars: number;
+  /** True when a rewrite was produced but discarded for exceeding maxScriptChars. */
+  enhancementRejected: boolean;
 }
+
+/**
+ * What a provider returns. It knows what it synthesised but not what was ASKED for
+ * — the budget and the rewrite verdict belong to generateTTS, which owns both.
+ */
+type ProviderResult = Omit<TTSResult, 'synthesizedChars' | 'enhancementRejected'>;
 
 /**
  * The premium path was the one that routed, and it could not deliver. There is no
@@ -86,6 +102,21 @@ const OPENAI_VOICE_MAP: Record<string, 'alloy' | 'echo' | 'fable' | 'onyx' | 'no
  */
 const ARABIC_CAPABLE_STANDARD_VOICES = new Set<string>();
 
+/**
+ * The delivery instruction for each tone. A TABLE, not an interpolation: the
+ * caller's value now only ever selects a row, so no string a customer sends can
+ * reach the prompt. Same shape as DIALECT_PROMPTS below, and the same reason — the
+ * tone branch was the one place a raw request field was pasted into a prompt whose
+ * output becomes the audio the customer is billed for. Keys must stay in step with
+ * TONES in app/api/studios/voiceover/route.ts and TONE_SETTINGS in lib/ai/elevenlabs.ts.
+ */
+const TONE_INSTRUCTIONS: Record<string, string> = {
+  professional: 'formal and authoritative',
+  friendly: 'warm and conversational',
+  energetic: 'excited and dynamic',
+  calm: 'calm and soothing',
+};
+
 const DIALECT_PROMPTS: Record<string, string> = {
   saudi: 'Rewrite the following text in Saudi Arabian Arabic dialect (اللهجة السعودية). Keep the meaning but use Saudi expressions and vocabulary.',
   emirati: 'Rewrite the following text in Emirati Arabic dialect (اللهجة الإماراتية). Keep the meaning but use UAE expressions.',
@@ -98,18 +129,23 @@ const DIALECT_PROMPTS: Record<string, string> = {
  * Enhance script with dialect + tone before TTS.
  * Uses AI to rewrite the text in the desired dialect and tone.
  */
-async function enhanceScript(script: string, dialect: string, tone: string, config: VoiceoverCostConfig): Promise<{ text: string; enhanced: boolean }> {
+async function enhanceScript(script: string, dialect: string, tone: string, config: VoiceoverCostConfig, maxChars: number): Promise<{ text: string; enhanced: boolean; rejected: boolean }> {
   if (!config.enhanceEnabled) {
-    return { text: script, enhanced: false };
+    return { text: script, enhanced: false, rejected: false };
   }
 
   const dialectPrompt = DIALECT_PROMPTS[dialect] || '';
-  const tonePrompt = tone && config.toneEnabled
-    ? `Also adjust the tone to be: ${tone}. Make it sound ${tone === 'professional' ? 'formal and authoritative' : tone === 'friendly' ? 'warm and conversational' : tone === 'energetic' ? 'excited and dynamic' : 'calm and soothing'}.`
+  const toneInstruction = config.toneEnabled ? TONE_INSTRUCTIONS[tone] : undefined;
+  // An unrecognised tone yields no instruction at all, exactly as an unrecognised
+  // dialect yields no dialect prompt on the line above. The old ternary had no such
+  // exit: anything that was not one of three named strings fell through to
+  // 'calm and soothing' and was still pasted in verbatim.
+  const tonePrompt = toneInstruction
+    ? `Also adjust the tone so it sounds ${toneInstruction}.`
     : '';
 
   if (!dialectPrompt && !tonePrompt) {
-    return { text: script, enhanced: false };
+    return { text: script, enhanced: false, rejected: false };
   }
 
   try {
@@ -117,13 +153,29 @@ async function enhanceScript(script: string, dialect: string, tone: string, conf
     const result = await generateText({ prompt, maxTokens: 1000, temperature: 0.3 });
     const enhanced = result.text?.trim();
     if (enhanced && enhanced.length > 0) {
-      return { text: enhanced, enhanced: true };
+      // The price and the plan's duration cap were both computed from the script the
+      // customer submitted. A rewrite longer than that budget would be audio they
+      // were never quoted, so it is discarded and the original is spoken instead —
+      // never truncated, which would cut an Arabic sentence mid-clause.
+      if (enhanced.length > maxChars) {
+        console.warn(
+          `[tts] dialect/tone rewrite discarded: ${enhanced.length} chars exceeds the ${maxChars}-char budget quoted to the customer.`
+        );
+        return { text: script, enhanced: false, rejected: true };
+      }
+      return { text: enhanced, enhanced: true, rejected: false };
     }
-  } catch {
-    // Enhancement failed — use original text
+  } catch (e: unknown) {
+    // A bare `catch {}` returned { enhanced: false } here, which is INDISTINGUISHABLE
+    // from "there was nothing to enhance". So a customer on a paid tier picked مصري,
+    // was charged the premium rate, received a plain فصحى reading of their own text,
+    // and nothing — not the response, not a log line — said the dialect had not been
+    // applied. `rejected: true` is what makes it visible to the route and the page.
+    console.error(`[tts] dialect/tone rewrite failed; speaking the original instead: ${String(e)}`);
+    return { text: script, enhanced: false, rejected: true };
   }
 
-  return { text: script, enhanced: false };
+  return { text: script, enhanced: false, rejected: false };
 }
 
 /**
@@ -133,8 +185,8 @@ export async function generateTTS(input: TTSInput): Promise<TTSResult> {
   const config = getVoiceoverConfig(input.planId);
 
   // Step 1: Enhance script (dialect + tone conversion)
-  const { text: enhancedScript, enhanced } = await enhanceScript(
-    input.script, input.dialect, input.tone, config
+  const { text: enhancedScript, enhanced, rejected } = await enhanceScript(
+    input.script, input.dialect, input.tone, config, input.maxScriptChars
   );
 
   // Step 2: Route to correct TTS provider
@@ -156,7 +208,9 @@ export async function generateTTS(input: TTSInput): Promise<TTSResult> {
     throw new Error('provider_unavailable: TTS returned an empty audio buffer');
   }
 
-  return result;
+  // What was ACTUALLY spoken. The route prices on this, not on the script the
+  // customer submitted — those are different strings whenever a rewrite ran.
+  return { ...result, synthesizedChars: enhancedScript.length, enhancementRejected: rejected };
 }
 
 async function generateWithOpenAI(
@@ -164,7 +218,7 @@ async function generateWithOpenAI(
   input: TTSInput,
   config: VoiceoverCostConfig,
   enhanced: boolean
-): Promise<TTSResult> {
+): Promise<ProviderResult> {
   if (!process.env.OPENAI_API_KEY) {
     return { audioBuffer: Buffer.alloc(0), provider: 'openai', mock: true, enhanced, usedFallback: false };
   }
@@ -192,7 +246,7 @@ async function generateWithElevenLabs(
   input: TTSInput,
   config: VoiceoverCostConfig,
   enhanced: boolean
-): Promise<TTSResult> {
+): Promise<ProviderResult> {
   const voiceId = getElevenLabsVoiceId(input.voice);
   const toneSettings = config.toneEnabled ? getToneSettings(input.tone) : undefined;
 
@@ -243,7 +297,7 @@ async function fallBackToStandard(
   config: VoiceoverCostConfig,
   enhanced: boolean,
   detail: string
-): Promise<TTSResult> {
+): Promise<ProviderResult> {
   // The standard voice this key resolves to is the whole question — `alloy` when
   // the map has no entry, which is as English as the rest of them.
   const standardVoice = OPENAI_VOICE_MAP[input.voice] ?? 'alloy';

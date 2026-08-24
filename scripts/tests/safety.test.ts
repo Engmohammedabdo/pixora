@@ -14,6 +14,8 @@
  */
 import { sanitizePrompt, PromptBlockedError } from '../../lib/ai/prompts/safety';
 import { buildPlanPrompt } from '../../lib/ai/prompts/plan';
+import { buildCreatorPrompt } from '../../lib/ai/prompts/creator';
+import { buildStoryboardPrompt } from '../../lib/ai/prompts/storyboard';
 
 let failures = 0;
 let checks = 0;
@@ -169,6 +171,89 @@ if (planBlockedTerm({}) !== null) {
   failures += 1;
   console.error('  FAIL  buildPlanPrompt should build an ordinary brief');
 }
+
+// ---------------------------------------------------------------------------
+// Builder-level filtering: EVERY value a prompt builder interpolates.
+//
+// sanitizePrompt() on the headline field alone was never the rule — it was the
+// only field anyone had got to. The brand-kit columns are the sharp edge:
+// `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
+// 042 constrains logo_url alone), so a customer can PATCH `name`/`brand_voice`
+// to any string over PostgREST and the route's own Zod caps never run.
+//
+// These assert on the BUILT PROMPT, because that is the string that reaches the
+// model. Asserting on the route schema would miss the SELECT-sourced fields
+// entirely — which is exactly how this stayed open.
+// ---------------------------------------------------------------------------
+
+function throwsBlocked(label: string, fn: () => unknown): void {
+  checks++;
+  try {
+    fn();
+    failures++;
+    console.error(`  FAIL  ${label} — expected PromptBlockedError, nothing was thrown`);
+  } catch (e) {
+    if (!(e instanceof PromptBlockedError)) {
+      failures++;
+      console.error(`  FAIL  ${label} — expected PromptBlockedError, got ${String(e)}`);
+    }
+  }
+}
+
+const BLOCKED_WORD = 'bomb';
+const kit = (over: Record<string, unknown> = {}) => ({
+  name: 'Acme', primary_color: '#111', secondary_color: '#222', accent_color: '#333', ...over,
+}) as never;
+
+// --- creator: the DEFAULT path, which every customer hits ---
+throwsBlocked('creator: a blocked word in `style` is refused', () =>
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: BLOCKED_WORD, resolution: '1080p' })
+);
+throwsBlocked('creator: a blocked word in the brand-kit NAME is refused', () =>
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p', brandKit: kit({ name: BLOCKED_WORD }) })
+);
+throwsBlocked('creator: a blocked word in brand_voice is refused', () =>
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p', brandKit: kit({ brand_voice: BLOCKED_WORD }) })
+);
+
+// An over-long brand name is TRUNCATED, not refused: the honest path is unchanged
+// and the PostgREST path is truncated back onto it.
+checks++;
+if (buildCreatorPrompt({
+  userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
+  brandKit: kit({ name: 'A'.repeat(5000) }),
+}).includes('A'.repeat(200))) {
+  failures++;
+  console.error('  FAIL  creator: an over-long brand name must be truncated to the CreateBrandKitSchema cap');
+}
+
+// A clean call must still produce a usable prompt — the filter must not eat content.
+checks++;
+{
+  const built = buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'cinematic', resolution: '4K', brandKit: kit() });
+  if (!built.includes('a red shoe on marble') || !built.includes('cinematic') || !built.includes('Acme')) {
+    failures++;
+    console.error('  FAIL  creator: a clean call must keep subject, style and brand in the prompt');
+  }
+}
+
+// --- storyboard: the 14-credit studio ---
+const sb = { concept: 'a launch film for a coffee brand', duration: 30, style: 'cinematic', platform: 'tiktok' };
+throwsBlocked('storyboard: a blocked word in `style` is refused', () =>
+  buildStoryboardPrompt({ ...sb, style: BLOCKED_WORD })
+);
+throwsBlocked('storyboard: a blocked word in `platform` is refused', () =>
+  buildStoryboardPrompt({ ...sb, platform: BLOCKED_WORD })
+);
+throwsBlocked('storyboard: a blocked word in the brand NAME is refused', () =>
+  buildStoryboardPrompt({ ...sb, brandName: BLOCKED_WORD })
+);
+throwsBlocked('storyboard: a blocked word in targetAudience is refused', () =>
+  buildStoryboardPrompt({ ...sb, targetAudience: BLOCKED_WORD })
+);
+throwsBlocked('storyboard: a blocked word in keyMessage is refused', () =>
+  buildStoryboardPrompt({ ...sb, keyMessage: BLOCKED_WORD })
+);
 
 if (failures > 0) {
   console.error(`\n[safety] ${failures} of ${checks} checks FAILED`);

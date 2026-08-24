@@ -23,7 +23,7 @@ export function CreditPolicySection(): React.ReactElement {
   return (
     <section className="py-16 px-6">
       <div className="mx-auto max-w-4xl">
-        <div className="rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)] p-6 sm:p-8">
+        <div className="rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] bg-[var(--color-surface)] p-6 sm:p-8">
           <h2 className="mb-6 text-center font-cairo text-2xl font-bold text-[var(--color-text-primary)]">
             {t('title')}
           </h2>

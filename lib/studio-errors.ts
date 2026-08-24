@@ -1,4 +1,4 @@
-const KNOWN_ERROR_CODES = new Set([
+export const KNOWN_ERROR_CODES = new Set([
   'insufficient_credits',
   'credit_reservation_failed',
   'rate_limited',
@@ -21,6 +21,11 @@ const KNOWN_ERROR_CODES = new Set([
   'network',
   'project_not_found',
   'refund_failed',
+  // Returned by all nine studio routes when the generations insert fails. It was
+  // NOT registered, so mapApiError collapsed it to the generic fallback and the
+  // customer was told 'something unexpected went wrong' for a state the product
+  // can name exactly.
+  'failed_to_create_generation',
 ]);
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;

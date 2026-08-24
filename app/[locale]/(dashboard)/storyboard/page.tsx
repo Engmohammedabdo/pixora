@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,19 @@ import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
 
 const STYLES = ['cinematic', 'ugc', 'animation', 'documentary'] as const;
 const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
@@ -59,6 +72,9 @@ const text = (value: unknown): string =>
 
 export default function StoryboardPage(): React.ReactElement {
   const t = useTranslations();
+  // The API sits outside app/[locale], so the deliverable's language has to be
+  // sent explicitly — an en-locale customer used to pay full price for Arabic.
+  const locale = useLocale();
   // Scoped, not an arrow wrapper: `tStudio` takes one
   // argument and silently drops the values a message needs, so an ICU
   // placeholder like {term} rendered as literal text.
@@ -90,7 +106,7 @@ export default function StoryboardPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/storyboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept, duration, style, platform, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
+        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -98,7 +114,7 @@ export default function StoryboardPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, setBalance, tStudio, projectId, projectBrandKitId]);
+  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, projectBrandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
@@ -138,7 +154,16 @@ export default function StoryboardPage(): React.ReactElement {
       {/* A cast is not a check: a row stored before the route validated shape can
           hold anything under `scenes`, including a bare object or a list with
           holes in it. */}
-      <RecentWork studio="storyboard" onRestore={(output) => setScenes(toScenes(output.scenes))} refreshKey={runs} />
+      <RecentWork
+        studio="storyboard"
+        onRestore={(output, input) => {
+          setScenes(toScenes(output.scenes));
+          // generateStoryboardPdf() is handed the live `concept`, so restoring
+          // only the scenes titled the export with whatever was in the textarea.
+          setConcept(inputText(input, 'concept'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 
@@ -179,7 +204,15 @@ export default function StoryboardPage(): React.ReactElement {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-1.5 text-[11px]">
-            <p className="text-[var(--color-text-secondary)]" dir="ltr">{text(scene.visual_description).substring(0, 80)}...</p>
+            {/*
+              Was `.substring(0, 80)` with an ellipsis appended UNCONDITIONALLY,
+              on the most expensive text deliverable in the product — so a
+              14-credit storyboard showed 80 characters of each scene, and even a
+              40-character line read as though something had been cut. Clamped in
+              CSS instead: the full text stays selectable, copyable, and present
+              for the PDF export.
+            */}
+            <p className="text-[var(--color-text-secondary)] line-clamp-3" dir="ltr">{text(scene.visual_description)}</p>
             <p className="font-medium">{text(scene.dialogue)}</p>
             <div className="flex flex-wrap gap-1">
               <Badge variant="outline" className="text-[8px] gap-0.5 px-1"><Camera className="h-2 w-2" />{text(scene.camera_angle)}</Badge>

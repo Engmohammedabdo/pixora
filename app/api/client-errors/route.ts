@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // uses the generic checkKeyedRateLimit() added alongside it in the same
   // file for exactly this kind of route.
   const identity = userId ? `user:${userId}` : `ip:${getRequestIp(request)}`;
-  const withinLimit = await checkKeyedRateLimit(`client_error:${identity}`, 20, 60000);
+  const withinLimit = await checkKeyedRateLimit(`client_error:${identity}`, 20, 1);
   if (!withinLimit) {
     return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
   }

@@ -1,17 +1,24 @@
 /**
- * Prompt versioning — track which version of each prompt is active.
- * Version is logged with each generation for A/B testing and debugging.
+ * Prompt versioning — which version of each prompt produced a given generation.
+ *
+ * This was decorative until 2026-08-24: every *_PROMPT_VERSION export had zero
+ * importers and no generation had ever recorded one. Seven studio routes now write
+ * it into `generations.input.promptVersion` — JSONB, so no migration was needed —
+ * which makes it a real record rather than a comment pretending to be a mechanism.
+ *
+ * BUMP THE VERSION whenever you materially change a prompt, or the record lies.
  */
 
 export const PROMPT_VERSIONS: Record<string, string> = {
-  creator_image: 'v2.0',
-  photoshoot: 'v3.0',
-  campaign_planner: 'v2.0',
-  storyboard: 'v2.0',
-  marketing_analysis: 'v2.0',
-  marketing_plan: 'v2.0',
+  creator_image: 'v2.1',
+  photoshoot: 'v3.1',
+  campaign_planner: 'v2.1',
+  storyboard: 'v2.1',
+  marketing_analysis: 'v3.0',
+  marketing_plan: 'v3.0',
   voiceover_enhancer: 'v2.0',
-  prompt_builder: 'v2.0',
+  prompt_builder: 'v3.0',
+  edit: 'v1.0',
 };
 
 /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,19 @@ import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
 
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
@@ -50,6 +63,9 @@ const list = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value 
 
 export default function AnalysisPage(): React.ReactElement {
   const t = useTranslations();
+  // The API sits outside app/[locale], so the deliverable's language has to be
+  // sent explicitly — an en-locale customer used to pay full price for Arabic.
+  const locale = useLocale();
   // Scoped, not an arrow wrapper: `tStudio` takes one
   // argument and silently drops the values a message needs, so an ICU
   // placeholder like {term} rendered as literal text.
@@ -71,7 +87,9 @@ export default function AnalysisPage(): React.ReactElement {
   const [runs, setRuns] = useState(0);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
-  const isValid = businessName.length >= 2 && industry && description.length >= 10 && targetMarket.length >= 5;
+  // `industry` was checked for truthiness only, while the route requires min(2) —
+  // a one-character industry passed the gate and failed the request.
+  const isValid = businessName.length >= 2 && industry.length >= 2 && description.length >= 10 && targetMarket.length >= 5;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.analysis > balance;
   const { profile } = useUser();
@@ -84,7 +102,7 @@ export default function AnalysisPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/analysis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, locale, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -92,7 +110,7 @@ export default function AnalysisPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, locale, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -129,7 +147,22 @@ export default function AnalysisPage(): React.ReactElement {
         place the result exists. Without this list, closing the tab destroys
         work the customer already paid for.
       */}
-      <RecentWork studio="analysis" onRestore={(output) => setAnalysis(output.analysis !== null && typeof output.analysis === 'object' ? (output.analysis as Analysis) : null)} refreshKey={runs} />
+      <RecentWork
+        studio="analysis"
+        onRestore={(output, input) => {
+          setAnalysis(output.analysis !== null && typeof output.analysis === 'object' ? (output.analysis as Analysis) : null);
+          // Rehydrate the brief too: the PDF export below reads `businessName`
+          // from live form state, so restoring only the output exported the
+          // restored analysis under whatever happened to be typed. Restoring the
+          // rest lets the run be re-run, not just re-read.
+          setBusinessName(inputText(input, 'businessName'));
+          setIndustry(inputText(input, 'industry'));
+          setDescription(inputText(input, 'description'));
+          setTargetMarket(inputText(input, 'targetMarket'));
+          setPainPoints(inputText(input, 'painPoints'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 
@@ -141,9 +174,24 @@ export default function AnalysisPage(): React.ReactElement {
     { id: 'kpis', label: tAn('tabKpis'), icon: TrendingUp },
   ];
 
+  /**
+   * A section the model did not return.
+   *
+   * The route's own completeness gate explicitly PERMITS any single section to be
+   * missing — it requires one populated section, not all of them — so a blank panel
+   * was a state the product was designed to reach and had nothing to say about. The
+   * default tab is SWOT, so an analysis without it opened on an empty screen.
+   */
+  const emptySection = (): React.ReactElement => (
+    <div className="flex flex-col items-center justify-center py-12 gap-2 text-[var(--color-text-muted)]">
+      <AlertTriangle className="h-8 w-8" />
+      <p className="text-sm text-center max-w-xs">{tAn('sectionEmpty')}</p>
+    </div>
+  );
+
   const renderSwot = (): React.ReactElement => {
     const s = analysis?.swot;
-    if (!s) return <></>;
+    if (!s) return emptySection();
     const quadrants = [
       { title: tAn('strengths'), items: list(s.strengths), color: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' },
       { title: tAn('weaknesses'), items: list(s.weaknesses), color: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800' },
@@ -175,10 +223,10 @@ export default function AnalysisPage(): React.ReactElement {
         <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => { if (!openPdfInNewTab(generateAnalysisPdf(analysis, businessName))) toast.error(tStudio('popupBlocked')); }}><FileText className="h-3 w-3" />PDF</Button>
       </div>
       {activeTab === 'swot' && renderSwot()}
-      {activeTab === 'personas' && (<div className="space-y-3">{list(analysis.personas).map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>{tAn('role')}:</strong> {p.role}</p><p><strong>{tAn('personaGoals')}:</strong> {p.goals}</p><p><strong>{tAn('challenges')}:</strong> {p.pain_points}</p><p><strong>{tAn('channels')}:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
-      {activeTab === 'competitors' && (<div className="space-y-3">{list(analysis.competitors).map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 dark:bg-green-900/30 rounded p-2"><strong>{tAn('strength')}:</strong> {c.strengths}</div><div className="bg-red-50 dark:bg-red-900/30 rounded p-2"><strong>{tAn('weakness')}:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
-      {activeTab === 'roadmap' && analysis.roadmap && (<div className="space-y-4">{(['day_30', 'day_60', 'day_90'] as const).map((period) => (<Card key={period}><CardHeader className="pb-2"><CardTitle className="text-sm">{period === 'day_30' ? tAn('day30') : period === 'day_60' ? tAn('day60') : tAn('day90')}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(analysis.roadmap?.[period]).map((item, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500 mt-0.5">●</span>{item}</li>))}</ul></CardContent></Card>))}</div>)}
-      {activeTab === 'kpis' && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{list(analysis.kpis).map((kpi, i) => (<Card key={i}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--color-brand)]">{kpi.target}</p><p className="text-xs font-medium mt-1">{kpi.metric}</p><p className="text-[10px] text-[var(--color-text-muted)]">{kpi.timeframe}</p></CardContent></Card>))}</div>)}
+      {activeTab === 'personas' && (list(analysis.personas).length === 0 ? emptySection() : <div className="space-y-3">{list(analysis.personas).map((p, i) => (<Card key={i}><CardHeader className="pb-2"><CardTitle className="text-sm">{p.name} — {p.age}</CardTitle></CardHeader><CardContent className="text-xs space-y-1"><p><strong>{tAn('role')}:</strong> {p.role}</p><p><strong>{tAn('personaGoals')}:</strong> {p.goals}</p><p><strong>{tAn('challenges')}:</strong> {p.pain_points}</p><p><strong>{tAn('channels')}:</strong> {p.channels}</p></CardContent></Card>))}</div>)}
+      {activeTab === 'competitors' && (list(analysis.competitors).length === 0 ? emptySection() : <div className="space-y-3">{list(analysis.competitors).map((c, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm mb-2">{c.name} <Badge variant="secondary" className="text-[10px]">{c.market_share}</Badge></h4><div className="grid grid-cols-2 gap-2 text-xs"><div className="bg-green-50 dark:bg-green-900/30 rounded p-2"><strong>{tAn('strength')}:</strong> {c.strengths}</div><div className="bg-red-50 dark:bg-red-900/30 rounded p-2"><strong>{tAn('weakness')}:</strong> {c.weaknesses}</div></div></CardContent></Card>))}</div>)}
+      {activeTab === 'roadmap' && (!analysis.roadmap ? emptySection() : <div className="space-y-4">{(['day_30', 'day_60', 'day_90'] as const).map((period) => (<Card key={period}><CardHeader className="pb-2"><CardTitle className="text-sm">{period === 'day_30' ? tAn('day30') : period === 'day_60' ? tAn('day60') : tAn('day90')}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(analysis.roadmap?.[period]).map((item, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500 mt-0.5">●</span>{item}</li>))}</ul></CardContent></Card>))}</div>)}
+      {activeTab === 'kpis' && (list(analysis.kpis).length === 0 ? emptySection() : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{list(analysis.kpis).map((kpi, i) => (<Card key={i}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--color-brand)]">{kpi.target}</p><p className="text-xs font-medium mt-1">{kpi.metric}</p><p className="text-[10px] text-[var(--color-text-muted)]">{kpi.timeframe}</p></CardContent></Card>))}</div>)}
     </div>
   );
 

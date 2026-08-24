@@ -9,11 +9,17 @@ interface PlanPromptInput {
   budget: string;
   duration: number;
   stage?: string;
+  /**
+   * The locale the customer is READING the app in. Defaults to Arabic, which is
+   * what this prompt used to hardcode — so an English-locale customer paid full
+   * price for a deliverable they may not be able to read.
+   */
+  locale?: string;
 }
 
 // v2.0 — matches system-prompts.md marketing_plan_v1
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  const { businessName, industry, goals, targetMarket, budget, duration, stage } = input;
+  const { businessName, industry, goals, targetMarket, budget, duration, stage , locale } = input;
 
   // This builder imported sanitizePrompt and never called it, so `plan` was the
   // one paid studio with NO prompt filter in front of the model — and the
@@ -27,6 +33,7 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // "main" one. The caps mirror the route's own Zod maxima
   // (app/api/studios/plan/route.ts InputSchema) so the builder holds the limit
   // itself rather than trusting whoever calls it.
+  const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeBusinessName = sanitizePrompt(businessName, 200);
   const safeIndustry = sanitizePrompt(industry, 100);
   const safeStage = stage ? sanitizePrompt(stage, 100) : '';
@@ -37,12 +44,17 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // 200-char cap to the whole list and silently drop the later goals.
   const safeGoals = goals.map((g) => sanitizePrompt(g, 200));
 
+  const weeks = Math.max(1, Math.round(duration / 7));
+
   let prompt = `You are a Senior Marketing Strategist with expertise in ${safeIndustry} businesses.`;
 
   prompt += `\n\nBusiness Information:`;
   prompt += `\n- Name: ${safeBusinessName}`;
   prompt += `\n- Industry: ${safeIndustry}`;
-  prompt += `\n- Stage: ${safeStage || 'Growth'}`;
+  // Only when the caller actually has one. This used to emit `Growth` whenever
+  // `stage` was absent — which is ALWAYS, because nothing in the product collects
+  // it — so every plan ever generated was steered by an invented fact.
+  if (safeStage) prompt += `\n- Stage: ${safeStage}`;
   prompt += `\n- Target Market: ${safeTargetMarket}`;
   prompt += `\n- Monthly Budget: ${safeBudget}`;
   prompt += `\n- Primary Goals: ${safeGoals.join(', ')}`;
@@ -53,12 +65,19 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   prompt += `\n  "channels": [{ "name": "", "budget_pct": 0, "strategy": "detailed approach" }],`;
   prompt += `\n  "calendar": [{ "week": 1, "content": ["items"], "channel": "" }],`;
   prompt += `\n  "budget": { "total": "", "breakdown": [{ "item": "", "amount": "", "pct": 0 }] },`;
-  prompt += `\n  "kpis": [{ "metric": "", "target": "", "tracking": "how to measure" }],`;
-  prompt += `\n  "quick_wins": ["5-7 immediate actions for first 2 weeks"],`;
-  prompt += `\n  "risks": [{ "risk": "", "probability": "High/Medium/Low", "mitigation": "" }]`;
+  prompt += `\n  "kpis": [{ "metric": "", "target": "", "tracking": "how to measure" }]`;
   prompt += `\n}`;
 
-  prompt += `\n\nAll text in Arabic. Be specific, actionable, and realistic for the given budget.`;
+  // The customer picks 30/60/90 days, and it reached the prose above and nothing
+  // else — so the model returned a calendar of whatever length it felt like.
+  prompt += `\n\nThe calendar must have exactly ${weeks} entries, one per week, numbered 1..${weeks}, covering the full ${duration} days.`;
+
+  // `quick_wins` and `risks` were removed 2026-08-24: no screen renders them and no
+  // export reads them, so the customer paid tokens for output that was parsed,
+  // stored and discarded. Do not add a field here without pointing at the code
+  // that prints it.
+
+  prompt += `\n\nAll text in ${outputLanguage}. Be specific, actionable, and realistic for the given budget.`;
   prompt += `\nReturn ONLY valid JSON.`;
 
   return prompt;

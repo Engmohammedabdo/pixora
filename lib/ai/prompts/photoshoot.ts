@@ -1,4 +1,5 @@
 import type { BrandKit } from '@/lib/supabase/types';
+import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
 
 interface PhotoshootPromptInput {
@@ -455,11 +456,21 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
 
   if (brandKit) {
     prompt += `\n\nBRAND`;
-    prompt += `\nLet ${brandKit.primary_color} and ${brandKit.secondary_color} appear as accents in the set dressing and ambient light only — never recolour the product itself.`;
+    // A preset DEFINES the scene; the brand kit tints what sits in it. Asking for
+    // colour in the "set dressing" contradicted white_studio outright — that preset
+    // specifies "Pure white seamless backdrop, no visible horizon line, NO PROPS" —
+    // and the model resolved the conflict arbitrarily, which is why a white-studio
+    // shoot could come back with a coloured backdrop nobody asked for. On a
+    // controlled-neutral background the brand can only reach the light.
+    prompt += environment === 'white_studio'
+      ? `\nKeep the backdrop pure white as specified above. ${brandKit.primary_color} and ${brandKit.secondary_color} may appear ONLY as a subtle tint in the rim or edge light — never in the backdrop, never as props, and never on the product itself.`
+      : `\nLet ${brandKit.primary_color} and ${brandKit.secondary_color} appear as accents in the set dressing and ambient light only — never recolour the product itself.`;
   }
   if (notes) {
     prompt += `\n\nCLIENT DIRECTION`;
-    prompt += `\n${notes}`;
+    // Free customer text going straight to the image model. The route filters it
+    // too; this is the belt-and-braces half, so no future caller can route around it.
+    prompt += `\n${sanitizePrompt(notes, 1000)}`;
   }
 
   return prompt;

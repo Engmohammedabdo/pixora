@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { CAMPAIGN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
-import { buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
+import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioCost } from '@/lib/credits/costs';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
@@ -18,7 +20,11 @@ const InputSchema = z.object({
   productDescription: z.string().min(10).max(2000),
   targetAudience: z.string().min(5).max(500),
   dialect: z.enum(['saudi', 'emirati', 'egyptian', 'gulf', 'formal']),
-  platform: z.string().min(1),
+  // A closed set in the only client that posts here
+  // (components/studios/campaign/CampaignForm.tsx:36), and it is interpolated into
+  // both the campaign prompt and each image prompt. An enum makes the set of
+  // reachable prompts finite rather than merely bounded.
+  platform: z.enum(['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook']),
   occasion: z.string().max(200).optional(),
   brandKitId: z.string().uuid().optional(),
   generateImages: z.boolean().default(false),
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
       return NextResponse.json(
-        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
+        { success: false, error: 'maintenance_mode' },
         { status: 503 }
       );
     }
@@ -119,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // refund are reached only when images were actually asked for, and with the
     // box unchecked every image slot is null by construction.
     const perImageCost = CREDIT_COSTS.image['1080p'];
-    const fullCost = getEffectiveCost(studioConfig, 'campaign');
+    const fullCost = getStudioCost('campaign');
     // Clamped at 1, so an admin override set at or below the image half cannot
     // make the text-only campaign reserve nothing and generate for free.
     const textCost = Math.max(1, fullCost - EXPECTED_POSTS * perImageCost);
@@ -127,14 +133,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Fetch brand kit
     let brandName: string | undefined;
+    let brandVoice: string | undefined;
+    let brandColors: string | undefined;
     if (input.brandKitId) {
       const { data: kit } = await supabase
         .from('brand_kits')
-        .select('name')
+        .select('*')
         .eq('id', input.brandKitId)
         .eq('user_id', user.id)
         .single();
       brandName = kit?.name;
+      // buildCampaignPrompt has declared brandVoice and brandColors since it was
+      // written and this caller never passed them, so a customer who attached a
+      // brand kit got a NAME and nothing else. creator/route.ts already selects '*'.
+      brandVoice = kit?.brand_voice ?? undefined;
+      brandColors = kit
+        ? `Primary ${kit.primary_color}, Secondary ${kit.secondary_color}, Accent ${kit.accent_color}`
+        : undefined;
     }
 
     // The safety filter runs HERE, on the customer's own text, before anything
@@ -176,6 +191,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       prompt += `\n- Platform: ${input.platform}`;
       if (safeOccasion) prompt += `\n- Occasion/Season: ${safeOccasion}`;
       if (brandName) prompt += `\n- Brand: ${brandName}`;
+      // The override composer restates the builder's own labels by hand, so a field
+      // added to buildCampaignPrompt and not added here is silently dropped whenever
+      // an admin sets an override — which is the exact defect the DIALECTS comment
+      // above records from the last time it happened.
+      if (brandVoice) prompt += `\n- Brand Voice: ${sanitizePrompt(brandVoice, 500)}`;
+      if (brandColors) prompt += `\n- Brand Colors: ${sanitizePrompt(brandColors, 200)}`;
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
       prompt = buildCampaignPrompt({
@@ -185,6 +206,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         platform: input.platform,
         occasion: safeOccasion,
         brandName,
+        brandVoice,
+        brandColors,
       });
     }
 
@@ -195,7 +218,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: user.id, project_id: projectId,
         studio: 'campaign',
         model: 'gemini',
-        input: { ...input, fullPrompt: prompt },
+        input: { ...input, fullPrompt: prompt, promptVersion: CAMPAIGN_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })
@@ -213,10 +236,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'campaign');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: creditCost,
       }, { status: 402 });
     }
@@ -235,7 +269,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     try {
     // Generate campaign text
-    const textResult = await generateText({ prompt });
+    // Nine posts x five fields of Arabic does not fit in the 4096 default, so a
+    // full-length campaign truncated mid-JSON and the whole 12-credit run failed to
+    // parse. Every other multi-item text studio already raises this to 8192.
+    const textResult = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: CAMPAIGN_RESPONSE_SCHEMA,
+    });
 
     // Parse and validate the output
     let posts: z.infer<typeof CampaignPostSchema>[];
@@ -251,17 +293,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // to recover afterwards either. prompt-builder
       // already guards exactly this at its own parse site.
       if (arr.length === 0) throw new Error('campaign returned no posts');
-      posts = arr.map((p: unknown) => CampaignPostSchema.parse(p));
+      // Sold as nine, priced as nine (12 credits = 9 images x 1 + 3 text), refunded
+      // against nine. The image loop below iterates THIS array, so an over-delivering
+      // model used to drive one paid image generation per extra post — 20 posts meant
+      // 20 image calls, 20 asset rows and 20 stored posts against a 9-image price.
+      //
+      // And `.map(parse)` threw on the FIRST malformed entry, discarding eight good
+      // posts and refunding everything. The partial-refund path below was built for
+      // exactly this — it sizes the refund from EXPECTED_POSTS minus what arrived —
+      // so dropping a bad post pays the customer back for it and delivers the rest.
+      posts = arr
+        .slice(0, EXPECTED_POSTS)
+        .map((p: unknown) => {
+          const parsed = CampaignPostSchema.safeParse(p);
+          return parsed.success ? parsed.data : null;
+        })
+        .filter((p): p is z.infer<typeof CampaignPostSchema> => p !== null);
+      if (posts.length === 0) throw new Error('campaign returned no usable posts');
     } catch {
       // AI returned invalid JSON — treat as failure
-      if (generation) {
-        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
-      }
+      // The refund runs BEFORE the terminal write, and the write is conditional on
+      // it. Marking the row failed first — as this did — hands the credits nowhere
+      // if the refund then fails: the row is already out of the reconciler's scan.
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: campaign parse failure',
         generationId: generation?.id,
       });
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_parse_failed',
+        }, 'campaign');
+      }
       return NextResponse.json({
         success: false,
         error: refundAwareErrorCode(refundResult, 'generation_parse_failed'),
@@ -277,11 +341,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // do this — campaign was the only studio silently dropping failed images
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
+    // Computed once, not once per post: nine identical sanitizePrompt calls buy
+    // nothing.
+    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
+
     if (input.generateImages && posts.length > 0) {
-      const imagePromises = posts.map(async (post) => {
+      const imagePromises = posts.map(async (post, i) => {
+        // `post.scenario` is MODEL-authored text going straight to the image model,
+        // and it was the only image path in the product that never met the filter.
+        // The customer's own text IS filtered, above — which is exactly what made
+        // this the way around it: steer the text model with a brief that passes, and
+        // whatever scenario it writes is handed to the image model verbatim.
+        //
+        // Blocked => drop THIS image, never the campaign. Nine text posts and up to
+        // eight other images are legitimate delivered work, and this block runs
+        // inside the try, so throwing would reach the outer catch and refund the
+        // whole reservation over one bad scenario. Returning null needs no new
+        // branch: failedImageCount is sized from what was DELIVERED, so the partial
+        // refund below already pays the customer back for a dropped image.
+        let safeScenario: string;
+        try {
+          safeScenario = sanitizePrompt(post.scenario, 2000);
+        } catch (e: unknown) {
+          if (!(e instanceof PromptBlockedError)) throw e;
+          console.error(
+            `[campaign] post ${i} image skipped, model-written scenario blocked on "${e.blockedTerm}"`
+          );
+          return null;
+        }
+
+        // `post.scenario` alone is ONE model-written sentence. Every other image in
+        // the product goes to the model with platform framing, brand colours and the
+        // no-text rule; this path had none of it, which is why campaign images looked
+        // nothing like the rest of the product's output.
+        const imagePrompt =
+          `Create a professional social media image.` +
+          `\n- Scene: ${safeScenario}` +
+          `\n- Platform: ${input.platform}` +
+          (safeBrandColorsLine ? `\n- Brand Colors: ${safeBrandColorsLine}` : '') +
+          `\n\nTechnical Requirements:` +
+          // Kept even though these are social posts: CLAUDE.md records that Arabic
+          // text inside generated images is not handled, and the caption is
+          // delivered as text alongside the image.
+          `\n- NO text, logos or watermarks in the image` +
+          `\n- Professional lighting, high contrast, commercially appealing composition` +
+          `\n- Composed for ${input.platform}`;
+
         try {
           const imgResult = await generateImage({
-            prompt: post.scenario,
+            prompt: imagePrompt,
             model: 'gemini',
             resolution: '1080p',
           });
@@ -398,6 +506,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       output: { posts: postsWithImages, mock: textResult.mock },
       credits_used: actualCreditsCharged,
       status: 'completed',
+      // Record the model that ACTUALLY served. The row is inserted before
+      // generation from the PREFERRED model, but the router falls back — so a
+      // gpt-served run stayed filed under gemini forever, and six admin surfaces
+      // read this column. MODEL_COSTS is gemini 0.002 vs gpt 0.01, so every
+      // mis-attributed run also understated estimated API cost 5x.
+      model: textResult.model,
     }, 'campaign');
 
     // Campaign was the only image-producing studio that never wrote `assets` —
@@ -429,6 +543,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         usedFallback: textResult.usedFallback,
         creditsUsed: actualCreditsCharged,
         newBalance: balanceAfterPartialRefund,
+        // The screen showed nine empty tiles offering to "generate an image
+        // elsewhere" with no message and no notice of the refund that DID happen.
+        // These two let it say what actually occurred.
+        imagesRequested: input.generateImages,
+        failedImageCount,
+        refunded: creditCost - actualCreditsCharged,
       },
     });
     } catch (genError) {
@@ -448,7 +568,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             generationId: generation?.id,
           })
         : { success: true };
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'campaign');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {

@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { isAllowedImageHost } from '@/lib/ai/allowed-hosts';
 import { getPlan } from '@/lib/stripe/plans';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -87,12 +88,10 @@ export async function urlToBuffer(imageUrl: string): Promise<Buffer> {
   // SSRF protection: only allow HTTPS and known domains
   const url = new URL(imageUrl);
   if (url.protocol !== 'https:') throw new Error('Only HTTPS URLs allowed');
-  // .supabase.co/.supabase.in are deliberately absent: this deployment's storage
-  // is self-hosted under .pyramedia.cloud, so those wildcards matched nothing we
-  // own while letting anyone with a free Supabase project serve bytes to this
-  // server-side fetch.
-  const allowedHosts = ['.pyramedia.cloud', 'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery'];
-  if (!allowedHosts.some((h) => url.hostname.endsWith(h) || url.hostname === h)) {
+  // The allowlist lives in lib/ai/allowed-hosts.ts and is matched by exact host or
+  // proper subdomain. This file used to keep its own copy matched by bare suffix —
+  // the same bug in two places, which is what having two copies buys you.
+  if (!isAllowedImageHost(url.hostname)) {
     throw new Error(`Host not allowed: ${url.hostname}`);
   }
 

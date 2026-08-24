@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { routing } from '@/i18n/routing';
+import { ANALYSIS_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
-import { buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
+import { ANALYSIS_PROMPT_VERSION, buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -13,6 +15,10 @@ import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
+  // The API sits outside app/[locale], so the caller's language is not recoverable
+  // server-side — and profiles.locale is a dead column (lib/stripe/locale.ts).
+  // Optional, so any existing caller keeps working and defaults to Arabic.
+  locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
@@ -125,11 +131,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'maintenance_mode' }, { status: 503 });
     }
     const studioConfig = await getStudioConfig();
     if (!isStudioEnabled(studioConfig, 'analysis')) {
-      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -171,7 +177,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const creditCost = CREDIT_COSTS.analysis;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input }, credits_used: creditCost, status: 'processing',
+      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input, promptVersion: ANALYSIS_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while
@@ -189,15 +195,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
-      return NextResponse.json({ success: false, error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed', required: creditCost }, { status: 402 });
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'analysis');
+      }
+      return NextResponse.json({ success: false, error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed', required: creditCost }, { status: 402 });
     }
 
     let result: Awaited<ReturnType<typeof generateText>>;
     let analysis: z.infer<typeof AnalysisSchema>;
     try {
-      const prompt = buildAnalysisPrompt(safeInput);
-      result = await generateText({ prompt, maxTokens: 8192 });
+      const prompt = buildAnalysisPrompt({ ...safeInput, locale: input.locale ?? routing.defaultLocale });
+      result = await generateText({
+      prompt,
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseSchema: ANALYSIS_RESPONSE_SCHEMA,
+    });
 
       // Unparseable output = failure + refund. The old fallback returned canned
       // text containing PyraSuite's OWN pricing page ("مبتدئ: $12/شهر") as if it
@@ -209,14 +231,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // so it lands in the same refund branch, never in `completed`.
         analysis = AnalysisSchema.parse(JSON.parse(jsonMatch[0]));
       } catch {
-        if (generation) {
-          await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
-        }
+        // The refund runs BEFORE the terminal write, and the write is conditional on
+        // it. Marking the row failed first — as this did — hands the credits nowhere
+        // if the refund then fails: the row is already out of the reconciler's scan.
         const refundResult = await refundCredits({
           userId: user.id, amount: creditCost,
           description: 'Refund: analysis parse failure',
           generationId: generation?.id,
         });
+        if (generation) {
+          await failGeneration(supabase, generation.id, {
+            creditsSettled: refundResult.success,
+            error: 'generation_parse_failed',
+          }, 'analysis');
+        }
         return NextResponse.json({
           success: false,
           error: refundAwareErrorCode(refundResult, 'generation_parse_failed'),
@@ -224,7 +252,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (genError) {
       const refundResult = await refundCredits({ userId: user.id, amount: creditCost, description: `Refund: analysis generation failed`, generationId: generation?.id });
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'analysis');
+      }
       // No exemption here. The filter now runs before the reservation, so a
       // blocked prompt cannot reach this arm at all — and back when it could,
       // exempting it meant a refund that FAILED still returned a tidy 400 and
@@ -238,7 +271,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await finalizeGeneration(supabase, generation.id, { output: { analysis, mock: result.mock }, status: 'completed' }, 'analysis');
+      await finalizeGeneration(supabase, generation.id, {
+        output: { analysis, mock: result.mock },
+        status: 'completed',
+        // Record the model that ACTUALLY served. The row is inserted before
+        // generation from the PREFERRED model, but the router falls back — so a
+        // gpt-served run stayed filed under gemini forever, and six admin surfaces
+        // read this column. MODEL_COSTS is gemini 0.002 vs gpt 0.01, so every
+        // mis-attributed run also understated estimated API cost 5x.
+        model: result.model,
+      }, 'analysis');
     }
 
     return NextResponse.json({ success: true, data: { generationId: generation?.id, analysis, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });

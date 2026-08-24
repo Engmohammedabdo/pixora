@@ -51,6 +51,7 @@
 
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
+import { KNOWN_ERROR_CODES } from '../lib/studio-errors';
 
 const ROOT = process.cwd();
 
@@ -298,7 +299,7 @@ const msgNoEmpty: Invariant = {
 
 const generationFinalized: Invariant = {
   id: 'generation-finalized',
-  title: "No studio route marks a generation 'completed' with a raw, unchecked update",
+  title: 'No studio route marks a generation terminal with a raw, unchecked update',
   why:
     'A generation leaves reconcile_orphaned_generations()\'s scan window ' +
     '(status IN (\'pending\',\'processing\')) only by being marked terminal. A ' +
@@ -310,7 +311,13 @@ const generationFinalized: Invariant = {
     'confirms via RETURNING, and logs a REFUND RISK line when it cannot. ' +
     'This check exists because the conversion missed photoshoot: the import ' +
     'was added, the asset write was converted, and the completion write was ' +
-    'left behind — tsc and eslint both stayed green.',
+    'left behind — tsc and eslint both stayed green. ' +
+    'The same reasoning applies to `failed`, and more sharply: a route that ' +
+    'marks a row failed when its refund did NOT land converts a recoverable ' +
+    'failure into stranded credits, because the reconciler deliberately leaves ' +
+    'a refund-failed row alone for the next run (028 ELSE branch) and can no ' +
+    'longer see it. Use failGeneration(), which refuses to write unless the ' +
+    'credits are provably settled.',
   async check(): Promise<Violation[]> {
     const violations: Violation[] = [];
     const files = listFiles(['app/api/studios'], ['.ts', '.tsx'], false).filter((f) =>
@@ -327,7 +334,13 @@ const generationFinalized: Invariant = {
       while ((m = stmtRe.exec(content))) {
         const stmt = m[0];
         if (!/\.update\s*\(/.test(stmt)) continue;
-        if (!/status:\s*['"]completed['"]/.test(stmt)) continue;
+        // BOTH terminal statuses, not just 'completed'. `failed` is equally terminal:
+        // reconcile_orphaned_generations() scans `status IN ('pending','processing')`
+        // (028:161), so writing EITHER value removes the row from the one automated
+        // payout left. This rule matched only 'completed' until 2026-08-24, and 25 raw
+        // `status: 'failed'` writes sat behind that gap in all nine routes — five of
+        // them executing BEFORE the refund they were supposed to follow.
+        if (!/status:\s*['"](?:completed|failed)['"]/.test(stmt)) continue;
         violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
       }
     }
@@ -1153,6 +1166,190 @@ function writeBaselineFile(entries: string[]): void {
 // Runner
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Invariant: studio-error-codes
+// ---------------------------------------------------------------------------
+
+const studioErrorCodes: Invariant = {
+  id: 'studio-error-codes',
+  title: 'Every error a studio route returns is a registered code with a message in both locales',
+  why:
+    'mapApiError (lib/studio-errors.ts) resolves anything not in KNOWN_ERROR_CODES ' +
+    'to `fallback`, so an unregistered code — or an English sentence returned where ' +
+    'a code belongs — makes the Arabic message written for that case unreachable ' +
+    'and shows the customer a generic failure instead. Seven routes returned ' +
+    '"System is under maintenance" as the error STRING while `maintenance_mode` sat ' +
+    'registered with copy in both locales, and all nine returned an unregistered ' +
+    'failed_to_create_generation. A registered code with no message is just as ' +
+    'unreachable, so the second pass checks both message files too.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+    // ONLY the customer-facing response shape. `generations.error` labels (written
+    // by failGeneration) and console.error() strings are not codes the customer
+    // ever sees, and flagging them would make the rule noisy enough to be deleted.
+    const patterns = [
+      /success:\s*false,\s*error:\s*'([^']+)'/g,
+      /refundAwareErrorCode\([^,]+,\s*'([^']+)'\)/g,
+    ];
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+      for (const re of patterns) {
+        re.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(content))) {
+          if (KNOWN_ERROR_CODES.has(m[1])) continue;
+          violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+        }
+      }
+    }
+    // A registered code with no message is as unreachable as an unregistered one.
+    const ar = JSON.parse(readFileSync(join(ROOT, 'messages', 'ar.json'), 'utf8'));
+    const en = JSON.parse(readFileSync(join(ROOT, 'messages', 'en.json'), 'utf8'));
+    for (const code of KNOWN_ERROR_CODES) {
+      const inAr = ar?.studio?.errors?.[code];
+      const inEn = en?.studio?.errors?.[code];
+      if (!inAr || !inEn) {
+        const missing = [!inAr ? 'ar' : null, !inEn ? 'en' : null].filter(Boolean).join(' and ');
+        violations.push({
+          file: 'messages/{ar,en}.json',
+          line: 1,
+          text: `studio.errors.${code} is missing from ${missing}`,
+        });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Invariant: prompt-input-bounded
+// ---------------------------------------------------------------------------
+
+const promptInputBounded: Invariant = {
+  id: 'prompt-input-bounded',
+  title: 'Every z.string() in a studio route InputSchema carries a bound',
+  why:
+    'An unbounded z.string() in a studio route InputSchema is a field a customer ' +
+    'can send megabytes of, and several of them are interpolated into a prompt ' +
+    "sent to a paid model. creator's `style` and voiceover's `tone` were both " +
+    'unbounded and both reached a model; `tone` reached the LLM REWRITE prompt ' +
+    'whose output is read aloud on a paid generation. A bound is not the filter — ' +
+    'sanitizePrompt() is — but an unbounded field is the shape that keeps ' +
+    'producing this defect, and it is mechanically checkable where the filter is ' +
+    'not. Use .max(n), or .uuid()/.url()/.regex() where the format is the bound, ' +
+    'or a z.enum() where the set is closed (better than any of them). Scoped to ' +
+    'InputSchema deliberately: the model-output schemas in these same files parse ' +
+    'text we asked a model for, which is a different question.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+      const open = content.indexOf('const InputSchema = z.object({');
+      if (open === -1) continue;
+      const close = content.indexOf('\n});', open);
+      if (close === -1) continue;
+      const block = content.slice(open, close);
+      const re = /z\s*\.\s*string\s*\(\s*\)((?:\s*\.\s*\w+\s*\([^)]*\))*)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(block))) {
+        // `.min()` is a floor, not a ceiling — it bounds nothing.
+        if (/\.\s*(max|uuid|url|regex|length)\s*\(/.test(m[1] || '')) continue;
+        const idx = open + m.index;
+        violations.push({ file: rel, line: lineAt(content, idx), text: lineTextAt(content, idx) });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Invariant: prompt-builder-sanitized
+// ---------------------------------------------------------------------------
+
+const promptBuilderSanitized: Invariant = {
+  id: 'prompt-builder-sanitized',
+  title: 'A prompt builder interpolates only values it has sanitized',
+  why:
+    'lib/ai/prompts/*.ts builds the string sent to a paid model, and it is where ' +
+    'every channel converges — the request body, a brand_kits SELECT, and the ' +
+    "text model's own output. A route-level Zod transform cannot cover the last " +
+    'two, which is why the rule lives here. The convention is that a filtered ' +
+    'value is named `safeX`, so a bare interpolated identifier that the builder ' +
+    'destructured from its own input is a value that reached the model unfiltered. ' +
+    'This rule would have found the creator brand-kit channel and the storyboard ' +
+    'style/platform channel on its own. Only fields the input interface declares ' +
+    'as `string` are considered: a number cannot carry an injection payload, and a ' +
+    'rule that cries wolf gets deleted.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['lib/ai/prompts'], ['.ts'], false).filter(
+      (f) => !/(safety|versions)\.ts$/.test(f)
+    );
+    for (const file of files) {
+      const raw = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+
+      // Blank out comments, preserving offsets so line numbers stay right. These
+      // files document the defects they fixed by QUOTING the old code, and a rule
+      // that flags its own documentation is a rule someone deletes.
+      const content = raw
+        .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+        .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+
+      const stringFields = new Set<string>();
+      const ifaceRe = /interface\s+\w*PromptInput\s*\{([\s\S]*?)\n\}/g;
+      let iface: RegExpExecArray | null;
+      while ((iface = ifaceRe.exec(content))) {
+        for (const line of iface[1].split('\n')) {
+          const f = /^\s*(\w+)\??\s*:\s*([^;]+);/.exec(line);
+          if (f && /\bstring\b/.test(f[2])) stringFields.add(f[1]);
+        }
+      }
+      if (stringFields.size === 0) continue;
+
+      // An identifier interpolated INSIDE a sanitizePrompt(...) call is the
+      // argument being filtered, not an escape past the filter.
+      const sanitized: Array<[number, number]> = [];
+      const callRe = /sanitizePrompt\s*\(/g;
+      let c: RegExpExecArray | null;
+      while ((c = callRe.exec(content))) {
+        let depth = 0;
+        let i = c.index + c[0].length - 1;
+        for (; i < content.length; i++) {
+          if (content[i] === '(') depth++;
+          else if (content[i] === ')') {
+            depth--;
+            if (depth === 0) break;
+          }
+        }
+        sanitized.push([c.index, i]);
+      }
+
+      // The WHOLE `${...}` expression is inspected, so a ternary such as
+      // `${platform ? safePlatform : 'general use'}` correctly passes.
+      const interpRe = /\$\{([^}]*)\}/g;
+      let m: RegExpExecArray | null;
+      while ((m = interpRe.exec(content))) {
+        if (sanitized.some(([a, b]) => m!.index >= a && m!.index <= b)) continue;
+        const expr = m[1];
+        if (/safe[A-Z]\w*/.test(expr)) continue;
+        const first = /^\s*([A-Za-z_$][\w$]*)/.exec(expr);
+        if (!first || !stringFields.has(first[1])) continue;
+        violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+      }
+    }
+    return violations;
+  },
+};
+
 const INVARIANTS: Invariant[] = [
   msgParity,
   msgNoEmpty,
@@ -1166,6 +1363,9 @@ const INVARIANTS: Invariant[] = [
   noVhDialogOverride,
   noArabicLiteralsInTsx,
   contrastTokens,
+  studioErrorCodes,
+  promptInputBounded,
+  promptBuilderSanitized,
 ];
 
 function parseArgList(flag: string): Set<string> | null {

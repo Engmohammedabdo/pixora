@@ -97,7 +97,7 @@ export function ContactForm(): React.ReactElement {
               onClick={() => setTopic(value)}
               className={`rounded-lg border px-3 py-2 text-sm transition ${
                 topic === value
-                  ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/10 font-medium text-[var(--color-brand)]'
+                  ? 'border-[var(--color-brand)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] font-medium text-[var(--color-brand)]'
                   : 'border-[var(--color-border)] hover:bg-[var(--color-bg)]'
               }`}
             >

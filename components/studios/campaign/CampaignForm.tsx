@@ -110,8 +110,9 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
 
       {/* Target Audience */}
       <div className="space-y-2">
-        <Label>{t('targetAudience')}</Label>
+        <Label htmlFor="campaign-target-audience">{t('targetAudience')}</Label>
         <Input
+          id="campaign-target-audience"
           value={targetAudience}
           onChange={(e) => setTargetAudience(e.target.value)}
           placeholder={t('targetAudiencePlaceholder')}
@@ -163,8 +164,9 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
 
       {/* Occasion */}
       <div className="space-y-2">
-        <Label>{t('occasion')}</Label>
+        <Label htmlFor="campaign-occasion">{t('occasion')}</Label>
         <Input
+          id="campaign-occasion"
           value={occasion}
           onChange={(e) => setOccasion(e.target.value)}
           placeholder={t('occasionPlaceholder')}

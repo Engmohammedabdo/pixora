@@ -1,5 +1,6 @@
 import { createAdminClient } from './db';
 import { getStudioCost } from '@/lib/credits/costs';
+import { memoizeWithTtl } from '@/lib/cache/ttl';
 
 // ============ Generic Settings ============
 
@@ -38,8 +39,20 @@ export interface StudioConfig {
   };
 }
 
+/**
+ * Cached for 60s. This was uncached and built a fresh service-role client on every
+ * call, in a chain of strictly serial round trips sitting in front of the first
+ * model call of every generation — for a single-row settings lookup that changes
+ * when an admin clicks a toggle.
+ */
+const loadStudioConfig = memoizeWithTtl<StudioConfig>(
+  async () => (await getSetting<StudioConfig>('studio_config')) || {},
+  {},
+  60_000
+);
+
 export async function getStudioConfig(): Promise<StudioConfig> {
-  return (await getSetting<StudioConfig>('studio_config')) || {};
+  return loadStudioConfig();
 }
 
 export function isStudioEnabled(config: StudioConfig, studio: string): boolean {
@@ -47,15 +60,22 @@ export function isStudioEnabled(config: StudioConfig, studio: string): boolean {
   return config[studio].enabled !== false;
 }
 
-export function getEffectiveCost(config: StudioConfig, studio: string, resolution?: string): number {
-  const override = config[studio]?.costs;
-  if (override) {
-    if (resolution && override[resolution] !== undefined) return override[resolution];
-    if (override['default'] !== undefined) return override['default'];
-  }
-  // Fall back to code defaults
-  return getStudioCost(studio, resolution);
-}
+/*
+ * REMOVED 2026-08-24: getEffectiveCost(), the admin per-studio credit-price override.
+ *
+ * Credit prices are CODE, not config, and deliberately so.
+ * components/pricing/StudioCostTable.tsx is a PUBLIC, unauthenticated page that
+ * statically imports CREDIT_COSTS and tells the visitor "These are the real
+ * per-action costs — the same numbers you see inside the product". It cannot read a
+ * database override, so an override could only ever make that page lie, with no
+ * correcting path. It was also dead in 7 of the 9 routes, so the knob's real effect
+ * was to make two studios disagree with the published price list.
+ *
+ * Verified before removing: `studio_config` was '{}' on the live database, so no
+ * customer's price changed.
+ *
+ * To change a price: edit lib/credits/costs.ts and deploy.
+ */
 
 // ============ Model Config ============
 
@@ -83,8 +103,16 @@ export async function getPromptOverrides(): Promise<Record<string, string>> {
   return (await getSetting<Record<string, string>>('prompt_overrides')) || {};
 }
 
+/** Same reasoning as getStudioConfig above: one settings row, read on every
+ *  generation, and it changes only when an admin saves. */
+const loadPromptOverrides = memoizeWithTtl<Record<string, string>>(
+  async () => await getPromptOverrides(),
+  {},
+  60_000
+);
+
 export async function getEffectivePrompt(studio: string): Promise<string | null> {
-  const overrides = await getPromptOverrides();
+  const overrides = await loadPromptOverrides();
   return overrides[studio] || null;
 }
 

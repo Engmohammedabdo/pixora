@@ -1,6 +1,9 @@
 import type { AIModel } from '@/types/studios';
+import { isAllowedImageHost } from './allowed-hosts';
+import { MAX_REFERENCE_IMAGE_BYTES } from '@/lib/storage/reference-image';
 import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
+import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -12,6 +15,14 @@ interface GenerateTextOptions {
   prompt: string;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * An OpenAPI-3.0-subset schema. When present the request ASKS the model for JSON
+   * of this shape instead of hoping that prose written at temperature 0.7 happens
+   * to contain a parseable object. The regex scrape at each call site stays in
+   * place on purpose, so a model or endpoint that ignores this degrades to the
+   * previous behaviour rather than failing.
+   */
+  responseSchema?: Record<string, unknown>;
 }
 
 interface AIResult {
@@ -40,25 +51,53 @@ function getMockImageUrl(): string {
  * endpoints, localhost services) and the bytes would be handed to the model.
  * Mirrors the protections already applied in lib/image/watermark.ts.
  */
-const REFERENCE_IMAGE_ALLOWED_HOSTS = [
-  // NOT .supabase.co/.supabase.in: this deployment is self-hosted, so those
-  // matched nothing we own while letting a customer point a reference image at
-  // any free Supabase project they registered.
-  '.pyramedia.cloud',
-  'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery',
-];
-const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
 
-async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
+/**
+ * In-flight requests for the same reference image, keyed by URL.
+ *
+ * photoshoot fans out up to SIX shots in one Promise.all and hands every one of
+ * them the SAME customer photo, so the same file — capped at 20 MB — was
+ * downloaded and base64-encoded once per shot. Retries multiplied it further.
+ *
+ * Deduped only while IN FLIGHT, deliberately: the entry is deleted as soon as it
+ * settles, so the six parallel shots share one fetch and nothing holds 20 MB of
+ * image bytes in module scope afterwards.
+ */
+const referenceImageInFlight = new Map<string, Promise<{ mimeType: string; base64: string }>>();
+
+function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
+  const existing = referenceImageInFlight.get(imageUrl);
+  if (existing) return existing;
+
+  const pending = fetchReferenceImageUncached(imageUrl).finally(() => {
+    referenceImageInFlight.delete(imageUrl);
+  });
+  referenceImageInFlight.set(imageUrl, pending);
+  return pending;
+}
+
+async function fetchReferenceImageUncached(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
   if (imageUrl.startsWith('data:')) {
     const [header, data] = imageUrl.split(',');
     if (!data) throw new Error('invalid data URL');
+    // The https path below is capped at MAX_REFERENCE_IMAGE_BYTES and this one was
+    // not, so the inline form was the way in that skipped the ceiling. base64
+    // decodes to 3 bytes per 4 characters, so this bounds the payload WITHOUT
+    // allocating it — checking Buffer.byteLength after decoding would mean doing the
+    // very allocation this guard exists to prevent.
+    if (Math.floor((data.length * 3) / 4) > MAX_REFERENCE_IMAGE_BYTES) {
+      throw new Error('image too large');
+    }
     return { mimeType: header.slice(5).split(';')[0] || 'image/png', base64: data };
   }
 
   const url = new URL(imageUrl);
   if (url.protocol !== 'https:') throw new Error('only HTTPS URLs allowed');
-  if (!REFERENCE_IMAGE_ALLOWED_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(h))) {
+  // The allowlist lives in lib/ai/allowed-hosts.ts and is matched by exact host or
+  // proper subdomain. This site used to match by bare SUFFIX, which any registrable
+  // domain ending in an allowed name could join — xplacehold.co, notreplicate.delivery
+  // and xoaidalleapiprodscus.blob.core.windows.net all passed.
+  if (!isAllowedImageHost(url.hostname)) {
     throw new Error(`host not allowed: ${url.hostname}`);
   }
 
@@ -111,7 +150,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
   // received a 1K image while 4K was charged at 4x.
   const model = imageSize === '4K' ? MODELS.geminiImagePro : MODELS.geminiImage;
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -123,11 +162,15 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
           imageConfig: { imageSize },
         },
       }),
-    }
+    },
+    PROVIDER_TIMEOUTS.image,
+    'gemini'
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini image API error: ${response.status}`);
+    // Classified, so the retry policy can tell a 503 (worth another attempt) from
+    // a 401 (a rotated key — three attempts is three paid failures).
+    throw new ProviderPermanentError(`Gemini image API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();
@@ -156,7 +199,7 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
     return { text: getMockCampaignText(), model: 'gemini', mock: true };
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.geminiText}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -165,14 +208,21 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
         contents: [{ parts: [{ text: options.prompt }] }],
         generationConfig: {
           maxOutputTokens: options.maxTokens || 4096,
-          temperature: options.temperature || 0.7,
+          // `??`, not `||`: a deliberate temperature of 0 — which is what a
+          // schema-constrained request wants — was coerced back to 0.7.
+          temperature: options.temperature ?? 0.7,
+          ...(options.responseSchema
+            ? { responseMimeType: 'application/json', responseSchema: options.responseSchema }
+            : {}),
         },
       }),
-    }
+    },
+    PROVIDER_TIMEOUTS.text,
+    'gemini'
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini text API error: ${response.status}`);
+    throw new ProviderPermanentError(`Gemini text API error: ${response.status}`, response.status);
   }
 
   const data = await response.json();

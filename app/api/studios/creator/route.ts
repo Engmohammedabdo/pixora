@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
-import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
+import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
-import { getStudioConfig, isStudioEnabled, getEffectiveCost, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
+import { getStudioCost } from '@/lib/credits/costs';
 import { getMaxResolution } from '@/lib/stripe/plans';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
@@ -21,10 +24,16 @@ const InputSchema = z.object({
   model: z.enum(['gemini', 'gpt', 'flux']),
   projectId: z.string().uuid().optional(),
   resolution: z.enum(['1080p', '2K', '4K']),
-  style: z.string().default('photographic'),
+  // `style` reaches the image model on BOTH branches and had no ceiling at all.
+  // 100 is the cap the admin-override branch already truncates it to.
+  style: z.string().max(100).default('photographic'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
-  referenceImageUrl: z.string().url().optional(),
+  // `z.string().url()` accepted blob: and http: — neither readable server-side —
+  // and an unbounded data: payload. edit and photoshoot were fixed for this; creator
+  // was the one image studio that never got it, and it also wrote the raw payload
+  // into generations.input via a bare ...input spread.
+  referenceImageUrl: readableImageUrl.optional(),
 });
 
 /**
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
       return NextResponse.json(
-        { success: false, error: 'maintenance_mode', message: 'Platform is under maintenance. Please try again later.' },
+        { success: false, error: 'maintenance_mode' },
         { status: 503 }
       );
     }
@@ -103,12 +112,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
-    // Enforce resolution limit based on user's plan
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
+    // Three INDEPENDENT reads that used to run strictly one after another, in front
+    // of the first model call: the plan (for the resolution cap), the project id
+    // (ownership), and the brand kit. None of them needs another's answer, so they
+    // are one round trip's latency instead of three. The auth check and the rate
+    // limit deliberately stay above this — they GATE the work rather than race it.
+    const [profileResult, projectId, brandKitResult] = await Promise.all([
+      supabase.from('profiles').select('plan_id').eq('id', user.id).single(),
+      resolveProjectId(supabase, user.id, input.projectId),
+      input.brandKitId
+        ? supabase.from('brand_kits').select('*').eq('id', input.brandKitId).eq('user_id', user.id).single()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    // Enforce resolution limit based on the customer's plan
+    const profile = profileResult.data;
     const maxRes = getMaxResolution(profile?.plan_id || 'free');
     const resOrder: string[] = ['1080p', '2K', '4K'];
     if (resOrder.indexOf(input.resolution) > resOrder.indexOf(maxRes)) {
@@ -119,27 +137,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Calculate credit cost (use admin override if set)
-    const creditCost = getEffectiveCost(studioConfig, 'creator', input.resolution);
+    const creditCost = getStudioCost('creator', input.resolution);
     const totalCost = creditCost * input.variations;
 
-    // Never trust a client-supplied project id: verify it belongs to the caller
-    // before filing work into it.
-    const projectId = await resolveProjectId(supabase, user.id, input.projectId);
+    // Never trust a client-supplied project id: resolveProjectId (above, in the
+    // Promise.all) verifies it belongs to the caller before any work is filed into it.
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // Fetch brand kit if provided
-    let brandKit = null;
-    if (input.brandKitId) {
-      const { data } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandKit = data;
-    }
+    const brandKit = brandKitResult.data;
 
     // The safety filter runs HERE, on the customer's own text, before anything
     // branches on the admin override. buildCreatorPrompt() is the only caller of
@@ -193,6 +200,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           style: input.style,
           resolution: input.resolution,
           brandKit,
+          hasReferenceImage: Boolean(input.referenceImageUrl),
         });
 
     // Create generation record
@@ -204,7 +212,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: input.model,
         // Verified above — this is the resolved id, never the raw client value.
         project_id: projectId,
-        input: { ...input, fullPrompt },
+        // `...input` wrote the raw reference payload into this JSONB column — up to
+        // 20 MB of base64 in a row every admin screen reads. Record that one was
+        // supplied; the bytes stay in memory, where only the model call needs them.
+        // edit and photoshoot already did this.
+        input: {
+          ...input,
+          fullPrompt,
+          promptVersion: CREATOR_PROMPT_VERSION,
+          ...(input.referenceImageUrl ? { referenceImageUrl: inputImageRef(input.referenceImageUrl) } : {}),
+        },
         credits_used: totalCost,
         status: 'processing',
       })
@@ -225,10 +242,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'creator');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: totalCost,
       }, { status: 402 });
     }
@@ -271,6 +299,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Tracks the balance actually left after any partial refund below. Stays at
     // the reservation's balance when no partial refund is needed.
     let balanceAfterPartialRefund = reserveResult.newBalance;
+    // What the customer was ACTUALLY charged. Starts at the reservation and only
+    // drops when a refund is CONFIRMED landed. This route used to state the charge
+    // as `imageUrls.length * creditCost` — the intended figure — in both the ledger
+    // and the response, so a partial refund that failed told the customer and every
+    // admin revenue number that credits came back when they had not.
+    let creditsCharged = totalCost;
 
     if (input.variations === 4) {
       // Generate 4 variations — track individual successes/failures
@@ -293,10 +327,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: 'Full refund: all 4 variations failed',
           generationId: generation.id,
         });
-        await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'all_variations_failed',
+        }, 'creator');
         return NextResponse.json({
           success: false,
-          error: refundAwareErrorCode(refundResult, 'All generation attempts failed. Credits refunded.'),
+          // Was the English sentence 'All generation attempts failed. Credits
+          // refunded.' — not a registered code, so mapApiError collapsed it to the
+          // generic fallback and the Arabic customer was never told their credits
+          // had come back, which is the one thing that sentence existed to say.
+          error: refundAwareErrorCode(refundResult, 'generation_failed'),
         }, { status: 500 });
       }
 
@@ -348,9 +389,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // of at most one 15-minute tick and cannot double-pay: the reconciler
         // derives what it owes from the ledger (SUM(usage) - SUM(refund),
         // 028:169-176), so a refund that DID land leaves nothing owed.
-        if (refundResult.success) {
-          await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
-        }
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'all_variations_failed',
+        }, 'creator');
         return NextResponse.json({
           success: false,
           error: refundAwareErrorCode(refundResult, 'generation_failed'),
@@ -367,9 +409,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: `Partial refund: ${failedCount}/4 variations failed (${refundAmount} credits returned)`,
           generationId: generation.id,
         });
+        const settled = settleCharge(totalCost, refundAmount, partialRefund.success);
+        creditsCharged = settled.charged;
         if (partialRefund.success) {
           balanceAfterPartialRefund = partialRefund.newBalance;
-          refundedSoFar += refundAmount;
+          // Only advance by what LANDED: `outstanding = totalCost - refundedSoFar`
+          // in the outer catch depends on it, and over-advancing mints credits.
+          refundedSoFar += settled.refunded;
         }
       }
 
@@ -406,8 +452,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // from `generations.credits_used` overstates income.
     await finalizeGeneration(supabase, generation.id, {
       output: { urls: imageUrls, mock: hasMock, usedFallback: hasUsedFallback },
-      credits_used: imageUrls.length * creditCost,
+      credits_used: creditsCharged,
       status: 'completed',
+      // creator already tracked which model served (resultModel) and echoed it in
+      // the response, but never wrote it to the row the admin views read.
+      model: resultModel,
     }, 'creator');
 
     // Save assets (one per successful image)
@@ -432,9 +481,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         mock: hasMock,
         usedFallback: hasUsedFallback,
         originalModel: resultOriginalModel,
-        creditsUsed: imageUrls.length * creditCost,
+        creditsUsed: creditsCharged,
         totalReserved: totalCost,
-        refunded: (input.variations - imageUrls.length) * creditCost,
+        refunded: totalCost - creditsCharged,
         newBalance: balanceAfterPartialRefund,
       },
     });
@@ -454,7 +503,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             generationId: generation?.id,
           })
         : { success: true };
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'creator');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {

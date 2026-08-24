@@ -39,8 +39,8 @@ export const PLANS: Record<string, PlanConfig> = {
     watermark: false,
     maxBrandKits: 3,
     maxProjects: 3,
-    features: ['200 credits/month', '2K resolution', 'No watermark', '3 Brand Kits'],
-    featuresAr: ['200 كريدت/شهر', 'دقة 2K', 'بدون علامة مائية', '3 هويات بصرية'],
+    features: ['200 credits/month', '2K resolution (Creator & Photoshoot)', 'No watermark', '3 Brand Kits'],
+    featuresAr: ['200 كريدت/شهر', 'دقة 2K (الاستوديو والجلسة التصويرية)', 'بدون علامة مائية', '3 هويات بصرية'],
   },
   pro: {
     id: 'pro',
@@ -55,8 +55,8 @@ export const PLANS: Record<string, PlanConfig> = {
     maxProjects: 10,
     // 'Priority AI' removed: there is no priority queue or per-plan routing anywhere
     // in lib/ai/router.ts — every plan hits the same providers in the same order.
-    features: ['600 credits/month', '4K resolution', 'No watermark', '10 Brand Kits'],
-    featuresAr: ['600 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '10 هويات بصرية'],
+    features: ['600 credits/month', '4K resolution (Creator & Photoshoot)', 'No watermark', '10 Brand Kits'],
+    featuresAr: ['600 كريدت/شهر', 'دقة 4K (الاستوديو والجلسة التصويرية)', 'بدون علامة مائية', '10 هويات بصرية'],
   },
   business: {
     id: 'business',
@@ -72,8 +72,8 @@ export const PLANS: Record<string, PlanConfig> = {
     // 'Team (5 users)' and 'White-label' removed: neither exists in any of the 52 API
     // routes. Advertising unbuilt features on the checkout screen invites chargebacks
     // and counts as misleading advertising under UAE consumer protection law.
-    features: ['1,500 credits/month', '4K resolution', 'No watermark', '25 Brand Kits'],
-    featuresAr: ['1,500 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '25 هوية بصرية'],
+    features: ['1,500 credits/month', '4K resolution (Creator & Photoshoot)', 'No watermark', '25 Brand Kits'],
+    featuresAr: ['1,500 كريدت/شهر', 'دقة 4K (الاستوديو والجلسة التصويرية)', 'بدون علامة مائية', '25 هوية بصرية'],
   },
   agency: {
     id: 'agency',
@@ -89,8 +89,8 @@ export const PLANS: Record<string, PlanConfig> = {
     // 'Team (20 users)', 'API Access' and 'White-label' removed — none are implemented.
     // 'Unlimited Brand Kits' corrected to the limit actually enforced in
     // app/api/brand-kits/route.ts, which rejects creation past 100.
-    features: ['5,000 credits/month', '4K resolution', 'No watermark', '100 Brand Kits'],
-    featuresAr: ['5,000 كريدت/شهر', 'دقة 4K', 'بدون علامة مائية', '100 هوية بصرية'],
+    features: ['5,000 credits/month', '4K resolution (Creator & Photoshoot)', 'No watermark', '100 Brand Kits'],
+    featuresAr: ['5,000 كريدت/شهر', 'دقة 4K (الاستوديو والجلسة التصويرية)', 'بدون علامة مائية', '100 هوية بصرية'],
   },
 };
 

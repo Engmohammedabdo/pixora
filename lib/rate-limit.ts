@@ -1,103 +1,83 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@supabase/supabase-js';
+import { clientIp, consumeAttempt, ipBucket } from '@/lib/throttle';
 
+/**
+ * The throttle in front of all nine studios.
+ *
+ * ── WHY THIS IS NOT A COUNT ANY MORE ───────────────────────────────────────
+ * This used to `SELECT count(*) FROM generations WHERE created_at > now() - 1min`
+ * and compare. That is check-then-act: N concurrent requests all read the same
+ * count, all find it under the cap, and all proceed — the limit cost an attacker
+ * one extra connection to step past. It was also the ONLY throttle in front of
+ * nine paid studios, so stepping past it means spending someone else's model
+ * budget.
+ *
+ * `consumeAttempt()` (lib/throttle.ts, migration 039) is a single
+ * `INSERT … ON CONFLICT DO UPDATE … RETURNING`, so PostgreSQL takes the row lock
+ * as part of the write and concurrent callers serialise. It was signed off with
+ * 25 genuinely parallel calls against a cap of 5 → exactly 5 allowed.
+ *
+ * ── WHY IT FAILS CLOSED ────────────────────────────────────────────────────
+ * A limiter that opens when its own store is unreachable is not a limiter — it is
+ * a limiter with a documented bypass. `checkKeyedRateLimit` below used to
+ * `catch { return true }`, so any database blip lifted the cap on three
+ * unauthenticated endpoints at once. Both functions here now deny on failure and
+ * log it, which is the rule migration 039 was written to establish.
+ */
 export async function checkRateLimit(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   userId: string,
   maxRequests: number = 20,
-  windowMs: number = 60000
+  windowMinutes: number = 1
 ): Promise<boolean> {
-  const windowStart = new Date(Date.now() - windowMs).toISOString();
-  const { count } = await supabase
-    .from('generations')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gte('created_at', windowStart);
-  return (count || 0) < maxRequests;
-}
-
-interface RateLimitRecord {
-  count: number;
-  resetAt: number;
-}
-
-function createRateLimitStoreClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase service role credentials not configured');
+  // The client argument is kept so all nine call sites stay unchanged, but it is
+  // deliberately unused: `consume_login_attempt` is SECURITY DEFINER with EXECUTE
+  // granted to service_role only, so the caller's anon+JWT client cannot run it.
+  // consumeAttempt() builds its own service-role client.
+  try {
+    return await consumeAttempt(`studio:${userId}`, maxRequests, windowMinutes);
+  } catch (e: unknown) {
+    console.error(
+      `[rate-limit] studio throttle unavailable for ${userId}; denying (fails CLOSED): ${String(e)}`
+    );
+    return false;
   }
-  // Untyped on purpose: `system_settings` predates the generated Database
-  // types (lib/admin/db.ts's createAdminClient does the same) and the typed
-  // client would fail to compile against a table outside that schema.
-  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 /**
- * Generic keyed rate limiter for routes with no `generations` row to count
- * against — most notably unauthenticated/pre-auth requests, where
- * checkRateLimit() above cannot apply: there is no user id to key on, and a
- * generation count says nothing about how many *other* requests a caller is
- * making (an idle account hammering a non-generation endpoint would count
- * as zero forever).
+ * Keyed rate limiter for routes with no user id to count against — the
+ * unauthenticated surfaces (waitlist, support, client-errors) that migration 039
+ * was written for.
  *
- * Persists a rolling window counter in the existing `system_settings`
- * key/value table — the same table lib/admin/auth.ts's login rate limiter
- * already uses for exactly this purpose — so this needs no new table or
- * migration. Uses a service-role client internally because system_settings
- * has no anon/authenticated grants as of 022_privilege_lockdown.sql.
- *
- * Fails OPEN on any Supabase error, matching checkLoginRateLimit's failure
- * mode: a best-effort limiter must never hard-fail a caller because its own
- * store is temporarily unreachable.
+ * Was a SELECT-then-UPSERT into `system_settings`: two round trips, no row lock,
+ * a fail-OPEN catch, and a counter written into the same config table
+ * `getCachedFeatureFlags()` reads on every studio request. All four of those are
+ * gone.
  */
 export async function checkKeyedRateLimit(
   key: string,
   maxRequests: number = 20,
-  windowMs: number = 60000
+  windowMinutes: number = 1
 ): Promise<boolean> {
   try {
-    const supabase = createRateLimitStoreClient();
-    const settingsKey = `rate_limit:${key}`;
-    const now = Date.now();
-
-    const { data } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', settingsKey)
-      .single();
-
-    const record = data?.value as RateLimitRecord | undefined;
-
-    if (!record || now > record.resetAt) {
-      await supabase.from('system_settings').upsert({
-        key: settingsKey,
-        value: { count: 1, resetAt: now + windowMs },
-        updated_at: new Date().toISOString(),
-        updated_by: 'system',
-      });
-      return true;
-    }
-
-    if (record.count >= maxRequests) return false;
-
-    await supabase.from('system_settings').upsert({
-      key: settingsKey,
-      value: { count: record.count + 1, resetAt: record.resetAt },
-      updated_at: new Date().toISOString(),
-      updated_by: 'system',
-    });
-    return true;
-  } catch {
-    return true;
+    return await consumeAttempt(key, maxRequests, windowMinutes);
+  } catch (e: unknown) {
+    console.error(
+      `[rate-limit] keyed throttle unavailable for ${key}; denying (fails CLOSED): ${String(e)}`
+    );
+    return false;
   }
 }
 
-/** Best-effort caller IP, for rate-limiting requests that carry no user id. */
+/**
+ * Best-effort caller IP for an unauthenticated request, bucketed for keying.
+ *
+ * Delegates to lib/throttle.ts, which reads the NEAREST hop of `x-forwarded-for`
+ * rather than the leftmost. The leftmost entry is whatever the client sent and is
+ * fully attacker-controlled, so keying on it hands an attacker a fresh budget per
+ * forged header — that was defect #3 in migration 039's own header, and it was
+ * still live in this file until now.
+ */
 export function getRequestIp(request: Request): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown'
-  );
+  return ipBucket(clientIp(request));
 }

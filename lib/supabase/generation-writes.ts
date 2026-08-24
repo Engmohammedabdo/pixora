@@ -106,6 +106,83 @@ export async function finalizeGeneration(
   return false;
 }
 
+interface FailOptions {
+  /**
+   * Proof that the customer's credits are not owed: the refund returned
+   * `success: true`, or nothing was ever charged for this generation.
+   *
+   * NOT "we tried to refund". A refund that failed leaves credits owed, and this
+   * must be false for those.
+   */
+  creditsSettled: boolean;
+  /** Optional label written to `generations.error`, e.g. 'all_shots_failed'. */
+  error?: string;
+}
+
+/**
+ * Mark a generation `failed` — but ONLY when the credits are provably settled.
+ *
+ * ── WHY THIS REFUSES TO WRITE ──────────────────────────────────────────────
+ * `reconcile_orphaned_generations()` scans `status IN ('pending','processing')`
+ * (028:161) and is, after migration 038, the only automated payout left. `failed`
+ * is terminal, so writing it removes the row from that scan forever. Do that over
+ * a refund that did not land and the credits survive only as a `[credits][OWED]`
+ * line that nothing alerts on.
+ *
+ * Leaving the row in `processing` instead costs at most one 15-minute tick and
+ * CANNOT double-pay: the reconciler derives what it owes from the ledger
+ * (`SUM(usage) - SUM(refund)`, 028:169-176), so a refund that DID land leaves
+ * nothing owed and the row is skipped untouched (028's `owed <= 0` branch).
+ *
+ * This is the rule `app/api/studios/creator/route.ts` already followed at exactly
+ * one of its four terminal-write sites.
+ *
+ * Returns true only when the row is confirmed terminal. `false` means either
+ * "deliberately left for the reconciler" or "could not write" — in both the caller
+ * must not claim the generation was closed out.
+ */
+export async function failGeneration(
+  supabase: Client,
+  generationId: string,
+  opts: FailOptions,
+  studio: string
+): Promise<boolean> {
+  if (!opts.creditsSettled) {
+    // Not an error. This is the helper doing its job.
+    console.warn(
+      `[generations] ${studio} ${generationId}: left in the reconciler's window — credits are not ` +
+        'confirmed returned, so the row must stay refundable by reconcile_orphaned_generations().'
+    );
+    return false;
+  }
+
+  const payload: { status: 'failed'; error?: string } = { status: 'failed' };
+  if (opts.error) payload.error = opts.error;
+
+  // Same discipline as finalizeGeneration: an UPDATE that matches no row reports
+  // no error at all, so only a returned row proves the write landed.
+  let lastError = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { data, error } = await supabase
+      .from('generations')
+      .update(payload)
+      .eq('id', generationId)
+      .select('id');
+
+    if (!error && data && data.length > 0) return true;
+    lastError = error ? `${error.code ?? ''} ${error.message}`.trim() : 'update matched no row';
+  }
+
+  // Far less serious than the finalize equivalent: the credits are already back,
+  // so the customer is whole and the reconciler will find nothing owed and skip
+  // the row. Only the history label is wrong.
+  console.error(
+    `[generations] ${studio} ${generationId}: could not be marked failed after 3 attempts (${lastError}). ` +
+      'Credits were already refunded, so this is a history-label problem, not a money one.'
+  );
+  return false;
+}
+
 type AssetInsert = Database['public']['Tables']['assets']['Insert'];
 
 /**

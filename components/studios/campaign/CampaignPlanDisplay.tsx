@@ -32,6 +32,9 @@ interface CampaignPlanDisplayProps {
   error: StudioError | null;
   onDismissError: () => void;
   mock: boolean;
+  /** Set when images were requested and some did not arrive. The credits for them
+   *  have already been returned; the customer was never told either fact. */
+  imageFailure: { failed: number; refunded: number } | null;
 }
 
 export function CampaignPlanDisplay({
@@ -40,6 +43,7 @@ export function CampaignPlanDisplay({
   error,
   onDismissError,
   mock,
+  imageFailure,
 }: CampaignPlanDisplayProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
@@ -49,17 +53,29 @@ export function CampaignPlanDisplay({
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
+  // navigator.clipboard.writeText REJECTS on an insecure context, a denied
+  // permission, or a backgrounded tab. Both handlers ignored the rejection, so Copy
+  // did nothing and said nothing — in the studio whose entire deliverable is text
+  // meant to be copied out.
   const handleCopy = async (text: string, index: number): Promise<void> => {
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      toast.error(tStudio('copyFailed'));
+    }
   };
 
   const handleCopyAll = async (): Promise<void> => {
     const allCaptions = posts.map((p, i) => `${i + 1}. ${p.caption}\n${p.hashtags}`).join('\n\n');
-    await navigator.clipboard.writeText(allCaptions);
-    setCopiedIndex(-1);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(allCaptions);
+      setCopiedIndex(-1);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      toast.error(tStudio('copyFailed'));
+    }
   };
 
   if (isLoading) {
@@ -109,6 +125,19 @@ export function CampaignPlanDisplay({
 
   return (
     <div className="space-y-4">
+      {/* Images were asked for and some did not arrive. Without this the screen
+          showed empty tiles offering to "generate an image elsewhere" — no message,
+          and no notice of the refund that HAD already happened. */}
+      {imageFailure && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span>
+            {t('imagesFailed', { count: imageFailure.failed })}
+            {imageFailure.refunded > 0 ? ` ${tStudio('creditsReturned', { credits: imageFailure.refunded })}` : ''}
+          </span>
+        </div>
+      )}
+
       {/* Top Actions */}
       <div className="flex gap-2 flex-wrap">
         {mock && process.env.NODE_ENV !== 'production' && (

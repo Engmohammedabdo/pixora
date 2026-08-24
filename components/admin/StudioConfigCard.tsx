@@ -43,22 +43,28 @@ export default function StudioConfigCard({
         </button>
       </div>
 
-      {/* Costs */}
+      {/*
+        Credit costs are READ-ONLY here as of 2026-08-24.
+
+        They used to be editable, and the override was dead in 7 of the 9 routes —
+        so the knob's only real effect was to make two studios disagree with the
+        published price list. components/pricing/StudioCostTable.tsx is a PUBLIC
+        page that statically imports CREDIT_COSTS and tells visitors "these are the
+        real per-action costs"; it cannot read a database override, so any override
+        could only ever make that page lie with no correcting path.
+
+        Prices now live in lib/credits/costs.ts and are changed by deploying.
+      */}
       <div className="mb-4 space-y-2">
-        <p className="text-xs font-medium text-slate-500 uppercase">Credit Costs</p>
+        <p className="text-xs font-medium text-slate-500 uppercase">
+          Credit Costs <span className="normal-case font-normal">(set in lib/credits/costs.ts)</span>
+        </p>
         {Object.entries(costs).map(([key, value]) => (
           <div key={key} className="flex items-center justify-between gap-2">
-            <label className="text-sm text-slate-600 capitalize">{key}:</label>
-            <input
-              type="number"
-              min={0}
-              value={value}
-              onChange={(e) => {
-                const newCosts = { ...costs, [key]: parseInt(e.target.value) || 0 };
-                onCostChange(newCosts);
-              }}
-              className="w-20 rounded-md border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-indigo-500"
-            />
+            <span className="text-sm text-slate-600 capitalize">{key}:</span>
+            <span className="w-20 rounded-md bg-slate-50 px-2 py-1 text-right text-sm tabular-nums text-slate-700">
+              {value}
+            </span>
           </div>
         ))}
       </div>

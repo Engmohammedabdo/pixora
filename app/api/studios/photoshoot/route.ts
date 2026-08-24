@@ -1,73 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
+import { getMaxResolution } from '@/lib/stripe/plans';
+import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
-import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
+import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
-
-/**
- * The product photo must be one the SERVER can read, not one that only means
- * something inside the customer's tab.
- *
- * `z.string().min(1)` accepted `blob:http://localhost:3000/8f2c-…`, which is
- * what PhotoshootForm sent whenever /api/upload refused the file (HEIC, GIF,
- * AVIF, anything over 10MB) — the refusal was discarded client-side and the
- * object URL was submitted instead. This schema passed it, the generations row
- * was inserted, up to 8 credits were reserved, and only then did
- * lib/ai/gemini.ts refuse it ("only HTTPS URLs allowed"). The customer watched
- * a long spinner for a generic failure, was refunded, and retrying the same
- * file failed identically forever.
- *
- * TWO forms are readable server-side and both are accepted:
- *   - `https://`, which lib/ai/gemini.ts:59-63 fetches through its host
- *     allowlist;
- *   - `data:image/`, which lib/ai/gemini.ts:53-57 decodes INLINE before any of
- *     that — no fetch, no timeout, no allowlist. It is the best-supported
- *     reference form, not a refused one, and it is what this product actually
- *     produces: lib/storage/persist-image.ts returns a data: URL whenever the
- *     storage upload fails, unconditionally on a watermarked free plan because
- *     that is the fail-CLOSED path keeping the watermark on. An earlier version
- *     of this guard refused `data:` on the claim that gemini.ts rejects it and
- *     that nothing here sends one; both were wrong, and it turned a working
- *     re-shoot of a generated image into a hard 400 during exactly the degraded
- *     storage state it was built to survive.
- *
- * The unbounded-payload concern the old comment raised is real but belongs to
- * `generations.input`, not to the request — see inputImageRef() below.
- *
- * Stated on the RAW string and checked BEFORE the insert, so a blob:, http: or
- * relative string costs nothing. Raw bytes rather than `new URL()` for the same
- * reason lib/storage/uploaded-url.ts gives: what is stored is the string the
- * client sent, so anything a parser would normalise is a value we checked but
- * did not write.
- */
-const readableImageUrl = z
-  .string()
-  .min(1)
-  .refine((v) => v.startsWith('https://') || v.startsWith('data:image/'), {
-    message: 'must be an https:// URL the server can fetch, or an inline data:image/ payload (blob:, http: and relative URLs cannot be read server-side)',
-  });
-
-/**
- * What gets recorded in `generations.input`.
- *
- * An inline product photo is a legitimate input but an unbounded one — the
- * measured payloads run to 2.8 MB — and that column is JSONB every admin screen
- * reads row by row. Record that one was supplied; the bytes stay in memory,
- * where the six model calls are the only things that need them.
- */
-function inputImageRef(url: string): string {
-  if (!url.startsWith('data:')) return url;
-  const mime = url.slice(5).split(';')[0] || 'image';
-  return `[inline ${mime} reference, ${url.length} chars]`;
-}
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
@@ -106,11 +52,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check maintenance mode
     const flags = await getCachedFeatureFlags();
     if (flags.maintenance_mode) {
-      return NextResponse.json({ success: false, error: 'System is under maintenance' }, { status: 503 });
+      return NextResponse.json({ success: false, error: 'maintenance_mode' }, { status: 503 });
     }
     const studioConfig = await getStudioConfig();
     if (!isStudioEnabled(studioConfig, 'photoshoot')) {
-      return NextResponse.json({ success: false, error: 'This studio is currently disabled' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'studio_disabled' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -123,6 +69,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
+
+    // The plan decides the resolution the customer is SOLD. This read used to sit
+    // after Promise.all because it only fed the watermark decision, which is why
+    // every paid plan received a 1K product photo while lib/stripe/plans.ts sells
+    // Starter 2K and Pro/Business/Agency 4K. Read once, used for both.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = profile?.plan_id || 'free';
+    const shotResolution = getMaxResolution(planId);
 
     const creditCost = SHOT_COSTS[input.shots] || 8;
 
@@ -147,7 +105,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: 'gemini',
         // Never the raw payload: `...input` would spill a multi-megabyte inline
         // product photo into this JSONB column. See inputImageRef().
-        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl) },
+        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl), resolution: shotResolution, promptVersion: PHOTOSHOOT_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })
@@ -165,10 +123,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'photoshoot');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: creditCost,
       }, { status: 402 });
     }
@@ -210,20 +179,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return generateImage({
         prompt,
         model: 'gemini',
-        resolution: '1080p',
+        resolution: shotResolution,
         referenceImageUrl: input.productImageUrl,
       }).catch(() => null);
     });
 
     const results = await Promise.all(shotPromises);
 
-    // Fetch user plan for watermark check
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
-    const planId = profile?.plan_id || 'free';
+    // `planId` is read once, above the reservation — it decides BOTH the resolution
+    // the customer is sold and whether the watermark is required.
 
     // Pyra returns images as data: URLs. persistGeneratedImage watermarks the
     // buffer and uploads it once — a second pass to watermark in place would
@@ -271,14 +235,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // all six shots could fail and the user was still charged the full reservation
     // and shown a "successful" grid of empty frames.
     if (successfulShots === 0) {
-      if (generation) {
-        await supabase.from('generations').update({ status: 'failed', error: 'all_shots_failed' }).eq('id', generation.id);
-      }
+      // The refund runs BEFORE the terminal write, and the write is conditional on
+      // it. Marking the row failed first — as this did — hands the credits nowhere
+      // if the refund then fails: the row is already out of the reconciler's scan.
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: all photoshoot shots failed',
         generationId: generation?.id,
       });
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_parse_failed',
+        }, 'photoshoot');
+      }
       return NextResponse.json({
         success: false,
         error: refundAwareErrorCode(refundResult, 'generation_failed'),
@@ -289,6 +259,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Partial failure: return the credits for the shots that never arrived.
     let balanceAfter = reserveResult.newBalance;
+    // What the customer was ACTUALLY charged. `actualCost` is the INTENDED figure;
+    // writing it to the ledger and the response without checking that the refund
+    // landed told the customer credits came back when they had not.
+    let creditsCharged = creditCost;
     if (actualCost < creditCost) {
       const refundAmount = creditCost - actualCost;
       const partial = await refundCredits({
@@ -296,16 +270,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         description: `Refund: ${input.shots - successfulShots} of ${input.shots} photoshoot shots failed`,
         generationId: generation?.id,
       });
+      const settled = settleCharge(creditCost, refundAmount, partial.success);
+      creditsCharged = settled.charged;
       if (partial.success) {
         balanceAfter = partial.newBalance;
-        refundedSoFar += refundAmount;
+        // Only advance by what LANDED — the outer catch's
+        // `outstanding = creditCost - refundedSoFar` depends on it.
+        refundedSoFar += settled.refunded;
       }
     }
 
     // Update generation with actual cost
     await finalizeGeneration(supabase, generation.id, {
       output: { shots, mock: shots.some((s) => s.mock) },
-      credits_used: actualCost,
+      credits_used: creditsCharged,
       status: 'completed',
     }, 'photoshoot');
 
@@ -327,7 +305,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         generationId: generation.id,
         shots,
-        creditsUsed: actualCost,
+        creditsUsed: creditsCharged,
         newBalance: balanceAfter,
       },
     });
@@ -344,7 +322,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             generationId: generation?.id,
           })
         : { success: true };
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'photoshoot');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {

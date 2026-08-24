@@ -48,7 +48,7 @@ export function SocialProof(): React.ReactElement {
             <motion.div
               key={key}
               variants={fadeInUp}
-              className="rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)] p-6"
+              className="rounded-2xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] bg-[var(--color-surface)] p-6"
             >
               <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/40">
                 <Icon className="h-5 w-5 text-primary-600 dark:text-primary-400" />

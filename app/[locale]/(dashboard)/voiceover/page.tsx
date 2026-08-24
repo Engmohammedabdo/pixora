@@ -68,6 +68,7 @@ export default function VoiceOverPage(): React.ReactElement {
   // one. Without this the balance drops by a different number than the form
   // quoted and nothing on screen accounts for the difference.
   const [usedFallback, setUsedFallback] = useState(false);
+  const [dialectNotApplied, setDialectNotApplied] = useState(false);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -99,6 +100,7 @@ export default function VoiceOverPage(): React.ReactElement {
       setProvider(data.data.provider || '');
       setEnhanced(data.data.enhanced || false);
       setUsedFallback(data.data.usedFallback === true);
+      setDialectNotApplied(data.data.enhancementRejected === true);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
   }, [isValid, script, voice, dialect, speed, tone, setBalance, tStudio, projectId]);
@@ -187,7 +189,13 @@ export default function VoiceOverPage(): React.ReactElement {
         <Label>{tVo('speed')}</Label>
         <div className="flex gap-2">
           {ALL_SPEEDS.map((s) => {
-            const isAvailable = planId === 'free' ? ['0.75', '1', '1.25'].includes(s) : true;
+            // Availability follows the PROVIDER, not the price. It used to be
+            // exactly backwards: free/starter run on OpenAI TTS (0.25-4.0, so every
+            // speed works) and were given the restricted set, while pro/business/
+            // agency run on ElevenLabs (0.7-1.2) and were given all five — so a Pro
+            // customer picking 0.5x was guaranteed to fail on a paid generation.
+            const usesElevenLabs = !['free', 'starter'].includes(planId);
+            const isAvailable = usesElevenLabs ? ['0.75', '1'].includes(s) : true;
             return (
               <button key={s} type="button"
                 onClick={() => isAvailable && setSpeed(s)}
@@ -284,6 +292,15 @@ export default function VoiceOverPage(): React.ReactElement {
         <div className="flex max-w-md items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
           <Info className="h-4 w-4 flex-shrink-0" />
           <span>{tVo('fallbackNotice')} 🦊</span>
+        </div>
+      )}
+      {/* The dialect rewrite failing used to be swallowed by a bare catch, so a
+          customer on a paid tier picked مصري, was charged the premium rate, and
+          received a plain reading of their own text with nothing saying so. */}
+      {dialectNotApplied && (
+        <div className="flex max-w-md items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          <Info className="h-4 w-4 flex-shrink-0" />
+          <span>{tVo('dialectNotApplied')}</span>
         </div>
       )}
       <div className="w-full max-w-sm bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-4">

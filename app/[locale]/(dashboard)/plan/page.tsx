@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,10 +19,25 @@ import { cn } from '@/lib/utils';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
-import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp } from 'lucide-react';
+import { Sparkles, AlertTriangle, Calendar, DollarSign, Target, TrendingUp, FileText } from 'lucide-react';
+import { toast } from 'sonner';
+import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
 
 const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as const;
 // Strings, not numbers: /api/studios/plan validates `duration` with
@@ -51,6 +66,9 @@ const list = <T,>(value: T[] | undefined): T[] => (Array.isArray(value) ? value 
 
 export default function PlanPage(): React.ReactElement {
   const t = useTranslations();
+  // The API sits outside app/[locale], so the deliverable's language has to be
+  // sent explicitly — an en-locale customer used to pay full price for Arabic.
+  const locale = useLocale();
   // Scoped, not an arrow wrapper: `tStudio` takes one
   // argument and silently drops the values a message needs, so an ICU
   // placeholder like {term} rendered as literal text.
@@ -80,7 +98,16 @@ export default function PlanPage(): React.ReactElement {
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
-  const isValid = businessName.length >= 2 && goals.length > 0 && targetMarket.length >= 5;
+  // Must match app/api/studios/plan/route.ts's InputSchema exactly. It requires
+  // `industry` (min 2) and `budget` (min 1) and this gate checked neither, so
+  // Generate was enabled with an empty industry and the customer got an instant
+  // 400 naming no field.
+  const isValid =
+    businessName.length >= 2 &&
+    industry.length >= 2 &&
+    goals.length > 0 &&
+    targetMarket.length >= 5 &&
+    budget.length >= 1;
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -88,7 +115,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -96,7 +123,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -138,7 +165,16 @@ export default function PlanPage(): React.ReactElement {
         after the tab closes. `refreshKey` is the current plan object, so a run
         that just finished appears without a reload.
       */}
-      <RecentWork studio="plan" onRestore={(output) => setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null)} refreshKey={runs} />
+      <RecentWork
+        studio="plan"
+        onRestore={(output, input) => {
+          setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null);
+          setBusinessName(inputText(input, 'businessName'));
+          setIndustry(inputText(input, 'industry'));
+          setTargetMarket(inputText(input, 'targetMarket'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 
@@ -166,7 +202,12 @@ export default function PlanPage(): React.ReactElement {
     <div className="flex flex-col items-center py-12 text-[var(--color-text-muted)]"><Calendar className="h-12 w-12" /><p className="text-sm mt-4">{tPlan('emptyState')}</p></div>
   ) : (
     <div className="space-y-4">
-      <div className="flex gap-1 overflow-x-auto pb-2">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+      <div className="flex items-center gap-2 pb-2">
+        <div className="flex gap-1 overflow-x-auto flex-1">{tabs.map((tab) => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors', activeTab === tab.id ? 'bg-primary-500 text-white' : 'bg-surface-2')}><tab.icon className="h-3 w-3" />{tab.label}</button>))}</div>
+        {/* The plan studio had no export at all: a 5-credit deliverable readable
+            on screen and nowhere else, while analysis and storyboard both had one. */}
+        <Button size="sm" variant="outline" className="gap-1 flex-shrink-0" onClick={() => { if (!openPdfInNewTab(generatePlanPdf(plan, businessName))) toast.error(tStudio('popupBlocked')); }}><FileText className="h-3 w-3" />PDF</Button>
+      </div>
       {activeTab === 'objectives' && (<div className="space-y-3">{list(plan.objectives).map((obj, i) => (<Card key={i}><CardContent className="p-4"><h4 className="font-semibold text-sm">{obj.goal}</h4><div className="flex gap-4 mt-2 text-xs text-[var(--color-text-secondary)]"><span>KPI: {obj.kpi}</span><Badge variant="secondary">{obj.target}</Badge></div></CardContent></Card>))}</div>)}
       {activeTab === 'channels' && (<div className="space-y-3">{list(plan.channels).map((ch, i) => (<Card key={i}><CardContent className="p-4"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold text-sm">{ch.name}</h4><Badge variant="default">{ch.budget_pct}%</Badge></div><p className="text-xs text-[var(--color-text-secondary)]">{ch.strategy}</p></CardContent></Card>))}</div>)}
       {activeTab === 'calendar' && (<div className="space-y-3">{list(plan.calendar).map((week, wi) => (<Card key={wi}><CardHeader className="pb-2"><CardTitle className="text-sm">{tPlan('week')} {week.week} — {week.channel}</CardTitle></CardHeader><CardContent><ul className="space-y-1">{list(week.content).map((c, i) => (<li key={i} className="text-xs flex items-start gap-2"><span className="text-primary-500">●</span>{c}</li>))}</ul></CardContent></Card>))}</div>)}
