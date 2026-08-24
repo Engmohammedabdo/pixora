@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "coolify": {
+      "command": "npx",
+      "args": ["-y", "@masonator/coolify-mcp@2.19.4"],
+      "env": {
+        "COOLIFY_BASE_URL": "https://coolify.pyramedia.cloud",
+        "COOLIFY_ACCESS_TOKEN": "${COOLIFY_MCP_TOKEN}"
+      }
+    }
+  }
+}

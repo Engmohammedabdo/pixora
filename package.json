@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal",
+    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,7 +16,8 @@
     "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts",
     "check:mail": "node scripts/check-mail-dns.js",
     "test:plan-switch": "npx tsx scripts/tests/plan-switch.test.ts",
-    "test:generation-terminal": "npx tsx scripts/tests/generation-terminal.test.ts"
+    "test:generation-terminal": "npx tsx scripts/tests/generation-terminal.test.ts",
+    "test:voiceover-budget": "npx tsx scripts/tests/voiceover-budget.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

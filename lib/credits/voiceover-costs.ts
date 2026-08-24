@@ -95,3 +95,29 @@ export function calculateVoiceoverCost(scriptLength: number, speed: number, plan
 export function estimateVoiceoverDuration(scriptLength: number, speed: number): number {
   return Math.round((scriptLength / 5) / speed);
 }
+
+/**
+ * The longest script that still costs `creditCost` AND still fits the plan's
+ * duration cap — i.e. the exact inverse of calculateVoiceoverCost, bounded by
+ * maxDurationSeconds.
+ *
+ * WHY THIS EXISTS: the route prices and cap-checks the script the customer typed,
+ * then tts-router hands an LLM REWRITE of it to the provider. Without a budget the
+ * rewrite is bounded only by maxTokens, so a longer one delivers audio nobody paid
+ * for and breaches the plan's own limit, and a shorter one charges for silence.
+ *
+ * Derivation, against calculateVoiceoverCost above:
+ *   cost    = max(1, ceil(ceil((len/5)/speed) / unitSeconds)) * creditsPerUnit
+ *   so      units      = cost / creditsPerUnit
+ *           maxSeconds = units * unitSeconds
+ *           len        <= maxSeconds * speed * 5
+ * and independently the cap requires len <= maxDurationSeconds * speed * 5.
+ * The smaller of the two wins; floored, because a partial character buys nothing.
+ */
+export function maxCharsForBudget(creditCost: number, speed: number, planId: string): number {
+  const config = getVoiceoverConfig(planId);
+  const units = Math.max(1, Math.floor(creditCost / config.creditsPerUnit));
+  const secondsAffordable = units * config.unitSeconds;
+  const secondsAllowed = Math.min(secondsAffordable, config.maxDurationSeconds);
+  return Math.max(1, Math.floor(secondsAllowed * speed * 5));
+}
