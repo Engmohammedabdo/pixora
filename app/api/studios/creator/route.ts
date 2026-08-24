@@ -21,7 +21,9 @@ const InputSchema = z.object({
   model: z.enum(['gemini', 'gpt', 'flux']),
   projectId: z.string().uuid().optional(),
   resolution: z.enum(['1080p', '2K', '4K']),
-  style: z.string().default('photographic'),
+  // `style` reaches the image model on BOTH branches and had no ceiling at all.
+  // 100 is the cap the admin-override branch already truncates it to.
+  style: z.string().max(100).default('photographic'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
   referenceImageUrl: z.string().url().optional(),

@@ -14,18 +14,30 @@ interface StoryboardPromptInput {
 // v2.0 — matches system-prompts.md storyboard_v1
 export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
   const { concept, duration, style, platform, brandName, targetAudience, keyMessage } = input;
+
+  // Belt AND braces, exactly as lib/ai/prompts/plan.ts does: the route filters before
+  // the money moves, and the builder filters again so no future caller can reach the
+  // model around it.
   const safeConcept = sanitizePrompt(concept);
+  const safeStyle = sanitizePrompt(style, 100);
+  const safePlatform = sanitizePrompt(platform, 100);
+  // targetAudience and keyMessage are on the interface and no caller passes them
+  // today. Covered anyway, because "nothing sends it yet" is exactly how an
+  // unfiltered field gets wired up later without anyone re-reading this function.
+  const safeBrandName = brandName ? sanitizePrompt(brandName, 100) : '';
+  const safeTargetAudience = targetAudience ? sanitizePrompt(targetAudience, 500) : '';
+  const safeKeyMessage = keyMessage ? sanitizePrompt(keyMessage, 500) : '';
 
   let prompt = `You are a professional film director and storyboard artist with experience in commercial advertising.`;
 
   prompt += `\n\nVideo Brief:`;
   prompt += `\n- Concept: ${safeConcept}`;
   prompt += `\n- Duration: ${duration} seconds total`;
-  prompt += `\n- Style: ${style}`;
-  prompt += `\n- Platform: ${platform}`;
-  if (targetAudience) prompt += `\n- Target Audience: ${targetAudience}`;
-  if (brandName) prompt += `\n- Brand: ${brandName}`;
-  if (keyMessage) prompt += `\n- Key Message: ${keyMessage}`;
+  prompt += `\n- Style: ${safeStyle}`;
+  prompt += `\n- Platform: ${safePlatform}`;
+  if (safeTargetAudience) prompt += `\n- Target Audience: ${safeTargetAudience}`;
+  if (safeBrandName) prompt += `\n- Brand: ${safeBrandName}`;
+  if (safeKeyMessage) prompt += `\n- Key Message: ${safeKeyMessage}`;
 
   prompt += `\n\nCreate a professional storyboard with exactly 9 scenes.`;
   prompt += `\nThe total duration of all scenes must equal exactly ${duration} seconds.`;

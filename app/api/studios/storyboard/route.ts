@@ -8,7 +8,7 @@ import { buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
-import { PromptBlockedError } from '@/lib/ai/prompts/safety';
+import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
@@ -16,8 +16,12 @@ const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
   concept: z.string().min(10).max(2000),
   duration: z.enum(['15', '30', '60']),
-  style: z.string().min(1).max(100),
-  platform: z.string().min(1).max(100),
+  // Both are closed sets in the only client that posts here
+  // (app/[locale]/(dashboard)/storyboard/page.tsx:103-104), and an enum makes the
+  // set of reachable prompts finite rather than merely filtered. Same shape as
+  // `dialect` in campaign and `duration` two lines above.
+  style: z.enum(['cinematic', 'ugc', 'animation', 'documentary']),
+  platform: z.enum(['instagram_reel', 'tiktok', 'youtube', 'tv']),
   brandKitId: z.string().uuid().optional(),
 });
 
@@ -110,14 +114,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const creditCost = CREDIT_COSTS.storyboard;
 
+    // Sanitize BEFORE the insert and BEFORE the reservation, so a blocked word costs
+    // nothing. plan and analysis already do this; storyboard was the one that charged
+    // first and filtered second — at 14 credits, the most expensive place to get that
+    // order wrong. PromptBlockedError thrown here reaches the OUTER catch directly,
+    // which returns 400 + `term` with no credits moved and no orphan row.
+    const safeConcept = sanitizePrompt(input.concept, 2000);
+
     let brandKitName: string | undefined;
     if (input.brandKitId) {
       const { data: brandKit } = await supabase.from('brand_kits').select('name').eq('id', input.brandKitId).eq('user_id', user.id).single();
-      brandKitName = brandKit?.name;
+      // `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
+      // 042 constrains logo_url alone), so a customer can PATCH `name` to any string
+      // over PostgREST and app/api/brand-kits/route.ts's max(100) never runs.
+      brandKitName = brandKit?.name ? sanitizePrompt(String(brandKit.name), 100) : undefined;
     }
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, brandKitName }, credits_used: creditCost, status: 'processing',
+      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, concept: safeConcept, brandKitName }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while
@@ -132,7 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Reserve credits (atomic check + deduct)
     const reserveResult = await reserveCredits({
       userId: user.id, amount: creditCost,
-      studio: 'storyboard', description: `Storyboard - ${input.concept.substring(0, 50)}`,
+      studio: 'storyboard', description: `Storyboard - ${safeConcept.substring(0, 50)}`,
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
@@ -156,7 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildStoryboardPrompt({ ...input, duration: parseInt(input.duration, 10), brandName: brandKitName });
+    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName });
     const result = await generateText({ prompt, maxTokens: 8192 });
 
     // Unparseable output = failure + refund. The old fallback shipped a canned
