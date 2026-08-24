@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCachedFeatureFlags } from '@/lib/admin/settings';
+import { trackEventNow } from '@/lib/analytics/track';
+import { EVENTS } from '@/lib/analytics/events';
 
 function getBaseUrl(request: NextRequest): string {
   // Use NEXT_PUBLIC_APP_URL in production (Docker returns 0.0.0.0:3000 as origin)
@@ -115,6 +117,50 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           .select('onboarding_completed')
           .eq('id', userId)
           .single();
+
+        // ── SIGN-UP, THE OTHER HALF ──────────────────────────────────────────
+        // signup/page.tsx reports the password path. This is the Google one, and
+        // leaving it out would not merely undercount — it would undercount ONE
+        // acquisition channel, which is worse: Google sign-ups would look like a
+        // channel nobody uses.
+        //
+        // "New" is decided on auth.users.created_at, not on
+        // `!onboarding_completed`. Every successful exchange runs this block, and
+        // a returning user who abandoned onboarding has an incomplete profile
+        // forever — that test would report them as a new sign-up on every login.
+        // created_at is written once, by GoTrue, and cannot drift.
+        const createdAt = Date.parse(sessionData?.user?.created_at ?? '');
+        const isNewAccount = Number.isFinite(createdAt) && Date.now() - createdAt < 5 * 60_000;
+
+        if (isNewAccount) {
+          // Unlike the studio paths this is awaited: the response is a redirect,
+          // so the function returns and the runtime is free to tear the invocation
+          // down. Fire-and-forget here is fire-and-lose.
+          await trackEventNow({
+            userId,
+            name: EVENTS.SIGN_UP,
+            params: { method: 'google', locale },
+          });
+
+          // The signup page gets the gate status for free (it already fetched it
+          // to decide what to render). This route does not, so it asks — once,
+          // only for a genuinely new account, and never in a way that can break
+          // sign-in.
+          try {
+            const admin = await createServiceRoleClient();
+            const { data: gate } = await admin.rpc('invite_gate_status');
+            const g = (gate ?? {}) as { installed?: boolean; enabled?: boolean };
+            if (g.installed === true && g.enabled === true) {
+              await trackEventNow({
+                userId,
+                name: EVENTS.INVITE_REDEEMED,
+                params: { method: 'google', locale },
+              });
+            }
+          } catch (e) {
+            console.warn('[callback] invite_redeemed not recorded:', e);
+          }
+        }
 
         // Only on a first sign-in. This block runs on EVERY successful code
         // exchange, so without the onboarding guard an existing user who follows

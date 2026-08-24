@@ -4,6 +4,9 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCreditsForPlan, PLANS } from '@/lib/stripe/plans';
 import { sendPaymentFailedEmail } from '@/lib/email/send';
 import { planSwitchBalance } from '@/lib/credits/plan-switch';
+import { trackEventWithIds } from '@/lib/analytics/track';
+import { gaIdsFromMetadata } from '@/lib/analytics/stripe-attribution';
+import { EVENTS } from '@/lib/analytics/events';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -176,6 +179,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           break;
         }
 
+        // ── REVENUE REPORTING ────────────────────────────────────────────
+        // Decided per branch below, sent once at the end of the case, and only
+        // after the credits it paid for have actually been granted. Reporting
+        // before the grant would mean a run that throws on the grant still books
+        // the revenue, and GA4 has no retraction.
+        let purchase: { itemId: string; itemName: string } | null = null;
+
         if (session.mode === 'subscription') {
           const planId = session.metadata?.planId || 'starter';
           const credits = getCreditsForPlan(planId);
@@ -216,6 +226,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             to_plan: planId,
             stripe_subscription_id: subscriptionId || null,
           }); // non-critical, ignore errors
+
+          purchase = { itemId: `plan_${planId}`, itemName: `${planId} subscription` };
         }
 
         if (session.mode === 'payment') {
@@ -255,8 +267,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             }
             if (result.already_granted) {
               console.info(`[webhook] top-up for session ${session.id} was already granted — replay ignored`);
+            } else {
+              // Only a first delivery is revenue. `already_granted` is migration
+              // 031's replay verdict, and the guard at the top of this route
+              // deliberately re-runs an event whose row exists but is unfinished,
+              // so this branch is reached on real retries — not a hypothetical.
+              purchase = { itemId: `topup_${topupId}`, itemName: `${topupId} top-up` };
             }
           }
+        }
+
+        if (purchase) {
+          const currency = (session.currency || 'usd').toUpperCase();
+          // Stripe reports minor units (fils, cents). GA4 wants a major-unit
+          // decimal; sending 5999 for a $59.99 sale overstates revenue 100x and
+          // the mistake is invisible until someone compares GA4 to Stripe.
+          const value = (session.amount_total ?? 0) / 100;
+
+          await trackEventWithIds(
+            userId,
+            EVENTS.PURCHASE,
+            {
+              // GA4 deduplicates `purchase` on transaction_id. The checkout
+              // session id is stable across Stripe's at-least-once delivery, so a
+              // retry that reaches here twice is collapsed rather than counted
+              // twice — the one safeguard this path cannot provide for itself.
+              transaction_id: session.id,
+              value,
+              currency,
+              plan: session.metadata?.planId ?? null,
+              mode: session.mode ?? null,
+              items: [{
+                item_id: purchase.itemId,
+                item_name: purchase.itemName,
+                price: value,
+                quantity: 1,
+              }],
+            },
+            // No _ga cookie exists on a Stripe request. These were captured in the
+            // checkout route — see lib/analytics/stripe-attribution.ts.
+            gaIdsFromMetadata(session.metadata)
+          );
         }
         break;
       }

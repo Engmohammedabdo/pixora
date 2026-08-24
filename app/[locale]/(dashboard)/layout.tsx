@@ -9,6 +9,7 @@ import { PaymentFailedBanner } from '@/components/shared/PaymentFailedBanner';
 import { CommandPalette } from '@/components/shared/CommandPalette';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useCredits } from '@/hooks/useCredits';
+import { AnalyticsIdentity } from '@/components/analytics/AnalyticsIdentity';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         <PaymentFailedBanner />
         <LowCreditsBanner />
         <CommandPalette />
+        {/* Renders nothing. Mounted HERE and not in app/[locale]/layout.tsx — see
+            the component's own header for the two landing pages that cost. */}
+        <AnalyticsIdentity />
         <main className="flex-1 bg-[var(--color-bg)] pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
             {children}

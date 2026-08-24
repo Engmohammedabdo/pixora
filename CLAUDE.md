@@ -624,6 +624,112 @@ none carry zero. Live on a production build: `/ar` → `ar/rtl`, `/en` and
 `ComparisonSection`) — see the commit for the reasoning, which is recorded in
 the component headers.
 
+### Product analytics — built 2026-08-25
+
+Before this, `gtag` appeared in exactly three lines of the repo — `js`, `config`,
+and nothing else. GA4 reported **visits**: pageviews, sources, devices, locales.
+Zero product events, zero conversions, and revenue was **architecturally
+unreachable** — payment settles in a Stripe webhook the browser tag never sees.
+
+`public.user_events` (migration 018) had been built and then written by nothing:
+**0 rows on the live database**, no insert anywhere in `app/` or `lib/`, its only
+reference a type in `types.ts`. It is now the primary sink, with GA4 second.
+
+**One catalogue, two sinks.** `lib/analytics/events.ts` defines every event; every
+recording goes to `user_events` (joinable to credits, generations and invoices;
+survives ad blockers; queryable by SQL) and to GA4 (acquisition, attribution,
+campaign ROI). Free-text names would let the two drift apart one call site at a
+time, and a typo would land in exactly one of them — a report that is quietly
+short, never an error.
+
+| Event | Written where | Why there |
+|-------|---------------|-----------|
+| `generation_started`, `insufficient_credits` | `lib/credits/deduct.ts` → `reserveCredits()` | The one choke point all 8 paid studios pass through. Nine copies is the drift this repo keeps paying for |
+| `generation_completed` | `finalizeGeneration()`, on the write that **proved** it landed | Earlier would count generations the reconciler later refunded — analytics claiming revenue the ledger gave back |
+| `generation_failed` | `failGeneration()`, same rule | |
+| `purchase` | Stripe webhook, after the credits are granted | Reporting before the grant books revenue for a run that then throws, and GA4 has no retraction |
+| `sign_up`, `invite_redeemed` | `POST /api/events` (password) and the OAuth callback (Google) | Signup is `supabase.auth.signUp()` in the browser; there is no server side to it |
+
+**`insufficient_credits` is recorded only on the RPC's own verdict** (`017:31`),
+never on any other reservation failure. Recording infrastructure errors under the
+same name turns an outage into fake purchase intent.
+
+**A top-up replay is not revenue.** The grant RPC's `already_granted` verdict
+(migration 031) suppresses the event, and `transaction_id` is the checkout session
+id so GA4 deduplicates anything that still gets through twice — the route's guard
+deliberately re-runs an event whose row exists but is unfinished, so this is a real
+path, not a hypothetical.
+
+**Revenue could not have worked without carrying the GA identity across Stripe.**
+The webhook request is Stripe's: no `_ga` cookie exists on it, so `readGaIds()`
+returns nulls and `sendGa4Event()` refuses. Minting an id instead is *worse* than
+dropping the event — GA4 files the sale under a new user with source `(direct)`,
+so the campaign that earned it keeps its click and loses its conversion, and every
+channel ROI is wrong in the same direction. `lib/analytics/stripe-attribution.ts`
+owns both ends (checkout writes the ids into session metadata, the webhook reads
+them back) so the key names cannot drift — a typo on one side is not an error, it
+is silently unattributed revenue.
+
+**What the browser may report is a closed set, and it is asserted as one.**
+`POST /api/events` takes the subject from the verified session and ignores any user
+id in the body; accepts only `CLIENT_REPORTABLE`; bounds params (12 keys, 40-char
+keys, 200-char values) because they land in JSONB; and throttles per user through
+migration 039's atomic RPC, failing CLOSED. Adding `purchase` to that list — an
+easy, well-meant edit, it is right there in the same enum — would let any
+signed-in customer POST themselves revenue into both sinks, indistinguishable from
+a real sale. `npm run test:analytics` therefore asserts exact membership, not a
+minimum, and was proved by adding `purchase` and watching it fail.
+
+**`user_events` is written with the service-role client, which CLAUDE.md otherwise
+restricts to webhooks and admin operations.** That is forced, not chosen: migration
+022 enabled RLS on the table, revoked ALL from `anon` and `authenticated`, and added
+no policy, so the studio routes — which execute as `authenticated` — physically
+cannot write it. The lockdown is worth keeping; granting INSERT to `authenticated`
+would let any customer forge the rows every admin number is computed from.
+
+**One defect was introduced by this work and caught before shipping — by measuring
+the build output rather than trusting the gates.** `<AnalyticsIdentity/>` (user id,
+plan and locale as GA4 user properties) was first mounted in
+`app/[locale]/layout.tsx`, alongside `<GoogleAnalytics/>`. Against the production
+build that shipped:
+
+```
+.next/server/app/ar.html    2 <html> start tags, and NO GA tag at all
+.next/server/app/en.html    2 <html> start tags
+```
+
+The Arabic landing page — the URL a launch announcement points at — would have
+shipped with **no analytics whatsoever**, and both landing pages had regressed the
+two-document defect `app/layout.tsx` exists to document. `tsc`, `eslint`, all 15
+invariants, all 13 prebuild test files (including `test:root-document`, 62 of 62)
+and `next build` itself were green. Reverting that one edit and rebuilding restored
+both pages, so the cause was not in doubt. It now mounts in
+`app/[locale]/(dashboard)/layout.tsx`, which is where it belongs on the merits: a
+logged-out marketing page has no user id and no plan to report, and an auth-reading
+component has no business on every public page.
+
+`npm run test:built-document` is the gate that would have caught it — see the
+commands section for why a source-level rule structurally cannot.
+
+**Verified live on a production build** (`next start`, 62 prerendered documents):
+`/ar`, `/en` and `/ar/pricing` each carry exactly one `<html>` and the GA tag;
+`/admin/login` carries no tag, as intended; `POST /api/events` returns 401 for an
+unauthenticated `sign_up`, for a forged `purchase`, and for a malformed body —
+auth is checked before parsing, so the response cannot be used to probe the
+catalogue.
+
+**Not verified, and stated rather than implied:** no event has been observed
+arriving in the GA4 property or in `user_events`. That needs `GA4_API_SECRET` on
+the app service and a real signed-in session. Run one generation and one top-up
+after deploying, then confirm both sinks.
+
+**Still open:**
+- **`GA4_API_SECRET` is not set**, so the server half of GA4 is skipped — warned once per process, not per event. `user_events` is unaffected.
+- **Custom dimensions are not registered.** `studio`, `plan`, `app_locale` and the rest are collected from the first event but do NOT appear in any GA4 report until registered under Admin → Custom definitions. Unregistered they are still stored and still queryable from BigQuery and the Data API — which reads exactly like a broken tag.
+- **Check Enhanced Measurement → “Page changes based on browser history events”** in the data stream. This is an App Router app: with that toggle off, only landing pageviews are ever recorded. It cannot be read from the code.
+- **Nothing reads `user_events` yet.** The rows accumulate; no admin screen surfaces them.
+- `failGeneration()`'s refuse-to-write branch records no event — it has no returned row to take a user id from, and it is already loud in the logs.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -643,7 +749,7 @@ the component headers.
 | Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. **2026-08-24: `campaign` joined them** via a separate `RETRIEVABLE_STUDIOS` list — its nine captions live only in `output` too, and with images unchecked it writes ZERO asset rows. Its output is not reliably small (persist-image returns inline `data:` URLs on four degradation paths), so the detail route strips inline images by VALUE and enforces a 256 kB ceiling. |
 | Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
 | Error tracking (Sentry) | ❌ env vars declared, empty, never read by any line of code. |
-| Product analytics | ⚠️ **GA4 only** (`components/analytics/GoogleAnalytics.tsx`, 2026-08-24). Mounted from `app/[locale]/layout.tsx` so it covers both locales and NOT `/admin/*` — verified absent from `admin/login.html` and `_not-found.html` in the build output. Production-only unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set. **It depends on three CSP directives in `next.config.ts` and fails SILENTLY if one is dropped** — an empty property looks exactly like no traffic. PostHog remains absent: its env vars are still declared, empty and unread. |
+| Product analytics | ✅ **built 2026-08-25** — GA4 traffic **plus** product, revenue and signup events, each written to BOTH `public.user_events` and GA4. See “Product analytics — built 2026-08-25” above for what is and is not measured. **GA4 needs `GA4_API_SECRET` for the server half**; without it `purchase` never reaches GA4 while `user_events` still records it. PostHog remains absent: its env vars are still declared, empty and unread. |
 
 ---
 
@@ -851,6 +957,13 @@ NEXT_PUBLIC_DEFAULT_LOCALE=ar
 # components/analytics/GoogleAnalytics.tsx, so production reports without this.
 # Set it to run the tag locally, preferably against a throwaway property.
 NEXT_PUBLIC_GA_MEASUREMENT_ID=
+
+# Server -> GA4 (Measurement Protocol). NOT derivable from the measurement id.
+# GA4 -> Admin -> Data Streams -> (stream) -> Measurement Protocol API secrets.
+# Absent, every SERVER-sent event is skipped and warned once per process — the
+# internal user_events timeline is unaffected, so the symptom is GA4 Monetization
+# staying empty while the admin dashboard shows the revenue.
+GA4_API_SECRET=
 ```
 
 ---
@@ -880,13 +993,35 @@ npm run test:settle             #  12 checks: a charge only drops from a refund 
 npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
 npm run test:prompts            #  36 golden-string checks over the prompt builders
+npm run test:analytics          #  25 checks: the client may never report a server-witnessed event
 npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
 ```
 
-**862 checks across 15 files.** Several exist because the defect they guard was
+**One gate runs AFTER the build**, because before it there is nothing to read:
+
+```bash
+npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
+```
+
+**887 checks across 14 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.
+
+`test:built-document` exists because `test:root-document` **passed while the build
+was broken**, on 2026-08-25. root-document reads SOURCE — it walks each leaf's
+layout chain and asserts one document owner, which is right for the defect it was
+written for. A client component added to `app/[locale]/layout.tsx` added no
+`<html>` to any layout, so the chain was still one owner and it passed 62 of 62 —
+while `ar.html` and `en.html` each shipped **two** `<html>` tags and the Arabic
+landing page shipped **no GA tag at all**. A source-level rule cannot certify a
+rendered document; React 19 treats `<html>` as a host singleton, so a second one
+arrives by rendering accident rather than by a layout. Count the output.
+
+The same round is why the reported figure "62 of 62 prerendered artifacts now
+carry exactly one `<html>`" (2026-08-24, above) should be read with care: a
+prerendered document is **one line**, so `grep -c '<html'` returns 1 no matter how
+many tags are on it. `test:built-document` uses a global regex for that reason.
 
 `test:plan-switch` runs **sequences**, not cases, and that is the point: the rule it
 guards had a version that passed every single-step check and still minted credits on the

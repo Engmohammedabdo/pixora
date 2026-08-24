@@ -4,6 +4,7 @@ import { createServerClient, createServiceRoleClient } from '@/lib/supabase/serv
 import { stripe } from '@/lib/stripe/client';
 import { TOPUPS } from '@/lib/stripe/plans';
 import { resolveReturnLocale, persistLocale } from '@/lib/stripe/locale';
+import { gaCheckoutMetadata } from '@/lib/analytics/stripe-attribution';
 
 const InputSchema = z.object({
   topupId: z.enum(['small', 'medium', 'large', 'xl']),
@@ -61,6 +62,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // but a code created later is unredeemable without this.
       allow_promotion_codes: true,
       metadata: {
+        // Captured here for the same reason the locale is, three lines up: the
+        // webhook has no customer request to read them from. Without them the
+        // purchase reaches GA4 attributed to nobody. See lib/analytics/stripe-attribution.ts.
+        ...(await gaCheckoutMetadata()),
         userId: user.id,
         topupId,
         credits: String(topup.credits),

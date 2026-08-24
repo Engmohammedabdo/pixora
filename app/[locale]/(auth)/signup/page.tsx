@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Link, useRouter } from '@/i18n/routing';
+import { reportEvent, EVENTS } from '@/lib/analytics/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -120,6 +121,24 @@ export default function SignupPage(): React.ReactElement {
     // here strands every new user waiting for mail that cannot arrive. Only show
     // that screen when Supabase actually withheld a session pending confirmation.
     if (data.session) {
+      // Reported here rather than server-side because there IS no server side to
+      // this: signup is supabase.auth.signUp() straight from the browser. The
+      // session cookie is already set, so POST /api/events authenticates, and it
+      // takes the user id from that session — never from anything sent here.
+      //
+      // Not awaited: reportEvent uses `keepalive`, so the request survives the
+      // navigation two lines down. Awaiting it would put an analytics round trip
+      // in front of the redirect a new customer is waiting on.
+      reportEvent(EVENTS.SIGN_UP, { method: 'password', locale });
+
+      // Only meaningful while the gate is on — and then it is not a duplicate of
+      // sign_up but the thing the invite launch is actually measured by: seats
+      // issued vs seats taken. `inviteOnly` is the gate status this page already
+      // fetched, so this costs nothing and never guesses.
+      if (inviteOnly) {
+        reportEvent(EVENTS.INVITE_REDEEMED, { locale });
+      }
+
       // Await the claim: the session cookie is set, and navigating away first
       // would cancel the in-flight request and drop the referral.
       await claimReferral();

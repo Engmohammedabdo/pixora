@@ -1,4 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { trackEvent } from '@/lib/analytics/track';
+import { EVENTS } from '@/lib/analytics/events';
 
 /**
  * The credit RPCs are SECURITY DEFINER and take p_user_id from the caller with
@@ -86,7 +88,38 @@ export async function reserveCredits({
 
   if (error) return { success: false, newBalance: 0, error: error.message };
   const result = data as { success: boolean; new_balance?: number; error?: string } | null;
-  if (!result || !result.success) return { success: false, newBalance: 0, error: result?.error || 'reservation_failed' };
+
+  // ── ANALYTICS CHOKE POINT ────────────────────────────────────────────────
+  // Every paid studio reserves here — measured: 8 of 9 routes call this, and the
+  // ninth (prompt-builder) is free and never reserves. Instrumenting the shared
+  // helper rather than each route is deliberate: nine copies of the same two
+  // tracking calls is exactly the drift CLAUDE.md records paying for repeatedly,
+  // and a studio added later gets this for nothing.
+  //
+  // Fire-and-forget on purpose — see lib/analytics/track.ts. Neither branch may
+  // add latency to, or risk failing, a request the customer is paying for.
+  if (!result || !result.success) {
+    const reason = result?.error || 'reservation_failed';
+    // `insufficient_credits` is the RPC's own verdict (017_reserve_credits.sql:31),
+    // i.e. the customer wanted to generate and could not afford it. Every other
+    // reason is an infrastructure failure and is NOT a demand signal — recording
+    // them together would turn outages into fake purchase intent.
+    if (reason === 'insufficient_credits') {
+      trackEvent({
+        userId,
+        name: EVENTS.INSUFFICIENT_CREDITS,
+        params: { studio, credits_required: amount },
+      });
+    }
+    return { success: false, newBalance: 0, error: reason };
+  }
+
+  trackEvent({
+    userId,
+    name: EVENTS.GENERATION_STARTED,
+    params: { studio, credits: amount, generation_id: generationId ?? null },
+  });
+
   return { success: true, newBalance: result?.new_balance || 0 };
 }
 

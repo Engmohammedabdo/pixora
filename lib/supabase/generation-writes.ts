@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { trackEvent } from '@/lib/analytics/track';
+import { EVENTS } from '@/lib/analytics/events';
 
 type Client = SupabaseClient<Database>;
 
@@ -44,7 +46,7 @@ interface FinalizePatch {
  * Mark a generation terminal, and keep trying until it is or we are out of
  * moves. Returns true when the row is confirmed out of the reconciler's window.
  *
- * `.select('id')` is not decoration: an UPDATE that matches no row — an RLS
+ * The `.select(...)` is not decoration: an UPDATE that matches no row — an RLS
  * filter, a wrong id — reports no error at all, so "no error" and "it worked"
  * are different claims and only the returned row proves the second one.
  *
@@ -79,13 +81,33 @@ export async function finalizeGeneration(
 
   let lastError = '';
   for (const attempt of attempts) {
+    // `user_id` is selected alongside `id` purely so the analytics event below
+    // has a subject. It costs nothing — the row is already being returned to
+    // prove the write landed — and it keeps the nine studio routes out of it.
+    // Threading a userId parameter through instead would mean editing all nine
+    // call sites, which is the exact drift this module exists to end.
     const { data, error } = await supabase
       .from('generations')
       .update(attempt.payload)
       .eq('id', generationId)
-      .select('id');
+      .select('id, user_id');
 
     if (!error && data && data.length > 0) {
+      // Fired here and nowhere else, because here is the only point at which the
+      // row is PROVEN out of the reconciler's window. A route-level "we finished"
+      // event would count generations the reconciler later refunded — analytics
+      // claiming revenue the ledger gave back.
+      trackEvent({
+        userId: data[0].user_id,
+        name: EVENTS.GENERATION_COMPLETED,
+        params: {
+          studio,
+          credits: patch.credits_used ?? null,
+          model: patch.model ?? null,
+          degraded_path: attempt.label === 'full' ? null : attempt.label,
+        },
+      });
+
       if (attempt.label !== 'full') {
         console.error(
           `[generations] ${studio} ${generationId}: completion needed the ${attempt.label} path (previous failure: ${lastError})`
@@ -149,6 +171,12 @@ export async function failGeneration(
 ): Promise<boolean> {
   if (!opts.creditsSettled) {
     // Not an error. This is the helper doing its job.
+    //
+    // No `generation_failed` event either, and that is deliberate rather than an
+    // oversight: this branch writes nothing, so it has no returned row to take a
+    // user id from, and querying for one would add a round trip to a path that
+    // exists to be cheap. The condition is already loud in the logs below, and it
+    // is rare by construction — every caller refunds before reaching here.
     console.warn(
       `[generations] ${studio} ${generationId}: left in the reconciler's window — credits are not ` +
         'confirmed returned, so the row must stay refundable by reconcile_orphaned_generations().'
@@ -167,9 +195,16 @@ export async function failGeneration(
       .from('generations')
       .update(payload)
       .eq('id', generationId)
-      .select('id');
+      .select('id, user_id');
 
-    if (!error && data && data.length > 0) return true;
+    if (!error && data && data.length > 0) {
+      trackEvent({
+        userId: data[0].user_id,
+        name: EVENTS.GENERATION_FAILED,
+        params: { studio, reason: opts.error ?? null },
+      });
+      return true;
+    }
     lastError = error ? `${error.code ?? ''} ${error.message}`.trim() : 'update matched no row';
   }
 
