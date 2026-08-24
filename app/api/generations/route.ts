@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { TEXT_STUDIOS, isTextStudio } from '@/lib/studios/text-output';
+import { RETRIEVABLE_STUDIOS, isRetrievableStudio } from '@/lib/studios/text-output';
 
 /**
  * GET /api/generations — the customer's own history for the text studios.
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Only the studios whose work is unreachable any other way. Listing image
       // generations here would duplicate the files page while telling the customer
       // less than it does.
-      .in('studio', TEXT_STUDIOS)
+      .in('studio', RETRIEVABLE_STUDIOS)
       // A failed generation was refunded and holds no output; showing it in a
       // "your work" list invites someone to click into an empty page.
       .eq('status', 'completed')
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .limit(limit);
 
     if (studio && studio !== 'all') {
-      if (!isTextStudio(studio)) {
+      if (!isRetrievableStudio(studio)) {
         return NextResponse.json({ success: false, error: 'unsupported_studio' }, { status: 400 });
       }
       query = query.eq('studio', studio);

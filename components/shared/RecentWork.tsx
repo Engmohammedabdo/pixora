@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { History, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
-import type { TextStudio } from '@/lib/studios/text-output';
+import type { RetrievableStudio } from '@/lib/studios/text-output';
 
 /**
  * The customer's own past runs of a text studio, reopenable.
@@ -31,9 +31,18 @@ interface Row {
 }
 
 interface RecentWorkProps {
-  studio: TextStudio;
-  /** Handed the parsed `output` of the chosen run. */
-  onRestore: (output: Record<string, unknown>) => void;
+  studio: RetrievableStudio;
+  /**
+   * Handed the parsed `output` of the chosen run AND the `input` it was produced
+   * from.
+   *
+   * `input` matters because restoring only the output left the form holding
+   * whatever the customer had last typed — and analysis and storyboard both pass
+   * live form state into their PDF export, so a restored run was exported under
+   * the wrong business name. Rehydrating the inputs also lets a restored run be
+   * re-run, which is what a customer reaching for history usually wants.
+   */
+  onRestore: (output: Record<string, unknown>, input: Record<string, unknown>) => void;
   /** Refetch when this changes — pass the id of the last finished generation. */
   refreshKey?: string | number;
 }
@@ -67,7 +76,10 @@ export function RecentWork({ studio, onRestore, refreshKey }: RecentWorkProps): 
         toast.error(t('recentWorkFailed'));
         return;
       }
-      onRestore(json.data.output as Record<string, unknown>);
+      onRestore(
+        json.data.output as Record<string, unknown>,
+        (json.data.input ?? {}) as Record<string, unknown>
+      );
     } catch {
       toast.error(t('recentWorkFailed'));
     } finally {

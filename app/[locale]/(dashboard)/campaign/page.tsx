@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { CampaignForm } from '@/components/studios/campaign/CampaignForm';
 import { CampaignPlanDisplay, type CampaignPost } from '@/components/studios/campaign/CampaignPlanDisplay';
+import { RecentWork } from '@/components/shared/RecentWork';
 import { useCreditsStore } from '@/store/credits';
 import { toStudioError, type StudioError } from '@/lib/studio-errors';
 
@@ -30,6 +31,9 @@ function CampaignPageContent(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
   const [mock, setMock] = useState(false);
+  // Bumped once per successful run so RecentWork refetches and the run that just
+  // finished appears in the list.
+  const [runs, setRuns] = useState(0);
 
   const setBalance = useCreditsStore((s) => s.setBalance);
 
@@ -55,6 +59,8 @@ function CampaignPageContent(): React.ReactElement {
       setPosts(data.data.posts);
       setMock(data.data.mock);
 
+      setRuns((n) => n + 1);
+
       if (data.data.newBalance !== undefined) {
         setBalance(data.data.newBalance);
       }
@@ -74,7 +80,27 @@ function CampaignPageContent(): React.ReactElement {
 
       <StudioLayout
         isGenerating={isLoading}
-        inputPanel={<CampaignForm onSubmit={handleGenerate} isLoading={isLoading} initialDescription={initialDescription} />}
+        inputPanel={
+          <div className="space-y-4">
+            <CampaignForm onSubmit={handleGenerate} isLoading={isLoading} initialDescription={initialDescription} />
+            {/*
+              A campaign's nine captions, hooks, hashtag sets and schedules live
+              only in `generations.output`. With "Generate All Images" unchecked
+              the route writes ZERO asset rows, so before this panel a reload
+              destroyed 3 credits of strategy with no warning and no way back —
+              the same defect that was fixed for plan, analysis and storyboard.
+            */}
+            <RecentWork
+              studio="campaign"
+              onRestore={(output) => {
+                setPosts(Array.isArray(output.posts) ? (output.posts as CampaignPost[]) : []);
+                setMock(output.mock === true);
+                setError(null);
+              }}
+              refreshKey={runs}
+            />
+          </div>
+        }
         previewPanel={
           <CampaignPlanDisplay
             posts={posts}

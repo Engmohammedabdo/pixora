@@ -24,6 +24,19 @@ import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
 
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
+
 const GOALS = ['brand_awareness', 'lead_generation', 'sales', 'retention'] as const;
 // Strings, not numbers: /api/studios/plan validates `duration` with
 // z.enum(['30','60','90']) and Zod v4 does not coerce. Sending numbers made every
@@ -138,7 +151,16 @@ export default function PlanPage(): React.ReactElement {
         after the tab closes. `refreshKey` is the current plan object, so a run
         that just finished appears without a reload.
       */}
-      <RecentWork studio="plan" onRestore={(output) => setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null)} refreshKey={runs} />
+      <RecentWork
+        studio="plan"
+        onRestore={(output, input) => {
+          setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null);
+          setBusinessName(inputText(input, 'businessName'));
+          setIndustry(inputText(input, 'industry'));
+          setTargetMarket(inputText(input, 'targetMarket'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 

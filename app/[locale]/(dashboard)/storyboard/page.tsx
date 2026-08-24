@@ -25,6 +25,19 @@ import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
 
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
+
 const STYLES = ['cinematic', 'ugc', 'animation', 'documentary'] as const;
 const PLATFORMS = ['instagram_reel', 'tiktok', 'youtube', 'tv'] as const;
 // Strings, not numbers — same reason as plan/page.tsx: the API validates
@@ -138,7 +151,16 @@ export default function StoryboardPage(): React.ReactElement {
       {/* A cast is not a check: a row stored before the route validated shape can
           hold anything under `scenes`, including a bare object or a list with
           holes in it. */}
-      <RecentWork studio="storyboard" onRestore={(output) => setScenes(toScenes(output.scenes))} refreshKey={runs} />
+      <RecentWork
+        studio="storyboard"
+        onRestore={(output, input) => {
+          setScenes(toScenes(output.scenes));
+          // generateStoryboardPdf() is handed the live `concept`, so restoring
+          // only the scenes titled the export with whatever was in the textarea.
+          setConcept(inputText(input, 'concept'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 

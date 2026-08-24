@@ -26,6 +26,19 @@ import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
 
+/**
+ * A stored `generations.input` value, as a string.
+ *
+ * Restoring a past run used to hand back only `output`, so the form kept whatever
+ * the customer had last typed — and this page passes live form state into its PDF
+ * export, which meant a restored run was exported under the wrong name.
+ */
+function inputText(input: Record<string, unknown>, key: string): string {
+  const v = input[key];
+  return typeof v === 'string' ? v : '';
+}
+
+
 const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
 // The NESTED arrays are optional too, not just the top-level sections. The route
@@ -129,7 +142,22 @@ export default function AnalysisPage(): React.ReactElement {
         place the result exists. Without this list, closing the tab destroys
         work the customer already paid for.
       */}
-      <RecentWork studio="analysis" onRestore={(output) => setAnalysis(output.analysis !== null && typeof output.analysis === 'object' ? (output.analysis as Analysis) : null)} refreshKey={runs} />
+      <RecentWork
+        studio="analysis"
+        onRestore={(output, input) => {
+          setAnalysis(output.analysis !== null && typeof output.analysis === 'object' ? (output.analysis as Analysis) : null);
+          // Rehydrate the brief too: the PDF export below reads `businessName`
+          // from live form state, so restoring only the output exported the
+          // restored analysis under whatever happened to be typed. Restoring the
+          // rest lets the run be re-run, not just re-read.
+          setBusinessName(inputText(input, 'businessName'));
+          setIndustry(inputText(input, 'industry'));
+          setDescription(inputText(input, 'description'));
+          setTargetMarket(inputText(input, 'targetMarket'));
+          setPainPoints(inputText(input, 'painPoints'));
+        }}
+        refreshKey={runs}
+      />
     </div>
   );
 
