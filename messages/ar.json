@@ -254,7 +254,9 @@
       "unauthorized": "انتهت جلستك — سجّل الدخول من جديد ثم ارفع الصورة",
       "fallback": "تعذّر رفع الصورة. حاول مرة أخرى"
     },
-    "continueWithoutImage": "المتابعة بدون صورة مرجعية"
+    "continueWithoutImage": "المتابعة بدون صورة مرجعية",
+    "copyFailed": "ما قدرنا ننسخ. انسخ النص يدوياً من فضلك.",
+    "creditsReturned": "رجّعنا لك {credits} كريدت."
   },
   "creator": {
     "title": "منشئ الصور",
@@ -331,7 +333,8 @@
     "copyAll": "نسخ كل النصوص",
     "exportPdf": "تصدير PDF",
     "emptyState": "الحملة ستظهر هنا",
-    "downloadImage": "تحميل صورة المنشور"
+    "downloadImage": "تحميل صورة المنشور",
+    "imagesFailed": "ما قدرنا نولّد {count} من الصور هالمرة — النصوص كلها جاهزة تحت."
   },
   "assets": {
     "title": "ملفاتي",

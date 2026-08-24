@@ -31,6 +31,7 @@ function CampaignPageContent(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
   const [mock, setMock] = useState(false);
+  const [imageFailure, setImageFailure] = useState<{ failed: number; refunded: number } | null>(null);
   // Bumped once per successful run so RecentWork refetches and the run that just
   // finished appears in the list.
   const [runs, setRuns] = useState(0);
@@ -41,6 +42,7 @@ function CampaignPageContent(): React.ReactElement {
     setIsLoading(true);
     setError(null);
     setPosts([]);
+    setImageFailure(null);
 
     try {
       const response = await fetch('/api/studios/campaign', {
@@ -58,6 +60,12 @@ function CampaignPageContent(): React.ReactElement {
 
       setPosts(data.data.posts);
       setMock(data.data.mock);
+      // Every image failing is a real outcome with a real refund, not a silent one.
+      setImageFailure(
+        data.data.imagesRequested && data.data.failedImageCount > 0
+          ? { failed: data.data.failedImageCount, refunded: data.data.refunded ?? 0 }
+          : null
+      );
 
       setRuns((n) => n + 1);
 
@@ -108,6 +116,7 @@ function CampaignPageContent(): React.ReactElement {
             error={error}
             onDismissError={() => setError(null)}
             mock={mock}
+            imageFailure={imageFailure}
           />
         }
       />

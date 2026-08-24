@@ -254,7 +254,9 @@
       "unauthorized": "Session expired — sign in again, then upload the image",
       "fallback": "Could not upload the image. Please try again"
     },
-    "continueWithoutImage": "Continue without a reference image"
+    "continueWithoutImage": "Continue without a reference image",
+    "copyFailed": "Couldn't copy. Please select and copy the text manually.",
+    "creditsReturned": "We returned {credits} credits to you."
   },
   "creator": {
     "title": "Image Creator",
@@ -331,7 +333,8 @@
     "copyAll": "Copy All Captions",
     "exportPdf": "Export PDF",
     "emptyState": "The campaign will appear here",
-    "downloadImage": "Download post image"
+    "downloadImage": "Download post image",
+    "imagesFailed": "We couldn't generate {count} of the images this time — all the copy below is ready."
   },
   "assets": {
     "title": "My Assets",

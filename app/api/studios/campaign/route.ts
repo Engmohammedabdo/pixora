@@ -542,6 +542,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         usedFallback: textResult.usedFallback,
         creditsUsed: actualCreditsCharged,
         newBalance: balanceAfterPartialRefund,
+        // The screen showed nine empty tiles offering to "generate an image
+        // elsewhere" with no message and no notice of the refund that DID happen.
+        // These two let it say what actually occurred.
+        imagesRequested: input.generateImages,
+        failedImageCount,
+        refunded: creditCost - actualCreditsCharged,
       },
     });
     } catch (genError) {
