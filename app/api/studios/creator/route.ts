@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildCreatorPrompt } from '@/lib/ai/prompts/creator';
@@ -225,10 +225,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'creator');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: totalCost,
       }, { status: 402 });
     }
@@ -293,7 +304,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           description: 'Full refund: all 4 variations failed',
           generationId: generation.id,
         });
-        await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'all_variations_failed',
+        }, 'creator');
         return NextResponse.json({
           success: false,
           error: refundAwareErrorCode(refundResult, 'All generation attempts failed. Credits refunded.'),
@@ -348,9 +362,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // of at most one 15-minute tick and cannot double-pay: the reconciler
         // derives what it owes from the ledger (SUM(usage) - SUM(refund),
         // 028:169-176), so a refund that DID land leaves nothing owed.
-        if (refundResult.success) {
-          await supabase.from('generations').update({ status: 'failed', error: 'all_variations_failed' }).eq('id', generation.id);
-        }
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'all_variations_failed',
+        }, 'creator');
         return NextResponse.json({
           success: false,
           error: refundAwareErrorCode(refundResult, 'generation_failed'),
@@ -454,7 +469,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             generationId: generation?.id,
           })
         : { success: true };
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'creator');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {

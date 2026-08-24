@@ -1,3 +1,4 @@
+import { failGeneration } from '@/lib/supabase/generation-writes';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
@@ -81,7 +82,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       prompts = parsed;
     } catch {
       if (generation) {
-        await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+        // Nothing was ever reserved for this route, so there is nothing owed and the
+        // row is safe to close. Kept explicit rather than left as a raw write so the
+        // terminal-write invariant has no exceptions to carve out.
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: true,
+          error: 'generation_parse_failed',
+        }, 'prompt-builder');
       }
       return NextResponse.json({
         success: false,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
-import { finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
+import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateImage } from '@/lib/ai/router';
 import { buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
@@ -165,10 +165,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       generationId: generation?.id,
     });
     if (!reserveResult.success) {
-      if (generation) await supabase.from('generations').update({ status: 'failed' }).eq('id', generation.id);
+      // Only a verdict from the RPC BODY proves nothing was charged.
+      // `insufficient_credits` is such a verdict (017_reserve_credits.sql:31) — the
+      // function ran and declined. Any other failure is a transport error, and the
+      // reservation may well have committed with only the reply lost, so the row
+      // must stay in the reconciler's window until the ledger is consulted.
+      const nothingWasCharged = reserveResult.error === 'insufficient_credits';
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: nothingWasCharged,
+          error: 'credit_reservation_failed',
+        }, 'photoshoot');
+      }
       return NextResponse.json({
         success: false,
-        error: reserveResult.error === 'insufficient_credits' ? 'insufficient_credits' : 'credit_reservation_failed',
+        error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed',
         required: creditCost,
       }, { status: 402 });
     }
@@ -271,14 +282,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // all six shots could fail and the user was still charged the full reservation
     // and shown a "successful" grid of empty frames.
     if (successfulShots === 0) {
-      if (generation) {
-        await supabase.from('generations').update({ status: 'failed', error: 'all_shots_failed' }).eq('id', generation.id);
-      }
+      // The refund runs BEFORE the terminal write, and the write is conditional on
+      // it. Marking the row failed first — as this did — hands the credits nowhere
+      // if the refund then fails: the row is already out of the reconciler's scan.
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
         description: 'Refund: all photoshoot shots failed',
         generationId: generation?.id,
       });
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_parse_failed',
+        }, 'photoshoot');
+      }
       return NextResponse.json({
         success: false,
         error: refundAwareErrorCode(refundResult, 'generation_failed'),
@@ -344,7 +361,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             generationId: generation?.id,
           })
         : { success: true };
-      if (generation) await supabase.from('generations').update({ status: 'failed', error: 'generation_failed' }).eq('id', generation.id);
+      if (generation) {
+        await failGeneration(supabase, generation.id, {
+          creditsSettled: refundResult.success,
+          error: 'generation_failed',
+        }, 'photoshoot');
+      }
       // PromptBlockedError carries its own dedicated response (400 + `term`),
       // handled by the outer catch below — don't clobber that with refund_failed.
       if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
