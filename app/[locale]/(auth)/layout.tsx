@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
+import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
 
 /**
  * Auth pages are per-visitor by nature — they read `useSearchParams()` (invite
@@ -47,6 +48,14 @@ export default async function AuthLayout({ children }: AuthLayoutProps): Promise
       </main>
 
       <footer className="px-4 pb-8">
+        {/* Someone arriving here from an English invite email lands on /ar/signup,
+            because ar is the default locale. Without this they had no way to switch
+            except editing the URL — and doing that by hand drops the ?invite= token
+            the live gate requires. LocaleSwitcher carries the query across. */}
+        <div className="mb-4 flex justify-center">
+          <LocaleSwitcher variant="link" />
+        </div>
+
         <nav
           aria-label={t('footer.legalTitle')}
           className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[var(--color-text-muted)]"

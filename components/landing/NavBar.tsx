@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
+import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
 import { Menu, X } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 
@@ -75,6 +76,7 @@ export function NavBar(): React.ReactElement {
 
         {/* Desktop auth buttons */}
         <div className="hidden md:flex items-center gap-3">
+          <LocaleSwitcher />
           <Button variant="ghost" size="sm" asChild>
             <Link href="/login">{t('nav.login')}</Link>
           </Button>
@@ -129,6 +131,11 @@ export function NavBar(): React.ReactElement {
                   </Link>
                 );
               })}
+              <LocaleSwitcher
+                variant="link"
+                className="py-2"
+                onNavigate={() => setMobileOpen(false)}
+              />
               <div className="flex items-center gap-3 pt-2 border-t border-[var(--color-surface-2)]">
                 <Button variant="ghost" size="sm" className="flex-1" asChild>
                   <Link href="/login">{t('nav.login')}</Link>

@@ -644,6 +644,13 @@
     "topUpNow": "Top Up Now",
     "topUpCredits": "Top Up Credits"
   },
+  "localeSwitcher": {
+    "label": "Change language",
+    "names": {
+      "ar": "العربية",
+      "en": "English"
+    }
+  },
   "landing": {
     "nav": {
       "features": "Features",

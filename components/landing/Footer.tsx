@@ -1,5 +1,6 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
+import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
 
 const STUDIO_LINKS = [
   { key: 'studio1', href: '/#studios' },
@@ -104,9 +105,12 @@ export function Footer(): React.ReactElement {
           <p className="text-sm text-[var(--color-text-muted)]">
             {t('footer.copyright')}
           </p>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {t('footer.poweredBy')}
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {t('footer.poweredBy')}
+            </p>
+            <LocaleSwitcher variant="link" />
+          </div>
         </div>
       </div>
     </footer>

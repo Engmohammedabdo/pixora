@@ -644,6 +644,13 @@
     "topUpNow": "اشحن الآن",
     "topUpCredits": "شحن كريدت"
   },
+  "localeSwitcher": {
+    "label": "تغيير اللغة",
+    "names": {
+      "ar": "العربية",
+      "en": "English"
+    }
+  },
   "landing": {
     "nav": {
       "features": "المميزات",
