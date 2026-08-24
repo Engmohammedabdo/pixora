@@ -1,4 +1,5 @@
 import type { AIModel } from '@/types/studios';
+import { isAllowedImageHost } from './allowed-hosts';
 import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
 
@@ -40,13 +41,6 @@ function getMockImageUrl(): string {
  * endpoints, localhost services) and the bytes would be handed to the model.
  * Mirrors the protections already applied in lib/image/watermark.ts.
  */
-const REFERENCE_IMAGE_ALLOWED_HOSTS = [
-  // NOT .supabase.co/.supabase.in: this deployment is self-hosted, so those
-  // matched nothing we own while letting a customer point a reference image at
-  // any free Supabase project they registered.
-  '.pyramedia.cloud',
-  'placehold.co', 'oaidalleapiprodscus.blob.core.windows.net', 'replicate.delivery',
-];
 const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
 
 async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string; base64: string }> {
@@ -58,7 +52,11 @@ async function fetchReferenceImage(imageUrl: string): Promise<{ mimeType: string
 
   const url = new URL(imageUrl);
   if (url.protocol !== 'https:') throw new Error('only HTTPS URLs allowed');
-  if (!REFERENCE_IMAGE_ALLOWED_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith(h))) {
+  // The allowlist lives in lib/ai/allowed-hosts.ts and is matched by exact host or
+  // proper subdomain. This site used to match by bare SUFFIX, which any registrable
+  // domain ending in an allowed name could join — xplacehold.co, notreplicate.delivery
+  // and xoaidalleapiprodscus.blob.core.windows.net all passed.
+  if (!isAllowedImageHost(url.hostname)) {
     throw new Error(`host not allowed: ${url.hostname}`);
   }
 
