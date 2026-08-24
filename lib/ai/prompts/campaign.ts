@@ -23,19 +23,29 @@ const DIALECT_MAP: Record<string, { name: string; guideline: string }> = {
 // v2.0 — matches system-prompts.md campaign_planner_v1
 export function buildCampaignPrompt(input: CampaignPromptInput): string {
   const { productDescription, targetAudience, dialect, platform, occasion, brandName, brandVoice, brandColors } = input;
+  // EVERY value interpolated below reaches the model, so every value below meets
+  // the filter. brandName/brandVoice/brandColors come from a brand_kits SELECT,
+  // not from the request body — a route-level Zod transform could never have
+  // covered them, which is why the rule lives in the builder.
   const safeDesc = sanitizePrompt(productDescription);
+  const safeAudience = sanitizePrompt(targetAudience, 500);
+  const safePlatform = sanitizePrompt(platform, 100);
+  const safeOccasion = occasion ? sanitizePrompt(occasion, 200) : '';
+  const safeBrandName = brandName ? sanitizePrompt(brandName, 100) : '';
+  const safeBrandVoice = brandVoice ? sanitizePrompt(brandVoice, 500) : '';
+  const safeBrandColors = brandColors ? sanitizePrompt(brandColors, 200) : '';
   const dialectInfo = DIALECT_MAP[dialect] || DIALECT_MAP.gulf;
 
   let prompt = `Act as a professional Creative Director and Social Media Strategist specializing in the ${dialectInfo.name} market.`;
 
   prompt += `\n\nClient Brief:`;
   prompt += `\n- Product/Service: ${safeDesc}`;
-  prompt += `\n- Target Audience: ${targetAudience}`;
-  prompt += `\n- Platform: ${platform}`;
-  if (occasion) prompt += `\n- Occasion/Season: ${occasion}`;
-  if (brandName) prompt += `\n- Brand: ${brandName}`;
-  if (brandVoice) prompt += `\n- Brand Voice: ${brandVoice}`;
-  if (brandColors) prompt += `\n- Brand Colors: ${brandColors}`;
+  prompt += `\n- Target Audience: ${safeAudience}`;
+  prompt += `\n- Platform: ${safePlatform}`;
+  if (safeOccasion) prompt += `\n- Occasion/Season: ${safeOccasion}`;
+  if (safeBrandName) prompt += `\n- Brand: ${safeBrandName}`;
+  if (safeBrandVoice) prompt += `\n- Brand Voice: ${safeBrandVoice}`;
+  if (safeBrandColors) prompt += `\n- Brand Colors: ${safeBrandColors}`;
 
   prompt += `\n\nYour task: Create a complete social media campaign with exactly 9 posts.`;
 

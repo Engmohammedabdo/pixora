@@ -1165,6 +1165,124 @@ function writeBaselineFile(entries: string[]): void {
 // Runner
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Invariant: prompt-input-bounded
+// ---------------------------------------------------------------------------
+
+const promptInputBounded: Invariant = {
+  id: 'prompt-input-bounded',
+  title: 'Every z.string() in a studio route InputSchema carries a bound',
+  why:
+    'An unbounded z.string() in a studio route InputSchema is a field a customer ' +
+    'can send megabytes of, and several of them are interpolated into a prompt ' +
+    "sent to a paid model. creator's `style` and voiceover's `tone` were both " +
+    'unbounded and both reached a model; `tone` reached the LLM REWRITE prompt ' +
+    'whose output is read aloud on a paid generation. A bound is not the filter — ' +
+    'sanitizePrompt() is — but an unbounded field is the shape that keeps ' +
+    'producing this defect, and it is mechanically checkable where the filter is ' +
+    'not. Use .max(n), or .uuid()/.url()/.regex() where the format is the bound, ' +
+    'or a z.enum() where the set is closed (better than any of them). Scoped to ' +
+    'InputSchema deliberately: the model-output schemas in these same files parse ' +
+    'text we asked a model for, which is a different question.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+      const open = content.indexOf('const InputSchema = z.object({');
+      if (open === -1) continue;
+      const close = content.indexOf('\n});', open);
+      if (close === -1) continue;
+      const block = content.slice(open, close);
+      const re = /z\s*\.\s*string\s*\(\s*\)((?:\s*\.\s*\w+\s*\([^)]*\))*)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(block))) {
+        // `.min()` is a floor, not a ceiling — it bounds nothing.
+        if (/\.\s*(max|uuid|url|regex|length)\s*\(/.test(m[1] || '')) continue;
+        const idx = open + m.index;
+        violations.push({ file: rel, line: lineAt(content, idx), text: lineTextAt(content, idx) });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Invariant: prompt-builder-sanitized
+// ---------------------------------------------------------------------------
+
+const promptBuilderSanitized: Invariant = {
+  id: 'prompt-builder-sanitized',
+  title: 'A prompt builder interpolates only values it has sanitized',
+  why:
+    'lib/ai/prompts/*.ts builds the string sent to a paid model, and it is where ' +
+    'every channel converges — the request body, a brand_kits SELECT, and the ' +
+    "text model's own output. A route-level Zod transform cannot cover the last " +
+    'two, which is why the rule lives here. The convention is that a filtered ' +
+    'value is named `safeX`, so a bare interpolated identifier that the builder ' +
+    'destructured from its own input is a value that reached the model unfiltered. ' +
+    'This rule would have found the creator brand-kit channel and the storyboard ' +
+    'style/platform channel on its own. Only fields the input interface declares ' +
+    'as `string` are considered: a number cannot carry an injection payload, and a ' +
+    'rule that cries wolf gets deleted.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['lib/ai/prompts'], ['.ts'], false).filter(
+      (f) => !/(safety|versions)\.ts$/.test(f)
+    );
+    for (const file of files) {
+      const content = readFileSync(file, 'utf8');
+      const rel = toRel(file);
+
+      const stringFields = new Set<string>();
+      const ifaceRe = /interface\s+\w*PromptInput\s*\{([\s\S]*?)\n\}/g;
+      let iface: RegExpExecArray | null;
+      while ((iface = ifaceRe.exec(content))) {
+        for (const line of iface[1].split('\n')) {
+          const f = /^\s*(\w+)\??\s*:\s*([^;]+);/.exec(line);
+          if (f && /\bstring\b/.test(f[2])) stringFields.add(f[1]);
+        }
+      }
+      if (stringFields.size === 0) continue;
+
+      // An identifier interpolated INSIDE a sanitizePrompt(...) call is the
+      // argument being filtered, not an escape past the filter.
+      const sanitized: Array<[number, number]> = [];
+      const callRe = /sanitizePrompt\s*\(/g;
+      let c: RegExpExecArray | null;
+      while ((c = callRe.exec(content))) {
+        let depth = 0;
+        let i = c.index + c[0].length - 1;
+        for (; i < content.length; i++) {
+          if (content[i] === '(') depth++;
+          else if (content[i] === ')') {
+            depth--;
+            if (depth === 0) break;
+          }
+        }
+        sanitized.push([c.index, i]);
+      }
+
+      // The WHOLE `${...}` expression is inspected, so a ternary such as
+      // `${platform ? safePlatform : 'general use'}` correctly passes.
+      const interpRe = /\$\{([^}]*)\}/g;
+      let m: RegExpExecArray | null;
+      while ((m = interpRe.exec(content))) {
+        if (sanitized.some(([a, b]) => m!.index >= a && m!.index <= b)) continue;
+        const expr = m[1];
+        if (/safe[A-Z]\w*/.test(expr)) continue;
+        const first = /^\s*([A-Za-z_$][\w$]*)/.exec(expr);
+        if (!first || !stringFields.has(first[1])) continue;
+        violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+      }
+    }
+    return violations;
+  },
+};
+
 const INVARIANTS: Invariant[] = [
   msgParity,
   msgNoEmpty,
@@ -1178,6 +1296,8 @@ const INVARIANTS: Invariant[] = [
   noVhDialogOverride,
   noArabicLiteralsInTsx,
   contrastTokens,
+  promptInputBounded,
+  promptBuilderSanitized,
 ];
 
 function parseArgList(flag: string): Set<string> | null {

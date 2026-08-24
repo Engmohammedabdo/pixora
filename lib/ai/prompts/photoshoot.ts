@@ -1,4 +1,5 @@
 import type { BrandKit } from '@/lib/supabase/types';
+import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
 
 interface PhotoshootPromptInput {
@@ -459,7 +460,9 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
   }
   if (notes) {
     prompt += `\n\nCLIENT DIRECTION`;
-    prompt += `\n${notes}`;
+    // Free customer text going straight to the image model. The route filters it
+    // too; this is the belt-and-braces half, so no future caller can route around it.
+    prompt += `\n${sanitizePrompt(notes, 1000)}`;
   }
 
   return prompt;

@@ -30,6 +30,9 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
   // path is truncated back onto it.
   const safePrompt = sanitizePrompt(userPrompt);
   const safeStyle = sanitizePrompt(style, 100);
+  // A closed z.enum at the route today; the builder's own type is `string`, and a
+  // future caller is exactly how an unfiltered field gets wired up.
+  const safeResolution = sanitizePrompt(resolution, 20);
   const safeMood = sanitizePrompt(mood || 'Professional', 100);
   const safePlatform = sanitizePrompt(platform || 'General', 100);
   const safeBrandName = brandKit ? sanitizePrompt(String(brandKit.name ?? ''), 100) : '';
@@ -55,7 +58,7 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
   prompt += `\n- Visual Style: ${safeStyle}`;
   prompt += `\n- Mood: ${safeMood}`;
   prompt += `\n- Platform: ${safePlatform}`;
-  prompt += `\n- Resolution: ${resolution}`;
+  prompt += `\n- Resolution: ${safeResolution}`;
 
   prompt += `\n\nTechnical Requirements:`;
   prompt += `\n- STRICTLY PRESERVE all original brand elements`;

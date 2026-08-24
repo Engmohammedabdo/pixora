@@ -14,19 +14,31 @@ interface AnalysisPromptInput {
 // v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   const { businessName, industry, description, competitors, targetMarket, painPoints, stage } = input;
+  // EVERY value interpolated below reaches the model, so every value below meets
+  // the filter. Sanitizing only `description` was never the rule — it was the only
+  // field anyone had got to. `competitors` is customer-supplied too and is joined
+  // into one line, so it is filtered after the join.
   const safeDesc = sanitizePrompt(description);
-  const competitorList = competitors.filter(Boolean).join(', ') || 'Not specified';
+  const safeBusinessName = sanitizePrompt(businessName, 200);
+  const safeIndustry = sanitizePrompt(industry, 100);
+  const safeTargetMarket = sanitizePrompt(targetMarket, 500);
+  const safeStage = sanitizePrompt(stage || 'Growth', 100);
+  const safePainPoints = sanitizePrompt(painPoints || 'Not specified', 1000);
+  const safeCompetitorList = sanitizePrompt(
+    competitors.filter(Boolean).join(', ') || 'Not specified',
+    1000
+  );
 
-  let prompt = `You are a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${industry} industry.`;
+  let prompt = `You are a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${safeIndustry} industry.`;
 
   prompt += `\n\nBusiness Under Analysis:`;
-  prompt += `\n- Name: ${businessName}`;
-  prompt += `\n- Industry: ${industry}`;
+  prompt += `\n- Name: ${safeBusinessName}`;
+  prompt += `\n- Industry: ${safeIndustry}`;
   prompt += `\n- Description: ${safeDesc}`;
-  prompt += `\n- Current Stage: ${stage || 'Growth'}`;
-  prompt += `\n- Target Market: ${targetMarket}`;
-  prompt += `\n- Main Competitors: ${competitorList}`;
-  prompt += `\n- Current Challenges: ${painPoints || 'Not specified'}`;
+  prompt += `\n- Current Stage: ${safeStage}`;
+  prompt += `\n- Target Market: ${safeTargetMarket}`;
+  prompt += `\n- Main Competitors: ${safeCompetitorList}`;
+  prompt += `\n- Current Challenges: ${safePainPoints}`;
 
   prompt += `\n\nProvide a comprehensive marketing analysis. Return as valid JSON with these exact keys:`;
   prompt += `\n{`;

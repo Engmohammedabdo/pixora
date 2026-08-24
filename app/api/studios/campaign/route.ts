@@ -18,7 +18,11 @@ const InputSchema = z.object({
   productDescription: z.string().min(10).max(2000),
   targetAudience: z.string().min(5).max(500),
   dialect: z.enum(['saudi', 'emirati', 'egyptian', 'gulf', 'formal']),
-  platform: z.string().min(1),
+  // A closed set in the only client that posts here
+  // (components/studios/campaign/CampaignForm.tsx:36), and it is interpolated into
+  // both the campaign prompt and each image prompt. An enum makes the set of
+  // reachable prompts finite rather than merely bounded.
+  platform: z.enum(['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook']),
   occasion: z.string().max(200).optional(),
   brandKitId: z.string().uuid().optional(),
   generateImages: z.boolean().default(false),
