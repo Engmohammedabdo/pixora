@@ -48,6 +48,21 @@ function occurs(label: string, haystack: string, needle: string, expected: numbe
   }
 }
 
+/** A builder that MUST refuse. Every field a builder interpolates is customer
+ *  text, so "this one reaches the model" and "this one is filtered" are the
+ *  same claim — a new field that only ever got the first half is exactly the
+ *  gap `prompt-builder-sanitized` exists for. */
+function throws(label: string, fn: () => unknown): void {
+  checks++;
+  try {
+    fn();
+    failures++;
+    console.log(`FAIL  ${label}\n        expected the builder to throw, it returned a prompt`);
+  } catch {
+    /* expected */
+  }
+}
+
 const planInput = {
   businessName: 'Acme Coffee',
   industry: 'restaurant',
@@ -110,6 +125,44 @@ const planInput = {
     'plan: a RESOLVABLE industry does reach the "- Industry:" line',
     buildPlanPrompt({ ...planInput, industry: 'real_estate' }),
     '- Industry: real estate'
+  );
+}
+
+// ---- plan: the "other" escape hatch (review finding F11) ----
+//
+// `plan-industry` used to be a free-text <Input>; it is seven chips now, and
+// `INDUSTRY_NAMES.other` is '', so a customer whose trade has no chip picked
+// أخرى and spent 5 credits on a plan generated with ZERO knowledge of what
+// they sell. This studio has no description field, so there was no other
+// channel. `industryOther` is that channel — carried as DESCRIPTION-level
+// context, never as `industry`, so `industryName()` still governs the persona.
+{
+  const p = buildPlanPrompt({ ...planInput, industry: 'other', industryOther: 'car rental' });
+  contains('plan: "other" + free text reaches the model', p, '- What the business does: car rental');
+  contains('plan: the persona still degrades to cross-industry', p, 'cross-industry');
+  omits('plan: free text is never spliced into the persona', p, 'car rental businesses');
+  omits('plan: free text never becomes an "- Industry:" line', p, '- Industry:');
+}
+{
+  // The `else` matters and is not decoration. A prompt carrying BOTH a
+  // resolved industry and a contradicting free-text one is F2's
+  // two-identities defect at half the size, and a hostile or restored payload
+  // can send both — the route deliberately does not enum-constrain `industry`.
+  const p = buildPlanPrompt({ ...planInput, industry: 'retail', industryOther: 'car rental' });
+  contains('plan: a resolvable industry still wins', p, '- Industry: retail');
+  omits('plan: the free-text line is suppressed when an industry resolved', p, 'What the business does');
+}
+{
+  // Nothing typed must not print an empty line, and the filter must still run
+  // over the free text — it is customer-typed and reaches the model.
+  omits(
+    'plan: an empty industryOther prints no line',
+    buildPlanPrompt({ ...planInput, industry: 'other', industryOther: '' }),
+    'What the business does'
+  );
+  throws(
+    'plan: a blocked term in industryOther is refused',
+    () => buildPlanPrompt({ ...planInput, industry: 'other', industryOther: 'gun accessories' })
   );
 }
 

@@ -76,9 +76,23 @@ export default function PlanPage(): React.ReactElement {
   // placeholder like {term} rendered as literal text.
   const tStudio = useTranslations('studio');
   const tPlan = useTranslations('plan');
+  // ONE industry label set. `plan.industries`, `analysis.industries` and
+  // `brandKit.industries` were three copies of the same seven slugs, and all
+  // three disagreed — en Restaurant/Restaurants/Restaurant, ar SaaS/برمجيات/
+  // برمجيات — so the same brand kit read as a different industry depending on
+  // which screen the customer was looking at.
+  const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
+  // Revealed by the أخرى chip. `INDUSTRY_NAMES.other` is '', so before this
+  // field existed a customer whose trade had no chip — a Dubai car-rental
+  // owner, say — picked أخرى, spent 5 credits, and received a plan generated
+  // with zero knowledge of what they sell. This studio has no description
+  // field, so there was no other channel; before the chip grid they simply
+  // typed "تأجير سيارات". Carried to the route as description-level context,
+  // never as `industry`.
+  const [industryOther, setIndustryOther] = useState('');
   const [goals, setGoals] = useState<string[]>([]);
   const [targetMarket, setTargetMarket] = useState('');
   const [budget, setBudget] = useState('$1,000 - $2,000');
@@ -143,7 +157,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
+        body: JSON.stringify({ businessName, industry, industryOther: industryOther.trim() || undefined, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -151,7 +165,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, defaultKit?.id]);
+  }, [isValid, businessName, industry, industryOther, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, defaultKit?.id]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -165,12 +179,23 @@ export default function PlanPage(): React.ReactElement {
         <Label>{tPlan('industry')}</Label>
         <div className="grid grid-cols-2 gap-2">
           {INDUSTRIES.map((ind) => (
-            <button key={ind} type="button" onClick={() => setIndustry(ind)} aria-pressed={industry === ind}
+            <button key={ind} type="button" onClick={() => setIndustry((prev) => (prev === ind ? '' : ind))} aria-pressed={industry === ind}
               className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', industry === ind ? selectedChipClasses : unselectedChipClasses)}>
-              {tPlan(`industries.${ind}`)}
+              {tIndustries(ind)}
             </button>
           ))}
         </div>
+        {industry === 'other' && (
+          <Input
+            id="plan-industry-other"
+            value={industryOther}
+            onChange={(e) => setIndustryOther(e.target.value)}
+            onKeyDown={handleSubmitKeyDown}
+            placeholder={tPlan('industryOtherPlaceholder')}
+            aria-label={tPlan('industryOther')}
+            maxLength={100}
+          />
+        )}
       </div>
       <div className="space-y-2">
         <Label>{tPlan('goals')}</Label>
@@ -208,7 +233,29 @@ export default function PlanPage(): React.ReactElement {
         onRestore={(output, input) => {
           setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null);
           setBusinessName(inputText(input, 'businessName'));
-          setIndustry(inputText(input, 'industry'));
+          // A stored `industry` is only a chip if it is one of the seven slugs.
+          // Rows written before the chip grid carry free text ("تأجير سيارات"),
+          // and `brand_kits.industry` is deliberately unconstrained, so a
+          // restored value can be anything. Set raw, it rendered NO selected
+          // chip while `isValid` still passed on length — and the customer paid
+          // 5 credits for a plan silently carrying no industry at all. Routed
+          // into the أخرى escape hatch instead, where it is visible, editable
+          // and actually reaches the model.
+          const restoredIndustry = inputText(input, 'industry');
+          const restoredOther = inputText(input, 'industryOther');
+          if (isIndustry(restoredIndustry)) {
+            setIndustry(restoredIndustry);
+            // Only `other` has a free-text companion; anything else must clear
+            // it, or a previous run's activity text survives onto a different
+            // industry — two identities on one deliverable again.
+            setIndustryOther(restoredIndustry === 'other' ? restoredOther : '');
+          } else if (restoredIndustry || restoredOther) {
+            setIndustry('other');
+            setIndustryOther(restoredOther || restoredIndustry);
+          } else {
+            setIndustry('');
+            setIndustryOther('');
+          }
           setTargetMarket(inputText(input, 'targetMarket'));
         }}
         refreshKey={runs}

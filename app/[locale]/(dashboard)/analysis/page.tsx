@@ -71,6 +71,9 @@ export default function AnalysisPage(): React.ReactElement {
   // placeholder like {term} rendered as literal text.
   const tStudio = useTranslations('studio');
   const tAn = useTranslations('analysis');
+  // The one industry label set — see app/[locale]/(dashboard)/plan/page.tsx for
+  // why three copies of it existed and how they had already drifted.
+  const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -153,9 +156,9 @@ export default function AnalysisPage(): React.ReactElement {
         <Label>{tAn('industry')}</Label>
         <div className="grid grid-cols-2 gap-2">
           {INDUSTRIES.map((ind) => (
-            <button key={ind} type="button" onClick={() => setIndustry(ind)} aria-pressed={industry === ind}
+            <button key={ind} type="button" onClick={() => setIndustry((prev) => (prev === ind ? '' : ind))} aria-pressed={industry === ind}
               className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', industry === ind ? selectedChipClasses : unselectedChipClasses)}>
-              {tAn(`industries.${ind}`)}
+              {tIndustries(ind)}
             </button>
           ))}
         </div>

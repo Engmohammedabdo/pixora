@@ -19,6 +19,15 @@
     "close": "Close",
     "or": "or"
   },
+  "industries": {
+    "restaurant": "Restaurants",
+    "clinic": "Clinics",
+    "retail": "Retail",
+    "saas": "SaaS",
+    "real_estate": "Real Estate",
+    "education": "Education",
+    "other": "Other"
+  },
   "auth": {
     "login": "Log In",
     "signup": "Sign Up",
@@ -153,15 +162,6 @@
     "namePlaceholder": "Enter brand name",
     "businessInfo": "Business Information",
     "industry": "Industry",
-    "industries": {
-      "restaurant": "Restaurant",
-      "clinic": "Clinic",
-      "retail": "Retail",
-      "saas": "SaaS",
-      "real_estate": "Real Estate",
-      "education": "Education",
-      "other": "Other"
-    },
     "websiteUrl": "Website",
     "websiteUrlPlaceholder": "https://example.com",
     "city": "City",
@@ -400,15 +400,8 @@
   "plan": {
     "businessName": "Business Name",
     "industry": "Industry",
-    "industries": {
-      "restaurant": "Restaurants",
-      "clinic": "Clinics",
-      "retail": "Retail",
-      "saas": "SaaS",
-      "real_estate": "Real Estate",
-      "education": "Education",
-      "other": "Other"
-    },
+    "industryOther": "What does the business actually do?",
+    "industryOtherPlaceholder": "e.g. car rental, a gym, a travel agency…",
     "goals": "Goals",
     "brandAwareness": "Brand Awareness",
     "leadGeneration": "Lead Generation",
@@ -555,15 +548,6 @@
     "strength": "Strength",
     "weakness": "Weakness",
     "description": "Comprehensive CMO-level marketing analysis",
-    "industries": {
-      "restaurant": "Restaurant",
-      "clinic": "Clinic",
-      "retail": "Retail",
-      "saas": "SaaS",
-      "real_estate": "Real Estate",
-      "education": "Education",
-      "other": "Other"
-    },
     "businessNamePlaceholder": "Example: PyraSuite",
     "descriptionPlaceholder": "A detailed description of your business...",
     "competitorPlaceholder": "Competitor {number}",

@@ -19,6 +19,15 @@
     "close": "إغلاق",
     "or": "أو"
   },
+  "industries": {
+    "restaurant": "مطاعم",
+    "clinic": "عيادات",
+    "retail": "تجزئة",
+    "saas": "برمجيات",
+    "real_estate": "عقارات",
+    "education": "تعليم",
+    "other": "أخرى"
+  },
   "auth": {
     "login": "تسجيل الدخول",
     "signup": "إنشاء حساب",
@@ -153,15 +162,6 @@
     "namePlaceholder": "أدخل اسم العلامة التجارية",
     "businessInfo": "معلومات العمل",
     "industry": "القطاع",
-    "industries": {
-      "restaurant": "مطاعم",
-      "clinic": "عيادات",
-      "retail": "تجزئة",
-      "saas": "برمجيات",
-      "real_estate": "عقارات",
-      "education": "تعليم",
-      "other": "أخرى"
-    },
     "websiteUrl": "الموقع الإلكتروني",
     "websiteUrlPlaceholder": "https://example.com",
     "city": "المدينة",
@@ -400,15 +400,8 @@
   "plan": {
     "businessName": "اسم العمل",
     "industry": "القطاع",
-    "industries": {
-      "restaurant": "مطاعم",
-      "clinic": "عيادات",
-      "retail": "تجزئة",
-      "saas": "برمجيات",
-      "real_estate": "عقارات",
-      "education": "تعليم",
-      "other": "أخرى"
-    },
+    "industryOther": "إيه نشاط العمل بالظبط؟",
+    "industryOtherPlaceholder": "مثال: تأجير سيارات، صالة رياضية، مكتب سفريات…",
     "goals": "الأهداف",
     "brandAwareness": "وعي العلامة",
     "leadGeneration": "توليد عملاء",
@@ -555,15 +548,6 @@
     "strength": "القوة",
     "weakness": "الضعف",
     "description": "تحليل تسويقي شامل CMO-level",
-    "industries": {
-      "restaurant": "مطاعم",
-      "clinic": "عيادات",
-      "retail": "تجزئة",
-      "saas": "SaaS",
-      "real_estate": "عقارات",
-      "education": "تعليم",
-      "other": "أخرى"
-    },
     "businessNamePlaceholder": "مثال: PyraSuite",
     "descriptionPlaceholder": "وصف مفصل عن عملك...",
     "competitorPlaceholder": "منافس {number}",

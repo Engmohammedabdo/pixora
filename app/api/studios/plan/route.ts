@@ -29,6 +29,13 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
+  // Free text the customer typed after picking أخرى. Deliberately NOT
+  // `z.enum(INDUSTRIES)` on `industry` above and deliberately not required
+  // here: tightening the slug would turn a quality loss into a 400 on every
+  // restore of a historical row, and this field is what carries the fact
+  // instead. It reaches the prompt as description-level context only —
+  // `industryName()` still governs the persona (lib/ai/prompts/plan.ts).
+  industryOther: z.string().max(100).optional(),
   goals: z.array(z.string().max(200)).min(1).max(10),
   targetMarket: z.string().min(5).max(500),
   budget: z.string().min(1).max(200),
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ...input,
       businessName: sanitizePrompt(input.businessName, 200),
       industry: sanitizePrompt(input.industry, 100),
+      industryOther: input.industryOther ? sanitizePrompt(input.industryOther, 100) : undefined,
       targetMarket: sanitizePrompt(input.targetMarket, 500),
       budget: sanitizePrompt(input.budget, 200),
       goals: input.goals.map((g) => sanitizePrompt(g, 200)),

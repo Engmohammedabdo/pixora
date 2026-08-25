@@ -55,6 +55,9 @@ export function BrandKitForm({
 }: BrandKitFormProps): React.ReactElement {
   const t = useTranslations('brandKit');
   const tCommon = useTranslations('common');
+  // The one industry label set — see app/[locale]/(dashboard)/plan/page.tsx for
+  // why three copies of it existed and how they had already drifted.
+  const tIndustries = useTranslations('industries');
 
   const [name, setName] = useState(initialData?.name || '');
   const [logoUrl, setLogoUrl] = useState<string | null>(initialData?.logo_url || null);
@@ -145,14 +148,14 @@ export function BrandKitForm({
               <button
                 key={ind}
                 type="button"
-                onClick={() => setIndustry(ind)}
+                onClick={() => setIndustry((prev) => (prev === ind ? '' : ind))}
                 aria-pressed={industry === ind}
                 className={cn(
                   'rounded-lg border px-3 py-2 text-xs transition-colors',
                   industry === ind ? selectedChipClasses : unselectedChipClasses
                 )}
               >
-                {t(`industries.${ind}`)}
+                {tIndustries(ind)}
               </button>
             ))}
           </div>

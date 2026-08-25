@@ -6,6 +6,24 @@ import { buildBrandContextBlock, type BrandContextPromptInput } from './brand-co
 interface PlanPromptInput {
   businessName: string;
   industry: string;
+  /**
+   * Free text the customer typed after picking أخرى, e.g. "تأجير سيارات".
+   *
+   * The plan studio's industry used to be an <Input>; it is seven chips now,
+   * and `INDUSTRY_NAMES.other` is '', so a Dubai car-rental owner who found no
+   * chip spent 5 credits on a plan generated with ZERO knowledge of what they
+   * sell — this studio has no description field, so there was no other
+   * channel. Mitigated only for a customer who HAS a brand kit with a
+   * description, i.e. not the one who skipped onboarding.
+   *
+   * Carried as DESCRIPTION-level context, never as `industry`: `industryName()`
+   * still governs the persona, so free text can never be spliced into
+   * "expertise in ___ businesses" — the defect P0.1 fixed and the reason the
+   * route's schema is deliberately NOT tightened to `z.enum(INDUSTRIES)`
+   * (that would turn a quality loss into a 400 on every restore of a
+   * historical row).
+   */
+  industryOther?: string;
   goals: string[];
   targetMarket: string;
   budget: string;
@@ -28,7 +46,7 @@ interface PlanPromptInput {
 
 // v2.0 — matches system-prompts.md marketing_plan_v1
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  const { businessName, industry, goals, targetMarket, budget, duration, stage, locale, brandContext } = input;
+  const { businessName, industry, industryOther, goals, targetMarket, budget, duration, stage, locale, brandContext } = input;
 
   // This builder imported sanitizePrompt and never called it, so `plan` was the
   // one paid studio with NO prompt filter in front of the model — and the
@@ -55,6 +73,7 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // an unresolved industry now omits the line entirely (see the `- Industry:`
   // line below), the same rule buildBrandContextBlock already applies.
   const resolvedIndustry = industryName(industry);
+  const safeIndustryOther = industryOther ? sanitizePrompt(industryOther, 100) : '';
   const safeStage = stage ? sanitizePrompt(stage, 100) : '';
   const safeTargetMarket = sanitizePrompt(targetMarket, 500);
   const safeBudget = sanitizePrompt(budget, 200);
@@ -78,6 +97,13 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // line entirely. It never falls back to the raw value — that is what
   // produced "Industry: مطاعم" reaching the model.
   if (resolvedIndustry) prompt += `\n- Industry: ${resolvedIndustry}`;
+  // The escape hatch, and note the `else`: it emits ONLY when nothing resolved.
+  // A prompt carrying both a resolved industry and a contradicting free-text
+  // one is the two-identities defect F2 fixed, at half the size. It is also a
+  // deliberately DIFFERENT label from `- Industry:` — this is a description of
+  // what the business does, not a taxonomy entry, and calling it one would put
+  // free text back where the persona reads from.
+  else if (safeIndustryOther) prompt += `\n- What the business does: ${safeIndustryOther}`;
   // Only when the caller actually has one. This used to emit `Growth` whenever
   // `stage` was absent — which is ALWAYS, because nothing in the product collects
   // it — so every plan ever generated was steered by an invented fact.
