@@ -3,6 +3,11 @@ import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { checkKeyedRateLimit } from '@/lib/rate-limit';
 import { getN8nBrandDnaConfig } from '@/lib/brand-kits/extract-config';
+// A route.ts cannot export anything but its handlers (Next's generated types
+// constrain every other name to `never`), so the upstream shape lives in lib/
+// where scripts/tests/brand-extract.test.ts can drive the REAL schema rather
+// than a re-implementation that would pass while this route regressed.
+import { UpstreamSuccessSchema } from '@/lib/brand-kits/extract-upstream';
 
 /**
  * POST /api/brand-kits/extract — the app side of URL -> brand-DNA extraction.
@@ -37,35 +42,6 @@ const RATE_LIMIT_WINDOW_MINUTES = 60;
 
 const ExtractInputSchema = z.object({
   url: z.string().trim().min(4).max(500),
-});
-
-// A known draft field is a string when the workflow found it, or `null`/absent
-// when it did not — never any other type. `.loose()` on the object (not
-// `.strict()`) because lib/brand-kits/extract-draft.ts's `parseExtractDraft()`
-// already reads only these known keys and ignores anything else; rejecting an
-// unrecognised extra key here would fail a shape that downstream tolerates
-// fine. `missing` is a flat array of strings — see expandMissingFields().
-const upstreamDraftField = z.string().nullable().optional();
-
-const UpstreamSuccessSchema = z.object({
-  ok: z.literal(true),
-  draft: z
-    .object({
-      name: upstreamDraftField,
-      website_url: upstreamDraftField,
-      industry: upstreamDraftField,
-      description: upstreamDraftField,
-      target_audience: upstreamDraftField,
-      city: upstreamDraftField,
-      brand_voice: upstreamDraftField,
-      primary_color: upstreamDraftField,
-      secondary_color: upstreamDraftField,
-      accent_color: upstreamDraftField,
-      font_primary: upstreamDraftField,
-      font_secondary: upstreamDraftField,
-    })
-    .loose(),
-  missing: z.array(z.string()),
 });
 
 // Deliberately loose: only used to read optional diagnostic fields for OUR

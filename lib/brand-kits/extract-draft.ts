@@ -17,7 +17,14 @@
  * `primary_color`, `secondary_color`, `accent_color`, `font_primary` and
  * `font_secondary` can be `null`. `industry` is '' or one of
  * `lib/industries.ts`'s seven slugs — never free text.
+ *
+ * That last sentence is what the workflow DOES, not something this repo can
+ * rely on: it is unversioned and its response shape has changed four times
+ * this session. `industrySlugOrEmpty()` below enforces it here, which is the
+ * only place the enforcement is under this repo's control.
  */
+
+import { isIndustry } from '@/lib/industries';
 
 export interface ExtractDraft {
   name: string;
@@ -45,8 +52,50 @@ function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function colorOrNull(value: unknown): string | null {
+/** A non-empty string, or null. Used for the two FONT fields, which were read
+ *  with `colorOrNull()` — behaviourally identical, but the name asserted
+ *  something false about the fields it was applied to. */
+function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * `#RRGGBB` or null — the exact shape `CreateBrandKitSchema` accepts
+ * (`/^#[0-9A-Fa-f]{6}$/`).
+ *
+ * This used to be a bare non-empty-string check, so `rgb(255,0,0)` or `#FFF`
+ * from the crawl seeded the colour pickers, looked like a found fact, and
+ * 400'd on Save. Returning null instead makes `expandMissingFields` render the
+ * "we couldn't find this" badge — which is the truth — and leaves the picker
+ * on its own default.
+ */
+function hexColorOrNull(value: unknown): string | null {
+  return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : null;
+}
+
+/**
+ * `''` for anything that is not one of `lib/industries.ts`'s seven slugs.
+ *
+ * The doc comment above claims the workflow only ever emits a slug or ''. That
+ * claim is TRUE of the workflow as read on 2026-08-25 — and it is a claim
+ * about an unversioned n8n workflow whose response shape has changed four
+ * times this session, enforced by nothing in this repo. If it ever returned
+ * `"restaurants"`, that string passed `z.string()`, the 1-40 cap and migration
+ * 045's CHECK (deliberately not enum-constrained), and was STORED. Thereafter
+ * `industryName('restaurants')` returns '' forever: no chip renders selected,
+ * no missing badge shows (`expandMissingFields` only flagged an EMPTY
+ * industry), and the industry line is silently omitted from every plan,
+ * analysis, creator, campaign, storyboard and photoshoot prompt. A stored fact
+ * the whole feature exists to carry, carried by nothing, with no error
+ * anywhere.
+ *
+ * Note the asymmetry this closes: `plan/page.tsx` and `analysis/page.tsx`
+ * already guard their prefill with `isIndustry()`. The components that WRITE
+ * the column did not.
+ */
+function industrySlugOrEmpty(value: unknown): string {
+  const s = str(value);
+  return isIndustry(s) ? s : '';
 }
 
 export function parseExtractDraft(raw: unknown): ExtractDraft {
@@ -54,16 +103,16 @@ export function parseExtractDraft(raw: unknown): ExtractDraft {
   return {
     name: str(d.name),
     website_url: str(d.website_url),
-    industry: str(d.industry),
+    industry: industrySlugOrEmpty(d.industry),
     description: str(d.description),
     target_audience: str(d.target_audience),
     city: str(d.city),
     brand_voice: str(d.brand_voice),
-    primary_color: colorOrNull(d.primary_color),
-    secondary_color: colorOrNull(d.secondary_color),
-    accent_color: colorOrNull(d.accent_color),
-    font_primary: colorOrNull(d.font_primary),
-    font_secondary: colorOrNull(d.font_secondary),
+    primary_color: hexColorOrNull(d.primary_color),
+    secondary_color: hexColorOrNull(d.secondary_color),
+    accent_color: hexColorOrNull(d.accent_color),
+    font_primary: textOrNull(d.font_primary),
+    font_secondary: textOrNull(d.font_secondary),
   };
 }
 
@@ -91,7 +140,13 @@ export function expandMissingFields(rawMissing: unknown, draft: ExtractDraft): s
   const flagged = new Set(Array.isArray(rawMissing) ? rawMissing.filter((v): v is string => typeof v === 'string') : []);
   const out = new Set<string>();
 
-  if (flagged.has('industry') || !draft.industry) out.add('industry');
+  // `!isIndustry(...)`, not `!draft.industry`: a value that is present but not
+  // one of the seven slugs renders no selected chip, so a customer looking at
+  // this form sees the industry question apparently unanswered with nothing
+  // saying so. Stated on the value rather than on its emptiness, this holds
+  // even if a caller ever hands over a draft `parseExtractDraft` did not
+  // produce.
+  if (flagged.has('industry') || !isIndustry(draft.industry)) out.add('industry');
   if (flagged.has('city') || !draft.city) out.add('city');
   if (flagged.has('colors') || !draft.primary_color) out.add('primary_color');
   if (flagged.has('colors') || !draft.secondary_color) out.add('secondary_color');

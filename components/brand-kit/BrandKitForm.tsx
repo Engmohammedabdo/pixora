@@ -60,7 +60,19 @@ export function BrandKitForm({
   const [logoUrl, setLogoUrl] = useState<string | null>(initialData?.logo_url || null);
   // Migration 045's business columns. Nullable on the wire, empty string in
   // form state — the same pattern brandVoice already used below.
-  const [industry, setIndustry] = useState(initialData?.industry || '');
+  // Only a slug the chip grid below can render as selected. `brand_kits.industry`
+  // is deliberately NOT enum-constrained (migration 045: "that list is allowed to
+  // grow, and a database that refuses a slug the code has already shipped is an
+  // outage"), it is customer-writable straight over PostgREST, and an extraction
+  // draft carries whatever the n8n workflow returned. Seeded raw, an unrecognised
+  // value rendered NO selected chip and no "we couldn't find this" badge, and was
+  // then written straight back to the column on Save — where `industryName()`
+  // returns '' for it forever, silently omitting the industry line from every
+  // studio prompt. `plan/page.tsx` and `analysis/page.tsx` already guard their
+  // prefill this way; the component that WRITES the column did not.
+  const [industry, setIndustry] = useState(
+    isIndustry(initialData?.industry ?? '') ? (initialData?.industry ?? '') : ''
+  );
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.website_url || '');
   const [city, setCity] = useState(initialData?.city || '');
   const [targetAudience, setTargetAudience] = useState(initialData?.target_audience || '');
@@ -237,13 +249,21 @@ export function BrandKitForm({
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* `maxLength` matches `brandKitSharedFields.font_*`'s 50. These were
+              the only two Inputs in this form without one, and they are exactly
+              the two fields the extraction workflow does NOT clip — its font
+              source regex returns `var(--wp--preset--font-family--…)` on any
+              WordPress/Elementor site, well past 50. `maxLength` does not
+              truncate a programmatically-set value, so the route's own cap
+              (upstreamText(50)) is what protects the seeded case; this one
+              protects what the customer types. */}
           <div className="space-y-2">
             <Label>{t('primaryFont')}</Label>
-            <Input value={fontPrimary} onChange={(e) => setFontPrimary(e.target.value)} />
+            <Input value={fontPrimary} onChange={(e) => setFontPrimary(e.target.value)} maxLength={50} />
           </div>
           <div className="space-y-2">
             <Label>{t('secondaryFont')}</Label>
-            <Input value={fontSecondary} onChange={(e) => setFontSecondary(e.target.value)} />
+            <Input value={fontSecondary} onChange={(e) => setFontSecondary(e.target.value)} maxLength={50} />
           </div>
         </div>
       </div>

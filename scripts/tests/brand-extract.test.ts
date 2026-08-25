@@ -33,6 +33,9 @@ import {
   BRAND_EXTRACT_ERROR_MESSAGE_KEYS,
 } from '../../lib/brand-kits/extract-errors';
 import { getN8nBrandDnaConfig } from '../../lib/brand-kits/extract-config';
+import { UpstreamSuccessSchema } from '../../lib/brand-kits/extract-upstream';
+import { parseExtractDraft, expandMissingFields } from '../../lib/brand-kits/extract-draft';
+import { INDUSTRIES } from '../../lib/industries';
 
 let failures = 0;
 let checks = 0;
@@ -214,6 +217,137 @@ setEnv('https://n8n.pyramedia.info/webhook/pyra-brand-dna', 'a-real-secret');
 // Restore, so this file has no effect on anything run after it in the same
 // process (e.g. `prebuild` chains many of these together).
 setEnv(savedUrl, savedSecret);
+
+// ---------------------------------------------------------------------------
+// 5. What the upstream workflow returns is BOUNDED and, for `industry`,
+//    CONSTRAINED — inside this repo, not by a claim about an unversioned n8n
+//    workflow whose response shape has changed four times this session.
+//
+//    Review finding F4. Sequence A (over-long font names) produced the same
+//    dead end as C1 on the branch's headline feature. Sequence B is worse
+//    because it is SILENT: an unrecognised slug got no chip AND no
+//    "we couldn't find this" badge, was stored, and was then omitted from
+//    every studio prompt forever with no error anywhere.
+// ---------------------------------------------------------------------------
+
+const wpFontFamily = 'var(--wp--preset--font-family--system-font-that-goes-on-and-on-and-on)';
+
+{
+  const parsed = UpstreamSuccessSchema.safeParse({
+    ok: true,
+    draft: {
+      name: 'x'.repeat(300),
+      website_url: `https://example.com/${'a'.repeat(900)}`,
+      industry: 'y'.repeat(200),
+      description: 'd'.repeat(5000),
+      target_audience: 't'.repeat(900),
+      city: 'c'.repeat(400),
+      brand_voice: 'v'.repeat(900),
+      primary_color: '#123456789abc',
+      secondary_color: null,
+      accent_color: null,
+      font_primary: wpFontFamily,
+      font_secondary: wpFontFamily,
+      // An unknown key must still pass — the object is `.loose()` on purpose.
+      logo_url: 'https://example.com/logo.png',
+    },
+    missing: [],
+  });
+
+  checks++;
+  if (!parsed.success) {
+    failures++;
+    console.log(
+      `FAIL  an over-long upstream draft is TRUNCATED, not rejected — a crawl costs 25-60s and one of five per hour; issues: ${JSON.stringify(parsed.error.issues).slice(0, 300)}`
+    );
+  } else {
+    const d = parsed.data.draft;
+    const caps: [string, unknown, number][] = [
+      ['name', d.name, 100],
+      ['website_url', d.website_url, 500],
+      ['industry', d.industry, 40],
+      ['description', d.description, 2000],
+      ['target_audience', d.target_audience, 500],
+      ['city', d.city, 100],
+      ['brand_voice', d.brand_voice, 500],
+      ['primary_color', d.primary_color, 7],
+      ['font_primary', d.font_primary, 50],
+      ['font_secondary', d.font_secondary, 50],
+    ];
+    for (const [field, value, cap] of caps) {
+      checks++;
+      if (typeof value !== 'string' || value.length !== cap) {
+        failures++;
+        console.log(
+          `FAIL  upstream draft.${field} is capped at ${cap}, got ${typeof value === 'string' ? value.length : typeof value}`
+        );
+      }
+    }
+    check('an unknown upstream key survives (.loose())', (d as Record<string, unknown>).logo_url, 'https://example.com/logo.png');
+  }
+}
+
+// null and absent must both survive — the workflow emits null for anything the
+// crawl could not determine, and truncating must not turn that into ''.
+{
+  const parsed = UpstreamSuccessSchema.safeParse({
+    ok: true,
+    draft: { name: 'Sham Shawarma', primary_color: null },
+    missing: ['colors'],
+  });
+  checks++;
+  if (!parsed.success) {
+    failures++;
+    console.log('FAIL  a draft of nulls and absent keys is accepted');
+  } else {
+    check('null survives the cap transform', parsed.data.draft.primary_color, null);
+    check('an absent key stays absent', parsed.data.draft.city, undefined);
+  }
+}
+
+// `industry`: only one of the seven slugs survives parseExtractDraft, and
+// anything else is both blanked AND badged.
+for (const slug of INDUSTRIES) {
+  const draft = parseExtractDraft({ industry: slug });
+  check(`parseExtractDraft keeps the recognised slug "${slug}"`, draft.industry, slug);
+  checks++;
+  if (expandMissingFields([], draft).includes('industry')) {
+    failures++;
+    console.log(`FAIL  "${slug}" is a real slug and must NOT be badged as missing`);
+  }
+}
+
+for (const bogus of ['restaurants', 'Restaurant', 'مطاعم', 'car_rental', ' retail', '']) {
+  const draft = parseExtractDraft({ industry: bogus });
+  check(`parseExtractDraft blanks the unrecognised industry ${JSON.stringify(bogus)}`, draft.industry, '');
+  checks++;
+  if (!expandMissingFields([], draft).includes('industry')) {
+    failures++;
+    console.log(
+      `FAIL  ${JSON.stringify(bogus)} is not a slug, renders no chip, and must be badged "we couldn't find this" — silence here is the whole defect`
+    );
+  }
+}
+
+// Colours: only `#RRGGBB`. Anything else is null, which makes the missing
+// badge render — the truth — instead of seeding a picker with a value that
+// then 400s on Save.
+for (const good of ['#6366F1', '#abcdef', '#ABCDEF']) {
+  check(`parseExtractDraft keeps the hex colour ${good}`, parseExtractDraft({ primary_color: good }).primary_color, good);
+}
+for (const bad of ['#FFF', 'rgb(255,0,0)', 'red', '6366F1', '#6366F1 ', '']) {
+  check(
+    `parseExtractDraft refuses the non-hex colour ${JSON.stringify(bad)}`,
+    parseExtractDraft({ primary_color: bad }).primary_color,
+    null
+  );
+}
+
+// Fonts are text, not colours — the read used to go through `colorOrNull()`,
+// which was behaviourally right and named something false.
+check('parseExtractDraft keeps a font name', parseExtractDraft({ font_primary: 'Cairo' }).font_primary, 'Cairo');
+check('parseExtractDraft nulls an empty font name', parseExtractDraft({ font_primary: '' }).font_primary, null);
+check('parseExtractDraft nulls a non-string font', parseExtractDraft({ font_primary: 42 }).font_primary, null);
 
 if (failures > 0) {
   console.log(`\n[brand-extract] ${failures} of ${checks} checks FAILED`);
