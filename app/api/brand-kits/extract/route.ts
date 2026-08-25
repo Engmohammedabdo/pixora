@@ -39,11 +39,34 @@ const ExtractInputSchema = z.object({
   url: z.string().trim().min(4).max(500),
 });
 
-interface UpstreamSuccessBody {
-  ok: true;
-  draft: Record<string, unknown>;
-  missing: string[];
-}
+// A known draft field is a string when the workflow found it, or `null`/absent
+// when it did not — never any other type. `.loose()` on the object (not
+// `.strict()`) because lib/brand-kits/extract-draft.ts's `parseExtractDraft()`
+// already reads only these known keys and ignores anything else; rejecting an
+// unrecognised extra key here would fail a shape that downstream tolerates
+// fine. `missing` is a flat array of strings — see expandMissingFields().
+const upstreamDraftField = z.string().nullable().optional();
+
+const UpstreamSuccessSchema = z.object({
+  ok: z.literal(true),
+  draft: z
+    .object({
+      name: upstreamDraftField,
+      website_url: upstreamDraftField,
+      industry: upstreamDraftField,
+      description: upstreamDraftField,
+      target_audience: upstreamDraftField,
+      city: upstreamDraftField,
+      brand_voice: upstreamDraftField,
+      primary_color: upstreamDraftField,
+      secondary_color: upstreamDraftField,
+      accent_color: upstreamDraftField,
+      font_primary: upstreamDraftField,
+      font_secondary: upstreamDraftField,
+    })
+    .loose(),
+  missing: z.array(z.string()),
+});
 
 // Deliberately loose: only used to read optional diagnostic fields for OUR
 // logs, never returned to the client, so there is nothing to gain from
@@ -109,22 +132,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
     }
 
-    // 2. Throttle, per user, failing CLOSED. checkKeyedRateLimit already
-    //    denies on any store error and logs it — do not wrap this in a catch
-    //    that opens it back up.
-    const allowed = await checkKeyedRateLimit(
-      `brand-extract:${user.id}`,
-      RATE_LIMIT_MAX,
-      RATE_LIMIT_WINDOW_MINUTES
-    );
-    if (!allowed) {
-      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
-    }
-
-    // 3. Validate the body. SSRF host rules are NOT re-implemented here — the
-    //    workflow's `Validate URL` node owns them and Apify performs the
-    //    fetch, so a bad URL comes back as the workflow's 400 and is mapped
-    //    below (extract_invalid_url).
+    // 2. Validate the body. Ahead of the throttle below (moved here — review
+    //    finding F3): a request that fails validation spends nothing, so it
+    //    must not burn any of the customer's 5-per-60-minutes budget either.
+    //    SSRF host rules are NOT re-implemented here — the workflow's
+    //    `Validate URL` node owns them and Apify performs the fetch, so a bad
+    //    URL comes back as the workflow's 400 and is mapped below
+    //    (extract_invalid_url).
     let body: unknown;
     try {
       body = await request.json();
@@ -133,16 +147,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const input = ExtractInputSchema.parse(body);
 
-    // 4. Both env vars are required. Missing either means this was never
-    //    going to work, so refuse immediately rather than waiting on a call
-    //    that cannot succeed — onboarding falls back to the typed form
-    //    instantly.
+    // 3. Both env vars are required. Also ahead of the throttle (F3): if this
+    //    was never going to work, refusing immediately must not cost the
+    //    customer any of their throttle budget either — forgetting to set
+    //    these at deploy used to lock a customer out for 58 minutes having
+    //    spent nothing, after five instant 503s each burned an attempt.
+    //    Onboarding falls back to the typed form instantly either way.
     const config = getN8nBrandDnaConfig();
     if (!config) {
       console.error(
         '[brand-kits/extract] N8N_BRAND_DNA_WEBHOOK_URL or N8N_BRAND_DNA_SECRET is not set; refusing without attempting the call.'
       );
       return NextResponse.json({ success: false, error: 'extract_unavailable' }, { status: 503 });
+    }
+
+    // 4. Throttle, per user, failing CLOSED — now that we know the request is
+    //    well-formed and could actually reach the upstream workflow.
+    //    checkKeyedRateLimit already denies on any store error and logs it —
+    //    do not wrap this in a catch that opens it back up.
+    const allowed = await checkKeyedRateLimit(
+      `brand-extract:${user.id}`,
+      RATE_LIMIT_MAX,
+      RATE_LIMIT_WINDOW_MINUTES
+    );
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
     // 5. Call the webhook, bounded on time. Any throw here — abort/timeout or
@@ -192,10 +221,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // 6. Map the workflow's outcome to a registered code. The upstream body
     //    is never passed through — `detail`/`node`/`reason` describe OUR
     //    infrastructure and are logged, not returned.
+    //
+    //    A 200 + `ok: true` used to be CAST straight to `UpstreamSuccessBody`
+    //    and relayed unchecked — a malformed upstream success (this workflow's
+    //    response shape has changed four times this session) was forwarded to
+    //    the client as a successful extraction instead of failing loudly.
+    //    Validated with Zod instead: on mismatch this takes the SAME
+    //    `extract_failed` (502) path as an unparseable body below, not a new
+    //    code.
     if (upstream.status === 200 && isRecord(payload) && payload.ok === true) {
-      const success = payload as unknown as UpstreamSuccessBody;
+      const parsed = UpstreamSuccessSchema.safeParse(payload);
+      if (!parsed.success) {
+        console.error(
+          '[brand-kits/extract] upstream 200 payload failed shape validation:',
+          parsed.error.issues
+        );
+        return NextResponse.json({ success: false, error: 'extract_failed' }, { status: 502 });
+      }
       return NextResponse.json(
-        { success: true, data: { draft: success.draft, missing: success.missing } },
+        { success: true, data: { draft: parsed.data.draft, missing: parsed.data.missing } },
         { status: 200 }
       );
     }
