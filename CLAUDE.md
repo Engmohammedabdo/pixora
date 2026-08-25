@@ -748,7 +748,7 @@ Now the business facts are collected **once** — optionally read off the custom
 | Onboarding starts from the customer's website | ✅ built | `components/onboarding/WebsiteStep.tsx` — skip, success and failure all land on the same editable form **by construction**, not by three parallel paths |
 | `POST /api/brand-kits/extract` | ✅ built | auth → config check → throttle (5/60, fails CLOSED) → 90 s deadline → 256 kB bounded read. Our container **never fetches a customer URL** — it calls one fixed n8n webhook from env |
 | n8n + Apify extraction workflow | ⚠️ deployed, **inactive** | id `qH3LzMlpap3VRjPm`. Needs its own header credential — the current one is **shared** with another workflow |
-| Arabic text on generated images | ✅ prompt built, ⚠️ **unproven** | `lib/ai/prompts/edit.ts` `text_add`, golden checks in `prompts.test.ts`. No rendered image exists yet |
+| Arabic text on generated images | ⚠️ **partially works — measured, not assumed** | Verified on production 2026-08-25 with a real generation (`mock: false`, 1 credit). The requested string rendered **correctly joined and right-to-left**, no diacritics, no transliteration — the rule holds. **But the model also painted invented, garbled Arabic and fake Latin onto the wrapper and the menu board in the same image**, against the prompt's explicit "no extra words". So the joining/RTL half is proved and the "set only this text" half is not. See below |
 | `food` environment in photoshoot, six real recipes | ✅ built | `lib/ai/prompts/photoshoot.ts` |
 | `profiles.onboarding_step` written for the first time | ✅ fixed | read by `ProfileCompletion.tsx:23` since it was built, written by **nothing** until now |
 | `sharp` declared | ✅ fixed | resolved only via `next@15.5.14`'s hoisted transitive; the free-plan watermark is fail-CLOSED, so a hoisting change fails **every** free-plan image |
@@ -822,6 +822,64 @@ That is *why* `045` shipped without its commit gate.
 fix above cannot ship. Decide the policy: either commit the scripts (they read the service-role
 key from `.env.local` and embed nothing) or say plainly here that they are local-only and must
 be recreated.
+
+#### Post-deploy verification, 2026-08-25 — run against production, not against gates
+
+The branch merged at `c640cba` and deployed at 13:29:24Z. Everything below was run against
+`https://pyrasuite.pyramedia.cloud` with a real session for the e2e account
+`b215522f-f572-4203-8544-115e38af0466`, minted **without a password**: `admin.generateLink`
+mints a token and sends nothing, `/auth/v1/verify` redeems it for a session, and the
+`@supabase/ssr` cookie is built from that. No password was created, typed or transmitted.
+
+**The new build was confirmed live before anything was claimed about it.** The old code has no
+`website_url`/`city`/`description` in its schema, so a PUT carrying them silently dropped
+them; after the deploy the same PUT persisted `city = دبي`. That is the probe, not the
+Coolify status field, which reads `running:unknown` because this app still has no healthcheck.
+
+**C1 — proved fixed, with a before and an after.** The form's own normaliser output was sent
+to the live API:
+
+```
+mysite.ae          -> https://mysite.ae        200
+Https://mysite.ae  -> https://mysite.ae        200      <- the iOS/Gboard case
+www.mysite.ae      -> https://www.mysite.ae    200
+not a url          -> https://not a url        400 validation_error, details name the field
+```
+
+Every one of the first three was unsavable before this branch, with a toast telling the
+customer to retry something that could never succeed. Note the server still refuses a raw
+un-normalised URL by design — the normalisation is the form's job (`BrandKitForm.tsx:106`),
+and the API keeps the strict contract that matches migration `045:93`'s CHECK byte for byte.
+
+**Arabic on images — the definition of done was "an Arabic string rendered correctly into a
+real image by the live model, seen." It has now been seen, and the answer is half yes.**
+
+`creator` produced a real shawarma photograph (`mock: false`, gemini, 1 credit), and `edit`
+with `editType: 'text_add'` and `editDescription: 'شاورما الشام'` returned a real edit
+(`mock: false`, 1 credit, balance 115 → 113).
+
+- **The requested text rendered correctly.** The shop sign reads شاورما الشام with every
+  letter joined in its correct contextual form, running right to left, no invented harakat,
+  no transliteration. The four rules added to `edit.ts` do the job they were written for.
+- **But the model also painted text nobody asked for.** The sandwich wrapper and the menu
+  board in the same image carry invented, garbled pseudo-Arabic and fake Latin. The prompt
+  says "set the text exactly as the customer wrote it… with no extra words", and that half
+  is not holding.
+
+This is the same root cause finding F15 named, arriving from the other direction: F15 was
+about the model not knowing which words are *payload*; this is the model not knowing that the
+text belongs in **one** place. The fix is the same shape — a delimited referent plus an
+explicit "one occurrence, on the sign only" rule — and it is now grounded in a rendered image
+rather than in reasoning.
+
+**Also confirmed by the same image, unasked:** the free-plan watermark is burned in and its
+glyphs render as real letters, not the empty boxes that shipped for a week in August when
+`ttf-dejavu` was missing from the runtime layer. `assertTextRenderingAvailable()` is doing its
+job on the current image.
+
+**Still not verified:** the extraction success arm (the n8n secret is still unset, so
+`/api/brand-kits/extract` returns 503 and the manual arm carries onboarding), and the three
+onboarding signups end to end in a browser.
 
 #### Still open, deliberately
 
