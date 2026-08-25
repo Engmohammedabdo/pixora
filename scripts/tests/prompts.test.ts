@@ -215,26 +215,49 @@ const planInput = {
 
 // ---- edit: the other four modes keep their preservation rules ----
 // The EDIT_MODES table is one careless keystroke from losing these.
+//
+// Every needle below is drawn from a mode's `must` or `avoid` array, NOT from its
+// `task`. That is the whole point: when `EDIT_MODES[editType]` is undefined,
+// buildEditPrompt falls back to `Apply the requested edit: ${editType.replace(/_/g,' ')}.`
+// — so for a DELETED `background_replace` entry the prompt still literally reads
+// "background replace", and a `contains(..., 'background')` needle passes against a
+// gutted table. Same for 'object remove' and 'emove'. Task-derived needles cannot
+// distinguish "the mode exists" from "the mode is gone", which is the only thing
+// this block exists to detect.
 {
   const bg = buildEditPrompt({ editType: 'background_replace', editDescription: 'x' });
-  contains('edit/background_replace: names the mode task', bg, 'background');
+  contains('edit/background_replace: keeps the clean-cut rule', bg, 'no halo, no fringing');
+  contains('edit/background_replace: keeps the subject untouched', bg,
+    'Altering, moving, cropping or restyling the subject itself');
 
   const rm = buildEditPrompt({ editType: 'object_remove', editDescription: 'x' });
-  contains('edit/object_remove: names the mode task', rm, 'emove');
+  contains('edit/object_remove: keeps the reconstruction rule', rm,
+    'Reconstruct the occluded area from surrounding texture');
+  contains('edit/object_remove: refuses an invented replacement', rm,
+    'Inventing a replacement object');
 
   const cc = buildEditPrompt({ editType: 'color_change', editDescription: 'x' });
-  contains('edit/color_change: names the mode task', cc, 'olour');
+  contains('edit/color_change: preserves material response', cc,
+    'Preserve shading, texture, reflections, highlights and material response');
+  contains('edit/color_change: refuses a flat fill', cc, 'Applying a flat colour fill');
 
   const st = buildEditPrompt({ editType: 'style_transfer', editDescription: 'x' });
-  contains('edit/style_transfer: keeps the subject recognisable', st, 'recognisable');
+  contains('edit/style_transfer: keeps the subject recognisable', st,
+    'Keep the subject recognisable');
+  contains('edit/style_transfer: refuses to change what the subject is', st,
+    'Changing what the subject IS');
 }
 
-// ---- edit: every mode still says the customer's photo must survive ----
+// ---- edit: the preamble guarantee, which is NOT per-mode ----
+// `must survive it` is emitted unconditionally, BEFORE the EDIT_MODES lookup, so
+// this passes even with the table completely empty. It is still worth pinning —
+// that line is the whole "the customer's photograph survives the edit" promise —
+// but it is a PREAMBLE check and is labelled as one. An earlier version ran it in
+// a five-mode loop labelled per-mode, which read as five mode assertions while
+// testing one shared string five times.
 {
-  for (const m of ['background_replace', 'object_remove', 'color_change', 'text_add', 'style_transfer']) {
-    const p = buildEditPrompt({ editType: m, editDescription: 'x' });
-    contains(`edit/${m}: the customer's photo must survive`, p, 'must survive it');
-  }
+  const p = buildEditPrompt({ editType: 'style_transfer', editDescription: 'x' });
+  contains('edit/preamble: the customer photo must survive (all modes)', p, 'must survive it');
 }
 
 if (failures > 0) {
