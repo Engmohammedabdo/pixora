@@ -118,6 +118,14 @@ export function buildEditPrompt(input: EditPromptInput): string {
 
   // Placed after the task/instruction/brand-colors lines above and before the
   // Must/Avoid technical directives below.
+  //
+  // DEAD as of 2026-08-25 (review finding F10): `edit`'s InputSchema
+  // (app/api/studios/edit/route.ts) has no `brandKitId` field, so the route
+  // never fetches a brand kit and never passes `brandKit` into
+  // buildEditPrompt — this branch always sees `null` and this call always
+  // returns ''. Left as-is rather than removed: it costs nothing to keep and
+  // is what makes wiring a `brandKitId` into this studio later a one-line
+  // change instead of a rediscovery.
   prompt += buildBrandContextBlock(
     brandKit
       ? {
