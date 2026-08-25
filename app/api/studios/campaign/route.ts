@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { CAMPAIGN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { CampaignPostSchema, EXPECTED_POSTS } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
@@ -524,6 +524,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         actualCreditsCharged = creditCost - refundAmount;
         refundedSoFar += refundAmount;
       }
+    }
+
+    // A mock is not a campaign. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the
+    // row is finalized `completed` and the credits are kept for `[mock] field`
+    // captions — against the one real Supabase instance this project has.
+    // Dev-only by construction: rejectMockInProduction() (lib/ai/router.ts)
+    // throws on every return path of generateText when NODE_ENV is production,
+    // so `mock` cannot be true there.
+    //
+    // Sized as the OUTSTANDING charge, not `creditCost`. Refunding the full
+    // reservation on top of a partial refund that already landed MINTS credits:
+    // refund_credits caps only the slice routed to the purchased pool
+    // (033_refund_to_source_pool.sql:279) and credits the full p_amount to the
+    // balance regardless (033:284-286). Same rule as `refundedSoFar` in the
+    // catch below, which is why it is advanced here too.
+    const mockRefund = await refundMockRun({
+      mocked: textResult.mock, userId: user.id, amount: creditCost - refundedSoFar,
+      studio: 'campaign', generationId: generation.id,
+    });
+    if (mockRefund.refunded) {
+      balanceAfterPartialRefund = mockRefund.newBalance;
+      refundedSoFar = creditCost;
+      actualCreditsCharged = 0;
     }
 
     // Update generation. `credits_used` reflects the net charge after any

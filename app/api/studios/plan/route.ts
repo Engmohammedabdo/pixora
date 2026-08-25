@@ -5,7 +5,7 @@ import { PLAN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
 import { PlanSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { PLAN_PROMPT_VERSION, buildPlanPrompt } from '@/lib/ai/prompts/plan';
 import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
@@ -226,10 +226,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
+    // A mock is not a generation. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the row
+    // is finalized `completed` and the credits are kept for `[mock] field` text —
+    // against the one real Supabase instance this project has. Dev-only by
+    // construction: rejectMockInProduction() (lib/ai/router.ts) throws on every
+    // return path of generateText when NODE_ENV is production, so `mock` cannot be
+    // true there.
+    const mockRefund = await refundMockRun({
+      mocked: result.mock, userId: user.id, amount: creditCost,
+      studio: 'plan', generationId: generation.id,
+    });
+    const creditsCharged = mockRefund.refunded ? 0 : creditCost;
+
     if (generation) {
       await finalizeGeneration(supabase, generation.id, {
         output: { plan, mock: result.mock },
         status: 'completed',
+        // The net charge after a refund that LANDED, never the intended figure —
+        // the same rule campaign, creator and photoshoot state.
+        credits_used: creditsCharged,
         // Record the model that ACTUALLY served. The row is inserted before
         // generation from the PREFERRED model, but the router falls back — so a
         // gpt-served run stayed filed under gemini forever, and six admin surfaces
@@ -239,7 +255,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, 'plan');
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditsCharged, newBalance: mockRefund.refunded ? mockRefund.newBalance : reserveResult.newBalance } });
     } catch (genError) {
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,

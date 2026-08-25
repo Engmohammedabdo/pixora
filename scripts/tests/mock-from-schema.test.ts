@@ -44,6 +44,9 @@ import {
   EXPECTED_POSTS,
 } from '../../lib/ai/studio-output-schemas';
 import { mockFromSchema } from '../../lib/ai/mock-from-schema';
+import { stripComments } from '../lib/strip-comments';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { z } from 'zod/v4';
 
 let failures = 0;
@@ -219,6 +222,52 @@ for (const [name] of STUDIOS) {
   for (const key of ['objectives', 'channels', 'calendar', 'budget']) {
     check(`plan: mock has the "${key}" section the page renders`, key in planObj);
   }
+}
+
+// ---------------------------------------------------------------------------
+// A mocked run must not be charged for.
+// ---------------------------------------------------------------------------
+//
+// Making the mock CONFORM had a consequence nobody decided: before it, a keyless
+// `plan` run threw at the parse and the 5 credits came back. After it, the route
+// finalizes `completed` and keeps them — for `[mock] field` filler, against the
+// one real Supabase instance this project has.
+//
+// The rule derives its own membership rather than naming files: if a route asks
+// the model for a `responseSchema`, `mockFromSchema` will hand it a
+// schema-conformant deliverable, so a mocked run there is indistinguishable from
+// real work at the parse — and if that route also reserves credits, it must give
+// them back. Studios with no responseSchema get a placehold.co image, which is
+// visibly a placeholder rather than a plausible deliverable; that is a different
+// question and is not in scope here.
+{
+  const dir = join(process.cwd(), 'app', 'api', 'studios');
+  const studios = readdirSync(dir).filter((e) => statSync(join(dir, e)).isDirectory());
+  check('the studio-route scan found routes at all', studios.length > 0, `found ${studios.length}`);
+
+  let charging = 0;
+  for (const studio of studios) {
+    const file = join(dir, studio, 'route.ts');
+    // Comments in these routes quote the very identifiers this scan looks for.
+    const src = stripComments(readFileSync(file, 'utf8'));
+    if (!src.includes('responseSchema:')) continue;
+    if (!src.includes('reserveCredits(')) {
+      check(`${studio}: has a responseSchema and deliberately reserves nothing`,
+        !src.includes('reserveCredits('));
+      continue;
+    }
+    charging++;
+    const refundIdx = src.indexOf('refundMockRun(');
+    const finalizeIdx = src.indexOf('finalizeGeneration(');
+    check(`${studio}: refunds a run the router reported as a mock`, refundIdx !== -1,
+      'a schema-conformant mock is finalized `completed` and charged for');
+    check(`${studio}: refunds it BEFORE the row is finalized`,
+      refundIdx !== -1 && finalizeIdx !== -1 && refundIdx < finalizeIdx,
+      `refundMockRun at ${refundIdx}, finalizeGeneration at ${finalizeIdx}`);
+  }
+  // Without this, a scan that silently matched nothing would report all-pass.
+  check('at least four schema-driven studios charge credits and were checked',
+    charging >= 4, `checked ${charging}`);
 }
 
 // An unknown or empty schema must degrade to something parseable rather than
