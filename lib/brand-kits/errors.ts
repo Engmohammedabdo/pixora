@@ -25,3 +25,23 @@ export function mapBrandKitCheckViolation(message: string): string {
   // for the case it was originally written for.
   return 'invalid_logo_url';
 }
+
+/**
+ * code (from BrandKitError.code, i.e. what this route or `POST /api/brand-kits`
+ * itself returns) -> flat key under the `brandKit` namespace in
+ * messages/{ar,en}.json.
+ *
+ * Was a local object literal duplicated inline in
+ * app/[locale]/(dashboard)/brand-kit/page.tsx. Pulled out here so P3.3's
+ * onboarding save (a second caller of the SAME `POST /api/brand-kits`) reads
+ * the identical mapping instead of growing its own copy that can drift from
+ * this one the way CreateBrandKitSchema/UpdateBrandKitSchema once did.
+ */
+export const BRAND_KIT_SAVE_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  invalid_logo_url: 'invalidLogo',
+  invalid_website_url: 'invalidWebsiteUrl',
+  invalid_industry: 'invalidIndustry',
+  invalid_description: 'invalidDescription',
+  invalid_target_audience: 'invalidTargetAudience',
+  invalid_city: 'invalidCity',
+};

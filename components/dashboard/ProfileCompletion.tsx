@@ -9,7 +9,12 @@ import { cn } from '@/lib/utils';
 const STEPS = [
   { key: 'profile', labelKey: 'stepProfile', check: () => true },
   { key: 'brandKit', labelKey: 'stepBrandKit', check: (ctx: { brandKits: number }) => ctx.brandKits > 0 },
-  { key: 'generation', labelKey: 'stepGeneration', check: (ctx: { onboardingStep: number }) => ctx.onboardingStep >= 3 },
+  // P3.3 inserted a new website step at onboarding index 0, shifting every
+  // later tour card up by one — the "try the studio" card that used to be
+  // index 2 (reached once onboarding_step hit 3, i.e. the card AFTER it) is
+  // now index 3, so this threshold moves from 3 to 4 to keep meaning the same
+  // thing: "the customer has moved past the try-a-studio card."
+  { key: 'generation', labelKey: 'stepGeneration', check: (ctx: { onboardingStep: number }) => ctx.onboardingStep >= 4 },
   { key: 'billing', labelKey: 'stepBilling', check: (ctx: { planId: string }) => ctx.planId !== 'free' },
 ];
 

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Image from 'next/image';
 import { useBrandKits, useCreateBrandKit, useUpdateBrandKit, useDeleteBrandKit, BrandKitError } from '@/hooks/useBrandKit';
 import { BrandKitForm } from '@/components/brand-kit/BrandKitForm';
+import { BRAND_KIT_SAVE_ERROR_MESSAGE_KEYS } from '@/lib/brand-kits/errors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,18 +26,6 @@ export default function BrandKitPage(): React.ReactElement {
   const [editingKit, setEditingKit] = useState<BrandKit | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Every constraint 042 and 045 can trip, mapped by app/api/brand-kits'
-  // mapBrandKitCheckViolation. Kept as a lookup rather than an if-chain because
-  // that function can grow without this switch needing a new branch shape.
-  const ERROR_MESSAGE_KEYS: Record<string, string> = {
-    invalid_logo_url: 'invalidLogo',
-    invalid_website_url: 'invalidWebsiteUrl',
-    invalid_industry: 'invalidIndustry',
-    invalid_description: 'invalidDescription',
-    invalid_target_audience: 'invalidTargetAudience',
-    invalid_city: 'invalidCity',
-  };
-
   // Every mutation below used to be awaited with no catch, so a rejected
   // request became an unhandled promise rejection: the dialog stayed open with
   // no message and the user had no way to learn what was wrong.
@@ -47,7 +36,7 @@ export default function BrandKitPage(): React.ReactElement {
       toast.error(t('limitReached', { limit: limit ?? '' }));
       return;
     }
-    const messageKey = ERROR_MESSAGE_KEYS[code];
+    const messageKey = BRAND_KIT_SAVE_ERROR_MESSAGE_KEYS[code];
     toast.error(t(messageKey ?? fallbackKey));
   };
 

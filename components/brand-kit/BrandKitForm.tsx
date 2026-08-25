@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { ColorPicker } from './ColorPicker';
 import { LogoUpload } from './LogoUpload';
 import type { BrandKit } from '@/lib/supabase/types';
@@ -13,12 +14,44 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 
 interface BrandKitFormProps {
-  initialData?: BrandKit;
+  /**
+   * `Partial<BrandKit>` (not `BrandKit`) so the onboarding step (P3.3) can seed
+   * this form from an extraction draft, which has no `id`/`user_id`/
+   * `created_at`/`is_default` — only the fields a customer can actually see and
+   * edit. Every existing caller (the brand-kit page) passes a full `BrandKit`,
+   * which already satisfies this looser type, so this is not a behaviour
+   * change for them.
+   */
+  initialData?: Partial<BrandKit>;
   onSubmit: (data: Partial<BrandKit>) => Promise<void>;
   loading: boolean;
+  /**
+   * Field names (`brand_kits` column names) the caller could not determine —
+   * currently only ever populated by the onboarding step, from
+   * `expandMissingFields()` (lib/brand-kits/extract-draft.ts). Renders a small
+   * "couldn't determine this" badge next to the field so an extraction guess
+   * doesn't read as a confirmed fact. Absent (the brand-kit page's own
+   * create/edit dialogs) renders nothing — zero behaviour change there.
+   */
+  missing?: string[];
+  /**
+   * Overrides the submit button's default create/save label. The default
+   * picks on `initialData?.id` (only a row that has actually been saved has
+   * one) rather than `!!initialData`, because the onboarding step always
+   * passes a truthy draft object that was never saved — with the old
+   * `!!initialData` check every onboarding save would have read "Save"
+   * instead of "Create".
+   */
+  submitLabel?: string;
 }
 
-export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormProps): React.ReactElement {
+export function BrandKitForm({
+  initialData,
+  onSubmit,
+  loading,
+  missing = [],
+  submitLabel,
+}: BrandKitFormProps): React.ReactElement {
   const t = useTranslations('brandKit');
   const tCommon = useTranslations('common');
 
@@ -82,7 +115,12 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
         <h3 className="text-sm font-semibold">{t('businessInfo')}</h3>
 
         <div className="space-y-2">
-          <Label>{t('industry')}</Label>
+          <div className="flex items-center gap-2">
+            <Label>{t('industry')}</Label>
+            {missing.includes('industry') && (
+              <Badge variant="warning" className="text-[10px] font-normal">{t('extractionMissing')}</Badge>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {INDUSTRIES.map((ind) => (
               <button
@@ -114,7 +152,12 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="brand-city">{t('city')}</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="brand-city">{t('city')}</Label>
+              {missing.includes('city') && (
+                <Badge variant="warning" className="text-[10px] font-normal">{t('extractionMissing')}</Badge>
+              )}
+            </div>
             <Input
               id="brand-city"
               value={city}
@@ -155,7 +198,12 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
 
       {/* Colors */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold">{t('colors')}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">{t('colors')}</h3>
+          {(missing.includes('primary_color') || missing.includes('secondary_color') || missing.includes('accent_color')) && (
+            <Badge variant="warning" className="text-[10px] font-normal">{t('extractionMissing')}</Badge>
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <ColorPicker label={t('primaryColor')} value={primaryColor} onChange={setPrimaryColor} />
           <ColorPicker label={t('secondaryColor')} value={secondaryColor} onChange={setSecondaryColor} />
@@ -165,7 +213,12 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
 
       {/* Fonts */}
       <div className="space-y-4">
-        <h3 className="text-sm font-semibold">{t('fonts')}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">{t('fonts')}</h3>
+          {(missing.includes('font_primary') || missing.includes('font_secondary')) && (
+            <Badge variant="warning" className="text-[10px] font-normal">{t('extractionMissing')}</Badge>
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>{t('primaryFont')}</Label>
@@ -195,7 +248,7 @@ export function BrandKitForm({ initialData, onSubmit, loading }: BrandKitFormPro
       {/* Submit */}
       <div className="flex gap-3">
         <Button type="submit" disabled={loading || logoUploading || !name.trim()}>
-          {loading ? '...' : initialData ? tCommon('save') : tCommon('create')}
+          {loading ? '...' : submitLabel ?? (initialData?.id ? tCommon('save') : tCommon('create'))}
         </Button>
       </div>
     </form>
