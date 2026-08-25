@@ -100,13 +100,15 @@ export default function AnalysisPage(): React.ReactElement {
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
   const { defaultKit } = useBrandKits();
-  // Prefill from the caller's default brand kit — once it loads, and only into
-  // BLANKS. The functional updaters below read the CURRENT value at the moment
-  // the effect actually runs, not a value captured when the effect was
-  // scheduled, so this needs no "touched" flag and no `businessName`/
-  // `description`/`targetMarket` in the dependency array (which would re-fire
-  // on every keystroke and re-fill a field the customer had just deliberately
-  // cleared).
+  // Prefill from the caller's default brand kit — ONCE, and only into BLANKS.
+  //
+  // Two separate things make that true, and an earlier version of this comment
+  // claimed the first did both. The functional updaters below read the CURRENT
+  // value at the moment the effect runs rather than one captured when it was
+  // scheduled, which is what keeps `businessName`/`description`/`targetMarket`
+  // out of the dependency array (they would re-fire on every keystroke). That
+  // prevents STALE CLOSURES. It does not prevent the effect RE-RUNNING — see
+  // the dependency array below for what does.
   useEffect(() => {
     if (!defaultKit) return;
     if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
@@ -126,7 +128,17 @@ export default function AnalysisPage(): React.ReactElement {
     if (kitDescription) setDescription((prev) => prev || kitDescription);
     const kitTargetAudience = defaultKit.target_audience;
     if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
-  }, [defaultKit]);
+    // `defaultKit?.id`, NOT `defaultKit`. `useBrandKits` is a React Query
+    // hook: `staleTime` is 5 minutes and `refetchOnWindowFocus` defaults to
+    // true, so tabbing away and back refetches and hands back a NEW OBJECT for
+    // the same row. Depending on object identity re-ran this effect and
+    // `prev || defaultKit.name` refilled a field the customer had deliberately
+    // cleared. The comment above claimed the functional updaters made a
+    // "touched" flag unnecessary — they prevent STALE CLOSURES, not refills;
+    // only not re-running does that. `handleGenerate` in this same file
+    // already depends on `defaultKit?.id` for the same reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultKit?.id]);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;

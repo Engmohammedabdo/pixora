@@ -24,6 +24,53 @@ interface WebsiteStepProps {
 
 type Phase = 'intro' | 'extracting' | 'draft';
 
+/**
+ * Where a completed crawl is parked so a reload does not destroy it.
+ *
+ * `phase` and `draft` are component state and only `step` was persisted, and
+ * `onboarding/page.tsx:85` requires `saved > 0` — so step 0 always restarted at
+ * the intro. A customer waited up to 55 seconds for a crawl, reloaded for any
+ * reason, and had to spend another of their five per hour to get it back. This
+ * repo already treats reload-destroys-work as a defect (it is why
+ * `RETRIEVABLE_STUDIOS` exists).
+ *
+ * sessionStorage, not localStorage: this survives a reload, which is the whole
+ * requirement, and dies with the tab. A crawl parked forever would silently
+ * reappear weeks later over a site the customer has since changed.
+ */
+const DRAFT_STORAGE_KEY = 'pyrasuite-onboarding-brand-draft';
+
+interface StoredDraft {
+  url: string;
+  draft: unknown;
+  missing: unknown;
+}
+
+function readStoredDraft(): StoredDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as Record<string, unknown>;
+    return {
+      url: typeof record.url === 'string' ? record.url : '',
+      draft: record.draft,
+      missing: record.missing,
+    };
+  } catch {
+    // Corrupt or unavailable storage is never a reason the onboarding step
+    // fails to render — the customer just starts from the intro.
+    return null;
+  }
+}
+
+function clearStoredDraft(): void {
+  try {
+    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
 function isBrandExtractErrorCode(value: unknown): value is BrandExtractErrorCode {
   return typeof value === 'string' && (BRAND_EXTRACT_ERROR_CODES as readonly string[]).includes(value);
 }
@@ -56,6 +103,26 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
   useEffect(() => () => {
     abortRef.current?.abort();
     stopTimer();
+  }, []);
+
+  // Rehydrate a crawl that already succeeded. Read in an effect rather than in
+  // useState's initialiser because sessionStorage does not exist during server
+  // rendering and reading it there breaks hydration — the same reason
+  // hooks/useProjectSelection.ts does it this way.
+  //
+  // Re-parsed through parseExtractDraft/expandMissingFields rather than trusted:
+  // sessionStorage is writable by anything running on this origin, and these
+  // two functions are where the industry-slug and hex-colour rules live. A
+  // stored draft must clear exactly the same bar a fresh response does.
+  useEffect(() => {
+    const stored = readStoredDraft();
+    if (!stored) return;
+    const parsed = parseExtractDraft(stored.draft);
+    setUrl(stored.url);
+    setDraft(parsed);
+    setMissingFields(expandMissingFields(stored.missing, parsed));
+    setExtractErrorCode(null);
+    setPhase('draft');
   }, []);
 
   const resetToEmptyDraft = (): void => {
@@ -116,6 +183,14 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
         setDraft(parsed);
         setMissingFields(expandMissingFields(json.data.missing, parsed));
         setExtractErrorCode(null);
+        // Parked BEFORE the customer can do anything with it, so a reload at
+        // any point after this line costs them nothing.
+        try {
+          window.sessionStorage.setItem(
+            DRAFT_STORAGE_KEY,
+            JSON.stringify({ url: trimmed, draft: json.data.draft, missing: json.data.missing })
+          );
+        } catch { /* Quota or a blocked store is not worth failing the step over. */ }
       } else {
         setDraft(null);
         setMissingFields([]);
@@ -141,6 +216,7 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
   const handleSave = async (data: Partial<BrandKit>): Promise<void> => {
     try {
       await createBrandKit(data);
+      clearStoredDraft();
       toast.success(tBrandKit('created'));
       onAdvance();
     } catch (error) {
@@ -317,7 +393,7 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
       <div className="text-center">
         <button
           type="button"
-          onClick={onAdvance}
+          onClick={() => { clearStoredDraft(); onAdvance(); }}
           className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] underline underline-offset-2"
         >
           {t('continueWithoutSaving')}

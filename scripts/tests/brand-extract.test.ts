@@ -330,6 +330,20 @@ for (const bogus of ['restaurants', 'Restaurant', 'مطاعم', 'car_rental', ' 
   }
 }
 
+// `name` is the one field Save is gated on, so a crawl that found none must
+// SAY so — otherwise the customer stares at a dead button with everything else
+// filled in and nothing marked.
+checks++;
+if (!expandMissingFields([], parseExtractDraft({})).includes('name')) {
+  failures++;
+  console.log('FAIL  a draft with no name must be badged, or the disabled Save button has no visible cause');
+}
+checks++;
+if (expandMissingFields([], parseExtractDraft({ name: 'Sham Shawarma' })).includes('name')) {
+  failures++;
+  console.log('FAIL  a draft WITH a name must not be badged as missing one');
+}
+
 // Colours: only `#RRGGBB`. Anything else is null, which makes the missing
 // badge render — the truth — instead of seeding a picker with a value that
 // then 400s on Save.

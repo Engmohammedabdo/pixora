@@ -160,6 +160,7 @@
     "create": "Create Brand Kit",
     "name": "Brand Name",
     "namePlaceholder": "Enter brand name",
+    "nameRequiredHint": "Add a brand name to save.",
     "businessInfo": "Business Information",
     "industry": "Industry",
     "websiteUrl": "Website",

@@ -120,7 +120,12 @@ export function BrandKitForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Name */}
       <div className="space-y-2">
-        <Label htmlFor="brand-name">{t('name')}</Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="brand-name">{t('name')}</Label>
+          {missing.includes('name') && (
+            <Badge variant="warning" className="text-[10px] font-normal">{t('extractionMissing')}</Badge>
+          )}
+        </div>
         <Input
           id="brand-name"
           value={name}
@@ -285,11 +290,22 @@ export function BrandKitForm({
         />
       </div>
 
-      {/* Submit */}
-      <div className="flex gap-3">
-        <Button type="submit" disabled={loading || logoUploading || !name.trim()}>
-          {loading ? '...' : submitLabel ?? (initialData?.id ? tCommon('save') : tCommon('create'))}
-        </Button>
+      {/* Submit.
+          The button is disabled without a name, and used to say nothing about
+          why — worst on the onboarding SUCCESS arm, where the crawl filled
+          everything else and the one blocker was unmarked. Two halves: the
+          Name field carries the "we couldn't find this" badge above (via
+          `missing`), and the button states its own reason here, which also
+          covers the brand-kit page's dialogs where `missing` is never passed. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-3">
+          <Button type="submit" disabled={loading || logoUploading || !name.trim()}>
+            {loading ? '...' : submitLabel ?? (initialData?.id ? tCommon('save') : tCommon('create'))}
+          </Button>
+        </div>
+        {!name.trim() && (
+          <p className="text-xs text-[var(--color-text-muted)]">{t('nameRequiredHint')}</p>
+        )}
       </div>
     </form>
   );

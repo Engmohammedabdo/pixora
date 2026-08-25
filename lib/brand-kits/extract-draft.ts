@@ -2,10 +2,10 @@
  * Turns `POST /api/brand-kits/extract`'s success payload into the shape the
  * onboarding draft form actually needs.
  *
- * `data.draft` arrives typed as `Record<string, unknown>` (the route's own
- * `UpstreamSuccessBody` — see app/api/brand-kits/extract/route.ts:44 — never
- * narrows it further, because it is relaying an n8n workflow's JSON, not
- * something this app's type system produced). `parseExtractDraft()` is the
+ * `data.draft` arrives typed as `Record<string, unknown>`: the route's
+ * `UpstreamSuccessSchema` (lib/brand-kits/extract-upstream.ts) BOUNDS every
+ * known field but does not narrow their meaning, because it is relaying an n8n
+ * workflow's JSON, not something this app's type system produced. `parseExtractDraft()` is the
  * one place that treats it as trusted: every field is read defensively,
  * falling back to '' / null for anything that is not the type the workflow's
  * `Shape Response` node actually emits.
@@ -140,6 +140,11 @@ export function expandMissingFields(rawMissing: unknown, draft: ExtractDraft): s
   const flagged = new Set(Array.isArray(rawMissing) ? rawMissing.filter((v): v is string => typeof v === 'string') : []);
   const out = new Set<string>();
 
+  // `name` is the ONE field Save is gated on (BrandKitForm disables the button
+  // without it), so a crawl that found none leaves the customer looking at a
+  // dead button with everything else filled in and nothing marked. Badging it
+  // is the honest half of that fix; the button also states its own reason now.
+  if (!draft.name) out.add('name');
   // `!isIndustry(...)`, not `!draft.industry`: a value that is present but not
   // one of the seven slugs renders no selected chip, so a customer looking at
   // this form sees the industry question apparently unanswered with nothing
