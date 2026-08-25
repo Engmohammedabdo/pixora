@@ -101,6 +101,59 @@ const ENVIRONMENT_PRESETS: Record<string, EnvironmentPreset> = {
     ],
   },
 
+  food: {
+    environment: 'Food photography set — a real serving surface, styled as it would be served',
+    background: 'Warm neutral surface — dark slate, worn wood or brushed steel — falling gently out of focus',
+    style: 'Appetising editorial food photography, menu- and social-ready',
+    lighting: [
+      'Large softbox behind and to one side at 135°, backlighting the food so steam and glaze read, white bounce card returning a little fill to the front',
+      'Single window-like key from camera-left at a low raking angle, strong texture on every surface, a silver bounce lifting the shadow side',
+      'Broad overhead diffusion with a black flag at the front, deep contact shadow, edges kept crisp and defined',
+    ],
+    grade: [
+      'Warm appetising grade, rich reds and golden browns, true-to-life greens on herbs, no colour cast on white plates',
+      'Natural neutral grade, slightly deepened shadows, high micro-contrast on crust, char and grill marks',
+    ],
+    shots: [
+      {
+        name: 'Hero 45',
+        camera: '50mm lens at f/4, camera at 45° above the plate — the angle a person sees their own food from',
+        composition: 'Dish filling about two-thirds of the frame, the most appetising face turned to the lens, clean space behind',
+        staging: 'Served as it would actually reach a customer, fresh garnish, one sauce or side just entering the frame',
+      },
+      {
+        name: 'Overhead spread',
+        camera: '35mm lens at f/5.6, sensor parallel to the table, shot straight down',
+        composition: 'Main dish off-centre on a third, sides and condiments arranged loosely around it with real space between them',
+        staging: 'Linen, cutlery, a glass, scattered spice or herb — a table mid-meal rather than a styled set',
+      },
+      {
+        name: 'Macro texture',
+        camera: '100mm macro lens at f/3.5, close on the surface — crust, char, melt, glaze or grain',
+        composition: 'Texture fills the frame, focus falling off within a centimetre',
+        staging: 'Steam, a glisten of oil or a slow drip caught mid-fall; nothing but the food and the light on it',
+      },
+      {
+        name: 'Held and ready to eat',
+        camera: '50mm lens at f/2.5, held toward the lens at chest height',
+        composition: 'Hands and food only, natural grip, wrapper or paper folded back to reveal the filling',
+        staging: 'Natural unretouched skin, filling visibly generous at the open end',
+      },
+      {
+        name: 'Cross-section',
+        camera: '85mm lens at f/5.6, camera square to the cut face at its mid-height',
+        composition: 'The cut face flat to the lens, every layer readable from edge to edge',
+        staging: 'A clean single cut, layers settled naturally rather than pressed or propped',
+      },
+      {
+        name: 'On the counter',
+        camera: '35mm lens at f/2.8, camera at counter height, slight three-quarter turn',
+        composition: 'Dish sharp in the near third, the kitchen or service line dissolving warmly behind it',
+        staging: 'The real counter it is served from — paper, tray, a stack of napkins at the frame edge',
+      },
+    ],
+  },
+
   lifestyle: {
     environment: 'A real lived-in interior appropriate to how the product is actually used',
     background: 'Authentic domestic space with genuine clutter kept soft and out of focus',
@@ -426,7 +479,9 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
   let prompt = `Professional commercial product photography, photorealistic, shot on a full-frame camera.`;
 
   prompt += `\n\nSUBJECT`;
-  prompt += `\nThe exact product shown in the reference image, reproduced identically.`;
+  prompt += environment === 'food'
+    ? `\nThe exact dish shown in the reference image, reproduced identically.`
+    : `\nThe exact product shown in the reference image, reproduced identically.`;
 
   prompt += `\n\nSHOT ${shotIndex + 1} OF ${totalShots} — ${shot.name}`;
   prompt += `\nCamera: ${shot.camera}`;
@@ -440,19 +495,36 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
   prompt += `\nColour grade: ${grade}`;
   prompt += `\nStyle: ${preset.style}`;
 
+  // Food and manufactured goods fail in different ways. "Preserve every character
+  // of its printed text" is the right rule for a labelled bottle and meaningless
+  // for a sandwich; "keep it looking fresh" is the reverse. Emitting both made the
+  // model resolve a contradiction arbitrarily.
+  const isFood = environment === 'food';
+
   prompt += `\n\nMUST`;
-  prompt += `\n- Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text`;
-  prompt += `\n- Keep the product the unmistakable focal point and the sharpest element in the frame`;
-  prompt += `\n- Render surfaces with true material response — glass refracts, metal shows specular highlights, matte plastic stays matte`;
-  prompt += `\n- Ground the product with a physically correct contact shadow consistent with the lighting described above`;
+  prompt += isFood
+    ? `\n- Preserve the dish exactly as shown: same ingredients, same portion, same assembly, same colours`
+    : `\n- Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text`;
+  prompt += `\n- Keep the ${isFood ? 'dish' : 'product'} the unmistakable focal point and the sharpest element in the frame`;
+  prompt += isFood
+    ? `\n- Render it fresh and appetising — moist where it should be moist, crisp where it should be crisp, herbs green and turgid`
+    : `\n- Render surfaces with true material response — glass refracts, metal shows specular highlights, matte plastic stays matte`;
+  prompt += `\n- Ground the ${isFood ? 'dish' : 'product'} with a physically correct contact shadow consistent with the lighting described above`;
   prompt += `\n- Hold detail in both highlights and shadows; nothing important clipped to pure white or crushed to black`;
 
   prompt += `\n\nAVOID`;
-  prompt += `\n- Redrawing, translating or inventing any text, logo or label on the product`;
-  prompt += `\n- Duplicating the product or adding a second copy of it anywhere in the frame`;
+  // The one AVOID/MUST line the brief left unconditional. "label" is exactly the
+  // manufactured-object vocabulary this preset exists to drop — every other line
+  // here already branches on isFood; this one was clearly meant to as well.
+  prompt += isFood
+    ? `\n- Redrawing, translating or inventing any text or logo anywhere in the frame`
+    : `\n- Redrawing, translating or inventing any text, logo or label anywhere in the frame`;
+  prompt += `\n- Duplicating the ${isFood ? 'dish' : 'product'} or adding a second copy of it anywhere in the frame`;
   prompt += `\n- Added watermarks, captions, price tags, borders or graphic overlays`;
-  prompt += `\n- Shadows or props that cover, crop or obscure the product`;
-  prompt += `\n- A plastic over-retouched CGI look, or lighting that contradicts the setup above`;
+  prompt += `\n- Shadows or props that cover, crop or obscure the ${isFood ? 'dish' : 'product'}`;
+  prompt += isFood
+    ? `\n- Anything that reads as stale, dried out, congealed or reheated; and no plastic, waxy or CGI food`
+    : `\n- A plastic over-retouched CGI look, or lighting that contradicts the setup above`;
 
   if (brandKit) {
     prompt += `\n\nBRAND`;

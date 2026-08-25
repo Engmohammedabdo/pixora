@@ -28,6 +28,7 @@ interface PhotoshootFormProps {
 
 const ENVIRONMENTS = [
   { id: 'white_studio', emoji: '⬜' },
+  { id: 'food', emoji: '🍽️' },
   { id: 'lifestyle', emoji: '🏠' },
   { id: 'nature', emoji: '🌿' },
   { id: 'urban', emoji: '🏙️' },

@@ -15,6 +15,7 @@
 import { buildPlanPrompt } from '../../lib/ai/prompts/plan';
 import { buildAnalysisPrompt } from '../../lib/ai/prompts/analysis';
 import { buildStoryboardPrompt } from '../../lib/ai/prompts/storyboard';
+import { buildPhotoshootPrompt } from '../../lib/ai/prompts/photoshoot';
 
 let failures = 0;
 let checks = 0;
@@ -140,6 +141,36 @@ const planInput = {
   const sb = { concept: 'a launch film', duration: 30, style: 'cinematic', platform: 'tiktok' };
   contains('storyboard/en: dialogue in English', buildStoryboardPrompt({ ...sb, locale: 'en' }), 'voice-over in English');
   contains('storyboard/ar: dialogue in Arabic', buildStoryboardPrompt({ ...sb, locale: 'ar' }), 'voice-over in Arabic');
+}
+
+// ---- photoshoot: food ----
+{
+  const p = buildPhotoshootPrompt({
+    environment: 'food', shotIndex: 0, totalShots: 6, seed: 'seed-a',
+  });
+  contains('food: names a food set', p, 'food');
+  omits('food: never asks for a product label', p, 'label');
+  omits('food: never asks for material finish', p, 'material finish');
+  contains('food: asks for freshness', p, 'fresh');
+}
+{
+  // Every one of the six recipes must be reachable and food-appropriate.
+  const seen = new Set<string>();
+  for (let i = 0; i < 6; i++) {
+    seen.add(buildPhotoshootPrompt({
+      environment: 'food', shotIndex: i, totalShots: 6, seed: 'seed-a',
+    }));
+  }
+  checks++;
+  if (seen.size !== 6) {
+    failures++;
+    console.log(`FAIL  food: a 6-shot set produces 6 distinct frames\n        got ${seen.size}`);
+  }
+}
+{
+  // An unknown environment must still fall back, not throw.
+  const p = buildPhotoshootPrompt({ environment: 'nope', shotIndex: 0, totalShots: 1 });
+  contains('photoshoot: unknown environment falls back to white studio', p, 'infinity cove');
 }
 
 if (failures > 0) {

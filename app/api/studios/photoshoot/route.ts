@@ -18,7 +18,7 @@ import { refundAwareErrorCode } from '@/lib/studio-errors';
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
   productImageUrl: readableImageUrl,
-  environment: z.enum(['white_studio', 'lifestyle', 'nature', 'urban', 'luxury', 'festive']),
+  environment: z.enum(['white_studio', 'food', 'lifestyle', 'nature', 'urban', 'luxury', 'festive']),
   shots: z.union([z.literal(1), z.literal(3), z.literal(6)]),
   notes: z.string().max(500).optional(),
   brandKitId: z.string().uuid().optional(),
