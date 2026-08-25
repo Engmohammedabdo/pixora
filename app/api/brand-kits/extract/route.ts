@@ -8,6 +8,7 @@ import { getN8nBrandDnaConfig } from '@/lib/brand-kits/extract-config';
 // where scripts/tests/brand-extract.test.ts can drive the REAL schema rather
 // than a re-implementation that would pass while this route regressed.
 import { UpstreamSuccessSchema } from '@/lib/brand-kits/extract-upstream';
+import { ExtractInputSchema } from '@/lib/brand-kits/extract-input';
 
 /**
  * POST /api/brand-kits/extract — the app side of URL -> brand-DNA extraction.
@@ -18,8 +19,17 @@ import { UpstreamSuccessSchema } from '@/lib/brand-kits/extract-upstream';
  * node decide whether it is reachable. That split is deliberate: a
  * customer-supplied URL is an SSRF surface, and this repo has already shipped
  * that exact bug once (`POST /api/assets/export` did `fetch()` on a
- * customer-writable column). Do not add a second host check here — it would
+ * customer-writable column). Do not add a second HOST check here — it would
  * be a second rule that can drift from the one in n8n.
+ *
+ * The SCHEME is a different question and is decided here, in
+ * lib/brand-kits/extract-input.ts. `z.string().trim().min(4).max(500)` used to
+ * accept `javascript:`, `data:`, `file:///etc/passwd` and
+ * `http://supabase-kong:8000/...` and hand them to a workflow running on the
+ * same Coolify VPS as this app, Supabase and the mailserver. Restating
+ * `^https?://` is not a second rule: the app already states it twice
+ * (lib/brand-kits/schema.ts and migration 045:93), so a URL with any other
+ * scheme could never be STORED in the column this extraction exists to fill.
  *
  * This route returns the DRAFT only. It never writes `brand_kits` — extraction
  * is a guess, and the customer edits and saves it through the existing
@@ -39,10 +49,6 @@ const MAX_UPSTREAM_RESPONSE_BYTES = 256 * 1024;
 // throttle is the only thing bounding spend on this route.
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MINUTES = 60;
-
-const ExtractInputSchema = z.object({
-  url: z.string().trim().min(4).max(500),
-});
 
 // Deliberately loose: only used to read optional diagnostic fields for OUR
 // logs, never returned to the client, so there is nothing to gain from
@@ -111,10 +117,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // 2. Validate the body. Ahead of the throttle below (moved here — review
     //    finding F3): a request that fails validation spends nothing, so it
     //    must not burn any of the customer's 5-per-60-minutes budget either.
-    //    SSRF host rules are NOT re-implemented here — the workflow's
+    //    SSRF HOST rules are NOT re-implemented here — the workflow's
     //    `Validate URL` node owns them and Apify performs the fetch, so a bad
     //    URL comes back as the workflow's 400 and is mapped below
-    //    (extract_invalid_url).
+    //    (extract_invalid_url). The SCHEME is ours: see
+    //    lib/brand-kits/extract-input.ts for why that is the same rule rather
+    //    than a second one.
     let body: unknown;
     try {
       body = await request.json();

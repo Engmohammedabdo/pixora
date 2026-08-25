@@ -34,6 +34,7 @@ import {
 } from '../../lib/brand-kits/extract-errors';
 import { getN8nBrandDnaConfig } from '../../lib/brand-kits/extract-config';
 import { UpstreamSuccessSchema } from '../../lib/brand-kits/extract-upstream';
+import { ExtractInputSchema } from '../../lib/brand-kits/extract-input';
 import { parseExtractDraft, expandMissingFields } from '../../lib/brand-kits/extract-draft';
 import { INDUSTRIES } from '../../lib/industries';
 
@@ -348,6 +349,62 @@ for (const bad of ['#FFF', 'rgb(255,0,0)', 'red', '6366F1', '#6366F1 ', '']) {
 check('parseExtractDraft keeps a font name', parseExtractDraft({ font_primary: 'Cairo' }).font_primary, 'Cairo');
 check('parseExtractDraft nulls an empty font name', parseExtractDraft({ font_primary: '' }).font_primary, null);
 check('parseExtractDraft nulls a non-string font', parseExtractDraft({ font_primary: 42 }).font_primary, null);
+
+// ---------------------------------------------------------------------------
+// 6. The URL this route FORWARDS carries a scheme rule (review finding F8).
+//
+//    n8n runs on the same Coolify VPS as this app, Supabase and the
+//    mailserver, and `z.string().trim().min(4).max(500)` handed it anything.
+//    The HOST is still the workflow's business — `http://169.254.169.254/…`
+//    is deliberately accepted here — but a scheme the column could never
+//    store is a crawl spent on something unsaveable.
+// ---------------------------------------------------------------------------
+
+function urlAccepted(url: string): boolean {
+  return ExtractInputSchema.safeParse({ url }).success;
+}
+
+const URL_CASES: [string, boolean][] = [
+  // Bare hosts: what WebsiteStep actually sends. These must keep working.
+  ['example.com', true],
+  ['www.example.com', true],
+  ['example.com/menu', true],
+  ['example.com:8080/menu', true],
+  ['sub.example.co.uk/a?b=c#d', true],
+  ['https://example.com', true],
+  ['http://example.com', true],
+  ['HTTPS://example.com', true],
+  ['Http://example.com/x', true],
+  // A host question, not a scheme question — n8n's Validate URL node owns it.
+  ['http://169.254.169.254/latest/meta-data/', true],
+  ['http://supabase-kong:8000/pg/query', true],
+  // Schemes the column could never store, so forwarding them is pure loss.
+  ['javascript:alert(1)', false],
+  ['JavaScript:alert(1)', false],
+  ['data:text/html,x', false],
+  ['file:///etc/passwd', false],
+  ['ftp://example.com', false],
+  ['gopher://example.com', false],
+  ['mailto:someone@example.com', false],
+  // Whitespace anywhere.
+  ['exa mple.com', false],
+  ['https://example.com/foo bar', false],
+  // Too short / empty.
+  ['a.b', false],
+  ['', false],
+];
+
+for (const [url, expected] of URL_CASES) {
+  check(`ExtractInputSchema ${expected ? 'accepts' : 'refuses'} ${JSON.stringify(url)}`, urlAccepted(url), expected);
+}
+
+// Control characters, which JS `\s` does not cover, so `^\S+$` alone lets them
+// through. Built by char code rather than written as literals — a test whose
+// inputs are invisible in the diff proves nothing to a reviewer.
+for (const code of [0x00, 0x09, 0x0a, 0x0d, 0x1f, 0x7f, 0x85]) {
+  const url = `example.com/${String.fromCharCode(code)}x`;
+  check(`ExtractInputSchema refuses a URL carrying U+${code.toString(16).padStart(4, '0').toUpperCase()}`, urlAccepted(url), false);
+}
 
 if (failures > 0) {
   console.log(`\n[brand-extract] ${failures} of ${checks} checks FAILED`);
