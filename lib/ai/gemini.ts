@@ -4,6 +4,7 @@ import { MAX_REFERENCE_IMAGE_BYTES } from '@/lib/storage/reference-image';
 import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
 import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
+import { mockFromSchema } from './mock-from-schema';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -196,7 +197,19 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
 
   if (!isValidApiKey(apiKey)) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    return { text: getMockCampaignText(), model: 'gemini', mock: true };
+    // Built from the schema the CALLER asked for. This used to be
+    // `getMockCampaignText()` unconditionally, so a plan request came back as
+    // campaign JSON and `POST /api/studios/plan` returned 500
+    // generation_parse_failed on every call with no key configured — which is
+    // the normal state of a fresh clone. Four of the five text studios were
+    // unusable locally and the symptom blamed the parser.
+    // A caller with no schema keeps the old campaign fixture: campaign is the
+    // one studio it was ever correct for.
+    return {
+      text: options.responseSchema ? mockFromSchema(options.responseSchema) : getMockCampaignText(),
+      model: 'gemini',
+      mock: true,
+    };
   }
 
   const response = await fetchWithTimeout(
