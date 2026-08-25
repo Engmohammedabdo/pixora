@@ -280,8 +280,18 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
 
   return (
     <div className="space-y-4">
+      {/* `color-mix`, not `border-[var(--color-error)]/30` below. Tailwind
+          3.4.19 silently DROPS the opacity modifier on a `var()` arbitrary
+          value — it emits no rule at all, so the border and the tint simply
+          never render. The 2026-08-24 round converted 16 elements across the
+          landing, pricing and contact pages for exactly this; this banner was
+          written afterwards and reopened the class. It is the banner carrying
+          the failure explanation on the arm every real customer hits today
+          (the 503), so "degraded, not invisible" is not much comfort.
+          `check-invariants`'s `no-var-opacity-modifier` rule now fails the
+          build on it. */}
       {extractErrorCode && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-3 text-sm text-[var(--color-error)]">
+        <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--color-error)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-error)_10%,transparent)] p-3 text-sm text-[var(--color-error)]">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{tBrandKit(BRAND_EXTRACT_ERROR_MESSAGE_KEYS[extractErrorCode])}</span>
         </div>

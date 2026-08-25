@@ -695,6 +695,52 @@ const themeAwareTextColor: Invariant = {
 };
 
 // ---------------------------------------------------------------------------
+// Invariant: no-var-opacity-modifier
+// ---------------------------------------------------------------------------
+
+const noVarOpacityModifier: Invariant = {
+  id: 'no-var-opacity-modifier',
+  title: 'No opacity modifier on a var() arbitrary value — bg-[var(--token)]/30 and friends',
+  why:
+    'Tailwind 3.4.19 SILENTLY DROPS the opacity modifier when the arbitrary ' +
+    'value is a var(): it cannot know the custom property holds a colour, so ' +
+    'it emits no rule at all and the background/border/text simply does not ' +
+    'render. Nothing fails — not tsc, not eslint, not the build — the pixel ' +
+    'is just missing. This shipped once already: the 2026-08-24 round found ' +
+    '16 elements across the landing, pricing and contact pages rendering ' +
+    'with no background or border, and converted them to color-mix() after ' +
+    'checking the BUILT stylesheet before and after. It came back four ' +
+    'months later on the onboarding error banner — the one carrying the ' +
+    'failure explanation on the arm every real customer hits — so the class ' +
+    'gets a rule rather than another sweep. ' +
+    'Write bg-[color-mix(in_srgb,var(--token)_30%,transparent)] instead.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app', 'components'], ['.ts', '.tsx'], true);
+    // Only the utilities that take a COLOUR: an opacity modifier on any other
+    // arbitrary value is not this defect. `from|to|via` are included because a
+    // gradient stop is a colour too and drops identically.
+    const re = /(?<![\w-])(bg|border|text|ring|from|to|via|divide|outline|decoration|shadow|accent|caret|fill|stroke)-\[var\(--[a-z-]+\)\]\/\d+/g;
+    for (const file of files) {
+      // Stripped, because the fix for this defect is a JSX comment that names
+      // the broken class it replaced — "`color-mix`, not
+      // `border-[var(--color-error)]/30`" — and a rule that cannot tell the
+      // cure from the disease makes documenting it impossible. Same reason
+      // `sanitize-before-reserve` strips: these files record their own history
+      // by quoting the old code. stripComments() keeps line numbers aligned.
+      const content = stripComments(readFileSync(file, 'utf8'));
+      const rel = toRel(file);
+      re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(content))) {
+        violations.push({ file: rel, line: lineAt(content, m.index), text: lineTextAt(content, m.index) });
+      }
+    }
+    return violations;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Invariant 7: rtl-logical-properties
 // ---------------------------------------------------------------------------
 
@@ -1354,6 +1400,7 @@ const INVARIANTS: Invariant[] = [
   noHardcodedDateLocale,
   noRawZindex,
   themeAwareTextColor,
+  noVarOpacityModifier,
   rtlLogicalProperties,
   mobile16pxInputs,
   noVhDialogOverride,
