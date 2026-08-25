@@ -1203,10 +1203,16 @@ guards had a version that passed every single-step check and still minted credit
 second lap of a down-up cycle. If you change `lib/credits/plan-switch.ts`, add the new
 attack as a sequence.
 
-Needs the live database, so **not** a build gate — run it after applying 042 or
-touching either side of the logo rule:
+Needs the live database, so **not** a build gate — run these after applying 042, after
+touching either side of the logo rule, or after changing the beta-credit grant on either
+side. `test:beta-credits` exists because the waitlist page is statically prerendered and
+therefore cannot read `system_settings.invite_gate.beta_credits` — so the figure it promises
+in two languages is a SECOND source of truth. Lower the grant without it and the page keeps
+promising the old number: the customer signs up for 100, receives 50, and nothing in the
+product is technically wrong.
 
 ```bash
 npm run test:logo-parity   # one corpus through both the TS validator and the SQL guard
 npm run test:rate-limit    # 25 genuinely parallel calls against a cap of 5 -> exactly 5
+npm run test:beta-credits  # the number the waitlist PROMISES == the number the DB GRANTS
 ```
