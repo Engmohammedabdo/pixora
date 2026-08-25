@@ -59,9 +59,16 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
     if (safeBrandVoice) prompt += `\n- Brand Voice: ${safeBrandVoice}`;
   }
 
-  // Placed after the subject/brand lines above and before the style/technical
-  // directives below, so the model reads what the business IS before it reads
-  // how the image should LOOK.
+  prompt += `\n- Visual Style: ${safeStyle}`;
+  prompt += `\n- Mood: ${safeMood}`;
+  prompt += `\n- Platform: ${safePlatform}`;
+  prompt += `\n- Resolution: ${safeResolution}`;
+
+  // Placed after the specifications bullet list closes above and before the
+  // Technical Requirements below — NOT inside the list (review finding F7):
+  // splicing it between "Brand Colors" and "Visual Style" re-parented four
+  // unrelated style directives (Visual Style/Mood/Platform/Resolution) under
+  // the CLIENT CONTEXT heading, reading as if they were business facts.
   prompt += buildBrandContextBlock(
     brandKit
       ? {
@@ -73,11 +80,6 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
         }
       : null
   );
-
-  prompt += `\n- Visual Style: ${safeStyle}`;
-  prompt += `\n- Mood: ${safeMood}`;
-  prompt += `\n- Platform: ${safePlatform}`;
-  prompt += `\n- Resolution: ${safeResolution}`;
 
   prompt += `\n\nTechnical Requirements:`;
   if (hasReferenceImage) {
