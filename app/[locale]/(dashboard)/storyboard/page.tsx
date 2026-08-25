@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
+import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,13 @@ export default function StoryboardPage(): React.ReactElement {
   const tStudio = useTranslations('studio');
   const tSb = useTranslations('storyboard');
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
+  // A project's own brand kit WINS, and the account default is the fallback —
+  // the shape creator and campaign already use. This route sent
+  // `projectBrandKitId ?? undefined`, so a customer who completed the new
+  // onboarding and created no project got no brand context here at all: the
+  // one journey this branch exists to serve.
+  const { defaultKit } = useBrandKits();
+  const brandKitId = projectBrandKitId ?? defaultKit?.id;
   const [concept, setConcept] = useState('');
   const [duration, setDuration] = useState<Duration>('30');
   const [style, setStyle] = useState('cinematic');
@@ -106,7 +114,7 @@ export default function StoryboardPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/storyboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId: projectBrandKitId ?? undefined }),
+        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -114,7 +122,7 @@ export default function StoryboardPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, projectBrandKitId]);
+  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, brandKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };

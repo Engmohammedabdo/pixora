@@ -87,13 +87,22 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
 
-  // The SAME kit whose id gets submitted as `brandKitId` below — never the
-  // account's default kit when no project is selected, because that kit would
-  // not actually reach the route with this request, and defaulting the
-  // environment off data that never gets sent would be confusing rather than
-  // helpful.
-  const { brandKits } = useBrandKits();
+  // The SAME kit whose id gets submitted as `brandKitId` below — the two must
+  // never disagree, or the environment would be defaulted off data that never
+  // reaches the route.
+  //
+  // A project's own kit WINS: the whole point of client workspaces is that
+  // switching client switches the identity with it. But with no project
+  // selected this used to resolve to nothing at all, while creator and
+  // campaign both fall back to the account default. Consequence, measured
+  // rather than argued: a customer who completes the new onboarding and
+  // creates no project got NO brand context in this studio — and the
+  // restaurant -> `food` default below is keyed on the same value, so P4.2's
+  // photoshoot deliverable was unreachable on the exact journey this branch
+  // was built for.
+  const { brandKits, defaultKit } = useBrandKits();
   const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
+  const selectedKit = projectKit ?? defaultKit;
 
   // Only move the default while the customer is still on it. A restaurant's
   // brand kit gets its own preset (commit bd0337d) instead of the generic
@@ -101,8 +110,8 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   // 'white_studio'.
   useEffect(() => {
     if (environmentTouched) return;
-    setEnvironment(projectKit?.industry === 'restaurant' ? 'food' : 'white_studio');
-  }, [projectKit?.industry, environmentTouched]);
+    setEnvironment(selectedKit?.industry === 'restaurant' ? 'food' : 'white_studio');
+  }, [selectedKit?.industry, environmentTouched]);
 
   const releasePreview = (): void => {
     if (previewRef.current) {
@@ -177,9 +186,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       shots,
       notes: notes || undefined,
       projectId: projectId ?? undefined,
-      // Without this the chosen client's identity is ignored even though the
-      // route accepts brandKitId — one client's look would appear on another's shoot.
-      brandKitId: projectBrandKitId ?? undefined,
+      // The project's kit when there is one, the account default otherwise —
+      // exactly what `selectedKit` above resolved, so the environment default
+      // and the kit that actually reaches the route can never disagree.
+      brandKitId: selectedKit?.id,
     });
   };
 
