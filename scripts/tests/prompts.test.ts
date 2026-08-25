@@ -16,6 +16,7 @@ import { buildPlanPrompt } from '../../lib/ai/prompts/plan';
 import { buildAnalysisPrompt } from '../../lib/ai/prompts/analysis';
 import { buildStoryboardPrompt } from '../../lib/ai/prompts/storyboard';
 import { buildPhotoshootPrompt } from '../../lib/ai/prompts/photoshoot';
+import { buildEditPrompt } from '../../lib/ai/prompts/edit';
 
 let failures = 0;
 let checks = 0;
@@ -171,6 +172,41 @@ const planInput = {
   // An unknown environment must still fall back, not throw.
   const p = buildPhotoshootPrompt({ environment: 'nope', shotIndex: 0, totalShots: 1 });
   contains('photoshoot: unknown environment falls back to white studio', p, 'infinity cove');
+}
+
+// ---- edit: text_add accepts the customer's own script ----
+{
+  const p = buildEditPrompt({ editType: 'text_add', editDescription: 'اكتب: عرض اليوم' });
+  omits('edit/text_add: no Latin-only restriction', p, 'Latin characters');
+  omits('edit/text_add: Arabic is no longer forbidden', p, 'Arabic script — it does not render');
+  contains('edit/text_add: demands correct letter joining', p, 'joining');
+  contains('edit/text_add: demands right-to-left', p, 'right-to-left');
+  contains('edit/text_add: forbids transliteration', p, 'ransliterat');
+  contains('edit/text_add: still forbids extra text', p, 'beyond what was asked for');
+}
+
+// ---- edit: the other four modes keep their preservation rules ----
+// The EDIT_MODES table is one careless keystroke from losing these.
+{
+  const bg = buildEditPrompt({ editType: 'background_replace', editDescription: 'x' });
+  contains('edit/background_replace: names the mode task', bg, 'background');
+
+  const rm = buildEditPrompt({ editType: 'object_remove', editDescription: 'x' });
+  contains('edit/object_remove: names the mode task', rm, 'emove');
+
+  const cc = buildEditPrompt({ editType: 'color_change', editDescription: 'x' });
+  contains('edit/color_change: names the mode task', cc, 'olour');
+
+  const st = buildEditPrompt({ editType: 'style_transfer', editDescription: 'x' });
+  contains('edit/style_transfer: keeps the subject recognisable', st, 'recognisable');
+}
+
+// ---- edit: every mode still says the customer's photo must survive ----
+{
+  for (const m of ['background_replace', 'object_remove', 'color_change', 'text_add', 'style_transfer']) {
+    const p = buildEditPrompt({ editType: m, editDescription: 'x' });
+    contains(`edit/${m}: the customer's photo must survive`, p, 'must survive it');
+  }
 }
 
 if (failures > 0) {

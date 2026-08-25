@@ -24,6 +24,20 @@ interface EditPromptInput {
  *
  * `text_add` deliberately inverts the no-text rule every other prompt in this repo
  * carries: adding text is the entire point of that mode.
+ *
+ * ── 2026-08-25: the Arabic ban was lifted ──────────────────────────────────
+ * `text_add` originally demanded Latin characters and explicitly forbade Arabic
+ * script, with the stated reason "it does not render reliably". That was a
+ * considered call at the time, not an oversight — early testing of the image
+ * models on Arabic text was bad enough that shipping it risked every customer's
+ * first impression of the one studio whose entire job is putting text on their
+ * photo. But PyraSuite is an Arabic-first product, and refusing a customer's own
+ * language in the one place text matters most is the wrong trade to keep making
+ * by default. The founder confirmed the backend models now render Arabic
+ * acceptably, so the rule is flipped: script-agnostic and fidelity-bound instead
+ * of Latin-only. The `must`/`avoid` entries below now spell out the failure
+ * modes that are actually true for Arabic (letter joining, RTL direction,
+ * invented diacritics) rather than banning the script outright.
  */
 const EDIT_MODES: Record<string, { task: string; must: string[]; avoid: string[] }> = {
   background_replace: {
@@ -58,14 +72,17 @@ const EDIT_MODES: Record<string, { task: string; must: string[]; avoid: string[]
     // The one mode where text is wanted. Every other prompt in this repo forbids it.
     task: 'Add the text the customer specifies to the image.',
     must: [
-      'Set the text in clean, correctly spelled Latin characters exactly as written, with no extra words',
+      'Set the text exactly as the customer wrote it, in the same script, correctly spelled, with no extra words, no transliteration and no translation',
       'Place it in existing negative space with enough contrast to be legible',
       'Match the perspective and lighting of the surface it sits on',
     ],
     avoid: [
       'Adding any text beyond what was asked for',
       'Covering or crossing the subject',
-      'Arabic script — it does not render reliably and the caption is delivered as text alongside the image',
+      'Breaking the Arabic letter joining — every letter must connect in its correct contextual form (initial, medial, final, isolated)',
+      'Setting an Arabic run left-to-right — Arabic reads right-to-left',
+      'Inventing diacritics (harakat) the customer did not write',
+      'Transliterating or translating the customer instruction instead of setting it as given',
     ],
   },
   style_transfer: {
