@@ -203,6 +203,15 @@
     "invalidDescription": "The business description is too long.",
     "invalidTargetAudience": "The target audience is too long.",
     "invalidCity": "That city isn't valid.",
+    "extractUnauthorized": "Session expired — sign in again, then try the link.",
+    "extractRateLimited": "Too many extraction attempts — wait an hour and try again, or fill in your brand details yourself.",
+    "extractValidationError": "That doesn't look like a link — check it and try again.",
+    "extractUnavailable": "Extraction isn't available right now — fill in your brand details yourself instead.",
+    "extractInvalidUrl": "We couldn't reach that link — check it and try again.",
+    "extractCrawlFailed": "We couldn't read that site. Check the link, or fill in your brand details yourself.",
+    "extractFailed": "We couldn't build a draft from that link this time — try again in a moment, or fill in your brand details yourself.",
+    "extractTimeout": "That's taking too long — try again, or fill in your brand details yourself.",
+    "extractInternalError": "Something unexpected went wrong. Please try again.",
     "cancel": "Cancel"
   },
   "dashboard": {
