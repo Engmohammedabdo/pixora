@@ -213,6 +213,34 @@ BEGIN
 END
 $probe$;
 
+-- Refuse to commit if any probe did not reach its expected verdict. A probe that
+-- could not decide is treated as a failure, not a pass — it certifies nothing.
+-- Verbatim the gate 044:153-162 carries on this same table.
+--
+-- This file reported `N FAILED of M` and committed regardless. Nothing downstream
+-- caught it either: scripts/db/apply.js truncates its output at 300 characters,
+-- which lands inside the aggregated result string below. The live database is not
+-- at risk — 045 is already applied and recorded — but every future replay is: a
+-- fresh staging database, a restored replica, a rebuilt dev database. There, a
+-- probe that FAILS would commit anyway and report success.
+--
+-- Placed BEFORE the schema_migrations insert deliberately: a version recorded as
+-- applied for a schema whose own probes failed is worse than an unrecorded one,
+-- because the next runner skips it.
+DO $gate$
+DECLARE
+  v_bad int;
+BEGIN
+  SELECT count(*) INTO v_bad FROM probe_results WHERE verdict <> 'PASS';
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'brand_kits business-context probes failed: % probe(s) did not reach the expected verdict (%)',
+      v_bad,
+      (SELECT string_agg(probe || '=' || verdict, ' | ' ORDER BY probe)
+         FROM probe_results WHERE verdict <> 'PASS');
+  END IF;
+END
+$gate$;
+
 INSERT INTO public.schema_migrations (version, description)
 VALUES ('045', 'brand_kits business context columns, bounded on the same bytes the route stores')
 ON CONFLICT (version) DO NOTHING;
