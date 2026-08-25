@@ -15,6 +15,7 @@
     "test:safety": "npx tsx scripts/tests/safety.test.ts",
     "test:uploads": "npx tsx scripts/tests/uploaded-url.test.ts",
     "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts",
+    "test:brand-context-parity": "npx tsx scripts/tests/brand-context-parity.ts",
     "check:mail": "node scripts/check-mail-dns.js",
     "test:plan-switch": "npx tsx scripts/tests/plan-switch.test.ts",
     "test:generation-terminal": "npx tsx scripts/tests/generation-terminal.test.ts",

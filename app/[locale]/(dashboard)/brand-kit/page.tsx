@@ -25,6 +25,18 @@ export default function BrandKitPage(): React.ReactElement {
   const [editingKit, setEditingKit] = useState<BrandKit | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Every constraint 042 and 045 can trip, mapped by app/api/brand-kits'
+  // mapBrandKitCheckViolation. Kept as a lookup rather than an if-chain because
+  // that function can grow without this switch needing a new branch shape.
+  const ERROR_MESSAGE_KEYS: Record<string, string> = {
+    invalid_logo_url: 'invalidLogo',
+    invalid_website_url: 'invalidWebsiteUrl',
+    invalid_industry: 'invalidIndustry',
+    invalid_description: 'invalidDescription',
+    invalid_target_audience: 'invalidTargetAudience',
+    invalid_city: 'invalidCity',
+  };
+
   // Every mutation below used to be awaited with no catch, so a rejected
   // request became an unhandled promise rejection: the dialog stayed open with
   // no message and the user had no way to learn what was wrong.
@@ -35,11 +47,8 @@ export default function BrandKitPage(): React.ReactElement {
       toast.error(t('limitReached', { limit: limit ?? '' }));
       return;
     }
-    if (code === 'invalid_logo_url') {
-      toast.error(t('invalidLogo'));
-      return;
-    }
-    toast.error(t(fallbackKey));
+    const messageKey = ERROR_MESSAGE_KEYS[code];
+    toast.error(t(messageKey ?? fallbackKey));
   };
 
   const handleCreate = async (data: Partial<BrandKit>): Promise<void> => {
@@ -215,7 +224,10 @@ export default function BrandKitPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>{t('create')}</DialogTitle>
           </DialogHeader>
-          <BrandKitForm onSubmit={handleCreate} loading={creating} />
+          {/* Mounted only while open, same as the Edit dialog below — the form
+              owns no reset logic, so a form kept mounted across closes would
+              show the last kit's business fields the next time this opens. */}
+          {showCreate && <BrandKitForm onSubmit={handleCreate} loading={creating} />}
         </DialogContent>
       </Dialog>
 

@@ -97,6 +97,14 @@ export interface Database {
           font_secondary: string;
           brand_voice: string | null;
           is_default: boolean;
+          // Migration 045 — the business-context columns nothing wrote until
+          // this task. All five nullable; see lib/brand-kits/schema.ts for the
+          // bounds, which mirror that migration's CHECK constraints exactly.
+          website_url: string | null;
+          industry: string | null;
+          description: string | null;
+          target_audience: string | null;
+          city: string | null;
           created_at: string;
         };
         Insert: {
@@ -111,6 +119,11 @@ export interface Database {
           font_secondary?: string;
           brand_voice?: string | null;
           is_default?: boolean;
+          website_url?: string | null;
+          industry?: string | null;
+          description?: string | null;
+          target_audience?: string | null;
+          city?: string | null;
           created_at?: string;
         };
         Update: {
@@ -125,6 +138,11 @@ export interface Database {
           font_secondary?: string;
           brand_voice?: string | null;
           is_default?: boolean;
+          website_url?: string | null;
+          industry?: string | null;
+          description?: string | null;
+          target_audience?: string | null;
+          city?: string | null;
         };
         Relationships: [];
       };
