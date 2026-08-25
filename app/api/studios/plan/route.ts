@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { PLAN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { PlanSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { PLAN_PROMPT_VERSION, buildPlanPrompt } from '@/lib/ai/prompts/plan';
+import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -20,98 +22,25 @@ const InputSchema = z.object({
   // Optional, so any existing caller keeps working and defaults to Arabic.
   locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
+  // Optional, and NOT tightened by app/api/brand-kits validation here: the
+  // caller only ever sends an id it fetched from its own /api/brand-kits list,
+  // and the fetch below is scoped to the caller (.eq('user_id', user.id)), the
+  // same pattern as creator/route.ts.
+  brandKitId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
+  // Free text the customer typed after picking أخرى. Deliberately NOT
+  // `z.enum(INDUSTRIES)` on `industry` above and deliberately not required
+  // here: tightening the slug would turn a quality loss into a 400 on every
+  // restore of a historical row, and this field is what carries the fact
+  // instead. It reaches the prompt as description-level context only —
+  // `industryName()` still governs the persona (lib/ai/prompts/plan.ts).
+  industryOther: z.string().max(100).optional(),
   goals: z.array(z.string().max(200)).min(1).max(10),
   targetMarket: z.string().min(5).max(500),
   budget: z.string().min(1).max(200),
   duration: z.enum(['30', '60', '90']),
 });
-
-/*
- * The model's JSON was accepted on "did JSON.parse succeed", finalized as
- * `completed`, and the 5 credits kept. The page then dereferenced nested arrays
- * the top-level types called optional — `plan.budget.breakdown.map`,
- * `week.content.map` — and a render throw trips the segment error boundary, so
- * the customer paid and got a generic Arabic error instead of a plan.
- *
- * Shape is checked HERE so a wrong one takes the existing parse-failure branch
- * (refund + `generation_parse_failed`) rather than being sold, and the value we
- * store and return is the PARSED one — so the row RecentWork restores later is
- * normalized too.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-/** Does this section actually SHOW the customer anything?
- *
- *  Every leaf above is `.catch('')`, which never fails — it turns a
- *  non-printable value into an empty string. So a non-empty array proves
- *  nothing: `{"objectives":[{},{}]}` parses into two entries of empty strings,
- *  and counting `.length` sold that as a plan for 5 credits. Numbers are left
- *  out on purpose — a week index or a percentage is not a deliverable. */
-function hasPrintableText(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasPrintableText);
-  return false;
-}
-
-const numeric = z
-  .union([z.number(), z.string()])
-  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
-  .catch(0);
-
-const PlanSchema = z
-  .object({
-    objectives: z.array(z.object({ goal: printable, kpi: printable, target: printable }).loose()).catch([]),
-    channels: z.array(z.object({ name: printable, budget_pct: numeric, strategy: printable }).loose()).catch([]),
-    calendar: z
-      .array(z.object({ week: numeric, content: z.array(printable).catch([]), channel: printable }).loose())
-      .catch([]),
-    budget: z
-      .object({
-        total: printable,
-        breakdown: z.array(z.object({ item: printable, amount: printable, pct: numeric }).loose()).catch([]),
-      })
-      .loose()
-      .optional()
-      .catch(undefined),
-    kpis: z.array(z.object({ metric: printable, target: printable, tracking: printable }).loose()).catch([]),
-  })
-  .loose()
-  // Every section above defaults to empty, so `{}` would otherwise parse and be
-  // charged for. A plan with nothing in any section is the same failure the
-  // campaign studio already treats as one: an empty response sold as nine posts.
-  //
-  // Stated on CONTENT, not on `.length`: entry COUNT was the wrong question,
-  // because `.catch('')` means an entry always parses. `{"objectives":[{},{}]}`
-  // passed the count and was finalized as `completed` for a deliverable of
-  // empty strings. Only the fields the page and the PDF actually print are
-  // considered, so a section of unrendered junk cannot vouch for itself.
-  .refine((p) => {
-    // Only sections the customer can actually SEE may vouch for a plan. The page
-    // renders exactly four tabs — objectives, channels, calendar, budget
-    // (plan/page.tsx:146-149) — and there is no generatePlanPdf, so nothing else
-    // consumes the parsed object either.
-    //
-    // `kpis` used to sit in this list. It is parsed and stored and rendered nowhere,
-    // so a response carrying nothing but kpis passed the gate, was finalized
-    // `completed`, kept the 5 credits, and left the customer looking at four empty
-    // tabs with no error. Do not add a section here without first pointing at the
-    // code that prints it.
-    const sections: unknown[] = [
-      p.objectives.map((o) => [o.goal, o.kpi, o.target]),
-      p.channels.map((c) => [c.name, c.strategy]),
-      p.calendar.map((w) => [w.content, w.channel]),
-      p.budget?.breakdown.map((b) => [b.item, b.amount]) ?? [],
-    ];
-    return sections.some(hasPrintableText);
-  }, 'model returned no usable plan sections');
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -145,11 +74,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     //
     // EVERY field is free text that reaches the prompt, so every one is filtered
     // — at the caps the builder itself uses (which mirror InputSchema's maxima),
-    // so the builder's second pass truncates nothing and cannot throw.
+    // so the builder's second pass over THESE fields truncates nothing and
+    // cannot throw.
+    //
+    // It is not the whole filter, though, and the comment here used to imply it
+    // was. The brand kit's own columns are filtered only inside
+    // buildBrandContextBlock(), which runs inside buildPlanPrompt() — so the
+    // guarantee above holds only because that call is hoisted above the
+    // reservation below. Do not move it back down.
     const safeInput = {
       ...input,
       businessName: sanitizePrompt(input.businessName, 200),
       industry: sanitizePrompt(input.industry, 100),
+      industryOther: input.industryOther ? sanitizePrompt(input.industryOther, 100) : undefined,
       targetMarket: sanitizePrompt(input.targetMarket, 500),
       budget: sanitizePrompt(input.budget, 200),
       goals: input.goals.map((g) => sanitizePrompt(g, 200)),
@@ -162,6 +99,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
+
+    // Fetch the caller's brand kit — the migration-045 business columns,
+    // reshaped for buildBrandContextBlock. Scoped to the caller, the same
+    // pattern as creator/route.ts. plan and analysis were deliberately left out
+    // of P4.1 because they receive no brand kit at all; this closes that gap.
+    //
+    // `name`, `industry` and `targetAudience` are deliberately NULLED. plan and
+    // analysis are the only two studios where the same facts arrive twice —
+    // once from this row and once from the request body, because the page
+    // prefills Business Name / Industry / Target Market FROM the default kit
+    // and then sends `brandKitId` regardless of what the customer edited
+    // afterwards. Left in, a customer who retyped the name and picked a
+    // different industry got a 5-credit prompt carrying two business identities
+    // and two `- Industry:` lines. The form is the fresher source for anything
+    // the form asks for, so the kit contributes only what the form does NOT:
+    // `description` (plan has no description field) and `city` (no studio form
+    // has one). buildBrandContextBlock returns '' when there is nothing left to
+    // say, which is the common case for a pre-045 kit.
+    let brandContext: BrandContextPromptInput | null = null;
+    if (input.brandKitId) {
+      const { data: kit } = await supabase
+        .from('brand_kits')
+        .select('*')
+        .eq('id', input.brandKitId)
+        .eq('user_id', user.id)
+        .single();
+      brandContext = kit
+        ? {
+            name: null,
+            industry: null,
+            description: kit.description ?? null,
+            targetAudience: null,
+            city: kit.city ?? null,
+          }
+        : null;
+    }
+
+    // Built HERE — above the generations insert and above the reservation —
+    // because buildBrandContextBlock (called inside buildPlanPrompt) is what
+    // actually runs sanitizePrompt over the kit's description and city. Built
+    // later, as this route did until now, a blocked term in a brand-kit column
+    // was only caught AFTER 5 credits were reserved: refund, a `failed` row
+    // attributed to `generation_failed`, and a 500 `refund_failed` with the
+    // credits stranded for 45 minutes if the refund itself failed. Exactly the
+    // ordering commit c12e928 fixed in storyboard and photoshoot and did not
+    // fix here. A PromptBlockedError thrown here reaches the OUTER catch
+    // directly — no credits moved, no orphan row — same as `safeInput` above.
+    const prompt = buildPlanPrompt({
+      ...safeInput,
+      duration: parseInt(safeInput.duration, 10),
+      locale: input.locale ?? routing.defaultLocale,
+      brandContext,
+    });
+
     const creditCost = CREDIT_COSTS.plan;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
@@ -204,7 +195,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10), locale: input.locale ?? routing.defaultLocale });
     const result = await generateText({
       prompt,
       maxTokens: 8192,
@@ -244,10 +234,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
+    // A mock is not a generation. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the row
+    // is finalized `completed` and the credits are kept for `[mock] field` text —
+    // against the one real Supabase instance this project has. Dev-only by
+    // construction: rejectMockInProduction() (lib/ai/router.ts) throws on every
+    // return path of generateText when NODE_ENV is production, so `mock` cannot be
+    // true there.
+    const mockRefund = await refundMockRun({
+      mocked: result.mock, userId: user.id, amount: creditCost,
+      studio: 'plan', generationId: generation.id,
+    });
+    const creditsCharged = mockRefund.refunded ? 0 : creditCost;
+
     if (generation) {
       await finalizeGeneration(supabase, generation.id, {
         output: { plan, mock: result.mock },
         status: 'completed',
+        // The net charge after a refund that LANDED, never the intended figure —
+        // the same rule campaign, creator and photoshoot state.
+        credits_used: creditsCharged,
         // Record the model that ACTUALLY served. The row is inserted before
         // generation from the PREFERRED model, but the router falls back — so a
         // gpt-served run stayed filed under gemini forever, and six admin surfaces
@@ -257,7 +263,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, 'plan');
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, plan, mock: result.mock, creditsUsed: creditsCharged, newBalance: mockRefund.refunded ? mockRefund.newBalance : reserveResult.newBalance } });
     } catch (genError) {
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,
@@ -270,11 +276,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           error: 'generation_failed',
         }, 'plan');
       }
-      // No exemption here. The filter now runs before the reservation, so a
-      // blocked prompt cannot reach this arm at all — and back when it could,
-      // exempting it meant a refund that FAILED still returned a tidy 400 and
-      // lost the credits with nothing logged. Credits that did not come back
-      // are the alarm, whatever threw.
+      // No exemption here. The whole prompt — the customer's fields AND the
+      // brand kit's columns — is now built above the reservation, so a blocked
+      // prompt cannot reach this arm at all. That was NOT true while
+      // buildPlanPrompt() was called inside this try: the brand-kit half of the
+      // filter ran with 5 credits already held, and this comment asserted the
+      // opposite for two commits. Back when a block could reach here, exempting
+      // it meant a refund that FAILED still returned a tidy 400 and lost the
+      // credits with nothing logged. Credits that did not come back are the
+      // alarm, whatever threw.
       if (!refundResult.success) {
         console.error('Plan API error:', genError);
         return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });

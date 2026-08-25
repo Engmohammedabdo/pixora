@@ -1,5 +1,6 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock, type BrandContextPromptInput } from './brand-context';
 
 interface StoryboardPromptInput {
   concept: string;
@@ -10,6 +11,13 @@ interface StoryboardPromptInput {
   targetAudience?: string;
   keyMessage?: string;
   /**
+   * Not a raw `BrandKit` — this builder has always taken flattened brand
+   * fields (brandName above), never the object itself, so a second new
+   * parameter here mirrors the existing convention rather than introducing a
+   * `BrandKit` dependency this file has never had.
+   */
+  brandContext?: BrandContextPromptInput | null;
+  /**
    * The locale the customer is READING the app in. Defaults to Arabic, which is
    * what this prompt used to hardcode — so an English-locale customer paid full
    * price for a deliverable they may not be able to read.
@@ -19,7 +27,7 @@ interface StoryboardPromptInput {
 
 // v2.0 — matches system-prompts.md storyboard_v1
 export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
-  const { concept, duration, style, platform, brandName, targetAudience, keyMessage , locale } = input;
+  const { concept, duration, style, platform, brandName, targetAudience, keyMessage, brandContext, locale } = input;
 
   // Belt AND braces, exactly as lib/ai/prompts/plan.ts does: the route filters before
   // the money moves, and the builder filters again so no future caller can reach the
@@ -45,6 +53,10 @@ export function buildStoryboardPrompt(input: StoryboardPromptInput): string {
   if (safeTargetAudience) prompt += `\n- Target Audience: ${safeTargetAudience}`;
   if (safeBrandName) prompt += `\n- Brand: ${safeBrandName}`;
   if (safeKeyMessage) prompt += `\n- Key Message: ${safeKeyMessage}`;
+
+  // Placed after the Video Brief above and before the scene/style directives
+  // below, so the context frames the work rather than trailing it.
+  prompt += buildBrandContextBlock(brandContext ?? null);
 
   prompt += `\n\nCreate a professional storyboard with exactly 9 scenes.`;
   prompt += `\nThe total duration of all scenes must equal exactly ${duration} seconds.`;

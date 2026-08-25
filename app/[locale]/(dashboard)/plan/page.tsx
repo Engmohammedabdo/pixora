@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
+import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { INDUSTRIES, isIndustry } from '@/lib/industries';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -74,9 +76,23 @@ export default function PlanPage(): React.ReactElement {
   // placeholder like {term} rendered as literal text.
   const tStudio = useTranslations('studio');
   const tPlan = useTranslations('plan');
+  // ONE industry label set. `plan.industries`, `analysis.industries` and
+  // `brandKit.industries` were three copies of the same seven slugs, and all
+  // three disagreed — en Restaurant/Restaurants/Restaurant, ar SaaS/برمجيات/
+  // برمجيات — so the same brand kit read as a different industry depending on
+  // which screen the customer was looking at.
+  const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
+  // Revealed by the أخرى chip. `INDUSTRY_NAMES.other` is '', so before this
+  // field existed a customer whose trade had no chip — a Dubai car-rental
+  // owner, say — picked أخرى, spent 5 credits, and received a plan generated
+  // with zero knowledge of what they sell. This studio has no description
+  // field, so there was no other channel; before the chip grid they simply
+  // typed "تأجير سيارات". Carried to the route as description-level context,
+  // never as `industry`.
+  const [industryOther, setIndustryOther] = useState('');
   const [goals, setGoals] = useState<string[]>([]);
   const [targetMarket, setTargetMarket] = useState('');
   const [budget, setBudget] = useState('$1,000 - $2,000');
@@ -97,6 +113,45 @@ export default function PlanPage(): React.ReactElement {
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
+  const { defaultKit } = useBrandKits();
+  // Prefill from the caller's default brand kit — ONCE, and only into BLANKS.
+  //
+  // Two separate things make that true, and an earlier version of this comment
+  // claimed the first did both. The functional updaters below read the CURRENT
+  // value at the moment the effect runs rather than one captured when it was
+  // scheduled, which is what keeps `businessName`/`targetMarket` out of the
+  // dependency array (they would re-fire on every keystroke). That prevents
+  // STALE CLOSURES. It does not prevent the effect RE-RUNNING — see the
+  // dependency array below for what does.
+  useEffect(() => {
+    if (!defaultKit) return;
+    if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
+    // Only a slug the chip UI below can actually render as selected.
+    // `brand_kits.industry` is deliberately NOT constrained to this list
+    // (migration 045: "that list is allowed to grow, and a database that
+    // refuses a slug the code has already shipped is an outage") and is
+    // customer-writable straight over PostgREST, so a raw value here could be
+    // any 1-40 char string. Prefilling with one the chips do not recognise
+    // would still pass `isValid`'s length check and reach the route as free
+    // text on Generate — the exact shape item 4 exists to keep off the wire.
+    const kitIndustry = defaultKit.industry;
+    if (kitIndustry && isIndustry(kitIndustry)) {
+      setIndustry((prev) => prev || kitIndustry);
+    }
+    const kitTargetAudience = defaultKit.target_audience;
+    if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
+    // `defaultKit?.id`, NOT `defaultKit`. `useBrandKits` is a React Query
+    // hook: `staleTime` is 5 minutes and `refetchOnWindowFocus` defaults to
+    // true, so tabbing away and back refetches and hands back a NEW OBJECT for
+    // the same row. Depending on object identity re-ran this effect and
+    // `prev || defaultKit.name` refilled a field the customer had deliberately
+    // cleared. The comment above claimed the functional updaters made a
+    // "touched" flag unnecessary — they prevent STALE CLOSURES, not refills;
+    // only not re-running does that. `handleGenerate` in this same file
+    // already depends on `defaultKit?.id` for the same reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultKit?.id]);
+
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
   // Must match app/api/studios/plan/route.ts's InputSchema exactly. It requires
   // `industry` (min 2) and `budget` (min 1) and this gate checked neither, so
@@ -115,7 +170,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, industryOther: industryOther.trim() || undefined, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -123,7 +178,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, industryOther, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, defaultKit?.id]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -133,7 +188,28 @@ export default function PlanPage(): React.ReactElement {
     <div className="space-y-4">
       <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2"><Label htmlFor="plan-business-name">{tPlan('businessName')}</Label><Input id="plan-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('businessNamePlaceholder')} /></div>
-      <div className="space-y-2"><Label htmlFor="plan-industry">{tPlan('industry')}</Label><Input id="plan-industry" value={industry} onChange={(e) => setIndustry(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('industryPlaceholder')} /></div>
+      <div className="space-y-2">
+        <Label>{tPlan('industry')}</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {INDUSTRIES.map((ind) => (
+            <button key={ind} type="button" onClick={() => setIndustry((prev) => (prev === ind ? '' : ind))} aria-pressed={industry === ind}
+              className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', industry === ind ? selectedChipClasses : unselectedChipClasses)}>
+              {tIndustries(ind)}
+            </button>
+          ))}
+        </div>
+        {industry === 'other' && (
+          <Input
+            id="plan-industry-other"
+            value={industryOther}
+            onChange={(e) => setIndustryOther(e.target.value)}
+            onKeyDown={handleSubmitKeyDown}
+            placeholder={tPlan('industryOtherPlaceholder')}
+            aria-label={tPlan('industryOther')}
+            maxLength={100}
+          />
+        )}
+      </div>
       <div className="space-y-2">
         <Label>{tPlan('goals')}</Label>
         <div className="flex flex-wrap gap-2">{GOALS.map((g) => (
@@ -170,7 +246,29 @@ export default function PlanPage(): React.ReactElement {
         onRestore={(output, input) => {
           setPlan(output.plan !== null && typeof output.plan === 'object' ? (output.plan as Plan) : null);
           setBusinessName(inputText(input, 'businessName'));
-          setIndustry(inputText(input, 'industry'));
+          // A stored `industry` is only a chip if it is one of the seven slugs.
+          // Rows written before the chip grid carry free text ("تأجير سيارات"),
+          // and `brand_kits.industry` is deliberately unconstrained, so a
+          // restored value can be anything. Set raw, it rendered NO selected
+          // chip while `isValid` still passed on length — and the customer paid
+          // 5 credits for a plan silently carrying no industry at all. Routed
+          // into the أخرى escape hatch instead, where it is visible, editable
+          // and actually reaches the model.
+          const restoredIndustry = inputText(input, 'industry');
+          const restoredOther = inputText(input, 'industryOther');
+          if (isIndustry(restoredIndustry)) {
+            setIndustry(restoredIndustry);
+            // Only `other` has a free-text companion; anything else must clear
+            // it, or a previous run's activity text survives onto a different
+            // industry — two identities on one deliverable again.
+            setIndustryOther(restoredIndustry === 'other' ? restoredOther : '');
+          } else if (restoredIndustry || restoredOther) {
+            setIndustry('other');
+            setIndustryOther(restoredOther || restoredIndustry);
+          } else {
+            setIndustry('');
+            setIndustryOther('');
+          }
           setTargetMarket(inputText(input, 'targetMarket'));
         }}
         refreshKey={runs}

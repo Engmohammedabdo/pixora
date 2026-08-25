@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
+import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { INDUSTRIES, isIndustry } from '@/lib/industries';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -38,8 +40,6 @@ function inputText(input: Record<string, unknown>, key: string): string {
   return typeof v === 'string' ? v : '';
 }
 
-
-const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
 // The NESTED arrays are optional too, not just the top-level sections. The route
 // validates the model's shape now, but rows written before that guard existed
@@ -71,6 +71,9 @@ export default function AnalysisPage(): React.ReactElement {
   // placeholder like {term} rendered as literal text.
   const tStudio = useTranslations('studio');
   const tAn = useTranslations('analysis');
+  // The one industry label set — see app/[locale]/(dashboard)/plan/page.tsx for
+  // why three copies of it existed and how they had already drifted.
+  const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -96,13 +99,54 @@ export default function AnalysisPage(): React.ReactElement {
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
+  const { defaultKit } = useBrandKits();
+  // Prefill from the caller's default brand kit — ONCE, and only into BLANKS.
+  //
+  // Two separate things make that true, and an earlier version of this comment
+  // claimed the first did both. The functional updaters below read the CURRENT
+  // value at the moment the effect runs rather than one captured when it was
+  // scheduled, which is what keeps `businessName`/`description`/`targetMarket`
+  // out of the dependency array (they would re-fire on every keystroke). That
+  // prevents STALE CLOSURES. It does not prevent the effect RE-RUNNING — see
+  // the dependency array below for what does.
+  useEffect(() => {
+    if (!defaultKit) return;
+    if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
+    // Only a slug the chip UI below can actually render as selected.
+    // `brand_kits.industry` is deliberately NOT constrained to this list
+    // (migration 045: "that list is allowed to grow, and a database that
+    // refuses a slug the code has already shipped is an outage") and is
+    // customer-writable straight over PostgREST, so a raw value here could be
+    // any 1-40 char string. Prefilling with one the chips do not recognise
+    // would still pass `isValid`'s length check and reach the route as free
+    // text on Generate — the exact shape item 4 exists to keep off the wire.
+    const kitIndustry = defaultKit.industry;
+    if (kitIndustry && isIndustry(kitIndustry)) {
+      setIndustry((prev) => prev || kitIndustry);
+    }
+    const kitDescription = defaultKit.description;
+    if (kitDescription) setDescription((prev) => prev || kitDescription);
+    const kitTargetAudience = defaultKit.target_audience;
+    if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
+    // `defaultKit?.id`, NOT `defaultKit`. `useBrandKits` is a React Query
+    // hook: `staleTime` is 5 minutes and `refetchOnWindowFocus` defaults to
+    // true, so tabbing away and back refetches and hands back a NEW OBJECT for
+    // the same row. Depending on object identity re-ran this effect and
+    // `prev || defaultKit.name` refilled a field the customer had deliberately
+    // cleared. The comment above claimed the functional updaters made a
+    // "touched" flag unnecessary — they prevent STALE CLOSURES, not refills;
+    // only not re-running does that. `handleGenerate` in this same file
+    // already depends on `defaultKit?.id` for the same reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultKit?.id]);
+
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
     setIsLoading(true); setError(null); setAnalysis(null);
     try {
       const res = await fetch('/api/studios/analysis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, locale, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -110,7 +154,7 @@ export default function AnalysisPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, locale, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, locale, setBalance, tStudio, projectId, defaultKit?.id]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -124,9 +168,9 @@ export default function AnalysisPage(): React.ReactElement {
         <Label>{tAn('industry')}</Label>
         <div className="grid grid-cols-2 gap-2">
           {INDUSTRIES.map((ind) => (
-            <button key={ind} type="button" onClick={() => setIndustry(ind)} aria-pressed={industry === ind}
+            <button key={ind} type="button" onClick={() => setIndustry((prev) => (prev === ind ? '' : ind))} aria-pressed={industry === ind}
               className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', industry === ind ? selectedChipClasses : unselectedChipClasses)}>
-              {tAn(`industries.${ind}`)}
+              {tIndustries(ind)}
             </button>
           ))}
         </div>

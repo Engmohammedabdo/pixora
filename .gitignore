@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Claude Code — personal permissions, not shared
 .claude/settings.local.json
+
+# subagent-driven-development scratch (briefs, reports, review packages)
+.superpowers/

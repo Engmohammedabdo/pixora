@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { STORYBOARD_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { ScenesSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { STORYBOARD_PROMPT_VERSION, buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
+import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -30,64 +32,6 @@ const InputSchema = z.object({
   platform: z.enum(['instagram_reel', 'tiktok', 'youtube', 'tv']),
   brandKitId: z.string().uuid().optional(),
 });
-
-/*
- * The model's JSON is input we did not write, and it was trusted on shape.
- * `Array.isArray(parsed) && parsed.length > 0` accepted `[{}]`, the route
- * finalized it as `completed` and kept the 14 credits, and the page then threw
- * on `scene.visual_description.substring(...)`. A render throw trips the segment
- * error boundary, so the customer paid 14 credits and got a generic Arabic error
- * where the storyboard should be — with no way to reach the output at all.
- *
- * Shape is therefore checked HERE, before finalizing, so a wrong shape takes the
- * existing parse-failure branch (refund + `generation_parse_failed`) instead of
- * being sold. What is stored and returned is the PARSED value, so the row
- * RecentWork restores months from now is the normalized one too.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-const numeric = z
-  .union([z.number(), z.string()])
-  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
-  .catch(0);
-
-// Only `visual_description` is required: a scene without one is not a scene, and
-// that is the field the page dereferences. Everything else is decoration — one
-// thin field must never cost the customer the whole 14 credits.
-const SceneSchema = z
-  .object({
-    scene_number: numeric,
-    visual_description: z.string().min(1),
-    dialogue: printable,
-    camera_angle: printable,
-    camera_movement: printable,
-    duration_seconds: numeric,
-    mood: printable,
-    music_note: printable,
-  })
-  .loose();
-
-/**
- * The number of scenes a storyboard is sold as and priced for: the prompt asks for
- * "exactly 9 scenes" (lib/ai/prompts/storyboard.ts) and the flat 14-credit price is
- * built on that. Mirrors campaign's EXPECTED_POSTS.
- */
-const EXPECTED_SCENES = 9;
-
-/**
- * `.min(1)` accepted one scene of the nine that were sold, marked the row completed
- * and kept all 14 credits. A storyboard is not a bag of independent items like a
- * campaign's posts — its scene durations must sum to the requested video length, so
- * a short response is unusable rather than partial. Refusing here routes it into the
- * existing parse-failure branch: full refund, `generation_parse_failed`, free retry.
- */
-const ScenesSchema = z.array(SceneSchema).min(EXPECTED_SCENES);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -128,13 +72,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const safeConcept = sanitizePrompt(input.concept, 2000);
 
     let brandKitName: string | undefined;
+    // Also carries the migration-045 business columns so buildStoryboardPrompt's
+    // CLIENT CONTEXT block has something to say. sanitizePrompt runs INSIDE that
+    // block, not here — this route only reshapes the row, same as campaign does
+    // for its own brandContext.
+    let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
-      const { data: brandKit } = await supabase.from('brand_kits').select('name').eq('id', input.brandKitId).eq('user_id', user.id).single();
+      const { data: brandKit } = await supabase
+        .from('brand_kits')
+        .select('name, industry, description, target_audience, city')
+        .eq('id', input.brandKitId)
+        .eq('user_id', user.id)
+        .single();
       // `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
       // 042 constrains logo_url alone), so a customer can PATCH `name` to any string
       // over PostgREST and app/api/brand-kits/route.ts's max(100) never runs.
       brandKitName = brandKit?.name ? sanitizePrompt(String(brandKit.name), 100) : undefined;
+      brandContext = brandKit
+        ? {
+            name: brandKit.name ?? null,
+            industry: brandKit.industry ?? null,
+            description: brandKit.description ?? null,
+            targetAudience: brandKit.target_audience ?? null,
+            city: brandKit.city ?? null,
+          }
+        : null;
     }
+
+    // Built HERE — before the insert and before the reservation — because
+    // buildBrandContextBlock (called inside buildStoryboardPrompt) is what
+    // actually runs sanitizePrompt over industry/description/targetAudience/
+    // city. Building the prompt later (as this route previously did, inside
+    // the post-reservation try block) meant a blocked term in one of those
+    // brand-kit columns was only caught AFTER 14 credits were reserved,
+    // reversing the guarantee the comment above makes for `concept`. A
+    // PromptBlockedError thrown here reaches the OUTER catch directly — no
+    // credits moved, no orphan row — same as `safeConcept` above.
+    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, brandContext, locale: input.locale ?? routing.defaultLocale });
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
       user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, concept: safeConcept, brandKitName, promptVersion: STORYBOARD_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
@@ -176,7 +150,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, locale: input.locale ?? routing.defaultLocale });
     const result = await generateText({
       prompt,
       maxTokens: 8192,
@@ -214,10 +187,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 500 });
     }
 
+    // A mock is not a generation. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the row
+    // is finalized `completed` and the credits are kept for `[mock] field` text —
+    // against the one real Supabase instance this project has. Dev-only by
+    // construction: rejectMockInProduction() (lib/ai/router.ts) throws on every
+    // return path of generateText when NODE_ENV is production, so `mock` cannot be
+    // true there.
+    const mockRefund = await refundMockRun({
+      mocked: result.mock, userId: user.id, amount: creditCost,
+      studio: 'storyboard', generationId: generation.id,
+    });
+    const creditsCharged = mockRefund.refunded ? 0 : creditCost;
+
     if (generation) {
       await finalizeGeneration(supabase, generation.id, {
         output: { scenes, mock: result.mock },
         status: 'completed',
+        // The net charge after a refund that LANDED, never the intended figure —
+        // the same rule campaign, creator and photoshoot state.
+        credits_used: creditsCharged,
         // Record the model that ACTUALLY served. The row is inserted before
         // generation from the PREFERRED model, but the router falls back — so a
         // gpt-served run stayed filed under gemini forever, and six admin surfaces
@@ -227,7 +216,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, 'storyboard');
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, scenes, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, scenes, mock: result.mock, creditsUsed: creditsCharged, newBalance: mockRefund.refunded ? mockRefund.newBalance : reserveResult.newBalance } });
     } catch (genError) {
       const refundResult = await refundCredits({
         userId: user.id, amount: creditCost,

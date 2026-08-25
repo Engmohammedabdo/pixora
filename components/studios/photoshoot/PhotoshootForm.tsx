@@ -13,6 +13,7 @@ import { Upload, X, Camera, Sparkles, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useCredits } from '@/hooks/useCredits';
+import { useBrandKits } from '@/hooks/useBrandKit';
 
 interface PhotoshootFormProps {
   onSubmit: (input: {
@@ -28,6 +29,7 @@ interface PhotoshootFormProps {
 
 const ENVIRONMENTS = [
   { id: 'white_studio', emoji: '⬜' },
+  { id: 'food', emoji: '🍽️' },
   { id: 'lifestyle', emoji: '🏠' },
   { id: 'nature', emoji: '🌿' },
   { id: 'urban', emoji: '🏙️' },
@@ -62,6 +64,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productImage, setProductImage] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<string>('white_studio');
+  // Once the customer picks an environment themselves, their choice stands —
+  // the default below must never move it again, even if the project (and so
+  // the brand kit it carries) changes afterward.
+  const [environmentTouched, setEnvironmentTouched] = useState(false);
   const [shots, setShots] = useState<1 | 3 | 6>(6);
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -80,6 +86,32 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const isValid = !!productImage && !uploading;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
+
+  // The SAME kit whose id gets submitted as `brandKitId` below — the two must
+  // never disagree, or the environment would be defaulted off data that never
+  // reaches the route.
+  //
+  // A project's own kit WINS: the whole point of client workspaces is that
+  // switching client switches the identity with it. But with no project
+  // selected this used to resolve to nothing at all, while creator and
+  // campaign both fall back to the account default. Consequence, measured
+  // rather than argued: a customer who completes the new onboarding and
+  // creates no project got NO brand context in this studio — and the
+  // restaurant -> `food` default below is keyed on the same value, so P4.2's
+  // photoshoot deliverable was unreachable on the exact journey this branch
+  // was built for.
+  const { brandKits, defaultKit } = useBrandKits();
+  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
+  const selectedKit = projectKit ?? defaultKit;
+
+  // Only move the default while the customer is still on it. A restaurant's
+  // brand kit gets its own preset (commit bd0337d) instead of the generic
+  // studio backdrop; any other industry — or no brand kit at all — keeps
+  // 'white_studio'.
+  useEffect(() => {
+    if (environmentTouched) return;
+    setEnvironment(selectedKit?.industry === 'restaurant' ? 'food' : 'white_studio');
+  }, [selectedKit?.industry, environmentTouched]);
 
   const releasePreview = (): void => {
     if (previewRef.current) {
@@ -154,9 +186,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       shots,
       notes: notes || undefined,
       projectId: projectId ?? undefined,
-      // Without this the chosen client's identity is ignored even though the
-      // route accepts brandKitId — one client's look would appear on another's shoot.
-      brandKitId: projectBrandKitId ?? undefined,
+      // The project's kit when there is one, the account default otherwise —
+      // exactly what `selectedKit` above resolved, so the environment default
+      // and the kit that actually reaches the route can never disagree.
+      brandKitId: selectedKit?.id,
     });
   };
 
@@ -221,7 +254,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
             <button
               key={env.id}
               type="button"
-              onClick={() => setEnvironment(env.id)}
+              onClick={() => { setEnvironment(env.id); setEnvironmentTouched(true); }}
               aria-pressed={environment === env.id}
               className={cn(
                 'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',

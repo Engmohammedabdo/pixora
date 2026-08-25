@@ -1,5 +1,6 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock, type BrandContextPromptInput } from './brand-context';
 
 interface CampaignPromptInput {
   productDescription: string;
@@ -10,6 +11,13 @@ interface CampaignPromptInput {
   brandName?: string;
   brandVoice?: string;
   brandColors?: string;
+  /**
+   * Not a raw `BrandKit` — this builder has always taken flattened brand
+   * fields above, never the object itself, so a second new parameter here
+   * mirrors the existing convention rather than introducing a `BrandKit`
+   * dependency this file has never had.
+   */
+  brandContext?: BrandContextPromptInput | null;
 }
 
 const DIALECT_MAP: Record<string, { name: string; guideline: string }> = {
@@ -22,7 +30,7 @@ const DIALECT_MAP: Record<string, { name: string; guideline: string }> = {
 
 // v2.0 — matches system-prompts.md campaign_planner_v1
 export function buildCampaignPrompt(input: CampaignPromptInput): string {
-  const { productDescription, targetAudience, dialect, platform, occasion, brandName, brandVoice, brandColors } = input;
+  const { productDescription, targetAudience, dialect, platform, occasion, brandName, brandVoice, brandColors, brandContext } = input;
   // EVERY value interpolated below reaches the model, so every value below meets
   // the filter. brandName/brandVoice/brandColors come from a brand_kits SELECT,
   // not from the request body — a route-level Zod transform could never have
@@ -46,6 +54,10 @@ export function buildCampaignPrompt(input: CampaignPromptInput): string {
   if (safeBrandName) prompt += `\n- Brand: ${safeBrandName}`;
   if (safeBrandVoice) prompt += `\n- Brand Voice: ${safeBrandVoice}`;
   if (safeBrandColors) prompt += `\n- Brand Colors: ${safeBrandColors}`;
+
+  // Placed after the Client Brief above and before the task/technical
+  // directives below, so the context frames the work rather than trailing it.
+  prompt += buildBrandContextBlock(brandContext ?? null);
 
   prompt += `\n\nYour task: Create a complete social media campaign with exactly 9 posts.`;
 

@@ -430,3 +430,116 @@ nested rules don't confuse the block boundary), and each `--custom-property:
 **Status at time of writing:** 0 violations — every tier clears 4.5:1
 against every surface in both themes; worst cases are `--color-text-muted`
 at 4.95:1 (light) and 4.60:1 (dark), both against `--color-surface-2`.
+
+---
+
+## generation-finalized
+
+**Rule:** no studio route may mark a generation terminal with a raw
+`.from('generations').update({ status: ... })`. Terminal writes go through
+`finalizeGeneration()` / `failGeneration()` in
+`lib/supabase/generation-writes.ts`.
+
+**Why:** `reconcile_orphaned_generations()` (migration `028`) scans
+`WHERE status IN ('pending','processing')`. A row leaves that window *only*
+by being marked terminal. So a silently failed `update({status:'completed'})`
+does not merely leave history looking wrong — it leaves delivered, paid-for
+work sitting in the reconciler's scan, and 45 minutes later the reconciler
+refunds it while the route already returned the images. The helpers retry and
+confirm via `RETURNING`, because an UPDATE that matches no row reports no
+error at all: "no error" and "it worked" are different claims.
+
+The rule matches **any** terminal status, not just `'completed'`. When it
+only matched the latter, 25 raw `status: 'failed'` writes across all nine
+routes passed the build.
+
+**How it's checked:** scans `app/api/studios/*/route.ts` for
+`.from('generations')` followed by `.update(` carrying a `status:` key, after
+`stripComments()`. Proved by reintroducing a raw write and watching it fail.
+
+---
+
+## studio-error-codes
+
+**Rule:** every `error: '...'` a studio route returns must be a registered
+code AND must have a message in **both** locales.
+
+**Why:** seven of nine routes once returned raw English prose where a
+registered code belongs, so `mapApiError` collapsed it to the generic
+fallback and the Arabic copy was unreachable. Registration alone is not
+enough either — a registered code with no message is just as invisible to the
+customer as an unregistered one.
+
+---
+
+## prompt-input-bounded
+
+**Rule:** every `z.string()` in a studio route's `InputSchema` carries a
+bound (`.max(...)`, or an enum, or a uuid).
+
+**Why:** an unbounded customer string reaches a model prompt and a JSONB
+column. `voiceover`'s `tone` was `z.string()`, interpolated raw into the LLM
+rewrite prompt **whose output is read aloud on a paid generation**.
+
+---
+
+## prompt-builder-sanitized
+
+**Rule:** a builder in `lib/ai/prompts/` may interpolate only `safe*`
+identifiers.
+
+**Why:** the filter belongs in the BUILDER, not the route schema, because
+three of the channels that reach a prompt never pass through a request body
+at all — brand-kit columns come from a `SELECT`, and campaign's image prompt
+comes from the text model's own output. The builder is where all of them
+converge. When this rule was added it found 19 violations across five
+builders that a full audit had not flagged.
+
+**Known blind spot:** it flags bare reuse of an interface field name, so a
+*derived* variable escapes it regardless of naming (`${resolvedIndustry}`,
+`${brandKit.primary_color}`). Both current escapees are safe by construction
+— a lookup in a literal table, and a column bounded to `^#[0-9A-Fa-f]{6}$` by
+`044:57-62` — but the gap is real. Comments are stripped first; these files
+document their own history by quoting the old code.
+
+---
+
+## sanitize-before-reserve
+
+**Rule:** in every studio route, the prompt must be fully built before
+`reserveCredits(...)` is called — no `build*Prompt(` or
+`buildBrandContextBlock(` call may appear after it.
+
+**Why:** sanitisation lives inside the prompt builders, and it *throws*
+(`PromptBlockedError`). If the build happens after the reservation, a blocked
+prompt costs the customer a reserve/refund pair, a rate-limit slot, and a
+`failed` row misattributed to `generation_failed` — and if the refund itself
+fails, real credits are gone for a prompt no model ever saw, recoverable only
+by the 45-minute reconciler.
+
+**This rule exists because the fix for it regressed twice.** Commit
+`c12e928` hoisted the build in `storyboard` and `photoshoot`; the commit
+immediately before it had wired brand context into `plan`, `analysis` and
+`photoshoot`, and the fix silently skipped two of them. `tsc`, `eslint`, 15
+invariants and 18 test files were green the whole time. Every other recurring
+class in this repo had a gate; this one did not, which is exactly why it came
+back. Proved by reintroducing `plan`'s ordering and watching the build name
+the line.
+
+---
+
+## no-var-opacity-modifier
+
+**Rule:** no `(bg|border|text|ring|from|to|via)-[var(--token)]/NN` anywhere
+in `app/` or `components/`.
+
+**Why:** Tailwind 3.4.19 **silently drops** an opacity modifier applied to a
+`var()` arbitrary value — no error, no warning, no rule emitted. It shipped
+16 elements across the landing, pricing and contact pages with no background
+and no border, and then came back once more on the onboarding error banner —
+the banner carrying the failure explanation on the arm every customer hits.
+
+Use `color-mix(in srgb, var(--token) N%, transparent)` instead, which is what
+the rest of the repo does. Verified against the BUILT stylesheet, not
+assumed: the `text-[var(--color-error)]` rule compiles and the `/30` and
+`/10` variants produce no rule at all.

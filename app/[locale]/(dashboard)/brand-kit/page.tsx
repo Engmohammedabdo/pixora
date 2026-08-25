@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Image from 'next/image';
 import { useBrandKits, useCreateBrandKit, useUpdateBrandKit, useDeleteBrandKit, BrandKitError } from '@/hooks/useBrandKit';
 import { BrandKitForm } from '@/components/brand-kit/BrandKitForm';
+import { brandKitErrorMessageKey } from '@/lib/brand-kits/errors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,11 +36,10 @@ export default function BrandKitPage(): React.ReactElement {
       toast.error(t('limitReached', { limit: limit ?? '' }));
       return;
     }
-    if (code === 'invalid_logo_url') {
-      toast.error(t('invalidLogo'));
-      return;
-    }
-    toast.error(t(fallbackKey));
+    // `fields` turns a 400 `validation_error` — which used to collapse to
+    // "try again" — into the message that names the offending field.
+    const fields = error instanceof BrandKitError ? error.fields : [];
+    toast.error(t(brandKitErrorMessageKey(code, fields, fallbackKey)));
   };
 
   const handleCreate = async (data: Partial<BrandKit>): Promise<void> => {
@@ -215,7 +215,10 @@ export default function BrandKitPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>{t('create')}</DialogTitle>
           </DialogHeader>
-          <BrandKitForm onSubmit={handleCreate} loading={creating} />
+          {/* Mounted only while open, same as the Edit dialog below — the form
+              owns no reset logic, so a form kept mounted across closes would
+              show the last kit's business fields the next time this opens. */}
+          {showCreate && <BrandKitForm onSubmit={handleCreate} loading={creating} />}
         </DialogContent>
       </Dialog>
 

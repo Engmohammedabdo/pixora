@@ -211,3 +211,44 @@ export async function refundCredits({
 
   return { success: outcome.success, newBalance: outcome.newBalance, error: outcome.error };
 }
+
+/**
+ * A development mock is not work, and must not be charged for.
+ *
+ * With no API keys configured — the normal state of a fresh clone — the adapters
+ * return a mock, and since `lib/ai/mock-from-schema.ts` the mock CONFORMS: the
+ * route parses it, finalizes the row `completed`, and keeps the credits for
+ * `[mock] field` filler. There is exactly one Supabase instance, so those are real
+ * credits on a real account. That was the intended consequence of making the mock
+ * parse; it was simply never decided.
+ *
+ * Dev-only by construction, and that is verified rather than assumed:
+ * `rejectMockInProduction()` (lib/ai/router.ts) throws whenever a mock result is
+ * produced under `NODE_ENV === 'production'`, on EVERY return path of both
+ * `generateText` and `generateImage`, so `mock: true` cannot be returned there at
+ * all. Deliberately NOT re-guarded on `NODE_ENV` here: if that guarantee ever
+ * broke, refunding is the right answer, and a second guard would silently choose
+ * the wrong one.
+ *
+ * Returns `refunded: false` for a real run, for a zero-cost studio, and for a
+ * refund that did not land — a caller may only restate its charge DOWNWARD from a
+ * refund that actually landed (see lib/credits/settle.ts).
+ */
+export async function refundMockRun({
+  mocked, userId, amount, studio, generationId,
+}: {
+  mocked: boolean;
+  userId: string;
+  amount: number;
+  studio: string;
+  generationId?: string;
+}): Promise<{ refunded: boolean; newBalance: number }> {
+  if (!mocked || amount <= 0) return { refunded: false, newBalance: 0 };
+
+  const result = await refundCredits({
+    userId, amount,
+    description: `Refund: ${studio} served a development mock, not a generation`,
+    generationId,
+  });
+  return { refunded: result.success, newBalance: result.newBalance };
+}

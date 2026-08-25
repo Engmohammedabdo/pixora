@@ -2,6 +2,7 @@ import type { AIModel } from '@/types/studios';
 import { isValidApiKey } from './utils';
 import { MODELS, openaiImageSize } from './models';
 import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
+import { mockFromSchema } from './mock-from-schema';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -92,7 +93,16 @@ export async function generateText(options: GenerateTextOptions): Promise<AIResu
 
   if (!isValidApiKey(apiKey)) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    return { text: '{"mock": true}', model: 'gpt', mock: true };
+    // Was the literal `{"mock": true}` — valid JSON of the wrong shape for every
+    // studio, so it parsed and then failed the Zod check, landing in the same
+    // 500 generation_parse_failed branch as gemini's campaign fixture. This is
+    // the FALLBACK provider, so with both unconfigured a local run failed twice
+    // for two different reasons and reported neither.
+    return {
+      text: options.responseSchema ? mockFromSchema(options.responseSchema) : '{"mock": true}',
+      model: 'gpt',
+      mock: true,
+    };
   }
 
   // GPT-5 and the o-series reject `max_tokens` outright:

@@ -56,6 +56,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
+    // Filtered and built HERE — above the insert and above the reservation.
+    // Both used to sit inside the post-reservation try block, so a blocked term
+    // in the customer's own edit instruction reserved the credits first and
+    // refunded them back out again; if that refund failed, the credits were gone
+    // for a prompt no model ever saw. The catch below carried an exemption for
+    // PromptBlockedError to paper over it. A PromptBlockedError thrown here
+    // reaches the OUTER catch directly — no credits moved, no orphan row — the
+    // same shape storyboard, plan and analysis use.
+    const safeDescription = sanitizePrompt(input.editDescription);
+    // `edit` was the only studio with no prompt file: the whole prompt was a slug
+    // turned into two English words, with nothing telling the model that a
+    // reference image was attached or that the customer's photo had to survive.
+    const prompt = buildEditPrompt({
+      editType: input.editType,
+      editDescription: safeDescription,
+    });
+
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
       user_id: user.id, project_id: projectId, studio: 'edit', model: 'gemini', status: 'processing',
       input: { imageUrl: inputImageRef(input.imageUrl), editDescription: input.editDescription, editType: input.editType, promptVersion: EDIT_PROMPT_VERSION },
@@ -95,17 +112,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     let result: Awaited<ReturnType<typeof generateImage>>;
     try {
-      // Every other studio sanitizes before the model sees the text; these three
-      // never did, so the catch for PromptBlockedError below was unreachable and
-      // the two highest-risk image surfaces had no filter at all.
-      const safeDescription = sanitizePrompt(input.editDescription);
-      // `edit` was the only studio with no prompt file: the whole prompt was a slug
-      // turned into two English words, with nothing telling the model that a
-      // reference image was attached or that the customer's photo had to survive.
-      const prompt = buildEditPrompt({
-        editType: input.editType,
-        editDescription: safeDescription,
-      });
       // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
       // the gemini branch. With 'gpt' the image to edit never reached the model, so
       // "edit this photo" generated an unrelated picture from the instruction alone.
@@ -134,9 +140,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: 'generation_failed',
         }, 'edit');
       }
-      // PromptBlockedError carries its own dedicated response (400 + `term`),
-      // handled by the outer catch below — don't clobber that with refund_failed.
-      if (!refundResult.success && !(genError instanceof PromptBlockedError)) {
+      // No exemption for PromptBlockedError. The prompt is now built above the
+      // reservation, so a blocked instruction cannot reach this arm at all — and
+      // back when it could, exempting it meant a refund that FAILED still
+      // returned a tidy 400 and lost the credits with nothing logged. Credits
+      // that did not come back are the alarm, whatever threw. Same rule as
+      // plan, analysis and storyboard.
+      if (!refundResult.success) {
         console.error('Edit API error:', genError);
         return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });
       }

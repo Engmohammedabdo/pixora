@@ -1,6 +1,7 @@
 import type { BrandKit } from '@/lib/supabase/types';
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock } from './brand-context';
 
 interface CreatorPromptInput {
   userPrompt: string;
@@ -62,6 +63,23 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
   prompt += `\n- Mood: ${safeMood}`;
   prompt += `\n- Platform: ${safePlatform}`;
   prompt += `\n- Resolution: ${safeResolution}`;
+
+  // Placed after the specifications bullet list closes above and before the
+  // Technical Requirements below — NOT inside the list (review finding F7):
+  // splicing it between "Brand Colors" and "Visual Style" re-parented four
+  // unrelated style directives (Visual Style/Mood/Platform/Resolution) under
+  // the CLIENT CONTEXT heading, reading as if they were business facts.
+  prompt += buildBrandContextBlock(
+    brandKit
+      ? {
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        }
+      : null
+  );
 
   prompt += `\n\nTechnical Requirements:`;
   if (hasReferenceImage) {

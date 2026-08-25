@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { CAMPAIGN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { CampaignPostSchema, EXPECTED_POSTS } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
+import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getStudioCost } from '@/lib/credits/costs';
@@ -29,23 +31,6 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
   generateImages: z.boolean().default(false),
 });
-
-const CampaignPostSchema = z.object({
-  scenario: z.string(),
-  caption: z.string(),
-  tov: z.string(),
-  schedule: z.string(),
-  hashtags: z.string(),
-});
-
-/**
- * The number of posts a campaign is sold as and priced for:
- * lib/ai/prompts/campaign.ts:40 asks for "exactly 9 posts", the reservation is
- * described as "Campaign - 9 posts", and the flat 12-credit price decomposes as
- * 9 images x 1 credit + 3 for the text. Every refund below is sized against
- * this, never against what the model happened to return.
- */
-const EXPECTED_POSTS = 9;
 
 /**
  * The dialect name and guideline buildCampaignPrompt() sends, duplicated rather
@@ -135,6 +120,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let brandName: string | undefined;
     let brandVoice: string | undefined;
     let brandColors: string | undefined;
+    // The migration-045 business columns, reshaped for buildBrandContextBlock.
+    // Built once here and reused on both prompt-building paths below (the
+    // caption prompt and the per-post image prompt) — missing the second is
+    // the drift shape this repo keeps paying for.
+    let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
       const { data: kit } = await supabase
         .from('brand_kits')
@@ -150,6 +140,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandColors = kit
         ? `Primary ${kit.primary_color}, Secondary ${kit.secondary_color}, Accent ${kit.accent_color}`
         : undefined;
+      brandContext = kit
+        ? {
+            name: kit.name ?? null,
+            industry: kit.industry ?? null,
+            description: kit.description ?? null,
+            targetAudience: kit.target_audience ?? null,
+            city: kit.city ?? null,
+          }
+        : null;
     }
 
     // The safety filter runs HERE, on the customer's own text, before anything
@@ -197,6 +196,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // above records from the last time it happened.
       if (brandVoice) prompt += `\n- Brand Voice: ${sanitizePrompt(brandVoice, 500)}`;
       if (brandColors) prompt += `\n- Brand Colors: ${sanitizePrompt(brandColors, 200)}`;
+      // Mirrors buildCampaignPrompt's own placement: after the brief/brand lines
+      // above, before the technical directive (the dialect guideline) below.
+      //
+      // A call to buildBrandContextBlock made at the ROUTE level rather than
+      // inside a lib/ai/prompts/*.ts builder, so `prompt-builder-sanitized`
+      // (which scans lib/ai/prompts only) does not see it. What DOES see it is
+      // `sanitize-before-reserve`: it is a buildBrandContextBlock call in a
+      // studio route, and it is above the reservation, which is the property
+      // that matters. Safe on its own terms too — brandContext is filtered
+      // inside buildBrandContextBlock, the same as every other call site.
+      prompt += buildBrandContextBlock(brandContext);
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
       prompt = buildCampaignPrompt({
@@ -208,8 +218,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         brandName,
         brandVoice,
         brandColors,
+        brandContext,
       });
     }
+
+    // The two pieces the image half of this route needs, built HERE rather than
+    // in the middle of the image loop below — above the insert and above the
+    // reservation, like everything else that runs the filter.
+    //
+    // Both were computed after the reservation until now. They were safe by
+    // coincidence: whichever prompt branch above ran had already filtered the
+    // same values, so a blocked term threw before the money moved. "Safe because
+    // something earlier happened to do it" is the shape this branch keeps paying
+    // for — a future edit that stops building the caption prompt from
+    // brandContext would have moved the first filter run to a point 12 credits
+    // too late, silently. Computed once here, nine identical sanitizePrompt
+    // calls are also avoided.
+    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
+    const campaignBrandContextBlock = buildBrandContextBlock(brandContext);
 
     // Create generation record
     const { data: generation, error: genError } = await supabase
@@ -341,9 +367,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // do this — campaign was the only studio silently dropping failed images
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
-    // Computed once, not once per post: nine identical sanitizePrompt calls buy
-    // nothing.
-    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
 
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {
@@ -379,6 +402,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           `\n- Scene: ${safeScenario}` +
           `\n- Platform: ${input.platform}` +
           (safeBrandColorsLine ? `\n- Brand Colors: ${safeBrandColorsLine}` : '') +
+          // Placed after the scene/brand lines above and before the technical
+          // requirements below — the second of campaign's two prompt-building
+          // paths (the caption prompt above being the first).
+          campaignBrandContextBlock +
           `\n\nTechnical Requirements:` +
           // Kept even though these are social posts: CLAUDE.md records that Arabic
           // text inside generated images is not handled, and the caption is
@@ -497,6 +524,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         actualCreditsCharged = creditCost - refundAmount;
         refundedSoFar += refundAmount;
       }
+    }
+
+    // A mock is not a campaign. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the
+    // row is finalized `completed` and the credits are kept for `[mock] field`
+    // captions — against the one real Supabase instance this project has.
+    // Dev-only by construction: rejectMockInProduction() (lib/ai/router.ts)
+    // throws on every return path of generateText when NODE_ENV is production,
+    // so `mock` cannot be true there.
+    //
+    // Sized as the OUTSTANDING charge, not `creditCost`. Refunding the full
+    // reservation on top of a partial refund that already landed MINTS credits:
+    // refund_credits caps only the slice routed to the purchased pool
+    // (033_refund_to_source_pool.sql:279) and credits the full p_amount to the
+    // balance regardless (033:284-286). Same rule as `refundedSoFar` in the
+    // catch below, which is why it is advanced here too.
+    const mockRefund = await refundMockRun({
+      mocked: textResult.mock, userId: user.id, amount: creditCost - refundedSoFar,
+      studio: 'campaign', generationId: generation.id,
+    });
+    if (mockRefund.refunded) {
+      balanceAfterPartialRefund = mockRefund.newBalance;
+      refundedSoFar = creditCost;
+      actualCreditsCharged = 0;
     }
 
     // Update generation. `credits_used` reflects the net charge after any

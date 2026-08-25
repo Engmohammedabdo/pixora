@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { ANALYSIS_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { AnalysisSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
-import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { ANALYSIS_PROMPT_VERSION, buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
+import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -20,6 +22,11 @@ const InputSchema = z.object({
   // Optional, so any existing caller keeps working and defaults to Arabic.
   locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
+  // Optional, and NOT tightened by app/api/brand-kits validation here: the
+  // caller only ever sends an id it fetched from its own /api/brand-kits list,
+  // and the fetch below is scoped to the caller (.eq('user_id', user.id)), the
+  // same pattern as creator/route.ts.
+  brandKitId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
   description: z.string().min(10).max(2000),
@@ -27,97 +34,6 @@ const InputSchema = z.object({
   targetMarket: z.string().min(5).max(500),
   painPoints: z.string().max(1000).optional().default(''),
 });
-
-/*
- * The model's JSON was accepted on "did JSON.parse succeed", finalized as
- * `completed`, and the 3 credits kept. The page then dereferenced the SWOT
- * quadrant arrays — `q.items.map`, guarded only by `analysis.swot` being truthy
- * — and a render throw trips the segment error boundary, so the customer paid
- * and got a generic Arabic error instead of their analysis.
- *
- * Shape is checked HERE so a wrong one takes the existing parse-failure branch
- * (refund + `generation_parse_failed`) rather than being sold, and the value we
- * store and return is the PARSED one — so the row RecentWork restores later is
- * normalized too. Sections nothing renders (usp/gtm/pricing) ride through on the
- * top-level `.loose()` untouched.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-const printableList = z.array(printable).catch([]);
-
-/** Does this section actually SHOW the customer anything?
- *
- *  Every leaf above is `.catch('')`, which never fails — it turns a
- *  non-printable value into an empty string. So a non-empty array proves
- *  nothing: `{"swot":{"strengths":[{},{}],...}}` parses into two entries of
- *  empty strings, and counting `.length` sold that as an analysis for 3
- *  credits. */
-function hasPrintableText(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasPrintableText);
-  return false;
-}
-
-const AnalysisSchema = z
-  .object({
-    swot: z
-      .object({
-        strengths: printableList,
-        weaknesses: printableList,
-        opportunities: printableList,
-        threats: printableList,
-      })
-      .loose()
-      .optional()
-      .catch(undefined),
-    personas: z
-      .array(
-        z
-          .object({
-            name: printable, age: printable, role: printable,
-            goals: printable, pain_points: printable, channels: printable,
-          })
-          .loose(),
-      )
-      .catch([]),
-    competitors: z
-      .array(z.object({ name: printable, strengths: printable, weaknesses: printable, market_share: printable }).loose())
-      .catch([]),
-    roadmap: z
-      .object({ day_30: printableList, day_60: printableList, day_90: printableList })
-      .loose()
-      .optional()
-      .catch(undefined),
-    kpis: z.array(z.object({ metric: printable, target: printable, timeframe: printable }).loose()).catch([]),
-  })
-  .loose()
-  // Every section above defaults to empty, so `{}` would otherwise parse and be
-  // charged for. Nothing in any section is the same failure the campaign studio
-  // already treats as one: an empty response sold as a finished deliverable.
-  //
-  // Stated on CONTENT, not on `.length`: entry COUNT was the wrong question,
-  // because `.catch('')` means an entry always parses. A SWOT of two empty
-  // objects passed the count and was finalized as `completed`. Only the fields
-  // the page and the PDF actually print are considered, so a section of
-  // unrendered junk cannot vouch for itself.
-  .refine((a) => {
-    const swot = a.swot;
-    const roadmap = a.roadmap;
-    const sections: unknown[] = [
-      swot ? [swot.strengths, swot.weaknesses, swot.opportunities, swot.threats] : [],
-      roadmap ? [roadmap.day_30, roadmap.day_60, roadmap.day_90] : [],
-      a.personas.map((p) => [p.name, p.age, p.role, p.goals, p.pain_points, p.channels]),
-      a.competitors.map((c) => [c.name, c.strengths, c.weaknesses, c.market_share]),
-      a.kpis.map((k) => [k.metric, k.target, k.timeframe]),
-    ];
-    return sections.some(hasPrintableText);
-  }, 'model returned no usable analysis sections');
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -152,8 +68,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // EVERY field is free text that reaches the prompt, so every one is filtered
     // — at the caps the builder itself uses (`description` at sanitizePrompt's
     // own 2000 default, the rest at InputSchema's maxima, which the builder
-    // interpolates raw), so the builder's second pass truncates nothing and
-    // cannot throw.
+    // interpolates raw), so the builder's second pass over THESE fields
+    // truncates nothing and cannot throw.
+    //
+    // It is not the whole filter, though, and the comment here used to imply it
+    // was. The brand kit's own columns are filtered only inside
+    // buildBrandContextBlock(), which runs inside buildAnalysisPrompt() — so the
+    // guarantee above holds only because that call is hoisted above the
+    // reservation below. Do not move it back down.
     const safeInput = {
       ...input,
       businessName: sanitizePrompt(input.businessName, 200),
@@ -174,6 +96,57 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
+
+    // Fetch the caller's brand kit — the migration-045 business columns,
+    // reshaped for buildBrandContextBlock. Scoped to the caller, the same
+    // pattern as creator/route.ts. plan and analysis were deliberately left out
+    // of P4.1 because they receive no brand kit at all; this closes that gap.
+    //
+    // Only `city` survives, and that is the point. analysis asks the customer
+    // for the business name, the industry, the DESCRIPTION and the target
+    // market in its own form — and the page prefills all four from the default
+    // kit and then sends `brandKitId` regardless of what the customer edited
+    // afterwards. Left in, a customer who retyped the name and picked a
+    // different industry got a 3-credit prompt carrying two business identities
+    // and two `- Industry:` lines. The form is the fresher source for anything
+    // the form asks for, so the kit contributes only what the form does NOT:
+    // `city`. buildBrandContextBlock returns '' when there is nothing left to
+    // say, which is the common case for a kit with no city.
+    let brandContext: BrandContextPromptInput | null = null;
+    if (input.brandKitId) {
+      const { data: kit } = await supabase
+        .from('brand_kits')
+        .select('*')
+        .eq('id', input.brandKitId)
+        .eq('user_id', user.id)
+        .single();
+      brandContext = kit
+        ? {
+            name: null,
+            industry: null,
+            description: null,
+            targetAudience: null,
+            city: kit.city ?? null,
+          }
+        : null;
+    }
+
+    // Built HERE — above the generations insert and above the reservation —
+    // because buildBrandContextBlock (called inside buildAnalysisPrompt) is what
+    // actually runs sanitizePrompt over the kit's city. Built later, as this
+    // route did until now, a blocked term in a brand-kit column was only caught
+    // AFTER 3 credits were reserved: refund, a `failed` row attributed to
+    // `generation_failed`, and a 500 `refund_failed` with the credits stranded
+    // for 45 minutes if the refund itself failed. Exactly the ordering commit
+    // c12e928 fixed in storyboard and photoshoot and did not fix here. A
+    // PromptBlockedError thrown here reaches the OUTER catch directly — no
+    // credits moved, no orphan row — same as `safeInput` above.
+    const prompt = buildAnalysisPrompt({
+      ...safeInput,
+      locale: input.locale ?? routing.defaultLocale,
+      brandContext,
+    });
+
     const creditCost = CREDIT_COSTS.analysis;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
@@ -213,7 +186,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let result: Awaited<ReturnType<typeof generateText>>;
     let analysis: z.infer<typeof AnalysisSchema>;
     try {
-      const prompt = buildAnalysisPrompt({ ...safeInput, locale: input.locale ?? routing.defaultLocale });
       result = await generateText({
       prompt,
       maxTokens: 8192,
@@ -258,8 +230,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           error: 'generation_failed',
         }, 'analysis');
       }
-      // No exemption here. The filter now runs before the reservation, so a
-      // blocked prompt cannot reach this arm at all — and back when it could,
+      // No exemption here. The whole prompt — the customer's fields AND the
+      // brand kit's columns — is now built above the reservation, so a blocked
+      // prompt cannot reach this arm at all. That was NOT true while
+      // buildAnalysisPrompt() was called inside this try: the brand-kit half of
+      // the filter ran with 3 credits already held, and this comment asserted
+      // the opposite for two commits. Back when a block could reach here,
       // exempting it meant a refund that FAILED still returned a tidy 400 and
       // lost the credits with nothing logged. Credits that did not come back
       // are the alarm, whatever threw.
@@ -270,10 +246,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw genError;
     }
 
+    // A mock is not a generation. With no API keys configured the adapters return
+    // filler that now CONFORMS to the schema, so the parse above succeeds, the row
+    // is finalized `completed` and the credits are kept for `[mock] field` text —
+    // against the one real Supabase instance this project has. Dev-only by
+    // construction: rejectMockInProduction() (lib/ai/router.ts) throws on every
+    // return path of generateText when NODE_ENV is production, so `mock` cannot be
+    // true there.
+    const mockRefund = await refundMockRun({
+      mocked: result.mock, userId: user.id, amount: creditCost,
+      studio: 'analysis', generationId: generation.id,
+    });
+    const creditsCharged = mockRefund.refunded ? 0 : creditCost;
+
     if (generation) {
       await finalizeGeneration(supabase, generation.id, {
         output: { analysis, mock: result.mock },
         status: 'completed',
+        // The net charge after a refund that LANDED, never the intended figure —
+        // the same rule campaign, creator and photoshoot state.
+        credits_used: creditsCharged,
         // Record the model that ACTUALLY served. The row is inserted before
         // generation from the PREFERRED model, but the router falls back — so a
         // gpt-served run stayed filed under gemini forever, and six admin surfaces
@@ -283,7 +275,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, 'analysis');
     }
 
-    return NextResponse.json({ success: true, data: { generationId: generation?.id, analysis, mock: result.mock, creditsUsed: creditCost, newBalance: reserveResult.newBalance } });
+    return NextResponse.json({ success: true, data: { generationId: generation?.id, analysis, mock: result.mock, creditsUsed: creditsCharged, newBalance: mockRefund.refunded ? mockRefund.newBalance : reserveResult.newBalance } });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ success: false, error: 'validation_error', details: error.issues }, { status: 400 });
     if (error instanceof PromptBlockedError) {

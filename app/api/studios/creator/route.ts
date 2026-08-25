@@ -7,6 +7,7 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
+import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getStudioCost } from '@/lib/credits/costs';
@@ -160,6 +161,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // truncate identically.
     const safeUserPrompt = sanitizePrompt(input.prompt, 1000);
 
+    // The migration-045 business columns, reshaped for buildBrandContextBlock.
+    // Built once here and used on BOTH prompt-building paths below — mirrors
+    // campaign's brandContext (app/api/studios/campaign/route.ts), built once
+    // and reused rather than re-derived per branch. buildCreatorPrompt() already
+    // emits this block on the default path (lib/ai/prompts/creator.ts); the
+    // admin-override composer below bypassed buildCreatorPrompt entirely and so
+    // never emitted it at all, silently dropping the customer's business facts
+    // for every generation an admin override touches (review finding F6).
+    const brandContext: BrandContextPromptInput | null = brandKit
+      ? {
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        }
+      : null;
+
     // Build prompt (check for admin override first)
     const promptOverride = await getEffectivePrompt('creator');
 
@@ -194,7 +213,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // that asks for them.
           mood: 'Professional',
           platform: 'General',
-        })
+        // Mirrors campaign's override branch: appended after the composed
+        // brief, same placement buildCreatorPrompt itself uses (after the
+        // subject/brand lines, before the style/technical directives it
+        // appends on the default path — this override has none of those).
+        }) + buildBrandContextBlock(brandContext)
       : buildCreatorPrompt({
           userPrompt: safeUserPrompt,
           style: input.style,
