@@ -156,6 +156,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : null;
     }
 
+    // Built HERE — before the insert and before the reservation — because
+    // buildBrandContextBlock (called inside buildStoryboardPrompt) is what
+    // actually runs sanitizePrompt over industry/description/targetAudience/
+    // city. Building the prompt later (as this route previously did, inside
+    // the post-reservation try block) meant a blocked term in one of those
+    // brand-kit columns was only caught AFTER 14 credits were reserved,
+    // reversing the guarantee the comment above makes for `concept`. A
+    // PromptBlockedError thrown here reaches the OUTER catch directly — no
+    // credits moved, no orphan row — same as `safeConcept` above.
+    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, brandContext, locale: input.locale ?? routing.defaultLocale });
+
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
       user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, concept: safeConcept, brandKitName, promptVersion: STORYBOARD_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
@@ -196,7 +207,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, brandContext, locale: input.locale ?? routing.defaultLocale });
     const result = await generateText({
       prompt,
       maxTokens: 8192,

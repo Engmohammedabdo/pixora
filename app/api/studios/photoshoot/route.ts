@@ -8,6 +8,7 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
+import { buildBrandContextBlock } from '@/lib/ai/prompts/brand-context';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -94,6 +95,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .eq('user_id', user.id)
         .single();
       brandKit = data;
+    }
+
+    // Sanitize the brand kit's business columns HERE — before the insert and
+    // before the reservation below — not only inside buildPhotoshootPrompt(),
+    // which runs once per shot inside the try block AFTER reserveCredits. Left
+    // as the only trigger, a blocked term in industry/description/
+    // targetAudience/city would reserve the full shoot cost before
+    // PromptBlockedError could fire — the same ordering bug storyboard had
+    // (money-path finding F5). The block itself is discarded: buildPhotoshootPrompt
+    // rebuilds the identical block from the same brandKit for every shot: this
+    // call exists only to force the sanitization — and thus any throw — early.
+    if (brandKit) {
+      buildBrandContextBlock({
+        name: brandKit.name ?? null,
+        industry: brandKit.industry ?? null,
+        description: brandKit.description ?? null,
+        targetAudience: brandKit.target_audience ?? null,
+        city: brandKit.city ?? null,
+      });
     }
 
     // Create generation record
