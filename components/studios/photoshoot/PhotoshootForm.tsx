@@ -13,6 +13,7 @@ import { Upload, X, Camera, Sparkles, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useCredits } from '@/hooks/useCredits';
+import { useBrandKits } from '@/hooks/useBrandKit';
 
 interface PhotoshootFormProps {
   onSubmit: (input: {
@@ -63,6 +64,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productImage, setProductImage] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<string>('white_studio');
+  // Once the customer picks an environment themselves, their choice stands —
+  // the default below must never move it again, even if the project (and so
+  // the brand kit it carries) changes afterward.
+  const [environmentTouched, setEnvironmentTouched] = useState(false);
   const [shots, setShots] = useState<1 | 3 | 6>(6);
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -81,6 +86,23 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const isValid = !!productImage && !uploading;
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
+
+  // The SAME kit whose id gets submitted as `brandKitId` below — never the
+  // account's default kit when no project is selected, because that kit would
+  // not actually reach the route with this request, and defaulting the
+  // environment off data that never gets sent would be confusing rather than
+  // helpful.
+  const { brandKits } = useBrandKits();
+  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
+
+  // Only move the default while the customer is still on it. A restaurant's
+  // brand kit gets its own preset (commit bd0337d) instead of the generic
+  // studio backdrop; any other industry — or no brand kit at all — keeps
+  // 'white_studio'.
+  useEffect(() => {
+    if (environmentTouched) return;
+    setEnvironment(projectKit?.industry === 'restaurant' ? 'food' : 'white_studio');
+  }, [projectKit?.industry, environmentTouched]);
 
   const releasePreview = (): void => {
     if (previewRef.current) {
@@ -222,7 +244,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
             <button
               key={env.id}
               type="button"
-              onClick={() => setEnvironment(env.id)}
+              onClick={() => { setEnvironment(env.id); setEnvironmentTouched(true); }}
               aria-pressed={environment === env.id}
               className={cn(
                 'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',

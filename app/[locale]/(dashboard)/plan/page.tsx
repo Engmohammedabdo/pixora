@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
+import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -25,7 +26,7 @@ import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
-import { INDUSTRIES } from '@/lib/industries';
+import { INDUSTRIES, isIndustry } from '@/lib/industries';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -98,6 +99,32 @@ export default function PlanPage(): React.ReactElement {
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
+  const { defaultKit } = useBrandKits();
+  // Prefill from the caller's default brand kit — once it loads, and only into
+  // BLANKS. The functional updaters below read the CURRENT value at the moment
+  // the effect actually runs, not a value captured when the effect was
+  // scheduled, so this needs no "touched" flag and no `businessName`/
+  // `targetMarket` in the dependency array (which would re-fire on every
+  // keystroke and re-fill a field the customer had just deliberately cleared).
+  useEffect(() => {
+    if (!defaultKit) return;
+    if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
+    // Only a slug the chip UI below can actually render as selected.
+    // `brand_kits.industry` is deliberately NOT constrained to this list
+    // (migration 045: "that list is allowed to grow, and a database that
+    // refuses a slug the code has already shipped is an outage") and is
+    // customer-writable straight over PostgREST, so a raw value here could be
+    // any 1-40 char string. Prefilling with one the chips do not recognise
+    // would still pass `isValid`'s length check and reach the route as free
+    // text on Generate — the exact shape item 4 exists to keep off the wire.
+    const kitIndustry = defaultKit.industry;
+    if (kitIndustry && isIndustry(kitIndustry)) {
+      setIndustry((prev) => prev || kitIndustry);
+    }
+    const kitTargetAudience = defaultKit.target_audience;
+    if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
+  }, [defaultKit]);
+
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
   // Must match app/api/studios/plan/route.ts's InputSchema exactly. It requires
   // `industry` (min 2) and `budget` (min 1) and this gate checked neither, so
@@ -116,7 +143,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined }),
+        body: JSON.stringify({ businessName, industry, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -124,7 +151,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId]);
+  }, [isValid, businessName, industry, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, defaultKit?.id]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();

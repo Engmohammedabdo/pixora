@@ -80,6 +80,37 @@ const planInput = {
   // fix it produced: "expertise in مطاعم businesses".
   const p = buildPlanPrompt({ ...planInput, industry: 'مطاعم' });
   omits('plan: an unknown free-text industry is not spliced into English', p, 'مطاعم businesses');
+  // The carried finding, closed at the source: the persona sentence check above
+  // proves "مطاعم businesses" never appears, but the OLD `|| safeIndustry`
+  // fallback lived on a SEPARATE line ("- Industry: مطاعم") that check cannot
+  // see. Free text can still reach this builder — a pre-chip-UI historical plan
+  // restored via RecentWork, or a hostile PostgREST write to
+  // brand_kits.industry, which migration 045 leaves deliberately unconstrained
+  // — so the line itself, not just the persona, must never carry it.
+  omits('plan: an unresolvable industry never reaches the "- Industry:" line', p, '- Industry:');
+}
+
+// ---- plan: the brand context block is actually wired in, not just correct ----
+// See scripts/tests/brand-context.test.ts's file header for why this class of
+// check exists: buildBrandContextBlock could be entirely correct on its own and
+// this builder could still forget to call it.
+{
+  const withContext = buildPlanPrompt({
+    ...planInput,
+    brandContext: {
+      name: 'Acme Coffee', industry: 'restaurant',
+      description: 'A specialty coffee roaster serving the GCC market.',
+      targetAudience: 'Urban professionals aged 25-40', city: 'Dubai',
+    },
+  });
+  const withoutContext = buildPlanPrompt(planInput);
+  contains('plan + brandContext: emits the CLIENT CONTEXT heading', withContext, 'CLIENT CONTEXT');
+  // `city` is a field ONLY buildBrandContextBlock ever prints here — plan's own
+  // "Business Information" block has no city line at all — so this proves the
+  // block was populated with the PASSED data, not a static heading appended
+  // blindly regardless of input.
+  contains('plan + brandContext: carries the city, a field only the block prints', withContext, 'Dubai');
+  omits('plan + no brandContext: no CLIENT CONTEXT heading', withoutContext, 'CLIENT CONTEXT');
 }
 
 // ---- analysis ----
@@ -110,6 +141,42 @@ const planInput = {
   const other = buildAnalysisPrompt({ ...base, industry: 'other' });
   omits('analysis/other: no "the other industry" filler', other, 'the other industry');
   contains('analysis/other: degrades to a general marketer', other, 'cross-industry');
+
+  // An unresolvable industry (free text, not one of the seven slugs — reachable
+  // via a pre-chip-UI historical analysis restored through RecentWork, or a
+  // hostile PostgREST write to brand_kits.industry, which migration 045 leaves
+  // deliberately unconstrained) must never reach the "- Industry:" line itself,
+  // not just the persona sentence checked above.
+  const unresolved = buildAnalysisPrompt({ ...base, industry: 'مطاعم' });
+  omits('analysis: an unresolvable industry never reaches the "- Industry:" line', unresolved, '- Industry:');
+}
+
+// ---- analysis: the brand context block is actually wired in, not just correct ----
+// See scripts/tests/brand-context.test.ts's file header for why this class of
+// check exists: buildBrandContextBlock could be entirely correct on its own and
+// this builder could still forget to call it.
+{
+  const base = {
+    businessName: 'Acme Coffee', industry: 'restaurant', description: 'specialty coffee roaster',
+    competitors: ['Rival A', 'Rival B'], targetMarket: 'UAE, 25-40, urban professionals',
+    painPoints: 'low repeat purchase',
+  };
+  const withContext = buildAnalysisPrompt({
+    ...base,
+    brandContext: {
+      name: 'Acme Coffee', industry: 'restaurant',
+      description: 'A specialty coffee roaster serving the GCC market.',
+      targetAudience: 'Urban professionals aged 25-40', city: 'Dubai',
+    },
+  });
+  const withoutContext = buildAnalysisPrompt(base);
+  contains('analysis + brandContext: emits the CLIENT CONTEXT heading', withContext, 'CLIENT CONTEXT');
+  // `city` is a field ONLY buildBrandContextBlock ever prints here — analysis's
+  // own "Business Under Analysis" block has no city line at all — so this
+  // proves the block was populated with the PASSED data, not a static heading
+  // appended blindly regardless of input.
+  contains('analysis + brandContext: carries the city, a field only the block prints', withContext, 'Dubai');
+  omits('analysis + no brandContext: no CLIENT CONTEXT heading', withoutContext, 'CLIENT CONTEXT');
 }
 
 // ---- storyboard ----

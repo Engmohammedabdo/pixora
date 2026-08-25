@@ -7,6 +7,7 @@ import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-wr
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { ANALYSIS_PROMPT_VERSION, buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
+import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -20,6 +21,11 @@ const InputSchema = z.object({
   // Optional, so any existing caller keeps working and defaults to Arabic.
   locale: z.enum(routing.locales as unknown as [string, ...string[]]).optional(),
   projectId: z.string().uuid().optional(),
+  // Optional, and NOT tightened by app/api/brand-kits validation here: the
+  // caller only ever sends an id it fetched from its own /api/brand-kits list,
+  // and the fetch below is scoped to the caller (.eq('user_id', user.id)), the
+  // same pattern as creator/route.ts.
+  brandKitId: z.string().uuid().optional(),
   businessName: z.string().min(2).max(200),
   industry: z.string().min(2).max(100),
   description: z.string().min(10).max(2000),
@@ -174,6 +180,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (projectId === false) {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
+
+    // Fetch the caller's brand kit — the migration-045 business columns,
+    // reshaped for buildBrandContextBlock. Scoped to the caller, the same
+    // pattern as creator/route.ts. plan and analysis were deliberately left out
+    // of P4.1 because they receive no brand kit at all; this closes that gap.
+    let brandContext: BrandContextPromptInput | null = null;
+    if (input.brandKitId) {
+      const { data: kit } = await supabase
+        .from('brand_kits')
+        .select('*')
+        .eq('id', input.brandKitId)
+        .eq('user_id', user.id)
+        .single();
+      brandContext = kit
+        ? {
+            name: kit.name ?? null,
+            industry: kit.industry ?? null,
+            description: kit.description ?? null,
+            targetAudience: kit.target_audience ?? null,
+            city: kit.city ?? null,
+          }
+        : null;
+    }
+
     const creditCost = CREDIT_COSTS.analysis;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
@@ -213,7 +243,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let result: Awaited<ReturnType<typeof generateText>>;
     let analysis: z.infer<typeof AnalysisSchema>;
     try {
-      const prompt = buildAnalysisPrompt({ ...safeInput, locale: input.locale ?? routing.defaultLocale });
+      const prompt = buildAnalysisPrompt({ ...safeInput, locale: input.locale ?? routing.defaultLocale, brandContext });
       result = await generateText({
       prompt,
       maxTokens: 8192,

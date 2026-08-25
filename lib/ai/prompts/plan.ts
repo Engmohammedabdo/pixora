@@ -1,6 +1,7 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
 import { industryName } from '@/lib/industries';
+import { buildBrandContextBlock, type BrandContextPromptInput } from './brand-context';
 
 interface PlanPromptInput {
   businessName: string;
@@ -16,11 +17,18 @@ interface PlanPromptInput {
    * price for a deliverable they may not be able to read.
    */
   locale?: string;
+  /**
+   * The caller's brand kit business columns, reshaped for buildBrandContextBlock.
+   * `null`/absent is the common case: plan was the last studio to receive a
+   * brand kit at all (P4.2, brandKitId is optional on the route), and every kit
+   * created before migration 045 has all five business columns null regardless.
+   */
+  brandContext?: BrandContextPromptInput | null;
 }
 
 // v2.0 — matches system-prompts.md marketing_plan_v1
 export function buildPlanPrompt(input: PlanPromptInput): string {
-  const { businessName, industry, goals, targetMarket, budget, duration, stage , locale } = input;
+  const { businessName, industry, goals, targetMarket, budget, duration, stage, locale, brandContext } = input;
 
   // This builder imported sanitizePrompt and never called it, so `plan` was the
   // one paid studio with NO prompt filter in front of the model — and the
@@ -36,10 +44,16 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   // itself rather than trusting whoever calls it.
   const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeBusinessName = sanitizePrompt(businessName, 200);
-  const safeIndustry = sanitizePrompt(industry, 100);
+  // sanitizePrompt must still RUN on the raw value — it is the only thing
+  // standing between a blocked term in this field and the model (see
+  // scripts/tests/safety.test.ts's PLAN_FIELDS, which sends a blocked term
+  // through `industry` specifically and expects buildPlanPrompt to throw). The
+  // RESOLVED name below is what reaches the prompt; this raw value never does.
+  sanitizePrompt(industry, 100);
   // industryName() returns '' for `other` and for any free-text value. Falling
   // back to the raw string here is what produced "expertise in مطاعم businesses";
-  // an unresolved industry degrades to cross-industry instead.
+  // an unresolved industry now omits the line entirely (see the `- Industry:`
+  // line below), the same rule buildBrandContextBlock already applies.
   const resolvedIndustry = industryName(industry);
   const safeStage = stage ? sanitizePrompt(stage, 100) : '';
   const safeTargetMarket = sanitizePrompt(targetMarket, 500);
@@ -57,7 +71,13 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
 
   prompt += `\n\nBusiness Information:`;
   prompt += `\n- Name: ${safeBusinessName}`;
-  prompt += `\n- Industry: ${resolvedIndustry || safeIndustry}`;
+  // Unresolved (an unrecognised slug, or free text a hostile PostgREST write to
+  // brand_kits.industry — deliberately unconstrained, migration 045 — or a
+  // pre-chip-UI historical generation restored via RecentWork could still
+  // carry; see app/api/studios/plan/route.ts's InputSchema comment) omits the
+  // line entirely. It never falls back to the raw value — that is what
+  // produced "Industry: مطاعم" reaching the model.
+  if (resolvedIndustry) prompt += `\n- Industry: ${resolvedIndustry}`;
   // Only when the caller actually has one. This used to emit `Growth` whenever
   // `stage` was absent — which is ALWAYS, because nothing in the product collects
   // it — so every plan ever generated was steered by an invented fact.
@@ -65,6 +85,11 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   prompt += `\n- Target Market: ${safeTargetMarket}`;
   prompt += `\n- Monthly Budget: ${safeBudget}`;
   prompt += `\n- Primary Goals: ${safeGoals.join(', ')}`;
+
+  // Placed after the business-information lines above and before the
+  // deliverable/technical directive below — the same position creator and
+  // campaign use (lib/ai/prompts/brand-context.ts's own doc comment).
+  prompt += buildBrandContextBlock(brandContext ?? null);
 
   prompt += `\n\nCreate a detailed ${duration}-day marketing plan. Return as valid JSON:`;
   prompt += `\n{`;

@@ -1,6 +1,7 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
 import { industryName } from '@/lib/industries';
+import { buildBrandContextBlock, type BrandContextPromptInput } from './brand-context';
 
 interface AnalysisPromptInput {
   businessName: string;
@@ -16,11 +17,18 @@ interface AnalysisPromptInput {
    * price for a deliverable they may not be able to read.
    */
   locale?: string;
+  /**
+   * The caller's brand kit business columns, reshaped for buildBrandContextBlock.
+   * `null`/absent is the common case: analysis was the last studio to receive a
+   * brand kit at all (P4.2, brandKitId is optional on the route), and every kit
+   * created before migration 045 has all five business columns null regardless.
+   */
+  brandContext?: BrandContextPromptInput | null;
 }
 
 // v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
-  const { businessName, industry, description, competitors, targetMarket, painPoints, stage , locale } = input;
+  const { businessName, industry, description, competitors, targetMarket, painPoints, stage, locale, brandContext } = input;
   // EVERY value interpolated below reaches the model, so every value below meets
   // the filter. Sanitizing only `description` was never the rule — it was the only
   // field anyone had got to. `competitors` is customer-supplied too and is joined
@@ -28,7 +36,11 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeDesc = sanitizePrompt(description);
   const safeBusinessName = sanitizePrompt(businessName, 200);
-  const safeIndustry = sanitizePrompt(industry, 100);
+  // sanitizePrompt must still RUN on the raw value — it is the only thing
+  // standing between a blocked term in this field and the model. The RESOLVED
+  // name below (via industryName()) is what reaches the persona/business lines;
+  // this raw value never does.
+  sanitizePrompt(industry, 100);
   const safeTargetMarket = sanitizePrompt(targetMarket, 500);
   // Same invented fact plan.ts carried: `Growth` whenever `stage` is absent, which
   // is ALWAYS, because nothing in the product collects it.
@@ -52,12 +64,22 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
 
   prompt += `\n\nBusiness Under Analysis:`;
   prompt += `\n- Name: ${safeBusinessName}`;
-  prompt += `\n- Industry: ${resolvedIndustry || safeIndustry}`;
+  // Unresolved (an unrecognised slug, or free text a hostile PostgREST write to
+  // brand_kits.industry — deliberately unconstrained, migration 045 — or a
+  // pre-chip-UI historical generation restored via RecentWork could still
+  // carry; see app/api/studios/analysis/route.ts's InputSchema comment) omits
+  // the line entirely. It never falls back to the raw value.
+  if (resolvedIndustry) prompt += `\n- Industry: ${resolvedIndustry}`;
   prompt += `\n- Description: ${safeDesc}`;
   if (safeStage) prompt += `\n- Current Stage: ${safeStage}`;
   prompt += `\n- Target Market: ${safeTargetMarket}`;
   prompt += `\n- Main Competitors: ${safeCompetitorList}`;
   prompt += `\n- Current Challenges: ${safePainPoints}`;
+
+  // Placed after the business-information lines above and before the
+  // deliverable/technical directive below — the same position creator, campaign
+  // and (now) plan use.
+  prompt += buildBrandContextBlock(brandContext ?? null);
 
   // EVERY key below is one the route's AnalysisSchema parses AND a surface renders.
   //
