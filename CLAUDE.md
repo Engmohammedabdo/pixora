@@ -730,6 +730,119 @@ after deploying, then confirm both sinks.
 - **Nothing reads `user_events` yet.** The rows accumulate; no admin screen surfaces them.
 - `failGeneration()`'s refuse-to-write branch records no event — it has no returned row to take a user id from, and it is already loud in the logs.
 
+### Project-as-context — built 2026-08-25 (the branch that made two customers differ)
+
+Before this round, `grep -rn "project" lib/ai/prompts/*.ts` returned **0**. A Dubai shawarma
+shop and a Riyadh SaaS startup produced a **byte-identical prompt** for the same studio. The
+product asked for the customer's business three separate times and carried the answer nowhere.
+
+Now the business facts are collected **once** — optionally read off the customer's own website
+— stored on `brand_kits` (migration `045`), and carried into **seven** prompt builders.
+
+| What | State | Proof |
+|------|-------|-------|
+| One industry list, shared by DB CHECK, Zod, prompts and the n8n workflow | ✅ built | `lib/industries.ts` — before this, `plan.ts:49` spliced an Arabic label into an English persona ("20+ years in **the other industry**") |
+| Business context on `brand_kits`: `website_url`, `industry`, `description`, `target_audience`, `city` | ✅ applied live | migration `045`, probes A–H as `authenticated`, `schema_migrations` 2026-08-25 01:51:54Z |
+| One shared Zod schema for POST **and** PATCH | ✅ built | `lib/brand-kits/schema.ts` — the two diverged once (`.optional()` vs `.nullable()`) and the result was a dialog that silently never saved |
+| `buildBrandContextBlock()` reaching creator, campaign, storyboard, photoshoot, plan, analysis | ✅ built | `lib/ai/prompts/brand-context.ts`, 32 checks. `edit` is wired but **dead** — see below |
+| Onboarding starts from the customer's website | ✅ built | `components/onboarding/WebsiteStep.tsx` — skip, success and failure all land on the same editable form **by construction**, not by three parallel paths |
+| `POST /api/brand-kits/extract` | ✅ built | auth → config check → throttle (5/60, fails CLOSED) → 90 s deadline → 256 kB bounded read. Our container **never fetches a customer URL** — it calls one fixed n8n webhook from env |
+| n8n + Apify extraction workflow | ⚠️ deployed, **inactive** | id `qH3LzMlpap3VRjPm`. Needs its own header credential — the current one is **shared** with another workflow |
+| Arabic text on generated images | ✅ prompt built, ⚠️ **unproven** | `lib/ai/prompts/edit.ts` `text_add`, golden checks in `prompts.test.ts`. No rendered image exists yet |
+| `food` environment in photoshoot, six real recipes | ✅ built | `lib/ai/prompts/photoshoot.ts` |
+| `profiles.onboarding_step` written for the first time | ✅ fixed | read by `ProfileCompletion.tsx:23` since it was built, written by **nothing** until now |
+| `sharp` declared | ✅ fixed | resolved only via `next@15.5.14`'s hoisted transitive; the free-plan watermark is fail-CLOSED, so a hoisting change fails **every** free-plan image |
+
+**The extraction is a guess, and the UI says so.** The draft is always editable, never saved
+silently, and every field the crawl could not determine carries its own "we couldn't find this"
+badge. Colours and fonts are the least reliable and are always listed as missing when absent.
+
+#### What the final review found — three reviewers, 21 commits, and the pattern held
+
+**One of the two blockers was in a fix from this same round, and one was in a fix from the
+commit immediately before it.** That is the whole lesson.
+
+| Defect | State |
+|--------|-------|
+| **A customer who typed `mysite.ae` could never save a brand kit.** The `website_url` regex is case-sensitive and scheme-required, and the form sent the raw string — so `mysite.ae`, `www.mysite.ae` and `Https://mysite.ae` (**what iOS and Gboard produce**, since the input had no `autoCapitalize`) all 400'd as `validation_error`, a code the message map did not carry. The customer got "جرّب مرة ثانية" — a lie, since no retry could succeed — while the correctly-worded `invalidWebsiteUrl` string sat **unreachable** in the same commit | ✅ fixed — `lib/brand-kits/website-url.ts`, one normaliser both callers import |
+| `plan` and `analysis` reserved credits **before** the brand-kit filter ran, so a blocked prompt cost a reserve/refund pair and a misattributed `failed` row — and if the refund failed, real credits for a prompt no model ever saw | ✅ fixed — and gated |
+| A paid plan could be generated against **two contradictory business identities** — the form's edited values and the kit's originals, both in one prompt, with two `- Industry:` lines | ✅ fixed — the routes null out what the form already carries |
+| The dev mock fix (`f721c62`) was **incomplete**: it filled arrays with 3 while storyboard requires `.min(9)` and campaign expects 9, so storyboard still returned `generation_parse_failed` and campaign refunded 6 of 9 posts every run. The test could not tell — it validated against the OpenAPI schema, which has no `minItems`, instead of the studio's own parser | ✅ fixed — `minItems` on the schemas, which also tells the **model**; the test now runs the real parsers |
+| The extract route relayed upstream values with **no bound and no enum**. An `industry` the n8n workflow invented passed every layer and was stored — then `industryName()` returned `''` forever: no chip selected, **no missing-field badge**, and the industry line silently omitted from every studio prompt | ✅ fixed — bounded at the boundary, `isIndustry()` at the writer, badge on unrecognised-not-just-empty |
+| Migration `045` computed `N FAILED of M` and **committed regardless** — `044:153-162` on the same table has the `DO $gate$` that refuses | ✅ fixed |
+| `photoshoot` and `storyboard` read brand context only from a **project**, so P4.2's restaurant→`food` default was unreachable on the exact journey this branch was built for | ✅ fixed — default-kit fallback |
+| The plan studio replaced free-text industry with seven chips and no escape hatch, so a Dubai car-rental owner picked أخرى and paid 5 credits for a plan carrying **no industry at all** | ✅ fixed |
+| The onboarding error banner used `bg-[var(--color-error)]/10` — the class Tailwind 3.4.19 **silently drops** — on the arm every customer hits today | ✅ fixed + gated |
+| Both new URL inputs lacked `dir="ltr"`, against seven existing precedents, on the first field of the first screen of an Arabic-first product | ✅ fixed |
+| A successful 55-second crawl was destroyed by a reload | ✅ fixed — parked in `sessionStorage`, re-parsed on read rather than trusted |
+
+**Two review instructions were deliberately NOT followed, and both refusals were right:**
+- The brief said make the Zod regex case-insensitive. Migration `045:93` uses Postgres `~`,
+  which is **case-sensitive** — `/i` on the JS side alone recreates the `042` defect in
+  reverse (a 500 carrying raw Postgres text instead of a clean 400). The normaliser lowercases
+  the scheme instead, so **both layers accept an identical set**. Verified: all five
+  previously-rejected forms now accepted, `not a url at all` still rejected.
+- The brief said add `type="url"`. Native constraint validation refuses `mysite.ae` and blocks
+  submission — so the handler that normalises it would never run, **reinstating the blocker one
+  layer up**. Documented at both input sites so it is not "fixed" later.
+
+**Eight findings were filed and REFUTED**, recorded because a corrected claim is worth as much
+as a fixed defect: the `sharp` lock entry (`npm ci --dry-run` installs it even under
+`--omit=optional` — the root declaration overrides the optional flag); `credits_used` on a
+failed row (`028:19-35` documents it as the INTENDED figure, the ledger is truth, and
+`/api/generations` filters to `completed` so no customer sees it); campaign's untested block
+sites (provably safe — the gap was the *rule*); `edit`'s dead wiring (real, and **older** than
+this branch); and the plan's own claim that a dead end here is a total product lockout — the
+gate is `/dashboard` and `/` only.
+
+#### Two new gates, and the one that mattered most
+
+`check-invariants` is now **17 rules**; the test suite is **18 files / 1250 checks** (from 887).
+
+- **`sanitize-before-reserve`** — no `build*Prompt(` after `reserveCredits(` in any studio
+  route. **This is the gate whose absence caused the blocker.** `c12e928` fixed two routes
+  while the commit before it had broken three; every gate stayed green. Proved by reintroducing
+  `plan`'s ordering.
+- **`no-var-opacity-modifier`** — the Tailwind class that emits no CSS at all. Second offence.
+
+Also new: `test:website-url` (48) proving the normaliser and both storage layers agree on one
+corpus, and `test:mock-from-schema` (55), which now feeds each studio's mock through **that
+studio's own Zod parser** rather than a re-implementation of conformance.
+
+#### A process defect this round exposed, worth more than any single fix
+
+`scripts/db/run-sql.js` guarded on `\bCOMMIT\b` — which also matches
+`CREATE TEMP TABLE … ON COMMIT DROP`, present in **both** `044:77` and `045:103`. So the
+rehearsal step this file mandates ("send the same file with its trailing `COMMIT` swapped for
+`ROLLBACK`") was **silently unreachable for exactly the two migrations that most needed it**.
+That is *why* `045` shipped without its commit gate.
+
+**And `/scripts/db/` is entirely gitignored — zero tracked files.** This file documents
+`node scripts/db/apply.js …` as the way to apply a migration, and no fresh clone has it, so the
+fix above cannot ship. Decide the policy: either commit the scripts (they read the service-role
+key from `.env.local` and embed nothing) or say plainly here that they are local-only and must
+be recreated.
+
+#### Still open, deliberately
+
+- **The extraction SUCCESS arm has never run.** The n8n workflow is inactive and its header
+  secret is shared with another workflow. Until `N8N_BRAND_DNA_WEBHOOK_URL` +
+  `N8N_BRAND_DNA_SECRET` are set, `/api/brand-kits/extract` returns **503** and the UI tells the
+  customer to fill the form in themselves — which works, and is the arm every real customer
+  hits today.
+- **`edit`'s brand-context wiring is dead** and is **older than this branch**:
+  `EditPromptInput.brandKit` pre-dates `8bd96c6`, so the `Brand Colors` line was already dead.
+  `edit/route.ts`'s `InputSchema` has no `brandKitId` and never fetches a kit. Zero runtime
+  cost, named at `edit.ts:119-126`. Wire it or delete both — do not leave a third consumer.
+- **`website_url` and the two font columns are collected and read by nothing.** Both are
+  deliberate and commented, but fonts were an explicit deliverable of this round. This repo's
+  catalogue is full of exactly this shape.
+- **The n8n workflow source (`.superpowers/sdd/brand-dna-workflow.js`) is gitignored**, so the
+  font-length clip added on the app side has no committed counterpart upstream.
+- **`docs/INVARIANTS.md` was stale at 11 of 17 rules** and is now complete. It goes stale
+  silently; there is no gate on it.
+
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -895,8 +1008,8 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **45 files** in `supabase/migrations/`, latest `044_brand_kits_column_lockdown.sql`.
-  `public.schema_migrations` records 23 of them (022 → 044, contiguous) because
+- **46 files** in `supabase/migrations/`, latest `045_brand_kits_business_context.sql`.
+  `public.schema_migrations` records 24 of them (022 → 045, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
   it predates the ledger, not that it was skipped. Verified against the live
   database 2026-08-23; an earlier version of this file stopped at 042.
@@ -980,7 +1093,7 @@ npx tsc --noEmit # TypeScript check
 **Build gates** (`prebuild`, so a regression fails the build rather than shipping):
 
 ```bash
-npm run check:invariants        # 15 rules; --update-baseline is for no-arabic-literals ONLY
+npm run check:invariants        # 17 rules; --update-baseline is for no-arabic-literals ONLY
 npm run test:safety             # 82 checks over the prompt filter and the builders
 npm run test:uploads            # 37 checks over the brand-kit logo validator
 npm run test:plan-switch        # 15 checks over the mid-period plan-switch credit rule
@@ -992,9 +1105,13 @@ npm run test:retrievable-output #  21 checks: a retrievable output can never be 
 npm run test:settle             #  12 checks: a charge only drops from a refund that landed
 npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
-npm run test:prompts            #  36 golden-string checks over the prompt builders
+npm run test:prompts            # 111 golden-string checks over the prompt builders
 npm run test:analytics          #  25 checks: the client may never report a server-witnessed event
 npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
+npm run test:website-url        #  48 checks: the URL normaliser and BOTH storage layers agree
+npm run test:brand-extract      # 135 checks: the extract route, its codes and its bounds
+npm run test:brand-context      #  32 checks: business facts reach the prompt, sanitised
+npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDIO own Zod schema
 ```
 
 **One gate runs AFTER the build**, because before it there is nothing to read:
@@ -1003,7 +1120,7 @@ npm run test:root-document      #  62 checks: exactly ONE <html> per route, with
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**887 checks across 14 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
+**1250 checks across 18 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.
