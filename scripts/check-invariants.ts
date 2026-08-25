@@ -1287,6 +1287,65 @@ const promptBuilderSanitized: Invariant = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Invariant: sanitize-before-reserve
+// ---------------------------------------------------------------------------
+
+const sanitizeBeforeReserve: Invariant = {
+  id: 'sanitize-before-reserve',
+  title: 'A studio route finishes building its prompt before it reserves credits',
+  why:
+    'sanitizePrompt() THROWS on a blocked term, and the only place a brand kit\'s ' +
+    'business columns ever meet it is inside buildBrandContextBlock(), which runs ' +
+    'inside the prompt builders. A builder called after reserveCredits() therefore ' +
+    'discovers a blocked prompt with the credits already held: best case a refund ' +
+    'and a `failed` row filed under `generation_failed`, polluting the per-model ' +
+    'reliability numbers; worst case the refund fails too and the customer has paid ' +
+    'for a prompt no model ever saw, recoverable only by the 45-minute reconciler. ' +
+    'c12e928 fixed this in storyboard and photoshoot; d76aeb9 had introduced the ' +
+    'same hazard in plan and analysis one commit earlier and it survived a full ' +
+    'branch review, because tsc, eslint, 15 invariants and 17 test files all stayed ' +
+    'green and BOTH routes carried comments asserting the ordering was already ' +
+    'correct. Every other recurring class in this repo has a rule; this is that ' +
+    'rule. Stated on the BUILDERS, not on bare sanitizePrompt(): campaign filters ' +
+    'the text model\'s own `post.scenario` after generation — which is necessarily ' +
+    'after the reservation and is caught locally so it drops one image rather than ' +
+    'the campaign — and a rule with an exception is a rule someone edits around. ' +
+    'A route with no reserveCredits() call (prompt-builder, which charges nothing) ' +
+    'has no money to protect and is skipped.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+    for (const file of files) {
+      const rel = toRel(file);
+      // These routes document their own history by quoting the old code, and
+      // several of the corrected comments name the very calls this rule looks for
+      // ("buildPlanPrompt() was called inside this try"). A naive regex reads
+      // those as real call sites. stripComments() keeps line numbers aligned,
+      // so `lineAt` below is still right — but offsets past a `//` comment
+      // shift, so the reported text must come from the STRIPPED content too.
+      const content = stripComments(readFileSync(file, 'utf8'));
+
+      const reserveIdx = content.indexOf('reserveCredits(');
+      if (reserveIdx === -1) continue;
+
+      const re = /\bbuild[A-Za-z0-9_]*Prompt\s*\(|\bbuildBrandContextBlock\s*\(/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(content))) {
+        if (m.index <= reserveIdx) continue;
+        violations.push({
+          file: rel,
+          line: lineAt(content, m.index),
+          text: `${lineTextAt(content, m.index)}  <- builds the prompt AFTER reserveCredits() on line ${lineAt(content, reserveIdx)}`,
+        });
+      }
+    }
+    return violations;
+  },
+};
+
 const INVARIANTS: Invariant[] = [
   msgParity,
   msgNoEmpty,
@@ -1303,6 +1362,7 @@ const INVARIANTS: Invariant[] = [
   studioErrorCodes,
   promptInputBounded,
   promptBuilderSanitized,
+  sanitizeBeforeReserve,
 ];
 
 function parseArgList(flag: string): Set<string> | null {
