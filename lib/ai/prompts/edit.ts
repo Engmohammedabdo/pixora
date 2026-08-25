@@ -34,11 +34,20 @@ interface EditPromptInput {
  * first impression of the one studio whose entire job is putting text on their
  * photo. But PyraSuite is an Arabic-first product, and refusing a customer's own
  * language in the one place text matters most is the wrong trade to keep making
- * by default. The founder confirmed the backend models now render Arabic
- * acceptably, so the rule is flipped: script-agnostic and fidelity-bound instead
- * of Latin-only. The `must`/`avoid` entries below now spell out the failure
- * modes that are actually true for Arabic (letter joining, RTL direction,
- * invented diacritics) rather than banning the script outright.
+ * by default. So the rule is flipped: script-agnostic and fidelity-bound instead
+ * of Latin-only, with the `must`/`avoid` entries spelling out the failure modes
+ * that are actually true for Arabic (letter joining, RTL direction, invented
+ * diacritics) rather than banning the script outright.
+ *
+ * **The evidence for the flip is a founder DECISION, not a measurement.** An
+ * earlier version of this comment said "the founder confirmed the backend models
+ * now render Arabic acceptably", which in a repo whose rule is that a ✅ must
+ * name a file:line is not evidence of anything — no rendered image exists. The
+ * plan's own definition of done (P1.3) asks for "an Arabic string rendered
+ * correctly into a real image by the live model, seen", and that is still
+ * outstanding; it needs the branch deployed, because production has the API keys
+ * and local does not. Treat the rules below as the best available theory of the
+ * failure modes until then.
  */
 const EDIT_MODES: Record<string, { task: string; must: string[]; avoid: string[] }> = {
   background_replace: {
@@ -71,19 +80,30 @@ const EDIT_MODES: Record<string, { task: string; must: string[]; avoid: string[]
   },
   text_add: {
     // The one mode where text is wanted. Every other prompt in this repo forbids it.
+    //
+    // The rules below only work because the text has a DELIMITED referent: this
+    // mode emits `Text to set: "…"` instead of `Customer instruction: …` (see
+    // buildEditPrompt). Without it "set the text exactly as the customer wrote
+    // it" had nothing to point at, and a customer who wrote a sentence — which
+    // the placeholder used to invite, by showing a background-change example
+    // regardless of mode — got the instruction words baked into their image.
     task: 'Add the text the customer specifies to the image.',
     must: [
-      'Set the text exactly as the customer wrote it, in the same script, correctly spelled, with no extra words, no transliteration and no translation',
+      // Positive form, deliberately. Image models weight negatives poorly, and
+      // all four Arabic rules used to sit in `avoid` as negations while every
+      // other mode in this file states its craft positively.
+      'Set exactly the characters between the quotation marks on the "Text to set:" line — same script, same spelling, same words, in that order',
+      'Render any Arabic as connected cursive script running right-to-left, each glyph in its correct contextual form (initial, medial, final, isolated)',
+      'Reproduce only the diacritics (harakat) that appear in the given text — no more, no fewer',
+      'Keep the given text in its own language: no transliteration, no translation',
       'Place it in existing negative space with enough contrast to be legible',
       'Match the perspective and lighting of the surface it sits on',
     ],
     avoid: [
-      'Adding any text beyond what was asked for',
+      'Adding any word that is not between those quotation marks',
       'Covering or crossing the subject',
-      'Breaking the Arabic letter joining — every letter must connect in its correct contextual form (initial, medial, final, isolated)',
-      'Setting an Arabic run left-to-right — Arabic reads right-to-left',
-      'Inventing diacritics (harakat) the customer did not write',
-      'Transliterating or translating the customer instruction instead of setting it as given',
+      'Isolated, disconnected Arabic letterforms',
+      'Setting an Arabic run left-to-right',
     ],
   },
   style_transfer: {
@@ -104,7 +124,23 @@ export function buildEditPrompt(input: EditPromptInput): string {
   let prompt = `You are a professional retoucher working on the attached image.`;
   prompt += `\n\nThe attached image is the customer's own photograph. It is the subject of this edit and must survive it.`;
   prompt += `\n\nTask: ${mode ? mode.task : `Apply the requested edit: ${sanitizePrompt(editType.replace(/_/g, ' '), 50)}.`}`;
-  prompt += `\nCustomer instruction: ${safeDescription}`;
+  // `text_add` is the one mode where the customer's words are the PAYLOAD
+  // rather than a description of what to do, and it had no way to say so: the
+  // same `Customer instruction:` line carried both, and the rules said "set the
+  // text exactly as the customer wrote it" with nothing to point at. A customer
+  // who typed "اكتب عرض خاص خصم ٥٠٪ فوق الصورة" — which the old, mode-blind
+  // placeholder invited by showing a background-change example — could
+  // plausibly get "اكتب" and "فوق الصورة" baked into their paid image, and no
+  // amount of letter-joining or RTL direction rules helps with that.
+  //
+  // The quotation marks are the whole point: they are what the `must` entries
+  // above refer to. `safeDescription` has already been through sanitizePrompt,
+  // which is where any quote-escaping concern belongs.
+  if (editType === 'text_add') {
+    prompt += `\nText to set: "${safeDescription}"`;
+  } else {
+    prompt += `\nCustomer instruction: ${safeDescription}`;
+  }
 
   if (brandKit) {
     // Same caps as CreateBrandKitSchema: `brand_kits` is customer-writable over

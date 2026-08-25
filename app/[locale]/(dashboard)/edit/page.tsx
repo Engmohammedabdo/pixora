@@ -199,7 +199,18 @@ function EditPageContent(): React.ReactElement {
           </button>
         ))}</div>
       </div>
-      <div className="space-y-2"><Label htmlFor="edit-description">{tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit('editDescriptionPlaceholder')} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
+      {/* One free-text field serves all five modes, and its label and
+          placeholder used to be mode-INDEPENDENT — showing a background-change
+          example ("مثال: غيّر الخلفية لمكتب حديث…") to a customer who had just
+          picked ✍️ إضافة نص. So they wrote a sentence: "اكتب عرض خاص خصم ٥٠٪
+          فوق الصورة". The model receives that whole sentence plus a rule to set
+          the text exactly as written, and cannot tell which words are the
+          payload — plausible output has "اكتب" and "فوق الصورة" baked into the
+          image, on a paid credit, and no amount of letter-joining or RTL
+          direction rules can help. Both the label and the example are now per
+          mode; lib/ai/prompts/edit.ts does the other half by giving the rules a
+          delimited referent. */}
+      <div className="space-y-2"><Label htmlFor="edit-description">{editType === 'text_add' ? tEdit('textToSetLabel') : tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit(`descriptionPlaceholders.${editType}`)} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
         <div className="flex items-center gap-2">

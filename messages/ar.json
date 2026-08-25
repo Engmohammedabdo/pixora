@@ -520,7 +520,14 @@
     "pressGenerate": "اضغط توليد",
     "emptyState": "النتيجة ستظهر هنا",
     "description": "عدّل صورك بالذكاء الاصطناعي",
-    "editDescriptionPlaceholder": "مثال: غيّر الخلفية لمكتب حديث مع إضاءة طبيعية..."
+    "textToSetLabel": "النص المطلوب كتابته",
+    "descriptionPlaceholders": {
+      "background_replace": "مثال: خلفية مكتب حديث بإضاءة طبيعية",
+      "object_remove": "مثال: شيل الكرسي اللي على الشمال",
+      "color_change": "مثال: خلي القميص أزرق غامق",
+      "text_add": "اكتب النص اللي عايزه بس — من غير كلام زيادة. مثال: عرض خاص خصم ٥٠٪",
+      "style_transfer": "مثال: أسلوب ألوان مائية"
+    }
   },
   "analysis": {
     "businessName": "اسم العمل",

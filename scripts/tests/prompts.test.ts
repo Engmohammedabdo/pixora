@@ -429,13 +429,48 @@ const planInput = {
 
 // ---- edit: text_add accepts the customer's own script ----
 {
-  const p = buildEditPrompt({ editType: 'text_add', editDescription: 'اكتب: عرض اليوم' });
+  const p = buildEditPrompt({ editType: 'text_add', editDescription: 'عرض اليوم' });
   omits('edit/text_add: no Latin-only restriction', p, 'Latin characters');
   omits('edit/text_add: Arabic is no longer forbidden', p, 'Arabic script — it does not render');
-  contains('edit/text_add: demands correct letter joining', p, 'joining');
+  contains('edit/text_add: demands correct contextual letterforms', p, 'contextual form');
   contains('edit/text_add: demands right-to-left', p, 'right-to-left');
-  contains('edit/text_add: forbids transliteration', p, 'ransliterat');
-  contains('edit/text_add: still forbids extra text', p, 'beyond what was asked for');
+  contains('edit/text_add: forbids transliteration', p, 'ransliteration');
+  contains('edit/text_add: still forbids extra text', p, 'not between those quotation marks');
+  // The craft rules are stated POSITIVELY now. Image models weight negatives
+  // poorly, and all four Arabic rules used to sit in `avoid` while every other
+  // mode in the file states its craft in `must`. Pinned on the section header
+  // ordering: `must` is emitted before `avoid`, so a rule that migrated back
+  // into the negative list moves after it.
+  const mustBlock = p.slice(p.indexOf('Must:'), p.indexOf('Avoid:'));
+  contains('edit/text_add: the Arabic joining rule is a MUST, not an avoid', mustBlock, 'contextual form');
+  contains('edit/text_add: the RTL rule is a MUST, not an avoid', mustBlock, 'right-to-left');
+}
+
+// ---- edit: text_add gives the rules a delimited referent (review finding F15) ----
+//
+// One free-text field serves all five modes, and its placeholder was
+// mode-INDEPENDENT — a background-change example shown to a customer who had
+// picked ✍️ إضافة نص. They write a sentence; the model gets that sentence plus
+// "set the text exactly as the customer wrote it" and cannot tell which words
+// are the payload, so "اكتب" and "فوق الصورة" end up baked into a paid image.
+// The letter-joining and RTL rules cannot help with that — they are downstream
+// of knowing WHAT to set.
+{
+  const p = buildEditPrompt({ editType: 'text_add', editDescription: 'عرض اليوم' });
+  contains('edit/text_add: the text is delimited', p, 'Text to set: "عرض اليوم"');
+  omits('edit/text_add: it is not ALSO relayed as an instruction', p, 'Customer instruction:');
+  // The `must` entries point at that exact line by name; if the line is ever
+  // renamed and they are not, they point at nothing.
+  contains('edit/text_add: the rules name the line they refer to', p, '"Text to set:" line');
+}
+{
+  // Every other mode keeps the instruction line — their text describes an
+  // action, it is not the payload.
+  for (const mode of ['background_replace', 'object_remove', 'color_change', 'style_transfer']) {
+    const p = buildEditPrompt({ editType: mode, editDescription: 'a modern office' });
+    contains(`edit/${mode}: still relays a customer instruction`, p, 'Customer instruction: a modern office');
+    omits(`edit/${mode}: no "Text to set" line`, p, 'Text to set:');
+  }
 }
 
 // ---- edit: the other four modes keep their preservation rules ----

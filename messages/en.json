@@ -520,7 +520,14 @@
     "pressGenerate": "Press Generate",
     "emptyState": "The result will appear here",
     "description": "Edit your images with AI",
-    "editDescriptionPlaceholder": "Example: change the background to a modern office with natural light..."
+    "textToSetLabel": "The text to put on the image",
+    "descriptionPlaceholders": {
+      "background_replace": "e.g. a modern office background with natural light",
+      "object_remove": "e.g. remove the chair on the left",
+      "color_change": "e.g. make the shirt navy blue",
+      "text_add": "Type ONLY the words you want on the image — nothing else. e.g. 50% OFF THIS WEEK",
+      "style_transfer": "e.g. watercolour style"
+    }
   },
   "analysis": {
     "businessName": "Business Name",
