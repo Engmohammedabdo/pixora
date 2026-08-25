@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { PLAN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { PlanSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -33,91 +34,6 @@ const InputSchema = z.object({
   budget: z.string().min(1).max(200),
   duration: z.enum(['30', '60', '90']),
 });
-
-/*
- * The model's JSON was accepted on "did JSON.parse succeed", finalized as
- * `completed`, and the 5 credits kept. The page then dereferenced nested arrays
- * the top-level types called optional — `plan.budget.breakdown.map`,
- * `week.content.map` — and a render throw trips the segment error boundary, so
- * the customer paid and got a generic Arabic error instead of a plan.
- *
- * Shape is checked HERE so a wrong one takes the existing parse-failure branch
- * (refund + `generation_parse_failed`) rather than being sold, and the value we
- * store and return is the PARSED one — so the row RecentWork restores later is
- * normalized too.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-/** Does this section actually SHOW the customer anything?
- *
- *  Every leaf above is `.catch('')`, which never fails — it turns a
- *  non-printable value into an empty string. So a non-empty array proves
- *  nothing: `{"objectives":[{},{}]}` parses into two entries of empty strings,
- *  and counting `.length` sold that as a plan for 5 credits. Numbers are left
- *  out on purpose — a week index or a percentage is not a deliverable. */
-function hasPrintableText(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasPrintableText);
-  return false;
-}
-
-const numeric = z
-  .union([z.number(), z.string()])
-  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
-  .catch(0);
-
-const PlanSchema = z
-  .object({
-    objectives: z.array(z.object({ goal: printable, kpi: printable, target: printable }).loose()).catch([]),
-    channels: z.array(z.object({ name: printable, budget_pct: numeric, strategy: printable }).loose()).catch([]),
-    calendar: z
-      .array(z.object({ week: numeric, content: z.array(printable).catch([]), channel: printable }).loose())
-      .catch([]),
-    budget: z
-      .object({
-        total: printable,
-        breakdown: z.array(z.object({ item: printable, amount: printable, pct: numeric }).loose()).catch([]),
-      })
-      .loose()
-      .optional()
-      .catch(undefined),
-    kpis: z.array(z.object({ metric: printable, target: printable, tracking: printable }).loose()).catch([]),
-  })
-  .loose()
-  // Every section above defaults to empty, so `{}` would otherwise parse and be
-  // charged for. A plan with nothing in any section is the same failure the
-  // campaign studio already treats as one: an empty response sold as nine posts.
-  //
-  // Stated on CONTENT, not on `.length`: entry COUNT was the wrong question,
-  // because `.catch('')` means an entry always parses. `{"objectives":[{},{}]}`
-  // passed the count and was finalized as `completed` for a deliverable of
-  // empty strings. Only the fields the page and the PDF actually print are
-  // considered, so a section of unrendered junk cannot vouch for itself.
-  .refine((p) => {
-    // Only sections the customer can actually SEE may vouch for a plan. The page
-    // renders exactly four tabs — objectives, channels, calendar, budget
-    // (plan/page.tsx:146-149) — and there is no generatePlanPdf, so nothing else
-    // consumes the parsed object either.
-    //
-    // `kpis` used to sit in this list. It is parsed and stored and rendered nowhere,
-    // so a response carrying nothing but kpis passed the gate, was finalized
-    // `completed`, kept the 5 credits, and left the customer looking at four empty
-    // tabs with no error. Do not add a section here without first pointing at the
-    // code that prints it.
-    const sections: unknown[] = [
-      p.objectives.map((o) => [o.goal, o.kpi, o.target]),
-      p.channels.map((c) => [c.name, c.strategy]),
-      p.calendar.map((w) => [w.content, w.channel]),
-      p.budget?.breakdown.map((b) => [b.item, b.amount]) ?? [],
-    ];
-    return sections.some(hasPrintableText);
-  }, 'model returned no usable plan sections');
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {

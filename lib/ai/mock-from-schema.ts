@@ -28,9 +28,9 @@
  * fixture came to serve all five.
  *
  * The schemas are an OpenAPI 3.0 SUBSET (`type`, `properties`, `items`,
- * `required` — no `$ref`, no `oneOf`), which is what makes this walk small and
- * total. See the header of lib/ai/response-schemas.ts for why the subset is
- * mandatory.
+ * `required`, `minItems` — no `$ref`, no `oneOf`), which is what makes this walk
+ * small and total. See the header of lib/ai/response-schemas.ts for why the
+ * subset is mandatory.
  */
 
 /** Marks every generated leaf, so a mock can never be mistaken for real output
@@ -48,8 +48,27 @@ function leafString(key: string): string {
  * renders but a `key` collision that does not, a layout that only breaks at the
  * second row, a "first item is special" branch. Three is the smallest count that
  * exercises first / middle / last.
+ *
+ * It is a FLOOR, not the count: a schema carrying `minItems` gets that many. The
+ * first version of this file ignored `minItems`, so storyboard — which is sold as
+ * nine scenes and whose parser states `.min(9)` — received three, threw at
+ * `ScenesSchema.parse`, refunded 14 credits and returned
+ * `500 generation_parse_failed`. Identical to the symptom this whole file exists
+ * to remove, for one of the five studios, and the test could not see it because it
+ * validated the mock against the OpenAPI schema rather than the studio's own
+ * parser.
  */
 const ARRAY_FILL = 3;
+
+/** The number of entries to synthesise for an array schema: its own `minItems`
+ *  when it states one, never fewer than ARRAY_FILL. A bad `minItems` (negative,
+ *  fractional, absurd) degrades to the floor rather than throwing or hanging —
+ *  the mock path must never be the thing that takes down a dev server. */
+function arrayLength(schema: Record<string, unknown>): number {
+  const min = schema.minItems;
+  if (typeof min !== 'number' || !Number.isInteger(min) || min <= ARRAY_FILL) return ARRAY_FILL;
+  return Math.min(min, 100);
+}
 
 function build(schema: unknown, key: string, depth: number): unknown {
   // A malformed or unknown schema degrades to a string rather than throwing.
@@ -71,7 +90,7 @@ function build(schema: unknown, key: string, depth: number): unknown {
     }
     case 'array': {
       const items = s.items;
-      return Array.from({ length: ARRAY_FILL }, (_, i) =>
+      return Array.from({ length: arrayLength(s) }, (_, i) =>
         build(items, `${key} ${i + 1}`, depth + 1)
       );
     }

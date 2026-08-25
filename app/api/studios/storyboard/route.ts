@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { STORYBOARD_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { ScenesSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -31,64 +32,6 @@ const InputSchema = z.object({
   platform: z.enum(['instagram_reel', 'tiktok', 'youtube', 'tv']),
   brandKitId: z.string().uuid().optional(),
 });
-
-/*
- * The model's JSON is input we did not write, and it was trusted on shape.
- * `Array.isArray(parsed) && parsed.length > 0` accepted `[{}]`, the route
- * finalized it as `completed` and kept the 14 credits, and the page then threw
- * on `scene.visual_description.substring(...)`. A render throw trips the segment
- * error boundary, so the customer paid 14 credits and got a generic Arabic error
- * where the storyboard should be — with no way to reach the output at all.
- *
- * Shape is therefore checked HERE, before finalizing, so a wrong shape takes the
- * existing parse-failure branch (refund + `generation_parse_failed`) instead of
- * being sold. What is stored and returned is the PARSED value, so the row
- * RecentWork restores months from now is the normalized one too.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-const numeric = z
-  .union([z.number(), z.string()])
-  .transform((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
-  .catch(0);
-
-// Only `visual_description` is required: a scene without one is not a scene, and
-// that is the field the page dereferences. Everything else is decoration — one
-// thin field must never cost the customer the whole 14 credits.
-const SceneSchema = z
-  .object({
-    scene_number: numeric,
-    visual_description: z.string().min(1),
-    dialogue: printable,
-    camera_angle: printable,
-    camera_movement: printable,
-    duration_seconds: numeric,
-    mood: printable,
-    music_note: printable,
-  })
-  .loose();
-
-/**
- * The number of scenes a storyboard is sold as and priced for: the prompt asks for
- * "exactly 9 scenes" (lib/ai/prompts/storyboard.ts) and the flat 14-credit price is
- * built on that. Mirrors campaign's EXPECTED_POSTS.
- */
-const EXPECTED_SCENES = 9;
-
-/**
- * `.min(1)` accepted one scene of the nine that were sold, marked the row completed
- * and kept all 14 credits. A storyboard is not a bag of independent items like a
- * campaign's posts — its scene durations must sum to the requested video length, so
- * a short response is unusable rather than partial. Refusing here routes it into the
- * existing parse-failure branch: full refund, `generation_parse_failed`, free retry.
- */
-const ScenesSchema = z.array(SceneSchema).min(EXPECTED_SCENES);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { CAMPAIGN_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { CampaignPostSchema, EXPECTED_POSTS } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
@@ -30,23 +31,6 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
   generateImages: z.boolean().default(false),
 });
-
-const CampaignPostSchema = z.object({
-  scenario: z.string(),
-  caption: z.string(),
-  tov: z.string(),
-  schedule: z.string(),
-  hashtags: z.string(),
-});
-
-/**
- * The number of posts a campaign is sold as and priced for:
- * lib/ai/prompts/campaign.ts:40 asks for "exactly 9 posts", the reservation is
- * described as "Campaign - 9 posts", and the flat 12-credit price decomposes as
- * 9 images x 1 credit + 3 for the text. Every refund below is sized against
- * this, never against what the model happened to return.
- */
-const EXPECTED_POSTS = 9;
 
 /**
  * The dialect name and guideline buildCampaignPrompt() sends, duplicated rather

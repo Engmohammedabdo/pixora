@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { routing } from '@/i18n/routing';
 import { ANALYSIS_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { AnalysisSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -33,97 +34,6 @@ const InputSchema = z.object({
   targetMarket: z.string().min(5).max(500),
   painPoints: z.string().max(1000).optional().default(''),
 });
-
-/*
- * The model's JSON was accepted on "did JSON.parse succeed", finalized as
- * `completed`, and the 3 credits kept. The page then dereferenced the SWOT
- * quadrant arrays — `q.items.map`, guarded only by `analysis.swot` being truthy
- * — and a render throw trips the segment error boundary, so the customer paid
- * and got a generic Arabic error instead of their analysis.
- *
- * Shape is checked HERE so a wrong one takes the existing parse-failure branch
- * (refund + `generation_parse_failed`) rather than being sold, and the value we
- * store and return is the PARSED one — so the row RecentWork restores later is
- * normalized too. Sections nothing renders (usp/gtm/pricing) ride through on the
- * top-level `.loose()` untouched.
- */
-
-/** A field the UI prints. A number where prose was asked for is not worth a
- *  refund; a missing one becomes an empty cell, not `undefined` on screen. */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-const printableList = z.array(printable).catch([]);
-
-/** Does this section actually SHOW the customer anything?
- *
- *  Every leaf above is `.catch('')`, which never fails — it turns a
- *  non-printable value into an empty string. So a non-empty array proves
- *  nothing: `{"swot":{"strengths":[{},{}],...}}` parses into two entries of
- *  empty strings, and counting `.length` sold that as an analysis for 3
- *  credits. */
-function hasPrintableText(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasPrintableText);
-  return false;
-}
-
-const AnalysisSchema = z
-  .object({
-    swot: z
-      .object({
-        strengths: printableList,
-        weaknesses: printableList,
-        opportunities: printableList,
-        threats: printableList,
-      })
-      .loose()
-      .optional()
-      .catch(undefined),
-    personas: z
-      .array(
-        z
-          .object({
-            name: printable, age: printable, role: printable,
-            goals: printable, pain_points: printable, channels: printable,
-          })
-          .loose(),
-      )
-      .catch([]),
-    competitors: z
-      .array(z.object({ name: printable, strengths: printable, weaknesses: printable, market_share: printable }).loose())
-      .catch([]),
-    roadmap: z
-      .object({ day_30: printableList, day_60: printableList, day_90: printableList })
-      .loose()
-      .optional()
-      .catch(undefined),
-    kpis: z.array(z.object({ metric: printable, target: printable, timeframe: printable }).loose()).catch([]),
-  })
-  .loose()
-  // Every section above defaults to empty, so `{}` would otherwise parse and be
-  // charged for. Nothing in any section is the same failure the campaign studio
-  // already treats as one: an empty response sold as a finished deliverable.
-  //
-  // Stated on CONTENT, not on `.length`: entry COUNT was the wrong question,
-  // because `.catch('')` means an entry always parses. A SWOT of two empty
-  // objects passed the count and was finalized as `completed`. Only the fields
-  // the page and the PDF actually print are considered, so a section of
-  // unrendered junk cannot vouch for itself.
-  .refine((a) => {
-    const swot = a.swot;
-    const roadmap = a.roadmap;
-    const sections: unknown[] = [
-      swot ? [swot.strengths, swot.weaknesses, swot.opportunities, swot.threats] : [],
-      roadmap ? [roadmap.day_30, roadmap.day_60, roadmap.day_90] : [],
-      a.personas.map((p) => [p.name, p.age, p.role, p.goals, p.pain_points, p.channels]),
-      a.competitors.map((c) => [c.name, c.strengths, c.weaknesses, c.market_share]),
-      a.kpis.map((k) => [k.metric, k.target, k.timeframe]),
-    ];
-    return sections.some(hasPrintableText);
-  }, 'model returned no usable analysis sections');
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {

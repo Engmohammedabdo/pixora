@@ -2,6 +2,7 @@ import { failGeneration } from '@/lib/supabase/generation-writes';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { PROMPT_BUILDER_RESPONSE_SCHEMA } from '@/lib/ai/response-schemas';
+import { PromptListSchema } from '@/lib/ai/studio-output-schemas';
 import { createServerClient } from '@/lib/supabase/server';
 import { generateText } from '@/lib/ai/router';
 import { PROMPT_BUILDER_PROMPT_VERSION, buildPromptBuilderPrompt } from '@/lib/ai/prompts/prompt-builder';
@@ -9,26 +10,6 @@ import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { resolveProjectId } from '@/lib/projects/verify';
-
-/**
- * What the route hands back. Every field is one the page renders.
- *
- * `printable` rather than z.string(): a model that returns a number for `style`
- * should cost the customer a plain-looking card, not a 500 — the same leaf shape
- * plan and analysis already use.
- */
-const printable = z
-  .union([z.string(), z.number(), z.boolean()])
-  .transform((v) => String(v))
-  .catch('');
-
-const PromptListSchema = z
-  .array(z.object({ prompt: printable, style: printable, tip: printable }).loose())
-  .min(1)
-  // Stated on CONTENT, not on length: every leaf above `.catch('')`-defaults, so a
-  // non-empty array proves nothing — `[{},{}]` would otherwise pass as a result.
-  // This is the same defect the plan studio's completeness gate was rewritten for.
-  .refine((list) => list.some((p) => p.prompt.trim().length > 0), 'model returned no usable prompts');
 
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),

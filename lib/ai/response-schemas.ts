@@ -25,6 +25,8 @@
  * degrades to the previous behaviour rather than failing.
  */
 
+import { EXPECTED_POSTS, EXPECTED_SCENES } from './studio-output-schemas';
+
 const text = { type: 'string' } as const;
 const num = { type: 'number' } as const;
 const textList = { type: 'array', items: text } as const;
@@ -100,8 +102,21 @@ export const ANALYSIS_RESPONSE_SCHEMA: Record<string, unknown> = {
   required: ['swot', 'personas', 'competitors', 'roadmap'],
 };
 
+/**
+ * `minItems` is not decoration. It is the count the deliverable is SOLD as, said
+ * in the one place the model is guaranteed to read — the prose "exactly 9 scenes"
+ * in the prompt is a request; this is the shape.
+ *
+ * It is also what makes the development mock usable. mockFromSchema() fills an
+ * array from this schema, and with no floor it produced three scenes — so a
+ * keyless dev box got `ScenesSchema.parse` throwing on 3 of 9 and a full refund,
+ * which is the exact symptom the mock exists to remove. Imported from
+ * studio-output-schemas rather than written as a literal 9, because a floor that
+ * disagrees with the parser is worse than no floor at all.
+ */
 export const STORYBOARD_RESPONSE_SCHEMA: Record<string, unknown> = {
   type: 'array',
+  minItems: EXPECTED_SCENES,
   items: {
     type: 'object',
     properties: {
@@ -118,8 +133,13 @@ export const STORYBOARD_RESPONSE_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/** See STORYBOARD_RESPONSE_SCHEMA above. campaign degrades rather than failing on
+ *  a short response — it refunds the posts that never arrived — so without this
+ *  floor a keyless dev box got a partial-refund receipt for 6 of 9 posts on every
+ *  single run instead of a campaign. */
 export const CAMPAIGN_RESPONSE_SCHEMA: Record<string, unknown> = {
   type: 'array',
+  minItems: EXPECTED_POSTS,
   items: {
     type: 'object',
     properties: { scenario: text, caption: text, tov: text, schedule: text, hashtags: text },
