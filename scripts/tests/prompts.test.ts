@@ -37,6 +37,17 @@ function omits(label: string, haystack: string, needle: string): void {
   }
 }
 
+/** How many times a needle appears. `contains`/`omits` cannot see a DUPLICATE —
+ *  which is the whole shape of the plan/analysis two-identities defect below. */
+function occurs(label: string, haystack: string, needle: string, expected: number): void {
+  checks++;
+  const actual = haystack.split(needle).length - 1;
+  if (actual !== expected) {
+    failures++;
+    console.log(`FAIL  ${label}\n        expected ${expected} occurrence(s) of ${needle}, found ${actual}`);
+  }
+}
+
 const planInput = {
   businessName: 'Acme Coffee',
   industry: 'restaurant',
@@ -111,6 +122,65 @@ const planInput = {
   // blindly regardless of input.
   contains('plan + brandContext: carries the city, a field only the block prints', withContext, 'Dubai');
   omits('plan + no brandContext: no CLIENT CONTEXT heading', withoutContext, 'CLIENT CONTEXT');
+}
+
+// ---- plan and analysis: ONE business identity per prompt ----
+//
+// These two are the only studios where the same facts arrive twice — once from
+// the request body and once from the brand kit the page attaches — because the
+// page prefills Business Name / Industry / Target Market FROM the default kit
+// and then sends `brandKitId` regardless of what the customer edited afterwards.
+// The routes therefore null out everything the form itself carries and pass on
+// only what it does not: `description` (plan has no description field) and
+// `city` (no studio form has one).
+//
+// Built here from EXACTLY the shape those two routes now pass, so a regression
+// that puts the kit's `name`/`industry` back shows up as two `- Industry:` lines
+// on one paid deliverable. What this cannot see is the route source itself —
+// buildPlanPrompt will still faithfully print both lines if a future caller
+// hands it both; the rule lives at
+// app/api/studios/plan/route.ts and app/api/studios/analysis/route.ts, and this
+// pins the consequence rather than the assignment.
+{
+  const planContext = {
+    name: null,
+    industry: null,
+    description: 'A specialty coffee roaster serving the GCC market.',
+    targetAudience: null,
+    city: 'Dubai',
+  };
+  // The customer retyped the business and switched the industry after the
+  // prefill: the form says real estate, the kit said restaurant.
+  const p = buildPlanPrompt({
+    ...planInput,
+    businessName: 'Sham Express',
+    industry: 'real_estate',
+    brandContext: planContext,
+  });
+  occurs('plan: exactly one "- Industry:" line', p, '- Industry:', 1);
+  contains('plan: the industry is the one the FORM carries', p, '- Industry: real estate');
+  omits('plan: the kit industry is not restated', p, 'restaurant and food service');
+  occurs('plan: exactly one business name', p, 'Sham Express', 1);
+  omits('plan: the kit name is not restated', p, 'Sham Shawarma');
+  contains('plan: the kit still contributes what the form never asks for', p, 'Dubai');
+  contains('plan: and the description the form has no field for', p, 'specialty coffee roaster');
+
+  const analysisContext = {
+    name: null, industry: null, description: null, targetAudience: null, city: 'Dubai',
+  };
+  const a = buildAnalysisPrompt({
+    businessName: 'Sham Express',
+    industry: 'real_estate',
+    description: 'a new venture in property listings',
+    competitors: ['Rival A'],
+    targetMarket: 'UAE, 25-40',
+    painPoints: 'low repeat purchase',
+    brandContext: analysisContext,
+  });
+  occurs('analysis: exactly one "- Industry:" line', a, '- Industry:', 1);
+  contains('analysis: the industry is the one the FORM carries', a, '- Industry: real estate');
+  occurs('analysis: exactly one "- Description:" line', a, '- Description:', 1);
+  contains('analysis: the kit still contributes the city, which no form asks for', a, 'Dubai');
 }
 
 // ---- analysis ----

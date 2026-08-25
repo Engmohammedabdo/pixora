@@ -151,7 +151,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     //
     // EVERY field is free text that reaches the prompt, so every one is filtered
     // — at the caps the builder itself uses (which mirror InputSchema's maxima),
-    // so the builder's second pass truncates nothing and cannot throw.
+    // so the builder's second pass over THESE fields truncates nothing and
+    // cannot throw.
+    //
+    // It is not the whole filter, though, and the comment here used to imply it
+    // was. The brand kit's own columns are filtered only inside
+    // buildBrandContextBlock(), which runs inside buildPlanPrompt() — so the
+    // guarantee above holds only because that call is hoisted above the
+    // reservation below. Do not move it back down.
     const safeInput = {
       ...input,
       businessName: sanitizePrompt(input.businessName, 200),
@@ -173,6 +180,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // reshaped for buildBrandContextBlock. Scoped to the caller, the same
     // pattern as creator/route.ts. plan and analysis were deliberately left out
     // of P4.1 because they receive no brand kit at all; this closes that gap.
+    //
+    // `name`, `industry` and `targetAudience` are deliberately NULLED. plan and
+    // analysis are the only two studios where the same facts arrive twice —
+    // once from this row and once from the request body, because the page
+    // prefills Business Name / Industry / Target Market FROM the default kit
+    // and then sends `brandKitId` regardless of what the customer edited
+    // afterwards. Left in, a customer who retyped the name and picked a
+    // different industry got a 5-credit prompt carrying two business identities
+    // and two `- Industry:` lines. The form is the fresher source for anything
+    // the form asks for, so the kit contributes only what the form does NOT:
+    // `description` (plan has no description field) and `city` (no studio form
+    // has one). buildBrandContextBlock returns '' when there is nothing left to
+    // say, which is the common case for a pre-045 kit.
     let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
       const { data: kit } = await supabase
@@ -183,14 +203,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .single();
       brandContext = kit
         ? {
-            name: kit.name ?? null,
-            industry: kit.industry ?? null,
+            name: null,
+            industry: null,
             description: kit.description ?? null,
-            targetAudience: kit.target_audience ?? null,
+            targetAudience: null,
             city: kit.city ?? null,
           }
         : null;
     }
+
+    // Built HERE — above the generations insert and above the reservation —
+    // because buildBrandContextBlock (called inside buildPlanPrompt) is what
+    // actually runs sanitizePrompt over the kit's description and city. Built
+    // later, as this route did until now, a blocked term in a brand-kit column
+    // was only caught AFTER 5 credits were reserved: refund, a `failed` row
+    // attributed to `generation_failed`, and a 500 `refund_failed` with the
+    // credits stranded for 45 minutes if the refund itself failed. Exactly the
+    // ordering commit c12e928 fixed in storyboard and photoshoot and did not
+    // fix here. A PromptBlockedError thrown here reaches the OUTER catch
+    // directly — no credits moved, no orphan row — same as `safeInput` above.
+    const prompt = buildPlanPrompt({
+      ...safeInput,
+      duration: parseInt(safeInput.duration, 10),
+      locale: input.locale ?? routing.defaultLocale,
+      brandContext,
+    });
 
     const creditCost = CREDIT_COSTS.plan;
 
@@ -234,7 +271,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildPlanPrompt({ ...safeInput, duration: parseInt(safeInput.duration, 10), locale: input.locale ?? routing.defaultLocale, brandContext });
     const result = await generateText({
       prompt,
       maxTokens: 8192,
@@ -300,11 +336,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           error: 'generation_failed',
         }, 'plan');
       }
-      // No exemption here. The filter now runs before the reservation, so a
-      // blocked prompt cannot reach this arm at all — and back when it could,
-      // exempting it meant a refund that FAILED still returned a tidy 400 and
-      // lost the credits with nothing logged. Credits that did not come back
-      // are the alarm, whatever threw.
+      // No exemption here. The whole prompt — the customer's fields AND the
+      // brand kit's columns — is now built above the reservation, so a blocked
+      // prompt cannot reach this arm at all. That was NOT true while
+      // buildPlanPrompt() was called inside this try: the brand-kit half of the
+      // filter ran with 5 credits already held, and this comment asserted the
+      // opposite for two commits. Back when a block could reach here, exempting
+      // it meant a refund that FAILED still returned a tidy 400 and lost the
+      // credits with nothing logged. Credits that did not come back are the
+      // alarm, whatever threw.
       if (!refundResult.success) {
         console.error('Plan API error:', genError);
         return NextResponse.json({ success: false, error: 'refund_failed' }, { status: 500 });

@@ -158,8 +158,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // EVERY field is free text that reaches the prompt, so every one is filtered
     // — at the caps the builder itself uses (`description` at sanitizePrompt's
     // own 2000 default, the rest at InputSchema's maxima, which the builder
-    // interpolates raw), so the builder's second pass truncates nothing and
-    // cannot throw.
+    // interpolates raw), so the builder's second pass over THESE fields
+    // truncates nothing and cannot throw.
+    //
+    // It is not the whole filter, though, and the comment here used to imply it
+    // was. The brand kit's own columns are filtered only inside
+    // buildBrandContextBlock(), which runs inside buildAnalysisPrompt() — so the
+    // guarantee above holds only because that call is hoisted above the
+    // reservation below. Do not move it back down.
     const safeInput = {
       ...input,
       businessName: sanitizePrompt(input.businessName, 200),
@@ -185,6 +191,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // reshaped for buildBrandContextBlock. Scoped to the caller, the same
     // pattern as creator/route.ts. plan and analysis were deliberately left out
     // of P4.1 because they receive no brand kit at all; this closes that gap.
+    //
+    // Only `city` survives, and that is the point. analysis asks the customer
+    // for the business name, the industry, the DESCRIPTION and the target
+    // market in its own form — and the page prefills all four from the default
+    // kit and then sends `brandKitId` regardless of what the customer edited
+    // afterwards. Left in, a customer who retyped the name and picked a
+    // different industry got a 3-credit prompt carrying two business identities
+    // and two `- Industry:` lines. The form is the fresher source for anything
+    // the form asks for, so the kit contributes only what the form does NOT:
+    // `city`. buildBrandContextBlock returns '' when there is nothing left to
+    // say, which is the common case for a kit with no city.
     let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
       const { data: kit } = await supabase
@@ -195,14 +212,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .single();
       brandContext = kit
         ? {
-            name: kit.name ?? null,
-            industry: kit.industry ?? null,
-            description: kit.description ?? null,
-            targetAudience: kit.target_audience ?? null,
+            name: null,
+            industry: null,
+            description: null,
+            targetAudience: null,
             city: kit.city ?? null,
           }
         : null;
     }
+
+    // Built HERE — above the generations insert and above the reservation —
+    // because buildBrandContextBlock (called inside buildAnalysisPrompt) is what
+    // actually runs sanitizePrompt over the kit's city. Built later, as this
+    // route did until now, a blocked term in a brand-kit column was only caught
+    // AFTER 3 credits were reserved: refund, a `failed` row attributed to
+    // `generation_failed`, and a 500 `refund_failed` with the credits stranded
+    // for 45 minutes if the refund itself failed. Exactly the ordering commit
+    // c12e928 fixed in storyboard and photoshoot and did not fix here. A
+    // PromptBlockedError thrown here reaches the OUTER catch directly — no
+    // credits moved, no orphan row — same as `safeInput` above.
+    const prompt = buildAnalysisPrompt({
+      ...safeInput,
+      locale: input.locale ?? routing.defaultLocale,
+      brandContext,
+    });
 
     const creditCost = CREDIT_COSTS.analysis;
 
@@ -243,7 +276,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let result: Awaited<ReturnType<typeof generateText>>;
     let analysis: z.infer<typeof AnalysisSchema>;
     try {
-      const prompt = buildAnalysisPrompt({ ...safeInput, locale: input.locale ?? routing.defaultLocale, brandContext });
       result = await generateText({
       prompt,
       maxTokens: 8192,
@@ -288,8 +320,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           error: 'generation_failed',
         }, 'analysis');
       }
-      // No exemption here. The filter now runs before the reservation, so a
-      // blocked prompt cannot reach this arm at all — and back when it could,
+      // No exemption here. The whole prompt — the customer's fields AND the
+      // brand kit's columns — is now built above the reservation, so a blocked
+      // prompt cannot reach this arm at all. That was NOT true while
+      // buildAnalysisPrompt() was called inside this try: the brand-kit half of
+      // the filter ran with 3 credits already held, and this comment asserted
+      // the opposite for two commits. Back when a block could reach here,
       // exempting it meant a refund that FAILED still returned a tidy 400 and
       // lost the credits with nothing logged. Credits that did not come back
       // are the alarm, whatever threw.
