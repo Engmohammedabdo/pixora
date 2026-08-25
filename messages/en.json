@@ -357,6 +357,15 @@
   "plan": {
     "businessName": "Business Name",
     "industry": "Industry",
+    "industries": {
+      "restaurant": "Restaurants",
+      "clinic": "Clinics",
+      "retail": "Retail",
+      "saas": "SaaS",
+      "real_estate": "Real Estate",
+      "education": "Education",
+      "other": "Other"
+    },
     "goals": "Goals",
     "brandAwareness": "Brand Awareness",
     "leadGeneration": "Lead Generation",
@@ -375,7 +384,6 @@
     "totalBudget": "Total Budget",
     "description": "Detailed monthly marketing plan",
     "businessNamePlaceholder": "Your company or project name",
-    "industryPlaceholder": "Example: restaurants, clinics, SaaS...",
     "targetMarketPlaceholder": "Example: entrepreneurs in Saudi Arabia",
     "budgetPlaceholder": "$1,000 - $5,000"
   },

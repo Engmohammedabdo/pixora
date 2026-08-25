@@ -25,6 +25,7 @@ import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { INDUSTRIES } from '@/lib/industries';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -133,7 +134,17 @@ export default function PlanPage(): React.ReactElement {
     <div className="space-y-4">
       <ProjectSelector value={projectId} onChange={onProjectChange} />
       <div className="space-y-2"><Label htmlFor="plan-business-name">{tPlan('businessName')}</Label><Input id="plan-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('businessNamePlaceholder')} /></div>
-      <div className="space-y-2"><Label htmlFor="plan-industry">{tPlan('industry')}</Label><Input id="plan-industry" value={industry} onChange={(e) => setIndustry(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tPlan('industryPlaceholder')} /></div>
+      <div className="space-y-2">
+        <Label>{tPlan('industry')}</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {INDUSTRIES.map((ind) => (
+            <button key={ind} type="button" onClick={() => setIndustry(ind)} aria-pressed={industry === ind}
+              className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', industry === ind ? selectedChipClasses : unselectedChipClasses)}>
+              {tPlan(`industries.${ind}`)}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="space-y-2">
         <Label>{tPlan('goals')}</Label>
         <div className="flex flex-wrap gap-2">{GOALS.map((g) => (

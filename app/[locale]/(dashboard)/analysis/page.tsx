@@ -25,6 +25,7 @@ import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { INDUSTRIES } from '@/lib/industries';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -38,8 +39,6 @@ function inputText(input: Record<string, unknown>, key: string): string {
   return typeof v === 'string' ? v : '';
 }
 
-
-const INDUSTRIES = ['restaurant', 'clinic', 'retail', 'saas', 'real_estate', 'education', 'other'] as const;
 
 // The NESTED arrays are optional too, not just the top-level sections. The route
 // validates the model's shape now, but rows written before that guard existed

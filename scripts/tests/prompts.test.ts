@@ -62,6 +62,24 @@ const planInput = {
   contains('plan: an explicit stage is used', buildPlanPrompt({ ...planInput, stage: 'Seed' }), 'Seed');
 }
 
+// ---- plan: the industry slug never reaches the model raw ----
+{
+  const p = buildPlanPrompt({ ...planInput, industry: 'real_estate' });
+  omits('plan: no raw slug in the persona', p, 'real_estate businesses');
+  contains('plan: slug resolved to a readable name', p, 'real estate');
+}
+{
+  const p = buildPlanPrompt({ ...planInput, industry: 'other' });
+  omits('plan: "other" does not become an industry', p, 'other businesses');
+  contains('plan: "other" degrades to cross-industry', p, 'cross-industry');
+}
+{
+  // The exact string messages/ar.json:378 tells the customer to type. Before this
+  // fix it produced: "expertise in مطاعم businesses".
+  const p = buildPlanPrompt({ ...planInput, industry: 'مطاعم' });
+  omits('plan: an unknown free-text industry is not spliced into English', p, 'مطاعم businesses');
+}
+
 // ---- analysis ----
 {
   const base = {

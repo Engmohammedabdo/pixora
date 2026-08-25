@@ -1,5 +1,6 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { industryName } from '@/lib/industries';
 
 interface AnalysisPromptInput {
   businessName: string;
@@ -16,23 +17,6 @@ interface AnalysisPromptInput {
    */
   locale?: string;
 }
-
-/**
- * Slug -> the English industry name a model can reason about.
- *
- * app/[locale]/(dashboard)/analysis/page.tsx:42 stores the SLUG and renders the
- * translated label separately, so the raw value was being interpolated into the
- * persona line. Keys must stay in step with INDUSTRIES there.
- */
-const INDUSTRY_NAMES: Record<string, string> = {
-  restaurant: 'restaurant and food service',
-  clinic: 'healthcare and clinics',
-  retail: 'retail',
-  saas: 'software as a service',
-  real_estate: 'real estate',
-  education: 'education',
-  other: '',
-};
 
 // v2.0 — matches system-prompts.md marketing_analysis_v1
 export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
@@ -59,16 +43,16 @@ export function buildAnalysisPrompt(input: AnalysisPromptInput): string {
   // label separately, so the raw value reached the persona line and produced
   // "20+ years of experience in the other industry". `other` degrades to a general
   // marketer rather than naming a category that does not exist.
-  const industryName = INDUSTRY_NAMES[industry] ?? '';
-  const persona = industryName
-    ? `a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${industryName} industry`
+  const resolvedIndustry = industryName(industry);
+  const persona = resolvedIndustry
+    ? `a world-class Chief Marketing Officer (CMO) with 20+ years of experience in the ${resolvedIndustry} industry`
     : 'a world-class Chief Marketing Officer (CMO) with 20+ years of cross-industry experience';
 
   let prompt = `You are ${persona}.`;
 
   prompt += `\n\nBusiness Under Analysis:`;
   prompt += `\n- Name: ${safeBusinessName}`;
-  prompt += `\n- Industry: ${safeIndustry}`;
+  prompt += `\n- Industry: ${resolvedIndustry || safeIndustry}`;
   prompt += `\n- Description: ${safeDesc}`;
   if (safeStage) prompt += `\n- Current Stage: ${safeStage}`;
   prompt += `\n- Target Market: ${safeTargetMarket}`;

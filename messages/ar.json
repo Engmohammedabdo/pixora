@@ -357,6 +357,15 @@
   "plan": {
     "businessName": "اسم العمل",
     "industry": "القطاع",
+    "industries": {
+      "restaurant": "مطاعم",
+      "clinic": "عيادات",
+      "retail": "تجزئة",
+      "saas": "برمجيات",
+      "real_estate": "عقارات",
+      "education": "تعليم",
+      "other": "أخرى"
+    },
     "goals": "الأهداف",
     "brandAwareness": "وعي العلامة",
     "leadGeneration": "توليد عملاء",
@@ -375,7 +384,6 @@
     "totalBudget": "الميزانية الإجمالية",
     "description": "خطة تسويقية شهرية مفصلة",
     "businessNamePlaceholder": "اسم شركتك أو مشروعك",
-    "industryPlaceholder": "مثال: مطاعم، عيادات، SaaS...",
     "targetMarketPlaceholder": "مثال: رواد أعمال في السعودية",
     "budgetPlaceholder": "$1,000 - $5,000"
   },

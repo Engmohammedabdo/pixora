@@ -1,5 +1,6 @@
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { industryName } from '@/lib/industries';
 
 interface PlanPromptInput {
   businessName: string;
@@ -36,6 +37,10 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
   const outputLanguage = locale === 'en' ? 'English' : 'Arabic';
   const safeBusinessName = sanitizePrompt(businessName, 200);
   const safeIndustry = sanitizePrompt(industry, 100);
+  // industryName() returns '' for `other` and for any free-text value. Falling
+  // back to the raw string here is what produced "expertise in مطاعم businesses";
+  // an unresolved industry degrades to cross-industry instead.
+  const resolvedIndustry = industryName(industry);
   const safeStage = stage ? sanitizePrompt(stage, 100) : '';
   const safeTargetMarket = sanitizePrompt(targetMarket, 500);
   const safeBudget = sanitizePrompt(budget, 200);
@@ -46,11 +51,13 @@ export function buildPlanPrompt(input: PlanPromptInput): string {
 
   const weeks = Math.max(1, Math.round(duration / 7));
 
-  let prompt = `You are a Senior Marketing Strategist with expertise in ${safeIndustry} businesses.`;
+  let prompt = resolvedIndustry
+    ? `You are a Senior Marketing Strategist with expertise in ${resolvedIndustry} businesses.`
+    : 'You are a Senior Marketing Strategist with cross-industry expertise.';
 
   prompt += `\n\nBusiness Information:`;
   prompt += `\n- Name: ${safeBusinessName}`;
-  prompt += `\n- Industry: ${safeIndustry}`;
+  prompt += `\n- Industry: ${resolvedIndustry || safeIndustry}`;
   // Only when the caller actually has one. This used to emit `Growth` whenever
   // `stage` was absent — which is ALWAYS, because nothing in the product collects
   // it — so every plan ever generated was steered by an invented fact.
