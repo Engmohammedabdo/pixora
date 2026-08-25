@@ -149,24 +149,52 @@ const planInput = {
   const p = buildPhotoshootPrompt({
     environment: 'food', shotIndex: 0, totalShots: 6, seed: 'seed-a',
   });
-  contains('food: names a food set', p, 'food');
+  // 'Food photography set' is the preset's OWN `environment` string. The bare word
+  // 'food' would not do: the shared isFood branch emits "no plastic, waxy or CGI food"
+  // (photoshoot.ts:526) regardless of preset content, so asserting on it tests the
+  // conditional rather than the preset — which is how the first version of this block
+  // passed for a preset that could have been empty.
+  contains('food: the preset names a food set', p, 'Food photography set');
   omits('food: never asks for a product label', p, 'label');
   omits('food: never asks for material finish', p, 'material finish');
-  contains('food: asks for freshness', p, 'fresh');
+  contains('food: the isFood branch demands freshness', p, 'fresh and appetising');
 }
 {
-  // Every one of the six recipes must be reachable and food-appropriate.
-  const seen = new Set<string>();
+  // Every one of the six recipes must be reachable, distinct, AND genuinely from the
+  // food preset.
+  //
+  // Comparing whole prompt strings proves nothing here: photoshoot.ts:486 interpolates
+  // `SHOT ${shotIndex + 1} OF ${totalShots}` on every call, so six calls differ even for
+  // a stub preset carrying one placeholder shot repeated through the modulo. Compare the
+  // shot-SPECIFIC lines, then assert against strings only the real food recipes contain.
+  const names = new Set<string>();
+  const cameras = new Set<string>();
+  let all = '';
   for (let i = 0; i < 6; i++) {
-    seen.add(buildPhotoshootPrompt({
+    const p6 = buildPhotoshootPrompt({
       environment: 'food', shotIndex: i, totalShots: 6, seed: 'seed-a',
-    }));
+    });
+    all += p6;
+    names.add(/SHOT \d+ OF \d+ — (.+)/.exec(p6)?.[1] ?? '');
+    cameras.add(/\nCamera: (.+)/.exec(p6)?.[1] ?? '');
   }
   checks++;
-  if (seen.size !== 6) {
+  if (names.size !== 6) {
     failures++;
-    console.log(`FAIL  food: a 6-shot set produces 6 distinct frames\n        got ${seen.size}`);
+    console.log(`FAIL  food: six DISTINCT shot names\n        got ${names.size}`);
   }
+  checks++;
+  if (cameras.size !== 6) {
+    failures++;
+    console.log(`FAIL  food: six DISTINCT camera setups\n        got ${cameras.size}`);
+  }
+  // Strings only the food recipes carry. A stub preset cannot produce these.
+  contains('food: the hero angle is the one a diner actually sees', all,
+    'the angle a person sees their own food from');
+  contains('food: a cross-section recipe exists', all,
+    'every layer readable from edge to edge');
+  contains('food: staging is service-realistic', all,
+    'as it would actually reach a customer');
 }
 {
   // An unknown environment must still fall back, not throw.
