@@ -99,6 +99,18 @@ const planInput = {
   // brand_kits.industry, which migration 045 leaves deliberately unconstrained
   // — so the line itself, not just the persona, must never carry it.
   omits('plan: an unresolvable industry never reaches the "- Industry:" line', p, '- Industry:');
+  // The paired POSITIVE, and it has to be here rather than inferred from the
+  // block above. `omits('- Industry:')` alone is one-sided: deleting
+  // `if (resolvedIndustry) prompt += '\n- Industry: …'` from plan.ts:79 outright
+  // would satisfy it, and the checks that look like they cover the other half
+  // ("slug resolved to a readable name") are satisfied by the PERSONA sentence,
+  // which is a different line. Verified: with that one line deleted the whole
+  // suite still passed.
+  contains(
+    'plan: a RESOLVABLE industry does reach the "- Industry:" line',
+    buildPlanPrompt({ ...planInput, industry: 'real_estate' }),
+    '- Industry: real estate'
+  );
 }
 
 // ---- plan: the brand context block is actually wired in, not just correct ----
@@ -219,6 +231,13 @@ const planInput = {
   // not just the persona sentence checked above.
   const unresolved = buildAnalysisPrompt({ ...base, industry: 'مطاعم' });
   omits('analysis: an unresolvable industry never reaches the "- Industry:" line', unresolved, '- Industry:');
+  // The paired POSITIVE — see the same pair in the plan block above for why an
+  // `omits` on this line is satisfied by deleting the line altogether.
+  contains(
+    'analysis: a RESOLVABLE industry does reach the "- Industry:" line',
+    buildAnalysisPrompt({ ...base, industry: 'real_estate' }),
+    '- Industry: real estate'
+  );
 }
 
 // ---- analysis: the brand context block is actually wired in, not just correct ----
@@ -293,7 +312,23 @@ const planInput = {
   // passed for a preset that could have been empty.
   contains('food: the preset names a food set', p, 'Food photography set');
   omits('food: never asks for a product label', p, 'label');
-  omits('food: never asks for material finish', p, 'material finish');
+  // 'material finish' was the needle here, and it was a weak one: the string
+  // lives in white_studio's MACRO shot recipe, which `shotIndex: 0` never
+  // reaches, so the check passed for the white_studio preset too — it could not
+  // tell the two apart. These two are emitted by the `isFood ? … : …` branches
+  // themselves (photoshoot.ts MUST/AVOID), so they are absent for food and
+  // present for every other environment, whatever the shot index.
+  omits('food: no manufactured-goods vocabulary in MUST', p, 'printed text');
+  omits('food: no manufactured-goods vocabulary in AVOID', p, 'CGI look');
+  // And the same needles ARE present for a manufactured product, which is what
+  // makes the two above discriminating rather than merely true.
+  {
+    const product = buildPhotoshootPrompt({
+      environment: 'white_studio', shotIndex: 0, totalShots: 6, seed: 'seed-a',
+    });
+    contains('white_studio: the non-food branch does demand printed text', product, 'printed text');
+    contains('white_studio: the non-food branch does forbid a CGI look', product, 'CGI look');
+  }
   contains('food: the isFood branch demands freshness', p, 'fresh and appetising');
 }
 {
