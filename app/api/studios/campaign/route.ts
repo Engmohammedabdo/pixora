@@ -215,16 +215,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Mirrors buildCampaignPrompt's own placement: after the brief/brand lines
       // above, before the technical directive (the dialect guideline) below.
       //
-      // NOTE (review finding F9, not fixed here): this is a call to
-      // buildBrandContextBlock made at the ROUTE level, not inside a
-      // lib/ai/prompts/*.ts builder. `prompt-builder-sanitized`
-      // (scripts/check-invariants.ts) only scans lib/ai/prompts, and
-      // scripts/tests/brand-context.test.ts only exercises
-      // buildBrandContextBlock and buildCreatorPrompt directly — neither
-      // covers this call site or the one at campaignBrandContextBlock below.
-      // Both happen to be safe today (brandContext is sanitized inside
-      // buildBrandContextBlock itself, same as every other call site), but
-      // that safety is not machine-checked here the way it is everywhere else.
+      // A call to buildBrandContextBlock made at the ROUTE level rather than
+      // inside a lib/ai/prompts/*.ts builder, so `prompt-builder-sanitized`
+      // (which scans lib/ai/prompts only) does not see it. What DOES see it is
+      // `sanitize-before-reserve`: it is a buildBrandContextBlock call in a
+      // studio route, and it is above the reservation, which is the property
+      // that matters. Safe on its own terms too — brandContext is filtered
+      // inside buildBrandContextBlock, the same as every other call site.
       prompt += buildBrandContextBlock(brandContext);
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
@@ -240,6 +237,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         brandContext,
       });
     }
+
+    // The two pieces the image half of this route needs, built HERE rather than
+    // in the middle of the image loop below — above the insert and above the
+    // reservation, like everything else that runs the filter.
+    //
+    // Both were computed after the reservation until now. They were safe by
+    // coincidence: whichever prompt branch above ran had already filtered the
+    // same values, so a blocked term threw before the money moved. "Safe because
+    // something earlier happened to do it" is the shape this branch keeps paying
+    // for — a future edit that stops building the caption prompt from
+    // brandContext would have moved the first filter run to a point 12 credits
+    // too late, silently. Computed once here, nine identical sanitizePrompt
+    // calls are also avoided.
+    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
+    const campaignBrandContextBlock = buildBrandContextBlock(brandContext);
 
     // Create generation record
     const { data: generation, error: genError } = await supabase
@@ -371,20 +383,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // do this — campaign was the only studio silently dropping failed images
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
-    // Computed once, not once per post: nine identical sanitizePrompt calls buy
-    // nothing.
-    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
-    // Same block as the caption prompt above, reused rather than rebuilt nine
-    // times. Already proven not to throw here: PromptBlockedError, if
-    // brandContext contained a blocked term, would have already fired above
-    // while building the caption prompt, long before this point.
-    //
-    // NOTE (review finding F9, not fixed here): a second route-level call to
-    // buildBrandContextBlock, same gap as the one in the override branch
-    // above — neither `prompt-builder-sanitized` (lib/ai/prompts only) nor
-    // scripts/tests/brand-context.test.ts (calls buildBrandContextBlock and
-    // buildCreatorPrompt directly, not this route) covers it.
-    const campaignBrandContextBlock = buildBrandContextBlock(brandContext);
 
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {

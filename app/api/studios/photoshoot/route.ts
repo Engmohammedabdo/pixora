@@ -97,24 +97,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandKit = data;
     }
 
-    // Sanitize the brand kit's business columns HERE — before the insert and
-    // before the reservation below — not only inside buildPhotoshootPrompt(),
-    // which runs once per shot inside the try block AFTER reserveCredits. Left
-    // as the only trigger, a blocked term in industry/description/
-    // targetAudience/city would reserve the full shoot cost before
-    // PromptBlockedError could fire — the same ordering bug storyboard had
-    // (money-path finding F5). The block itself is discarded: buildPhotoshootPrompt
-    // rebuilds the identical block from the same brandKit for every shot: this
-    // call exists only to force the sanitization — and thus any throw — early.
-    if (brandKit) {
-      buildBrandContextBlock({
-        name: brandKit.name ?? null,
-        industry: brandKit.industry ?? null,
-        description: brandKit.description ?? null,
-        targetAudience: brandKit.target_audience ?? null,
-        city: brandKit.city ?? null,
-      });
-    }
+    // Both free-text channels into this studio's prompt are filtered HERE —
+    // before the insert and before the reservation below — so a blocked term
+    // costs nothing at all: PromptBlockedError thrown here reaches the OUTER
+    // catch with no row written and no credits moved, the same shape storyboard
+    // uses.
+    //
+    // The brand-kit block is BUILT here and passed into every shot below. It
+    // used to be built here and thrown away, purely to force the filter to run
+    // early while buildPhotoshootPrompt rebuilt an identical block per shot —
+    // which held only while both call sites passed the identical five fields,
+    // with nothing checking that they did, and a discarded result is invisible
+    // to any gate.
+    const brandContextBlock = brandKit
+      ? buildBrandContextBlock({
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        })
+      : '';
+
+    // The customer's own free text, and the field most likely to trip the
+    // filter. It was sanitized inside the post-reservation try block until now —
+    // the one site the earlier ordering fix did not move.
+    const safeNotes = input.notes ? sanitizePrompt(input.notes) : undefined;
 
     // Create generation record
     const { data: generation, error: genError } = await supabase
@@ -134,6 +142,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (genError || !generation) {
       return NextResponse.json({ success: false, error: 'failed_to_create_generation' }, { status: 500 });
+    }
+
+    // Every shot's prompt is built HERE, above the reservation. It sits below the
+    // insert only because the seed is the row's own id (see `seed:` below); both
+    // of its text inputs were already filtered above the insert, so nothing here
+    // can reach the filter first.
+    //
+    // The catch closes the row rather than leaving it `processing`: no credits
+    // have been reserved at this point, so `creditsSettled` is trivially true and
+    // there is nothing for the reconciler to pay out. It is not reachable today —
+    // `safeNotes` and `brandContextBlock` are the only filtered channels and both
+    // ran above — and it is eight lines, which is the right price for the next
+    // field somebody adds to this builder.
+    let shotPrompts: string[];
+    try {
+      shotPrompts = Array.from({ length: input.shots }, (_, i) =>
+        buildPhotoshootPrompt({
+          environment: input.environment,
+          shotIndex: i,
+          totalShots: input.shots,
+          notes: safeNotes,
+          brandKit,
+          brandContextBlock,
+          // Varies lighting, grade and shot order between runs. The generation id
+          // is per-run but fixed within it, so the six shots stay one coherent set
+          // and any single shot can be rebuilt byte-for-byte when a user reports it.
+          seed: generation.id,
+        })
+      );
+    } catch (promptError) {
+      await failGeneration(supabase, generation.id, {
+        creditsSettled: true,
+        error: promptError instanceof PromptBlockedError ? 'prompt_blocked' : 'generation_failed',
+      }, 'photoshoot');
+      throw promptError;
     }
 
     // Reserve credits (atomic check + deduct)
@@ -173,36 +216,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let refundedSoFar = 0;
 
     try {
-    // Every other studio sanitizes before the model sees the text; these three
-    // never did, so the catch for PromptBlockedError below was unreachable and
-    // the two highest-risk image surfaces had no filter at all.
-    const safeNotes = input.notes ? sanitizePrompt(input.notes) : undefined;
-
-    // Generate shots in parallel
-    const shotPromises = Array.from({ length: input.shots }, (_, i) => {
-      const prompt = buildPhotoshootPrompt({
-        environment: input.environment,
-        shotIndex: i,
-        totalShots: input.shots,
-        notes: safeNotes,
-        brandKit,
-        // Varies lighting, grade and shot order between runs. The generation id
-        // is per-run but fixed within it, so the six shots stay one coherent set
-        // and any single shot can be rebuilt byte-for-byte when a user reports it.
-        seed: generation.id,
-      });
-
+    // Generate shots in parallel, from the prompts built above the reservation.
+    const shotPromises = shotPrompts.map((prompt) =>
       // MUST be a model the router forwards `referenceImageUrl` to. lib/ai/router.ts
       // only passes it in the 'gemini' branch — with 'flux' the customer's product
       // photo was silently dropped, so this studio invented a random product while
       // the prompt asked for "EXACT product preservation" of an image it never saw.
-      return generateImage({
+      generateImage({
         prompt,
         model: 'gemini',
         resolution: shotResolution,
         referenceImageUrl: input.productImageUrl,
-      }).catch(() => null);
-    });
+      }).catch(() => null)
+    );
 
     const results = await Promise.all(shotPromises);
 

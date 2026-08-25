@@ -1,7 +1,6 @@
 import type { BrandKit } from '@/lib/supabase/types';
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
-import { buildBrandContextBlock } from './brand-context';
 
 interface PhotoshootPromptInput {
   environment: string;
@@ -9,6 +8,21 @@ interface PhotoshootPromptInput {
   totalShots: number;
   notes?: string;
   brandKit?: BrandKit | null;
+  /**
+   * The CLIENT CONTEXT block, already built — and therefore already filtered —
+   * by `buildBrandContextBlock()`. Passed IN rather than derived from
+   * `brandKit` here, the way storyboard and campaign already pass theirs.
+   *
+   * This builder runs once per shot, inside the route's post-reservation loop.
+   * Deriving the block here meant the ONLY place the kit's business columns met
+   * `sanitizePrompt` was after the money had moved, so the route bought itself
+   * an early call whose result it threw away purely to force the filter to run
+   * (photoshoot/route.ts, before this). That trick worked only while both call
+   * sites happened to pass the identical five fields, nothing machine-checked
+   * that they did, and a discarded result is invisible to any gate. One call,
+   * one result, used.
+   */
+  brandContextBlock?: string;
   /**
    * Varies the shoot between runs. Pass a value that is stable within one
    * generation but different across generations — the route passes the
@@ -463,7 +477,7 @@ function buildShotOrder(shots: ShotRecipe[], h: number): ShotRecipe[] {
 
 // v3.0 — per-environment shot recipes, seeded variation, explicit optical direction
 export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
-  const { environment, shotIndex, totalShots, notes, brandKit, seed } = input;
+  const { environment, shotIndex, totalShots, notes, brandKit, brandContextBlock, seed } = input;
   const preset = ENVIRONMENT_PRESETS[environment] || ENVIRONMENT_PRESETS.white_studio;
   const h = seed ? hashSeed(seed) : 0;
 
@@ -488,17 +502,11 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
   // directives below, so the model reads what the business IS before HOW to
   // shoot it. Independent of the BRAND colour guidance further down, which is
   // tied to the specific environment's backdrop rules and stays there.
-  prompt += buildBrandContextBlock(
-    brandKit
-      ? {
-          name: brandKit.name ?? null,
-          industry: brandKit.industry ?? null,
-          description: brandKit.description ?? null,
-          targetAudience: brandKit.target_audience ?? null,
-          city: brandKit.city ?? null,
-        }
-      : null
-  );
+  //
+  // Taken from the caller, not rebuilt from `brandKit` — see the field's own
+  // comment on PhotoshootPromptInput. The caller has already run the filter, so
+  // this builder cannot be the place a blocked brand-kit column is discovered.
+  prompt += brandContextBlock ?? '';
 
   prompt += `\n\nSHOT ${shotIndex + 1} OF ${totalShots} — ${shot.name}`;
   prompt += `\nCamera: ${shot.camera}`;
