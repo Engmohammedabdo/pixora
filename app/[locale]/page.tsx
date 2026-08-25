@@ -3,6 +3,7 @@ import { NavBar } from '@/components/landing/NavBar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ValuePillars } from '@/components/landing/ValuePillars';
 import { HowItWorks } from '@/components/landing/HowItWorks';
+import { KnowsYourBusiness } from '@/components/landing/KnowsYourBusiness';
 import { InteractiveDemo } from '@/components/landing/InteractiveDemo';
 import { StudiosShowcase } from '@/components/landing/StudiosShowcase';
 import { ComparisonSection } from '@/components/landing/ComparisonSection';
@@ -41,6 +42,12 @@ export default async function LandingPage({
         <HeroSection />
         <ValuePillars />
         <HowItWorks />
+        {/* Directly after the three steps, before the examples. The reader has
+            just been told the whole product is three steps, so the immediate
+            objection is "then how would it know anything about MY business?" —
+            this answers it in the same scroll, and the examples below then
+            prove it rather than introduce it. */}
+        <KnowsYourBusiness />
         <InteractiveDemo />
         <StudiosShowcase />
         {/* Placed after the studios and before pricing on purpose: the comparison

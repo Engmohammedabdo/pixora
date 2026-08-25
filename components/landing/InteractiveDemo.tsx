@@ -58,6 +58,24 @@ interface Example {
 }
 
 const EXAMPLES: Example[] = [
+  // First, and deliberately. The other four are the categories a generic AI
+  // tool would also list; a shawarma shop in Al Karama is the customer this
+  // product was actually designed around, and it is the one brief on this page
+  // a Gulf visitor recognises as their own rather than as a stock example.
+  //
+  // It is also the only one whose deliverables include the `food` photoshoot
+  // environment added 2026-08-25 — six real food-photography recipes instead of
+  // a white studio set that told the model "no props" and then asked for the
+  // brand colour in the set dressing.
+  {
+    key: 'shawarma',
+    image: '/examples/shawarma.jpg',
+    deliverables: [
+      { key: 'photoshoot', credits: CREDIT_COSTS.photoshoot },
+      { key: 'campaign', credits: CREDIT_COSTS.campaign },
+      { key: 'plan', credits: CREDIT_COSTS.plan },
+    ],
+  },
   {
     key: 'coffee',
     image: '/examples/coffee.jpg',

@@ -34,7 +34,8 @@
     "test:brand-extract": "npx tsx scripts/tests/brand-extract.test.ts",
     "test:brand-context": "npx tsx scripts/tests/brand-context.test.ts",
     "test:mock-from-schema": "npx tsx scripts/tests/mock-from-schema.test.ts",
-    "test:website-url": "npx tsx scripts/tests/website-url.test.ts"
+    "test:website-url": "npx tsx scripts/tests/website-url.test.ts",
+    "test:beta-credits": "npx tsx scripts/tests/beta-credits.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

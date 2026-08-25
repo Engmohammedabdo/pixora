@@ -6,13 +6,14 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Gift } from 'lucide-react';
 import {
   fadeInUp,
   slideInRight,
   slideInLeft,
   staggerContainer,
 } from '@/lib/animations';
+import { BETA_CREDITS } from '@/lib/credits/beta';
 
 const TYPEWRITER_WORD_KEYS = ['word1', 'word2', 'word3', 'word4', 'word5'] as const;
 
@@ -142,6 +143,25 @@ export function HeroSection(): React.ReactElement {
                 <a href="#studios">{t('hero.ctaSecondary')}</a>
               </Button>
             </motion.div>
+
+            {/* The launch gift sits ABOVE the microcopy and looks different from
+                it on purpose. The line below is a list of caveats — invite only,
+                no credit card — and an incentive rendered in the same muted
+                12px grey reads as a fourth caveat. This is the reason to act,
+                so it gets the brand colour and its own container.
+
+                `color-mix`, not `bg-[var(--color-brand)]/10`: Tailwind 3.4.19
+                silently drops an opacity modifier on a var() arbitrary value
+                and emits no rule at all, which is what shipped 16 invisible
+                elements once and the onboarding error banner a second time.
+                There is an invariant for it now. */}
+            <motion.p
+              variants={slideInTextSide}
+              className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] px-4 py-1.5 text-sm font-medium text-[var(--color-brand)]"
+            >
+              <Gift className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t('hero.giftNote', { credits: BETA_CREDITS })}
+            </motion.p>
 
             <motion.p
               variants={slideInTextSide}

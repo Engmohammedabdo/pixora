@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Gift } from 'lucide-react';
 import { fadeInUp } from '@/lib/animations';
+import { BETA_CREDITS } from '@/lib/credits/beta';
 
 export function FinalCta(): React.ReactElement {
   const t = useTranslations('landing');
@@ -59,7 +60,16 @@ export function FinalCta(): React.ReactElement {
             </Button>
           </motion.div>
 
-          <p className="mt-6 text-sm text-white/50">
+          {/* On the coloured CTA panel the brand pill from the hero would be
+              invisible, so the gift is stated in white here and the studio
+              count drops below it. Order matters: the reason to act goes above
+              the reassurance. */}
+          <p className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-white">
+            <Gift className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {t('cta.giftNote', { credits: BETA_CREDITS })}
+          </p>
+
+          <p className="mt-2 text-sm text-white/50">
             {t('cta.studios')}
           </p>
         </motion.div>

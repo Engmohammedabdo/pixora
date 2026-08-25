@@ -4,6 +4,7 @@ import { Sparkles, Rocket, Gift, MessageSquareHeart } from 'lucide-react';
 import { WaitlistForm } from '@/components/landing/WaitlistForm';
 import { Footer } from '@/components/landing/Footer';
 import { routing } from '@/i18n/routing';
+import { BETA_CREDITS } from '@/lib/credits/beta';
 
 export function generateStaticParams(): { locale: string }[] {
   return routing.locales.map((locale) => ({ locale }));
@@ -40,9 +41,19 @@ export default async function WaitlistPage({
   setRequestLocale(locale);
   const t = await getTranslations('waitlist');
 
+  // The gift is the only perk here with a number in it, and a number is the
+  // only part of this page a visitor can act on arithmetic about. It carries
+  // `credits` from lib/credits/beta.ts rather than a literal in the message
+  // file, so lowering the grant cannot leave the promise stranded at the old
+  // figure in two languages.
   const perks = [
     { icon: Rocket, title: t('earlyAccess'), body: t('earlyAccessBody') },
-    { icon: Gift, title: t('bonusCredits'), body: t('bonusCreditsBody') },
+    {
+      icon: Gift,
+      title: t('bonusCredits', { credits: BETA_CREDITS }),
+      body: t('bonusCreditsBody'),
+      highlight: true,
+    },
     { icon: MessageSquareHeart, title: t('shapeIt'), body: t('shapeItBody') },
   ];
 
@@ -50,10 +61,21 @@ export default async function WaitlistPage({
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-20">
         <div className="flex w-full max-w-2xl flex-col items-center gap-8 text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-4 py-1.5 text-sm font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
-            <Sparkles className="h-4 w-4" />
-            {t('badge')}
-          </span>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-4 py-1.5 text-sm font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              {t('badge')}
+            </span>
+
+            {/* Second badge rather than longer copy in the first one. "Coming
+                soon" is a status and the gift is an offer; merging them makes
+                the offer read as part of the disclaimer. Both are pills so the
+                pair still scans as one row. */}
+            <span className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_12%,transparent)] px-4 py-1.5 text-sm font-semibold text-[var(--color-brand)]">
+              <Gift className="h-4 w-4" aria-hidden="true" />
+              {t('giftBadge', { credits: BETA_CREDITS })}
+            </span>
+          </div>
 
           <div className="flex flex-col gap-4">
             {/* leading-[1.45], not leading-tight. Tailwind's text-5xl carries its own
@@ -79,10 +101,25 @@ export default async function WaitlistPage({
             {perks.map((perk) => (
               <li
                 key={perk.title}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-5 text-center"
+                className={
+                  perk.highlight
+                    ? 'flex flex-col items-center gap-2 rounded-xl border border-[color-mix(in_srgb,var(--color-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_8%,transparent)] px-4 py-5 text-center'
+                    : 'flex flex-col items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-5 text-center'
+                }
               >
-                <perk.icon className="h-5 w-5 text-primary-500" />
-                <p className="text-sm font-semibold text-[var(--color-text-primary)]">{perk.title}</p>
+                <perk.icon
+                  className={perk.highlight ? 'h-5 w-5 text-[var(--color-brand)]' : 'h-5 w-5 text-primary-500'}
+                  aria-hidden="true"
+                />
+                <p
+                  className={
+                    perk.highlight
+                      ? 'text-sm font-bold text-[var(--color-brand)]'
+                      : 'text-sm font-semibold text-[var(--color-text-primary)]'
+                  }
+                >
+                  {perk.title}
+                </p>
                 <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">{perk.body}</p>
               </li>
             ))}
