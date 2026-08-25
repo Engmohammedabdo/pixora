@@ -1,6 +1,7 @@
 import type { BrandKit } from '@/lib/supabase/types';
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock } from './brand-context';
 
 interface CreatorPromptInput {
   userPrompt: string;
@@ -57,6 +58,21 @@ export function buildCreatorPrompt(input: CreatorPromptInput): string {
     prompt += `\n- Brand Colors: ${safeBrandColors}`;
     if (safeBrandVoice) prompt += `\n- Brand Voice: ${safeBrandVoice}`;
   }
+
+  // Placed after the subject/brand lines above and before the style/technical
+  // directives below, so the model reads what the business IS before it reads
+  // how the image should LOOK.
+  prompt += buildBrandContextBlock(
+    brandKit
+      ? {
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        }
+      : null
+  );
 
   prompt += `\n- Visual Style: ${safeStyle}`;
   prompt += `\n- Mood: ${safeMood}`;

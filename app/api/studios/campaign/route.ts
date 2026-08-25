@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
+import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getStudioCost } from '@/lib/credits/costs';
@@ -135,6 +136,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let brandName: string | undefined;
     let brandVoice: string | undefined;
     let brandColors: string | undefined;
+    // The migration-045 business columns, reshaped for buildBrandContextBlock.
+    // Built once here and reused on both prompt-building paths below (the
+    // caption prompt and the per-post image prompt) — missing the second is
+    // the drift shape this repo keeps paying for.
+    let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
       const { data: kit } = await supabase
         .from('brand_kits')
@@ -150,6 +156,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandColors = kit
         ? `Primary ${kit.primary_color}, Secondary ${kit.secondary_color}, Accent ${kit.accent_color}`
         : undefined;
+      brandContext = kit
+        ? {
+            name: kit.name ?? null,
+            industry: kit.industry ?? null,
+            description: kit.description ?? null,
+            targetAudience: kit.target_audience ?? null,
+            city: kit.city ?? null,
+          }
+        : null;
     }
 
     // The safety filter runs HERE, on the customer's own text, before anything
@@ -197,6 +212,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // above records from the last time it happened.
       if (brandVoice) prompt += `\n- Brand Voice: ${sanitizePrompt(brandVoice, 500)}`;
       if (brandColors) prompt += `\n- Brand Colors: ${sanitizePrompt(brandColors, 200)}`;
+      // Mirrors buildCampaignPrompt's own placement: after the brief/brand lines
+      // above, before the technical directive (the dialect guideline) below.
+      prompt += buildBrandContextBlock(brandContext);
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
       prompt = buildCampaignPrompt({
@@ -208,6 +226,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         brandName,
         brandVoice,
         brandColors,
+        brandContext,
       });
     }
 
@@ -344,6 +363,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Computed once, not once per post: nine identical sanitizePrompt calls buy
     // nothing.
     const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
+    // Same block as the caption prompt above, reused rather than rebuilt nine
+    // times. Already proven not to throw here: PromptBlockedError, if
+    // brandContext contained a blocked term, would have already fired above
+    // while building the caption prompt, long before this point.
+    const campaignBrandContextBlock = buildBrandContextBlock(brandContext);
 
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {
@@ -379,6 +403,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           `\n- Scene: ${safeScenario}` +
           `\n- Platform: ${input.platform}` +
           (safeBrandColorsLine ? `\n- Brand Colors: ${safeBrandColorsLine}` : '') +
+          // Placed after the scene/brand lines above and before the technical
+          // requirements below — the second of campaign's two prompt-building
+          // paths (the caption prompt above being the first).
+          campaignBrandContextBlock +
           `\n\nTechnical Requirements:` +
           // Kept even though these are social posts: CLAUDE.md records that Arabic
           // text inside generated images is not handled, and the caption is

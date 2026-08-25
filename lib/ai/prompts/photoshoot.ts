@@ -1,6 +1,7 @@
 import type { BrandKit } from '@/lib/supabase/types';
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock } from './brand-context';
 
 interface PhotoshootPromptInput {
   environment: string;
@@ -482,6 +483,22 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
   prompt += environment === 'food'
     ? `\nThe exact dish shown in the reference image, reproduced identically.`
     : `\nThe exact product shown in the reference image, reproduced identically.`;
+
+  // Placed after the subject is established and before the shot/set/technical
+  // directives below, so the model reads what the business IS before HOW to
+  // shoot it. Independent of the BRAND colour guidance further down, which is
+  // tied to the specific environment's backdrop rules and stays there.
+  prompt += buildBrandContextBlock(
+    brandKit
+      ? {
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        }
+      : null
+  );
 
   prompt += `\n\nSHOT ${shotIndex + 1} OF ${totalShots} — ${shot.name}`;
   prompt += `\nCamera: ${shot.camera}`;

@@ -1,6 +1,7 @@
 import type { BrandKit } from '@/lib/supabase/types';
 import { sanitizePrompt } from './safety';
 import { getPromptVersion } from './versions';
+import { buildBrandContextBlock } from './brand-context';
 
 interface EditPromptInput {
   editType: string;
@@ -114,6 +115,20 @@ export function buildEditPrompt(input: EditPromptInput): string {
     );
     prompt += `\nBrand Colors: ${safeColors}`;
   }
+
+  // Placed after the task/instruction/brand-colors lines above and before the
+  // Must/Avoid technical directives below.
+  prompt += buildBrandContextBlock(
+    brandKit
+      ? {
+          name: brandKit.name ?? null,
+          industry: brandKit.industry ?? null,
+          description: brandKit.description ?? null,
+          targetAudience: brandKit.target_audience ?? null,
+          city: brandKit.city ?? null,
+        }
+      : null
+  );
 
   if (mode) {
     prompt += `\n\nMust:`;

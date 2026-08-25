@@ -7,6 +7,7 @@ import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-wr
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { STORYBOARD_PROMPT_VERSION, buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
+import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
@@ -128,12 +129,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const safeConcept = sanitizePrompt(input.concept, 2000);
 
     let brandKitName: string | undefined;
+    // Also carries the migration-045 business columns so buildStoryboardPrompt's
+    // CLIENT CONTEXT block has something to say. sanitizePrompt runs INSIDE that
+    // block, not here — this route only reshapes the row, same as campaign does
+    // for its own brandContext.
+    let brandContext: BrandContextPromptInput | null = null;
     if (input.brandKitId) {
-      const { data: brandKit } = await supabase.from('brand_kits').select('name').eq('id', input.brandKitId).eq('user_id', user.id).single();
+      const { data: brandKit } = await supabase
+        .from('brand_kits')
+        .select('name, industry, description, target_audience, city')
+        .eq('id', input.brandKitId)
+        .eq('user_id', user.id)
+        .single();
       // `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
       // 042 constrains logo_url alone), so a customer can PATCH `name` to any string
       // over PostgREST and app/api/brand-kits/route.ts's max(100) never runs.
       brandKitName = brandKit?.name ? sanitizePrompt(String(brandKit.name), 100) : undefined;
+      brandContext = brandKit
+        ? {
+            name: brandKit.name ?? null,
+            industry: brandKit.industry ?? null,
+            description: brandKit.description ?? null,
+            targetAudience: brandKit.target_audience ?? null,
+            city: brandKit.city ?? null,
+          }
+        : null;
     }
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
@@ -176,7 +196,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, locale: input.locale ?? routing.defaultLocale });
+    const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, brandContext, locale: input.locale ?? routing.defaultLocale });
     const result = await generateText({
       prompt,
       maxTokens: 8192,
