@@ -94,6 +94,13 @@ equals('all-null fields return exactly the empty string',
 equals('all-empty-string fields return exactly the empty string',
   buildBrandContextBlock({ name: '', industry: '', description: '', targetAudience: '', city: '' }),
   '');
+// F8: `brand_kits.name` is NOT NULL, so every real row has one — a name-only
+// kit (all four business-fact fields null) is the shape of every brand kit
+// created before migration 045. Emptiness must be decided on the four
+// business facts alone; `name` must never by itself make the block non-empty.
+equals('name-only input (the pre-045 common case) returns exactly the empty string',
+  buildBrandContextBlock({ name: 'Acme Coffee', industry: null, description: null, targetAudience: null, city: null }),
+  '');
 
 // ── a fully-populated input carries every fact ──────────────────────────────
 {
@@ -189,23 +196,26 @@ throwsBlocked('a blocked term in city is refused',
 
   // A kit with a name and colours but none of the migration-045 business
   // columns — the shape of every brand kit created before that migration.
-  // `name` IS one of BrandContextPromptInput's five fields (the brief's own
-  // shape), so the heading correctly still appears; what must NOT happen is
-  // the other four columns' labels appearing when their values are null. This
-  // also confirms creator's own pre-existing "- Brand: …" line (a DIFFERENT
-  // label, same value) is not what the CLIENT CONTEXT assertions above were
-  // actually matching — that line alone never contains "CLIENT CONTEXT".
+  // F8: `name` alone must NOT make buildBrandContextBlock non-empty (`name`
+  // is NOT NULL on every real row, so counting it meant the block could never
+  // return '' for one). The heading must therefore be ABSENT here — this is
+  // the exact case that regressed before the fix, when the heading fired on
+  // name alone. creator's own pre-existing "- Brand: …" line is a DIFFERENT
+  // label carrying the same value, and must still appear on its own: this
+  // also confirms the CLIENT CONTEXT assertions above were actually matching
+  // buildBrandContextBlock's heading, not this unrelated line.
   const preMigrationKit = kit({ name: 'Acme Coffee' });
   const preMigration = buildCreatorPrompt({
     userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
     brandKit: preMigrationKit,
   });
   contains('creator + pre-045-shaped kit: still emits its own Brand line', preMigration, '- Brand: Acme Coffee');
-  contains('creator + pre-045-shaped kit: CLIENT CONTEXT still fires on name alone', preMigration, 'CLIENT CONTEXT');
+  omits('creator + pre-045-shaped kit: no CLIENT CONTEXT heading on name alone', preMigration, 'CLIENT CONTEXT');
   omits('creator + pre-045-shaped kit: no Industry line (null industry)', preMigration, 'Industry:');
   omits('creator + pre-045-shaped kit: no City line (null city)', preMigration, 'City:');
   omits('creator + pre-045-shaped kit: no Target Audience line (null)', preMigration, 'Target Audience:');
   omits('creator + pre-045-shaped kit: no Business Description line (null)', preMigration, 'Business Description:');
+  omits('creator + pre-045-shaped kit: no "- Business:" line from buildBrandContextBlock either', preMigration, '- Business:');
 }
 
 if (failures > 0) {

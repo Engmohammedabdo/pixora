@@ -45,7 +45,6 @@ export function buildBrandContextBlock(input: BrandContextPromptInput | null): s
 
   const { name, industry, description, targetAudience, city } = input;
 
-  const safeName = name ? sanitizePrompt(name, 100) : '';
   // industryName() returns '' for `other` and for any slug it does not
   // recognise — including a free-text value a hostile PostgREST write could
   // put in this column. Falling back to the raw slug here is the exact defect
@@ -57,14 +56,34 @@ export function buildBrandContextBlock(input: BrandContextPromptInput | null): s
   const safeTargetAudience = targetAudience ? sanitizePrompt(targetAudience, 500) : '';
   const safeCity = city ? sanitizePrompt(city, 100) : '';
 
+  // Emptiness is decided on these four BUSINESS-FACT fields only — `name`
+  // does not count, and is deliberately not read until after this check.
+  // `brand_kits.name` is NOT NULL, so every real row has one; counting it
+  // here would mean this function could never return '' for a real row,
+  // defeating the "nothing to say" contract the doc comment above promises —
+  // a brand kit created before migration 045, or one whose owner never filled
+  // in the business fields, is the COMMON case, not an edge case.
+  const hasBusinessFacts = Boolean(safeIndustry || safeDescription || safeTargetAudience || safeCity);
+  if (!hasBusinessFacts) return '';
+
+  // Sanitized only now that the block is known to be non-empty, so a
+  // name-only kit — the common pre-045 shape — returns '' above without ever
+  // running the filter over `name`.
+  const safeName = name ? sanitizePrompt(name, 100) : '';
+
   const lines: string[] = [];
+  // `- Business: {name}` duplicates creator/campaign/storyboard's own
+  // "- Brand: …" line, but is kept: photoshoot and edit have no other line
+  // that carries the business name at all, so dropping it here would
+  // silently remove the only place those two studios' prompts say who the
+  // business IS. Gating on `hasBusinessFacts` (not on `safeName`) above is
+  // what fixes the actual defect — a name-only kit now returns '' instead of
+  // a CLIENT CONTEXT heading over a single restated line.
   if (safeName) lines.push(`- Business: ${safeName}`);
   if (safeIndustry) lines.push(`- Industry: ${safeIndustry}`);
   if (safeCity) lines.push(`- City: ${safeCity}`);
   if (safeTargetAudience) lines.push(`- Target Audience: ${safeTargetAudience}`);
   if (safeDescription) lines.push(`- Business Description: ${safeDescription}`);
-
-  if (lines.length === 0) return '';
 
   return `\n\nCLIENT CONTEXT\n${lines.join('\n')}`;
 }
