@@ -26,19 +26,54 @@ interface SingleBrandKitResponse {
 export class BrandKitError extends Error {
   public readonly code: string;
   public readonly limit?: number;
+  /**
+   * Which `brand_kits` columns the server refused, for a 400
+   * `validation_error`. Empty for every other code.
+   *
+   * Without this a schema refusal is indistinguishable from a transport
+   * failure at the call site, so both were reported as "we couldn't save it,
+   * try again" — advice that cannot work, on a form whose only other exit
+   * discards everything the customer filled in.
+   */
+  public readonly fields: readonly string[];
 
-  constructor(code: string, limit?: number) {
+  constructor(code: string, options: { limit?: number; fields?: readonly string[] } = {}) {
     super(`brand_kit_request_failed: ${code}`);
     this.name = 'BrandKitError';
     this.code = code;
-    this.limit = limit;
+    this.limit = options.limit;
+    this.fields = options.fields ?? [];
   }
+}
+
+/**
+ * The `brand_kits` column names inside a 400's Zod issues.
+ *
+ * `error.issues` is returned verbatim as `details` by both routes; each issue's
+ * `path` is the schema path, whose HEAD is the column. Read defensively — this
+ * is a network payload, and a shape it does not match must degrade to "no
+ * field named", never throw inside an error handler.
+ */
+function fieldsFromDetails(details: unknown): string[] {
+  if (!Array.isArray(details)) return [];
+  const out: string[] = [];
+  for (const issue of details) {
+    if (!issue || typeof issue !== 'object') continue;
+    const path = (issue as { path?: unknown }).path;
+    if (!Array.isArray(path) || path.length === 0) continue;
+    const head = path[0];
+    if (typeof head === 'string') out.push(head);
+  }
+  return out;
 }
 
 async function readError(res: Response): Promise<BrandKitError> {
   try {
-    const json = (await res.json()) as { error?: string; limit?: number };
-    return new BrandKitError(json.error || 'request_failed', json.limit);
+    const json = (await res.json()) as { error?: string; limit?: number; details?: unknown };
+    return new BrandKitError(json.error || 'request_failed', {
+      limit: json.limit,
+      fields: fieldsFromDetails(json.details),
+    });
   } catch {
     return new BrandKitError('request_failed');
   }

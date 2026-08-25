@@ -45,6 +45,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://pixoradb.pyramedia.cloud';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { brandKitBusinessFields } from '../../lib/brand-kits/schema';
+import { normalizeWebsiteUrl } from '../../lib/brand-kits/website-url';
 
 const ROOT = process.cwd();
 const ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/+$/, '');
@@ -52,7 +53,22 @@ const ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/+$/, '');
 interface CorpusItem {
   label: string;
   raw: string;
+  /**
+   * `true` for a string BOTH layers must accept. The "dangerous mismatch"
+   * check below is one-directional by design (Zod-stricter is only reported),
+   * which means a corpus of strings that are all refused everywhere passes
+   * trivially — it proves the two layers agree about nothing. These entries
+   * are what stop that: every one is the OUTPUT of `normalizeWebsiteUrl`, i.e.
+   * exactly the bytes the product now sends, and if either layer refuses one
+   * of them the customer cannot save a brand kit at all.
+   */
+  mustBeAccepted?: boolean;
 }
+
+/** The five strings review finding C1 measured, each as the customer types it.
+ *  What is probed is what `normalizeWebsiteUrl` turns them into — that is the
+ *  value the form now sends, so it is the value both layers must agree on. */
+const C1_TYPED = ['mysite.ae', 'www.mysite.ae', 'Https://mysite.ae', 'HTTPS://mysite.ae', 'https://mysite.ae'];
 
 /** Every string worth disagreeing about, per the task brief's required set
  *  plus a few boundary/scheme cases in the same spirit as logo-parity.ts. */
@@ -74,6 +90,19 @@ const CORPUS: CorpusItem[] = [
   { label: 'url with a fragment', raw: 'https://example.com/page#section' },
   { label: 'unsupported scheme (ftp)', raw: 'ftp://example.com' },
   { label: 'embedded space mid-url', raw: 'https://example.com/foo bar' },
+  // ── The C1 case corpus ───────────────────────────────────────────────────
+  // Both layers are case-SENSITIVE on the scheme — Zod's `/^https?:\/\/\S+$/`
+  // and migration 045's `~ '^https?://[^[:space:]]+$'` (Postgres `~`, not
+  // `~*`). These two prove they still refuse identically, i.e. that relaxing
+  // one of them alone would have been the 042 defect in reverse.
+  { label: 'mixed-case scheme, raw (pre-normalisation)', raw: 'Https://mysite.ae' },
+  { label: 'upper-case scheme, raw (pre-normalisation)', raw: 'HTTPS://mysite.ae' },
+  // ...and these are what the product now actually sends.
+  ...C1_TYPED.map((typed) => ({
+    label: `normalizeWebsiteUrl(${JSON.stringify(typed)})`,
+    raw: normalizeWebsiteUrl(typed) ?? '',
+    mustBeAccepted: true,
+  })),
 ];
 
 function readServiceKey(): string | null {
@@ -187,11 +216,18 @@ ROLLBACK;
 
   let dangerous = 0;
   let zodStricter = 0;
+  let refusedButRequired = 0;
   let sawNbspZodStricter = false;
 
   for (const row of rows) {
     const v = verdicts[row.i];
     const dbAccepted = row.accepted;
+    if (v.mustBeAccepted && !(v.accepted && dbAccepted)) {
+      refusedButRequired += 1;
+      console.error(
+        `  REFUSED but required  ${v.label}  zod=${v.accepted ? 'accept' : 'refuse'} postgres=${dbAccepted ? 'accept' : 'refuse'}`
+      );
+    }
     if (v.accepted && !dbAccepted) {
       dangerous += 1;
       console.error(
@@ -205,12 +241,19 @@ ROLLBACK;
   }
 
   console.log(
-    `\n[brand-context-parity] ${CORPUS.length} strings tested. ${dangerous} dangerous mismatch(es), ${zodStricter} Zod-stricter case(s) (reported only).`
+    `\n[brand-context-parity] ${CORPUS.length} strings tested. ${dangerous} dangerous mismatch(es), ${refusedButRequired} required-but-refused, ${zodStricter} Zod-stricter case(s) (reported only).`
   );
 
   if (dangerous > 0) {
     console.error(
       `[brand-context-parity] FAIL — ${dangerous} case(s) where Zod accepts a value Postgres refuses. That is a clean 400 turning into a 500 carrying raw Postgres text.`
+    );
+    process.exit(1);
+  }
+
+  if (refusedButRequired > 0) {
+    console.error(
+      `[brand-context-parity] FAIL — ${refusedButRequired} normalized value(s) refused by a layer that must accept them. These are the exact bytes BrandKitForm now sends; refusing one means a customer cannot save a brand kit with a website at all (review finding C1).`
     );
     process.exit(1);
   }

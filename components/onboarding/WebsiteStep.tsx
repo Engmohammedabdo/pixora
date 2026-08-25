@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BrandKitForm } from '@/components/brand-kit/BrandKitForm';
 import { useCreateBrandKit, BrandKitError } from '@/hooks/useBrandKit';
-import { BRAND_KIT_SAVE_ERROR_MESSAGE_KEYS } from '@/lib/brand-kits/errors';
+import { brandKitErrorMessageKey } from '@/lib/brand-kits/errors';
+import { normalizeWebsiteUrl, WEBSITE_URL_MAX_LENGTH } from '@/lib/brand-kits/website-url';
 import { BRAND_EXTRACT_ERROR_CODES, BRAND_EXTRACT_ERROR_MESSAGE_KEYS, type BrandExtractErrorCode } from '@/lib/brand-kits/extract-errors';
 import { parseExtractDraft, expandMissingFields, type ExtractDraft } from '@/lib/brand-kits/extract-draft';
 import type { BrandKit } from '@/lib/supabase/types';
@@ -25,18 +26,6 @@ type Phase = 'intro' | 'extracting' | 'draft';
 
 function isBrandExtractErrorCode(value: unknown): value is BrandExtractErrorCode {
   return typeof value === 'string' && (BRAND_EXTRACT_ERROR_CODES as readonly string[]).includes(value);
-}
-
-/** A courtesy normalisation, not a validator — POST /api/brand-kits/extract's
- *  own n8n workflow does the real scheme normalisation. This only means the
- *  URL a customer typed survives, unprefixed, into the SAME editable form on
- *  a skip or a failure, instead of being dropped because it doesn't yet match
- *  `brandKitBusinessFields.website_url`'s `^https?:\/\/\S+$`. */
-function normalizeWebsiteUrlForDraft(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return withScheme.slice(0, 500);
 }
 
 export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement {
@@ -164,8 +153,12 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
         toast.error(tBrandKit('limitReached', { limit: limit ?? '' }));
         return;
       }
-      const messageKey = BRAND_KIT_SAVE_ERROR_MESSAGE_KEYS[code];
-      toast.error(tBrandKit(messageKey ?? 'saveFailed'));
+      // `fields` is what makes a 400 `validation_error` say WHICH field — the
+      // route returns Zod's issues as `details` and the hook lifts their path
+      // heads out. Without it every schema refusal collapsed to "try again",
+      // and retrying an unchanged value cannot ever work.
+      const fields = error instanceof BrandKitError ? error.fields : [];
+      toast.error(tBrandKit(brandKitErrorMessageKey(code, fields)));
       // Deliberately does NOT call onAdvance(): a failed save must leave the
       // customer on the same usable, editable form — "continue without
       // saving" below is still one click away regardless.
@@ -187,12 +180,34 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
 
         <div className="space-y-2">
           <Label htmlFor="onboarding-website-url">{tBrandKit('websiteUrl')}</Label>
+          {/* `dir="ltr"` because this is a Latin-only value inside an RTL
+              paragraph: `//` and `:` are bidi-neutral and resolve to the
+              paragraph level, so `https://` renders at the wrong visual end and
+              the caret jumps — on the first field of the first screen of an
+              Arabic-first product. Every other Latin-only input in this repo
+              already sets it (login/signup email + password, ColorPicker's hex,
+              plan's budget).
+
+              `autoCapitalize="off"` is what stops iOS/Gboard sending
+              `Https://…`; `normalizeWebsiteUrl` handles it anyway, and both
+              belt and braces are cheap here.
+
+              Deliberately NOT `type="url"`. Native constraint validation
+              refuses `mysite.ae` and BLOCKS form submission — which would put
+              C1 straight back, one layer higher: the submit handler that
+              normalises the value would never run. `inputMode` gives the
+              mobile keyboard the same hint with none of that. */}
           <Input
             id="onboarding-website-url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder={tBrandKit('websiteUrlPlaceholder')}
-            maxLength={500}
+            maxLength={WEBSITE_URL_MAX_LENGTH}
+            dir="ltr"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
 
@@ -243,7 +258,7 @@ export function WebsiteStep({ onAdvance }: WebsiteStepProps): React.ReactElement
 
   // phase === 'draft' — reachable from all three arms (extracted, skipped,
   // failed). This is the one screen every arm must reach.
-  const fallbackWebsiteUrl = draft ? null : normalizeWebsiteUrlForDraft(url);
+  const fallbackWebsiteUrl = draft ? null : normalizeWebsiteUrl(url);
   const formInitialData: Partial<BrandKit> | undefined = draft
     ? {
         name: draft.name,

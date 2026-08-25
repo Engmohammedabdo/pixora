@@ -203,6 +203,12 @@
     "invalidDescription": "The business description is too long.",
     "invalidTargetAudience": "The target audience is too long.",
     "invalidCity": "That city isn't valid.",
+    "invalidName": "That brand name isn't valid — it must be 1 to 100 characters.",
+    "invalidBrandVoice": "The brand voice is too long.",
+    "invalidFont": "That font name is too long — 50 characters max. Clear it and type just the font name.",
+    "invalidColor": "The colour must be a hex code, like #6366F1.",
+    "invalidFields": "Something in the form isn't valid — check it and try again.",
+    "sessionExpired": "Your session expired — sign in again and save once more.",
     "extract": {
       "unauthorized": "Session expired — sign in again, then try the link.",
       "rateLimited": "Too many extraction attempts — wait an hour and try again, or fill in your brand details yourself.",

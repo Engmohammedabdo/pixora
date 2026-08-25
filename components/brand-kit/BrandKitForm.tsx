@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { ColorPicker } from './ColorPicker';
 import { LogoUpload } from './LogoUpload';
 import type { BrandKit } from '@/lib/supabase/types';
-import { INDUSTRIES } from '@/lib/industries';
+import { INDUSTRIES, isIndustry } from '@/lib/industries';
+import { normalizeWebsiteUrl, WEBSITE_URL_MAX_LENGTH } from '@/lib/brand-kits/website-url';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 
@@ -77,11 +78,17 @@ export function BrandKitForm({
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (logoUploading) return;
+    // `normalizeWebsiteUrl`, not `.trim()`. The raw value was sent straight to
+    // a schema requiring a lowercase `http(s)://` prefix, so `mysite.ae`,
+    // `www.mysite.ae` and the `Https://…` an iOS keyboard produces were all a
+    // 400 on an OPTIONAL field, reported as "try again" — advice that could
+    // never work. lib/brand-kits/website-url.ts carries the rule and the
+    // reasoning; this must stay the only place this form states it.
     await onSubmit({
       name,
       logo_url: logoUrl,
       industry: industry || null,
-      website_url: websiteUrl.trim() || null,
+      website_url: normalizeWebsiteUrl(websiteUrl),
       city: city.trim() || null,
       target_audience: targetAudience.trim() || null,
       description: description.trim() || null,
@@ -141,12 +148,22 @@ export function BrandKitForm({
 
         <div className="space-y-2">
           <Label htmlFor="brand-website">{t('websiteUrl')}</Label>
+          {/* See components/onboarding/WebsiteStep.tsx's twin for the full
+              reasoning on `dir="ltr"` (bidi-neutral `//` in an RTL paragraph)
+              and on why this is NOT `type="url"` (native validation refuses
+              `mysite.ae` and would block the submit handler that normalises
+              it — C1, one layer up). */}
           <Input
             id="brand-website"
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder={t('websiteUrlPlaceholder')}
-            maxLength={500}
+            maxLength={WEBSITE_URL_MAX_LENGTH}
+            dir="ltr"
+            inputMode="url"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
 
