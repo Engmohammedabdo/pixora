@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { PageViewTracker } from '@/components/analytics/PageViewTracker';
 import { OG_CONTENT } from '@/lib/seo/og-content';
 import '../globals.css';
 
@@ -142,8 +143,13 @@ export default async function RootLayout({
         </NextIntlClientProvider>
         {/* Outside the provider tree on purpose — it needs no locale, no theme
             and no query client, and keeping it last means the tag can never
-            delay hydration of the app itself. */}
+            delay hydration of the app itself. PageViewTracker reads only
+            usePathname — no auth, no query client — which is what makes it
+            safe to mount HERE, unlike AnalyticsIdentity (see the 2026-08-25
+            two-<html> regression in CLAUDE.md for what mounting the wrong
+            component in this layout did). Verified by test:built-document. */}
         <GoogleAnalytics />
+        <PageViewTracker />
       </body>
     </html>
   );

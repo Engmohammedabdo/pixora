@@ -740,7 +740,7 @@ three browser signups already listed as outstanding.
 
 **Still open:**
 - **Custom dimensions are not registered.** `studio`, `plan`, `app_locale` and the rest are collected from the first event but do NOT appear in any GA4 report until registered under Admin → Custom definitions. Unregistered they are still stored and still queryable from BigQuery and the Data API — which reads exactly like a broken tag.
-- **Check Enhanced Measurement → “Page changes based on browser history events”** in the data stream. This is an App Router app: with that toggle off, only landing pageviews are ever recorded. It cannot be read from the code.
+- **Enhanced Measurement → “Page changes based on browser history events” must be OFF** in the data stream. The dependency was INVERTED 2026-08-27: the live property showed landing pageviews only (the exact failure the old note predicted), so `<PageViewTracker/>` now reports every SPA navigation from the code. With the toggle mistakenly ON, SPA pageviews count twice — visible inflation, chosen deliberately over the old failure mode of invisible absence.
 - **Nothing reads `user_events` yet.** The rows accumulate — 166 of them as of 2026-08-27 — and no admin screen surfaces them. This is now the gap worth closing: the data exists, the questions it answers do not.
 - `failGeneration()`'s refuse-to-write branch records no event — it has no returned row to take a user id from, and it is already loud in the logs.
 

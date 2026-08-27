@@ -33,11 +33,15 @@ import Script from 'next/script';
  * NODE_ENV is set by Next itself and no environment variable can spoof it,
  * which is the same reasoning next.config.ts:55 uses for 'unsafe-eval'.
  *
- * SPA navigation: gtag `config` fires one page_view on load. Subsequent App
- * Router navigations are picked up by GA4's own History API listener, which is
- * the "Page changes based on browser history events" toggle under Enhanced
- * Measurement in the GA4 data stream. It is on by default; if it is turned off,
- * this app will report only landing pageviews.
+ * SPA navigation: gtag `config` fires one page_view — the LANDING one — on
+ * load, and that is the only page_view this component owns. Every subsequent
+ * App Router navigation is reported by <PageViewTracker/>, mounted beside this
+ * component. This used to lean on GA4's Enhanced Measurement history listener
+ * instead, and the live property showed the failure mode that comment
+ * predicted: landing pageviews only, no page depth (observed 2026-08-27).
+ * CONSEQUENCE: Enhanced Measurement → "Page changes based on browser history
+ * events" must now be OFF in the GA4 data stream, or every SPA navigation is
+ * counted twice — once by its listener, once by ours.
  */
 const MEASUREMENT_ID =
   process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'G-L45LDQPRKJ';
