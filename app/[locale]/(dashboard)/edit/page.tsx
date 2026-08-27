@@ -19,9 +19,18 @@ import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
-import { Sparkles, Upload, X, Download, AlertTriangle, Loader2 } from 'lucide-react';
+import { Sparkles, Upload, X, Download, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
+import { useBrandKits } from '@/hooks/useBrandKit';
+import {
+  EDIT_PRESETS,
+  EDIT_PRESET_IDS,
+  editPresetMatchesType,
+  editPresetRequiresBrandColors,
+  isEditPresetId,
+  type EditPresetId,
+} from '@/lib/ai/prompts/edit';
 
 const EDIT_TYPES = [
   { id: 'background_replace', key: 'background_replace', emoji: '🖼️' },
@@ -30,6 +39,44 @@ const EDIT_TYPES = [
   { id: 'text_add', key: 'text_add', emoji: '✍️' },
   { id: 'style_transfer', key: 'style_transfer', emoji: '🔄' },
 ] as const;
+
+/**
+ * The presets each edit type offers, DERIVED from the preset table rather than
+ * restated here.
+ *
+ * A literal list in this file would be a second source of truth for a set the
+ * route already builds its `z.enum` from — so a preset added to
+ * `EDIT_PRESETS` would exist, be accepted by the API, and be reachable by
+ * nobody, silently. That is the exact shape of `VoiceoverCostConfig.watermark`
+ * and of `versions.ts` before 2026-08-24: a mechanism with no consumer, green
+ * on every gate.
+ */
+const PRESETS_BY_TYPE: Record<string, EditPresetId[]> = EDIT_PRESET_IDS.reduce<
+  Record<string, EditPresetId[]>
+>((acc, id) => {
+  const type = EDIT_PRESETS[id].editType;
+  (acc[type] ??= []).push(id);
+  return acc;
+}, {});
+
+/**
+ * `?preset=` handed over by another studio's next-action link.
+ *
+ * The edit TYPE is never carried in the URL: it is read off the preset table,
+ * so a link cannot arrive carrying a pair that disagrees. An id that is not in
+ * the table at all is dropped — a deep link is untrusted input like any other,
+ * and the alternative is a request the route answers with a 400 the customer
+ * did not cause.
+ */
+function initialSelection(raw: string | null): { editType: string; editPreset: EditPresetId | null } {
+  if (!raw || !isEditPresetId(raw)) return { editType: 'background_replace', editPreset: null };
+  return { editType: EDIT_PRESETS[raw].editType, editPreset: raw };
+}
+
+/** The server mirror: `editDescription: z.string().min(5).max(500).optional()`.
+ *  A shorter-but-non-empty string is NOT "no description" — it is a 400 — so
+ *  the page must never quietly drop it, and must never send it either. */
+const MIN_DESCRIPTION = 5;
 
 /**
  * What POST /api/upload actually accepts. The picker used to say `image/*`, so
@@ -56,10 +103,12 @@ function EditPageContent(): React.ReactElement {
   const searchParams = useSearchParams();
   // Preload an image handed off from another studio (e.g. Creator's edit shortcut)
   const initialSrc = searchParams.get('src');
-  const { projectId, onProjectChange } = useProjectSelection();
+  const initial = initialSelection(searchParams.get('preset'));
+  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [originalImage, setOriginalImage] = useState<string | null>(initialSrc || null);
   const [editDescription, setEditDescription] = useState('');
-  const [editType, setEditType] = useState('background_replace');
+  const [editType, setEditType] = useState(initial.editType);
+  const [editPreset, setEditPreset] = useState<EditPresetId | null>(initial.editPreset);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<StudioError | null>(null);
@@ -73,10 +122,67 @@ function EditPageContent(): React.ReactElement {
   const fileRef = useRef<HTMLInputElement>(null);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
+  // The SAME kit whose id gets submitted below — resolved exactly the way
+  // PhotoshootForm resolves it (project's kit, then the account default), which
+  // is byte-for-byte the order the route's own three-step lookup uses. Two
+  // resolutions of one question that disagree is how the UI comes to gate
+  // `brand_color_match` on a kit the route would not have used.
+  const { brandKits, defaultKit } = useBrandKits();
+  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
+  const selectedKit = projectKit ?? defaultKit;
+
+  // A preset only counts while it belongs to the CURRENT edit type. Stated
+  // through the shared rule, not by comparing the table here: the route refuses
+  // a mismatched pair with a 400 and `buildEditPrompt` drops one for the same
+  // reason, so a third opinion in the UI is a third thing to keep in step.
+  // It is also the safety net behind the type chips — switching type can never
+  // leave a stale preset armed, whatever the click handler did.
+  const activePreset = editPreset && editPresetMatchesType(editPreset, editType) ? editPreset : null;
+  const presetsForType = PRESETS_BY_TYPE[editType] ?? [];
+
+  // ── The client mirror of the route's contract, and nothing more ──────────
+  //
+  // This used to be a flat `editDescription.length >= 5`, which mirrored a
+  // server rule that no longer exists: `editDescription` is optional now, and a
+  // preset alone is a complete request. Left as it was, a customer who picked
+  // "خلفية بيضاء للمتاجر" would have got a dead Generate button and no reason
+  // for it — the defect class this repo has already catalogued twice (the plan
+  // studio's empty `industry`, the three studios whose rejected upload left
+  // Generate enabled). The rules below are the route's `superRefine`, in order.
+  const descriptionUsable = editDescription.length >= MIN_DESCRIPTION;
+  // 1–4 characters is neither "nothing" nor a valid description. Sending it is
+  // a 400; dropping it silently edits the photo without the words the customer
+  // typed. Both are wrong, so the button waits and says why.
+  const descriptionTooShort = editDescription.length > 0 && !descriptionUsable;
+  const needsText = editType === 'text_add';
+  // text_add always needs it — there the description is not an instruction, it
+  // is the text rendered into the image, and no preset can stand in for it.
+  const missingIntent = needsText ? !descriptionUsable : !activePreset && !descriptionUsable;
+  // `brand_color_match` with no kit and no free text is a 400 at the route
+  // (`path: ['brandKitId']`). Said here first, with somewhere to go, because
+  // the customer can act on it and the route's answer arrives after a round
+  // trip they did not need to make.
+  const brandColorsMissing =
+    !!activePreset && editPresetRequiresBrandColors(activePreset) && !selectedKit && !descriptionUsable;
+
   // Not just "an image was picked": an image the SERVER accepted. While an
   // upload is in flight `originalImage` is still null, so Generate stays down
   // rather than shipping the previous file under the new preview.
-  const isValid = !!originalImage && !uploading && editDescription.length >= 5;
+  const isValid =
+    !!originalImage && !uploading && !descriptionTooShort && !missingIntent && !brandColorsMissing;
+
+  // Whatever is standing between the customer and Generate, in words. A
+  // disabled button with no explanation is the thing being fixed here, so the
+  // reason is always on screen — including before anything is chosen, where it
+  // reads as guidance rather than as a complaint.
+  const requirementHint = descriptionTooShort
+    ? tEdit('hints.descriptionTooShort')
+    : missingIntent
+      ? needsText
+        ? tEdit('hints.textRequired')
+        : tEdit('hints.pickPresetOrDescribe')
+      : null;
+
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && CREDIT_COSTS.edit > balance;
   const { profile } = useUser();
@@ -89,14 +195,27 @@ function EditPageContent(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/edit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: originalImage, editDescription, editType, projectId: projectId ?? undefined }),
+        body: JSON.stringify({
+          imageUrl: originalImage,
+          // Omitted rather than sent empty: the field is `.optional()`, and
+          // `''` is a 400. `isValid` already refuses the 1–4 character case, so
+          // this can only be "a real description" or "none".
+          editDescription: descriptionUsable ? editDescription : undefined,
+          editType,
+          editPreset: activePreset ?? undefined,
+          // The kit the FORM gated `brand_color_match` on. The route would
+          // resolve the same one on its own, but then the gate and the prompt
+          // would be answering the same question separately — see PhotoshootForm.
+          brandKitId: selectedKit?.id,
+          projectId: projectId ?? undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, originalImage, editDescription, editType, setBalance, tStudio, projectId]);
+  }, [isValid, originalImage, editDescription, descriptionUsable, editType, activePreset, selectedKit?.id, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -194,11 +313,82 @@ function EditPageContent(): React.ReactElement {
       <div className="space-y-2">
         <Label>{tEdit('editType')}</Label>
         <div className="grid grid-cols-2 gap-2">{EDIT_TYPES.map((et) => (
-          <button key={et.id} type="button" onClick={() => setEditType(et.id)} aria-pressed={editType === et.id} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors', editType === et.id ? selectedChipClasses : unselectedChipClasses)}>
+          // Clearing the preset is the visible half; `activePreset` is the
+          // load-bearing half, so a preset can never survive into a type it
+          // does not belong to even if this handler is ever changed.
+          <button key={et.id} type="button" onClick={() => { setEditType(et.id); setEditPreset(null); }} aria-pressed={editType === et.id} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors', editType === et.id ? selectedChipClasses : unselectedChipClasses)}>
             <span>{et.emoji}</span>{tEdit(`editTypes.${et.key}`)}
           </button>
         ))}</div>
       </div>
+      {/* The recipes. This is the half of the studio that makes a paying
+          subscriber's answer to "what do you want done" a CLICK rather than a
+          paragraph — `photoshoot` has always worked this way
+          (`environment: z.enum([...])` with `notes` optional) and `edit` is the
+          studio that did not. Every card is a written specification the
+          customer cannot be expected to know: "white background" typed by a
+          shop owner and `marketplace_white` are the same intent and different
+          products, and only one of them is accepted as an Amazon.ae main image.
+
+          Selected state is a filled check plus border AND background, never
+          colour alone; each card is a real <button>, so it is in the tab order
+          and toggles with Space/Enter for free. */}
+      {presetsForType.length > 0 && (
+        <div className="space-y-2">
+          <Label>{tEdit('presetsLabel')}</Label>
+          <p className="text-xs text-[var(--color-text-muted)]">{tEdit('presetsHint')}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {presetsForType.map((id) => {
+              const selected = activePreset === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  // Toggles: a customer who picked a recipe and then decided to
+                  // describe the edit themselves needs a way back out that is
+                  // not "reload the page".
+                  onClick={() => setEditPreset(selected ? null : id)}
+                  aria-pressed={selected}
+                  className={cn(
+                    'flex flex-col items-start gap-1 rounded-lg border p-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
+                    selected ? selectedChipClasses : unselectedChipClasses
+                  )}
+                >
+                  <span className="flex w-full items-start gap-2">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border',
+                        selected
+                          ? 'border-primary-500 bg-primary-500 text-white'
+                          : 'border-[var(--color-border)]'
+                      )}
+                    >
+                      {selected && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="text-sm font-medium">{tEdit(`presets.${id}.label`)}</span>
+                  </span>
+                  <span className="text-xs text-[var(--color-text-muted)]">{tEdit(`presets.${id}.description`)}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Said BEFORE the credit is spent, and with somewhere to go. The
+              route answers this case with a 400 whose `details` name
+              `brandKitId`, which is correct and arrives too late to be useful.
+              color-mix, not `bg-[var(--color-warning)]/10` — Tailwind 3.4.19
+              silently emits no rule for that and the panel would have no
+              background at all. */}
+          {brandColorsMissing && (
+            <div className="rounded-lg border border-[var(--color-warning)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+              <p>{tEdit('brandColorsRequired')}</p>
+              <Link href="/brand-kit" className="mt-1 inline-block font-medium text-[var(--color-link)] hover:underline">
+                {tEdit('brandColorsRequiredCta')}
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
       {/* One free-text field serves all five modes, and its label and
           placeholder used to be mode-INDEPENDENT — showing a background-change
           example ("مثال: غيّر الخلفية لمكتب حديث…") to a customer who had just
@@ -209,8 +399,25 @@ function EditPageContent(): React.ReactElement {
           image, on a paid credit, and no amount of letter-joining or RTL
           direction rules can help. Both the label and the example are now per
           mode; lib/ai/prompts/edit.ts does the other half by giving the rules a
-          delimited referent. */}
-      <div className="space-y-2"><Label htmlFor="edit-description">{editType === 'text_add' ? tEdit('textToSetLabel') : tEdit('editDescription')}</Label><textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit(`descriptionPlaceholders.${editType}`)} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" /><p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p></div>
+          delimited referent.
+
+          As of the preset round this field is OPTIONAL on every mode except
+          `text_add`, and it is deliberately shaped like photoshoot's `notes`
+          rather than like a second pattern: a bare label with no required
+          marker, the same 500-character cap, the same counter. The marker is
+          kept for `text_add` alone, where the route does require it — and
+          there the label says what it is: the text that will appear IN the
+          image, not an instruction about it. */}
+      <div className="space-y-2">
+        <Label htmlFor="edit-description">{needsText ? `${tEdit('textToSetLabel')} *` : tEdit('editDescription')}</Label>
+        <textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tEdit(`descriptionPlaceholders.${editType}`)} rows={3} maxLength={500} className="flex w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-base sm:text-sm placeholder:text-[var(--color-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 resize-none" />
+        <p className="text-xs text-end text-[var(--color-text-muted)]">{editDescription.length}/500</p>
+      </div>
+      {/* The reason Generate is down, in words, next to Generate. Muted rather
+          than red: before anything is chosen this is guidance, not a failure —
+          and it is the same sentence either way, so it does not change
+          character the moment the customer touches something. */}
+      {requirementHint && <p className="text-xs text-[var(--color-text-muted)]">{requirementHint}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
         <div className="flex items-center gap-2">
