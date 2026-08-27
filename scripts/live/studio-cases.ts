@@ -2,10 +2,10 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CREDIT_COSTS, getStudioCost } from '../../lib/credits/costs';
 import { EXPECTED_POSTS, EXPECTED_SCENES } from '../../lib/ai/studio-output-schemas';
-import { calculateVoiceoverCost } from '../../lib/credits/voiceover-costs';
+import { calculateVoiceoverCost, getVoiceoverConfig } from '../../lib/credits/voiceover-costs';
 import { LOW_EFFECT_THRESHOLD, LOW_OVERALL_THRESHOLD, looksLikeNoOp } from '../../lib/image/edit-effect';
 import type { CheckResult } from './checks';
-import { cornerMarkPresent, editEffect } from './checks';
+import { cornerMarkPresent, editEffect, frameSize } from './checks';
 import { measureAudio, SILENCE_RUN_SHARE } from './audio';
 import {
   countCheck, declaredCostCheck, everyEntryHas, joinText, languageCheck,
@@ -46,6 +46,10 @@ export type StudioGroup = 'text' | 'image' | 'audio';
 /** What a case is handed at run time: the runner owns the network and the run
  *  directory, so a case never has to know where either lives. */
 export interface CaseTools {
+  /** The account's live plan, read from /api/credits/balance — never assumed.
+   *  Decides watermark polarity, the voiceover price and cap, and the
+   *  resolution promise. */
+  plan: string;
   download(url: string): Promise<Buffer>;
   /** Bytes worth looking at afterwards. Goes into the run directory and onto the
    *  contact sheet, because the numbers below cannot see an invented object. */
@@ -115,7 +119,16 @@ const PHOTOSHOOT_ONE_SHOT_COST = 2;
  *  calculateVoiceoverCost is ceil(ceil(len / 5) / 15) on this tier. */
 const VOICEOVER_SCRIPT = 'شاورما الشام، ألذ شاورما في دبي. اطلب الآن ووصلك خلال ثلاثين دقيقة.';
 
-export const STUDIO_CASES: StudioCase[] = [
+/**
+ * Built per-plan rather than exported as a constant, because 2026-08-28's Pro
+ * sweep made three figures plan-dependent: the voiceover price and cap, the
+ * watermark's POLARITY (free must carry it, paid must not), and the resolution
+ * a paid photoshoot promises. A static list priced for 'free' would print an
+ * honest-looking plan and then fail every paid case on arithmetic.
+ */
+export function buildStudioCases(plan: string): StudioCase[] {
+  const paid = plan !== 'free';
+  return [
   // ── text ────────────────────────────────────────────────────────────────
   {
     id: 'plan_en',
@@ -455,11 +468,160 @@ export const STUDIO_CASES: StudioCase[] = [
             ? 'could not measure — UNMEASURED, not a verdict'
             : `local ${m.maxLocal.toFixed(1)} (flag <${LOW_EFFECT_THRESHOLD}) · overall ${m.overall?.toFixed(2)} (flag <${LOW_OVERALL_THRESHOLD})`,
         });
+        // Watermark POLARITY follows the plan. Free must carry the mark
+        // (fail-closed, and it once shipped as empty boxes for a week). Paid
+        // plans SELL its absence — but absence cannot be asserted with
+        // cornerMarkPresent on an arbitrary photograph, whose own texture in
+        // that corner reads as "a mark". So on paid the mark check is stated
+        // UNMEASURED here and the contact sheet is the verdict; asserting
+        // absence would manufacture false failures on every textured scene.
+        if (tools.plan === 'free') {
+          checks.push({
+            name: `shot ${i} carries the free-plan corner mark`,
+            ok: await cornerMarkPresent(bytes),
+            detail: 'bottom-right corner carries a non-uniform mark',
+          });
+        } else {
+          checks.push({
+            name: `shot ${i} watermark absence`,
+            ok: true,
+            detail: 'paid plan — absence is judged on the contact sheet, not measurable on a textured corner. INFORMATIONAL.',
+          });
+        }
+        // The resolution the plan sells (lib/stripe/plans.ts): pro 2K, business
+        // and agency 4K. Until 2026-08-24 photoshoot hardcoded '1080p' and every
+        // paid plan received a 1K image — this is that defect's regression
+        // check, finally measurable now that the sweep can run as a paid
+        // account.
+        const size = await frameSize(bytes);
+        if (tools.plan === 'free' || tools.plan === 'starter') {
+          checks.push({
+            name: `shot ${i} resolution`,
+            ok: true,
+            detail: size ? `${size.width}x${size.height} on the ${tools.plan} plan (1080p tier). INFORMATIONAL.` : 'unreadable',
+          });
+        } else {
+          const minSide = tools.plan === 'pro' ? 1500 : 3000;
+          checks.push({
+            name: `shot ${i} is the resolution the ${tools.plan} plan sells`,
+            ok: size !== null && Math.max(size.width, size.height) >= minSide,
+            detail: size
+              ? `${size.width}x${size.height}; the plan sells ${tools.plan === 'pro' ? '2K' : '4K'} (longest side >= ${minSide})`
+              : 'could not read dimensions',
+          });
+        }
+      }
+      return checks;
+    },
+  },
+
+  {
+    id: 'photoshoot_multi',
+    studio: 'photoshoot',
+    group: 'image',
+    path: '/api/studios/photoshoot',
+    // SHOT_COSTS in the route: {1: 2, 3: 4, 6: 8}. Restated for the same reason
+    // as PHOTOSHOOT_ONE_SHOT_COST, with declaredCostCheck as the backstop.
+    cost: 4,
+    fixture: 'clean_white',
+    intent: 'three shots for one price: all delivered, all distinct, and a partial failure refunds its own share',
+    body: (tools) => ({
+      imageUrl: tools.fixture?.url,
+      environment: 'luxury',
+      shots: 3,
+    }),
+    deliverable: (data) => data.shots,
+    verify: async (data, tools) => {
+      const shots = rows(data.shots);
+      const withUrl = shots.filter((sh) => typeof sh.url === 'string' && sh.url);
+      const checks: CheckResult[] = [
+        noMockMarker('no [mock] leaf reached a paid photoshoot', shots),
+        realModelCheck(shots.every((sh) => sh.mock !== true) && shots.length > 0),
+        countCheck('the requested shots were delivered', withUrl.length, 3),
+        // The money identity: a missing shot must be refunded, not absorbed.
+        // With all three delivered, creditsUsed must equal the price; short
+        // delivery must charge less. Either way the two must agree.
+        {
+          name: 'the charge matches the delivery',
+          ok: num(data.creditsUsed) <= 4 && (withUrl.length === 3 ? num(data.creditsUsed) === 4 : num(data.creditsUsed) < 4),
+          detail: `${withUrl.length}/3 shots delivered, ${num(data.creditsUsed)} of 4 credits charged`,
+        },
+      ];
+      const kept: Buffer[] = [];
+      for (const [i, shot] of withUrl.entries()) {
+        const bytes = await tools.download(str(shot.url));
+        tools.keepImage(`photoshoot-multi-${i}.png`, bytes, `photoshoot multi #${i}`);
+        const before = tools.fixture?.bytes;
+        const m = before ? await editEffect(before, bytes) : { maxLocal: null, overall: null };
         checks.push({
-          name: `shot ${i} carries the free-plan corner mark`,
-          ok: await cornerMarkPresent(bytes),
-          detail: 'bottom-right corner carries a non-uniform mark',
+          name: `shot ${i} is not the source photograph handed back`,
+          ok: !looksLikeNoOp(m.maxLocal, m.overall),
+          detail: m.maxLocal === null ? 'could not measure' : `local ${m.maxLocal.toFixed(1)} · overall ${m.overall?.toFixed(2)}`,
         });
+        kept.push(bytes);
+      }
+      // "One coherent set" must not mean one image three times: the route seeds
+      // per-run variety, and identical shots would be three charges for one
+      // deliverable. Pairwise distance, measured with the same metric as
+      // everything else in this sweep.
+      for (let i = 0; i < kept.length; i++) {
+        for (let j = i + 1; j < kept.length; j++) {
+          const d = await editEffect(kept[i], kept[j]);
+          checks.push({
+            name: `shots ${i} and ${j} are distinct frames`,
+            ok: !looksLikeNoOp(d.maxLocal, d.overall),
+            detail: d.maxLocal === null ? 'could not measure' : `local ${d.maxLocal.toFixed(1)} · overall ${d.overall?.toFixed(2)} — near zero means the same image was sold twice`,
+          });
+        }
+      }
+      return checks;
+    },
+  },
+  {
+    id: 'campaign_full',
+    studio: 'campaign',
+    group: 'image',
+    path: '/api/studios/campaign',
+    cost: CREDIT_COSTS.campaign,
+    intent: 'the full 12-credit campaign: nine captions AND nine images, any failed image refunded and disclosed',
+    body: () => ({
+      productName: 'شاورما الشام',
+      description: 'مطعم شاورما في الكرامة بدبي، وصفات شامية أصيلة وتوصيل سريع',
+      audience: 'سكان دبي المهتمون بالمأكولات الشامية',
+      platform: 'instagram',
+      generateImages: true,
+    }),
+    deliverable: (data) => data.posts,
+    verify: async (data, tools) => {
+      const posts = rows(data.posts);
+      const withImage = posts.filter((po) => typeof po.imageUrl === 'string' && po.imageUrl);
+      const failed = num(data.failedImageCount);
+      const refunded = num(data.refunded);
+      const checks: CheckResult[] = [
+        realModelCheck(data.mock),
+        noMockMarker('no [mock] leaf reached a paid campaign', posts),
+        countCheck('nine posts were delivered', posts.length, EXPECTED_POSTS),
+        // The money identity this case exists for: every image NOT delivered is
+        // refunded at the image price, and the figures the response discloses
+        // must agree with each other and with the delivery.
+        {
+          name: 'failed images and refund agree with the delivery',
+          ok: withImage.length + failed === EXPECTED_POSTS && refunded === failed * CREDIT_COSTS.image['1080p'],
+          detail: `${withImage.length} images delivered + ${failed} failed = ${withImage.length + failed}/${EXPECTED_POSTS}; refunded ${refunded} (expected ${failed} x ${CREDIT_COSTS.image['1080p']})`,
+        },
+        {
+          name: 'the charge is the price minus the refund',
+          ok: num(data.creditsUsed) === CREDIT_COSTS.campaign - refunded,
+          detail: `charged ${num(data.creditsUsed)}, price ${CREDIT_COSTS.campaign}, refunded ${refunded}`,
+        },
+        languageCheck('the captions are in Arabic', joinText([posts.map((po) => po.caption)]), 'ar'),
+      ];
+      // Look at a sample of the paid images — the numbers cannot see an
+      // invented object, wrong product, or missing brand. Two is enough for
+      // the sheet without doubling the run's download time.
+      for (const [i, post] of withImage.slice(0, 2).entries()) {
+        const bytes = await tools.download(str(post.imageUrl));
+        tools.keepImage(`campaign-image-${i}.png`, bytes, `campaign post image #${i}`);
       }
       return checks;
     },
@@ -471,7 +633,7 @@ export const STUDIO_CASES: StudioCase[] = [
     studio: 'voiceover',
     group: 'audio',
     path: '/api/studios/voiceover',
-    cost: calculateVoiceoverCost(VOICEOVER_SCRIPT.length, 1, 'free'),
+    cost: calculateVoiceoverCost(VOICEOVER_SCRIPT.length, 1, plan),
     intent: 'audio that exists, plays for a plausible time, and is not silence',
     body: () => ({
       script: VOICEOVER_SCRIPT,
@@ -482,7 +644,8 @@ export const STUDIO_CASES: StudioCase[] = [
     }),
     deliverable: (data) => ({ audioUrl: data.audioUrl, duration: data.duration, provider: data.provider }),
     verify: async (data, tools) => {
-      const declared = calculateVoiceoverCost(VOICEOVER_SCRIPT.length, 1, 'free');
+      const declared = calculateVoiceoverCost(VOICEOVER_SCRIPT.length, 1, tools.plan);
+      const planConfig = getVoiceoverConfig(tools.plan);
       const url = str(data.audioUrl);
       const checks: CheckResult[] = [
         realModelCheck(data.mock),
@@ -539,14 +702,32 @@ export const STUDIO_CASES: StudioCase[] = [
             'Over 1 means the customer is charged for, and capped at, more audio than they receive.',
         });
       }
-      // The free plan's own cap (lib/credits/voiceover-costs.ts). Exceeding it
+      // The plan's own cap (lib/credits/voiceover-costs.ts). Exceeding it
       // means the LLM rewrite outgrew the budget the customer was priced on —
       // the exact failure `maxCharsForBudget` was written to prevent, seen from
       // the delivered side rather than the computed one.
       checks.push({
         name: 'it stays inside the plan duration cap',
-        ok: a.seconds <= 30,
-        detail: `${a.seconds.toFixed(2)}s against the free plan's 30s cap`,
+        ok: a.seconds <= planConfig.maxDurationSeconds,
+        detail: `${a.seconds.toFixed(2)}s against the ${tools.plan} plan's ${planConfig.maxDurationSeconds}s cap`,
+      });
+      // On paid plans the studio must serve the provider the plan sells — Pro+
+      // is priced at 3 credits per 20s BECAUSE it is ElevenLabs. OpenAI audio
+      // billed at the ElevenLabs rate is the premium-rate substitution the
+      // 2026-08-23 round fixed; measured here from the response's own field.
+      checks.push({
+        name: 'the provider is the one the plan sells',
+        ok: str(data.provider) === planConfig.provider,
+        detail: `served by ${str(data.provider) || '(none reported)'}, the ${tools.plan} plan sells ${planConfig.provider}`,
+      });
+      // Informational, never a verdict: the measured read rate against the
+      // constant. CHARS_PER_SECOND=8 was measured on OpenAI TTS ONLY, and its
+      // own comment says ElevenLabs may differ — this line is where that
+      // difference will first show up.
+      checks.push({
+        name: `measured read rate (${planConfig.provider})`,
+        ok: true,
+        detail: `${(VOICEOVER_SCRIPT.length / a.seconds).toFixed(1)} chars/sec delivered; the pricing constant assumes 8 (measured on openai). INFORMATIONAL.`,
       });
       checks.push({
         name: 'it is not digital silence',
@@ -556,11 +737,12 @@ export const STUDIO_CASES: StudioCase[] = [
       return checks;
     },
   },
-];
+  ];
+}
 
 /** What each group costs before fixtures, so `--studios` can be chosen with the
  *  price in view rather than discovered afterwards. */
-export function groupCost(group: StudioGroup, cases: StudioCase[] = STUDIO_CASES): number {
+export function groupCost(group: StudioGroup, cases: StudioCase[]): number {
   return cases.filter((c) => c.group === group).reduce((sum, c) => sum + c.cost, 0);
 }
 
@@ -584,10 +766,10 @@ const COVERED_ELSEWHERE: Record<string, string> = {
   edit: 'covered preset-by-preset by EDIT_CASES, whose own coverage uncoveredPresets() asserts',
 };
 
-export function uncoveredStudios(): string[] {
+export function uncoveredStudios(cases: StudioCase[]): string[] {
   const routed = readdirSync(STUDIO_ROUTE_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  const covered = new Set([...STUDIO_CASES.map((c) => c.studio), ...Object.keys(COVERED_ELSEWHERE)]);
+  const covered = new Set([...cases.map((c) => c.studio), ...Object.keys(COVERED_ELSEWHERE)]);
   return routed.filter((s) => !covered.has(s));
 }

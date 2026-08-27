@@ -48,7 +48,7 @@ import { LOW_EFFECT_THRESHOLD, LOW_OVERALL_THRESHOLD, looksLikeNoOp } from '../.
 import { mintSession } from './session';
 import { EDIT_CASES, FIXTURES, editTypeFor, uncoveredPresets, type EditCase } from './cases';
 import { cornerMarkPresent, editEffect, frameAspect, subjectSpan, whiteBackground, type CheckResult } from './checks';
-import { STUDIO_CASES, groupCost, uncoveredStudios, type CaseTools, type StudioCase, type StudioGroup } from './studio-cases';
+import { buildStudioCases, groupCost, uncoveredStudios, type CaseTools, type StudioCase, type StudioGroup } from './studio-cases';
 
 const ROOT = join(__dirname, '..', '..');
 const DEFAULT_BASE = 'https://pyrasuite.pyramedia.cloud';
@@ -122,13 +122,19 @@ async function download(url: string): Promise<Buffer> {
 /** What the account actually holds, read from the product rather than assumed —
  *  the plan below is only honest if the balance beside it is real. Null when it
  *  cannot be read, which is reported as unknown and never as zero. */
-async function readBalance(cookie: string): Promise<number | null> {
+async function readAccount(cookie: string): Promise<{ balance: number | null; plan: string }> {
   try {
     const res = await fetch(`${BASE}/api/credits/balance`, { headers: { Cookie: cookie }, signal: AbortSignal.timeout(60_000) });
-    const json = (await res.json()) as { data?: { balance?: number } };
-    return typeof json.data?.balance === 'number' ? json.data.balance : null;
+    const json = (await res.json()) as { data?: { balance?: number; planId?: string } };
+    return {
+      balance: typeof json.data?.balance === 'number' ? json.data.balance : null,
+      // 'free' when unreadable: the STRICTER polarity. A paid account misread
+      // as free fails the watermark checks loudly; a free account misread as
+      // paid would skip them silently.
+      plan: typeof json.data?.planId === 'string' ? json.data.planId : 'free',
+    };
   } catch {
-    return null;
+    return { balance: null, plan: 'free' };
   }
 }
 
@@ -171,7 +177,15 @@ async function main(): Promise<void> {
     console.error('Add them to scripts/live/cases.ts with a fixture that contains what they act on.');
     process.exit(1);
   }
-  const studioGaps = uncoveredStudios();
+  // The session comes FIRST now: three figures in the plan below (voiceover
+  // price and cap, watermark polarity, the resolution promise) depend on the
+  // account's live plan, and printing a cost table before knowing the plan
+  // would price the paid sweep with free-plan arithmetic.
+  const session = await mintSession(ROOT, EMAIL);
+  const account = await readAccount(session.cookie);
+  const ALL_STUDIO_CASES = buildStudioCases(account.plan);
+
+  const studioGaps = uncoveredStudios(ALL_STUDIO_CASES);
   if (studioGaps.length) {
     console.error(`REFUSING TO RUN: studios with no case — ${studioGaps.join(', ')}`);
     console.error('Every directory under app/api/studios needs a case in scripts/live/studio-cases.ts,');
@@ -181,7 +195,7 @@ async function main(): Promise<void> {
 
   const groups = selectedGroups();
   const cases = (EDITS_ON ? EDIT_CASES : []).filter((c) => !ONLY || ONLY.includes(c.preset));
-  const studioCases = STUDIO_CASES
+  const studioCases = ALL_STUDIO_CASES
     .filter((c) => groups.has(c.group))
     .filter((c) => !ONLY || ONLY.includes(c.id));
 
@@ -197,6 +211,7 @@ async function main(): Promise<void> {
 
   console.log(`target        ${BASE}`);
   console.log(`account       ${EMAIL}`);
+  console.log(`plan          ${account.plan}${account.plan === 'free' ? '' : '  <- PAID: watermark absence, provider and resolution promises are in force'}`);
   console.log('');
   console.log(`fixtures      ${String(fixtures.length).padStart(2)} images   ${String(fixtureCost).padStart(3)} credits   ${fixtures.join(', ') || '—'}`);
   console.log(`edit cases    ${String(cases.length).padStart(2)} cases    ${String(editCost).padStart(3)} credits   ${EDITS_ON ? '(--edits off to skip)' : '(SKIPPED via --edits off)'}`);
@@ -205,10 +220,10 @@ async function main(): Promise<void> {
   console.log('');
   console.log('groups available (before fixtures):');
   for (const g of GROUPS) {
-    const n = STUDIO_CASES.filter((c) => c.group === g).length;
-    console.log(`  --studios ${g.padEnd(6)} ${String(groupCost(g)).padStart(3)} credits over ${n} case${n === 1 ? '' : 's'}`);
+    const n = ALL_STUDIO_CASES.filter((c) => c.group === g).length;
+    console.log(`  --studios ${g.padEnd(6)} ${String(groupCost(g, ALL_STUDIO_CASES)).padStart(3)} credits over ${n} case${n === 1 ? '' : 's'}`);
   }
-  console.log(`  --studios all    ${String(GROUPS.reduce((s, g) => s + groupCost(g), 0)).padStart(3)} credits over ${STUDIO_CASES.length} cases`);
+  console.log(`  --studios all    ${String(GROUPS.reduce((s, g) => s + groupCost(g, ALL_STUDIO_CASES), 0)).padStart(3)} credits over ${ALL_STUDIO_CASES.length} cases`);
   console.log('');
   console.log(`TOTAL COST    ${cost} credits of real money`);
 
@@ -217,8 +232,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const session = await mintSession(ROOT, EMAIL);
-  const balanceBefore = await readBalance(session.cookie);
+  const balanceBefore = account.balance;
   console.log(`balance       ${balanceBefore === null ? 'unknown' : balanceBefore} credits`);
   if (balanceBefore !== null && balanceBefore < cost) {
     console.error(`\nREFUSING TO RUN: the plan costs ${cost} credits and the account holds ${balanceBefore}.`);
@@ -333,13 +347,30 @@ async function main(): Promise<void> {
         });
       }
 
-      // Free-plan output must carry the mark. It shipped as empty boxes for a
-      // week once, with nothing thrown and nothing logged.
-      rep.checks.push({
-        name: 'free-plan corner mark present',
-        ok: await cornerMarkPresent(out),
-        detail: 'bottom-right corner carries a non-uniform mark',
-      });
+      // Watermark polarity follows the plan. Free output must carry the mark
+      // (it shipped as empty boxes for a week once, with nothing thrown and
+      // nothing logged). Paid plans sell its ABSENCE — assertable only where
+      // the corner is known to be a white field (the marketplace presets),
+      // because on any other output the photo's own texture reads as a mark.
+      if (account.plan === 'free') {
+        rep.checks.push({
+          name: 'free-plan corner mark present',
+          ok: await cornerMarkPresent(out),
+          detail: 'bottom-right corner carries a non-uniform mark',
+        });
+      } else if (c.expect?.pureWhiteBackground) {
+        rep.checks.push({
+          name: 'paid output carries NO watermark',
+          ok: !(await cornerMarkPresent(out)),
+          detail: 'white-field corner must be unmarked on a paid plan — its absence is the paid feature',
+        });
+      } else {
+        rep.checks.push({
+          name: 'watermark absence',
+          ok: true,
+          detail: 'paid plan, textured output — absence judged on the contact sheet. INFORMATIONAL.',
+        });
+      }
 
       rep.status = rep.checks.every((k) => k.ok) ? 'passed' : 'failed';
       const flags = rep.checks.filter((k) => !k.ok).map((k) => k.name).join('; ');
@@ -358,6 +389,7 @@ async function main(): Promise<void> {
     const rep: StudioReport = { id: c.id, studio: c.studio, group: c.group, declared: c.cost, status: 'passed', checks: [] };
     try {
       const tools: CaseTools = {
+        plan: account.plan,
         download,
         keepImage: (file, bytes, label) => {
           writeFileSync(join(dir, file), bytes);
@@ -401,7 +433,7 @@ async function main(): Promise<void> {
     studioReports.push(rep);
   }
 
-  const balanceAfter = await readBalance(session.cookie);
+  const balanceAfter = (await readAccount(session.cookie)).balance;
   const spent = balanceBefore !== null && balanceAfter !== null ? balanceBefore - balanceAfter : null;
 
   // ── Artifacts for the pass this cannot do ───────────────────────────────

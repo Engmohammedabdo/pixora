@@ -123,3 +123,12 @@ export async function frameAspect(buf: Buffer): Promise<number | null> {
   if (!meta.width || !meta.height) return null;
   return meta.width / meta.height;
 }
+
+/** Decoded pixel dimensions — the resolution promise (2K on pro, 4K above) is
+ *  a paid feature that was once silently unfulfilled for every plan, so the
+ *  paid sweep measures it rather than trusting the route. */
+export async function frameSize(buf: Buffer): Promise<{ width: number; height: number } | null> {
+  const meta = await sharp(buf).metadata();
+  if (!meta.width || !meta.height) return null;
+  return { width: meta.width, height: meta.height };
+}
