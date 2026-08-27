@@ -718,16 +718,30 @@ unauthenticated `sign_up`, for a forged `purchase`, and for a malformed body —
 auth is checked before parsing, so the response cannot be used to probe the
 catalogue.
 
-**Not verified, and stated rather than implied:** no event has been observed
-arriving in the GA4 property or in `user_events`. That needs `GA4_API_SECRET` on
-the app service and a real signed-in session. Run one generation and one top-up
-after deploying, then confirm both sinks.
+**`user_events` is CONFIRMED arriving — measured 2026-08-27**, against the live
+database rather than inferred: 83 `generation_started`, 80 `generation_completed`,
+3 `generation_failed`, the newest stamped at the minute a real production
+generation was run. The internal sink works end to end.
+
+**GA4 is enabled but has still never been OBSERVED, and the reason is structural
+rather than a missing setting.** `GA4_API_SECRET` IS set on the app service
+(verified in the Coolify config 2026-08-27; an earlier version of this file said
+otherwise and was stale). `NEXT_PUBLIC_GA_MEASUREMENT_ID` is deliberately unset —
+`lib/analytics/config.ts:8` falls back to the hardcoded property.
+
+What cannot be proved by any API-driven test, including `npm run verify:live`:
+`sendGa4Event()` returns early when there is no `clientId` (`lib/analytics/ga4.ts`),
+and the client id is read from the browser's `_ga` cookie. A session minted with
+`admin.generateLink` has no such cookie, so **every server event from the harness
+is dropped on purpose** — correctly, since minting an id would file the sale under
+a new user with source `(direct)` and corrupt channel ROI. Confirming GA4
+therefore requires a **real browser session**, and is one more thing riding on the
+three browser signups already listed as outstanding.
 
 **Still open:**
-- **`GA4_API_SECRET` is not set**, so the server half of GA4 is skipped — warned once per process, not per event. `user_events` is unaffected.
 - **Custom dimensions are not registered.** `studio`, `plan`, `app_locale` and the rest are collected from the first event but do NOT appear in any GA4 report until registered under Admin → Custom definitions. Unregistered they are still stored and still queryable from BigQuery and the Data API — which reads exactly like a broken tag.
 - **Check Enhanced Measurement → “Page changes based on browser history events”** in the data stream. This is an App Router app: with that toggle off, only landing pageviews are ever recorded. It cannot be read from the code.
-- **Nothing reads `user_events` yet.** The rows accumulate; no admin screen surfaces them.
+- **Nothing reads `user_events` yet.** The rows accumulate — 166 of them as of 2026-08-27 — and no admin screen surfaces them. This is now the gap worth closing: the data exists, the questions it answers do not.
 - `failGeneration()`'s refuse-to-write branch records no event — it has no returned row to take a user id from, and it is already loud in the logs.
 
 ### Project-as-context — built 2026-08-25 (the branch that made two customers differ)
@@ -1024,7 +1038,7 @@ existing print preserved and nothing invented elsewhere.
 | Retrieving a text studio's output after the tab closes | ✅ **fixed 2026-08-23.** Was absent: `plan` (5cr), `analysis` (3cr) and `storyboard` (14cr) wrote their result only into `generations.output` and every read of that column lived under `/app/admin/`, so a reload destroyed paid work. Now `GET /api/generations` (metadata only) and `GET /api/generations/[id]` (one row's output), surfaced by `RecentWork`. The detail route refuses the image studios — their `output` holds 904 kB – 2.8 MB of base64, measured — and answers not-found and not-yours identically so it cannot be used to probe which ids exist. Nothing was lost in practice: those three studios had zero rows. **2026-08-24: `campaign` joined them** via a separate `RETRIEVABLE_STUDIOS` list — its nine captions live only in `output` too, and with images unchecked it writes ZERO asset rows. Its output is not reliably small (persist-image returns inline `data:` URLs on four degradation paths), so the detail route strips inline images by VALUE and enforces a 256 kB ceiling. |
 | Cleaning up replaced brand-kit logos | ❌ a logo the user replaces or abandons stays in the public `uploads` bucket forever. Storage growth only — the object is under the owner's own folder and nothing links to it. |
 | Error tracking (Sentry) | ❌ env vars declared, empty, never read by any line of code. |
-| Product analytics | ✅ **built 2026-08-25** — GA4 traffic **plus** product, revenue and signup events, each written to BOTH `public.user_events` and GA4. See “Product analytics — built 2026-08-25” above for what is and is not measured. **GA4 needs `GA4_API_SECRET` for the server half**; without it `purchase` never reaches GA4 while `user_events` still records it. PostHog remains absent: its env vars are still declared, empty and unread. |
+| Product analytics | ✅ **built 2026-08-25** — GA4 traffic **plus** product, revenue and signup events, each written to BOTH `public.user_events` and GA4. See “Product analytics — built 2026-08-25” above for what is and is not measured. `GA4_API_SECRET` **is set** (verified 2026-08-27) and `user_events` is **confirmed arriving** (166 rows, measured). GA4 itself has still never been observed, and cannot be from an API-driven test — server events need the browser's `_ga` cookie for a client id. PostHog remains absent: its env vars are still declared, empty and unread. |
 
 ---
 
