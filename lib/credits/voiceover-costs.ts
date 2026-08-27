@@ -112,12 +112,27 @@ export function getVoiceoverConfig(planId: string): VoiceoverCostConfig {
  *   - The duration badge on the player, which read roughly double.
  *
  * ── WHY 8 AND NOT THE MEAN OF 9.0 ──────────────────────────────────────────
- * Deliberately the SLOWEST rate observed, rounded down, not the average. This
- * number is bounded on both sides: too low overcharges, too high lets a script
- * through that overruns the plan's own duration cap. Taking the low end of the
- * measured range keeps the cap honest for the slowest voice while still removing
- * most of the overcharge — and the remaining error is now in the customer's
- * favour rather than ours.
+ * Deliberately the SLOWEST rate observed, rounded down, not the average, because
+ * the two things this constant controls want opposite ends of the range:
+ *
+ *   - PRICE wants the FAST end. Underestimating how fast the voice reads makes
+ *     us think the script is longer than it is, which rounds an extra credit on
+ *     at every unit boundary.
+ *   - THE CAP wants the SLOW end. Overestimating the rate admits a script that
+ *     then plays for longer than the duration the plan sells — a 30-second free
+ *     plan handing out 36 seconds.
+ *
+ * The cap wins, so the residual error is NOT in the customer's favour and this
+ * comment said the opposite until a live measurement contradicted it: verified on
+ * production after the fix, a script billed and displayed as 8s plays 7.15s —
+ * ratio 1.12, down from 1.80. We still overstate by about 12%, which costs a
+ * credit only at a unit boundary, and understates how many characters the plan's
+ * own cap can really hold.
+ *
+ * Closing that last 12% is not a matter of picking a better constant. It needs
+ * the price to be settled against the duration actually synthesised, the way the
+ * rewrite is already repriced on `synthesizedChars` — at which point this number
+ * stops being a price input and is only an up-front quote.
  *
  * Measured on OpenAI TTS, Arabic, `formal` dialect, speed 1. ElevenLabs (pro and
  * above) has NOT been measured and may differ; if voiceover pricing is revisited,
