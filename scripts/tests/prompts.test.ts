@@ -16,7 +16,16 @@ import { buildPlanPrompt } from '../../lib/ai/prompts/plan';
 import { buildAnalysisPrompt } from '../../lib/ai/prompts/analysis';
 import { buildStoryboardPrompt } from '../../lib/ai/prompts/storyboard';
 import { buildPhotoshootPrompt } from '../../lib/ai/prompts/photoshoot';
-import { buildEditPrompt } from '../../lib/ai/prompts/edit';
+import {
+  EDIT_PRESETS,
+  EDIT_PRESET_IDS,
+  EDIT_TYPES,
+  buildEditPrompt,
+  editPresetMatchesType,
+  editPresetRequiresBrandColors,
+} from '../../lib/ai/prompts/edit';
+import { buildBrandContextBlock } from '../../lib/ai/prompts/brand-context';
+import type { BrandKit } from '../../lib/supabase/types';
 
 let failures = 0;
 let checks = 0;
@@ -60,6 +69,33 @@ function throws(label: string, fn: () => unknown): void {
     console.log(`FAIL  ${label}\n        expected the builder to throw, it returned a prompt`);
   } catch {
     /* expected */
+  }
+}
+
+/** A plain predicate, for the structural claims about the preset TABLE that no
+ *  single golden string can carry — "every preset belongs to a real editType",
+ *  "no preset is a one-line stub". */
+function ok(label: string, condition: boolean, detail?: string): void {
+  checks++;
+  if (!condition) {
+    failures++;
+    console.log(`FAIL  ${label}${detail ? `\n        ${detail}` : ''}`);
+  }
+}
+
+/** Order matters in a prompt: the TEXT RULE claims to override everything else,
+ *  and a rule that arrives BEFORE the lists it overrides is asking the model to
+ *  hold a claim it has not yet been given the content for. `contains` cannot
+ *  see position. */
+function after(label: string, haystack: string, needle: string, mustFollow: string): void {
+  checks++;
+  const i = haystack.indexOf(needle);
+  const j = haystack.indexOf(mustFollow);
+  if (i === -1 || j === -1 || i < j) {
+    failures++;
+    console.log(
+      `FAIL  ${label}\n        expected ${JSON.stringify(needle)} (at ${i}) to come after ${JSON.stringify(mustFollow)} (at ${j})`
+    );
   }
 }
 
@@ -518,6 +554,252 @@ const planInput = {
 {
   const p = buildEditPrompt({ editType: 'style_transfer', editDescription: 'x' });
   contains('edit/preamble: the customer photo must survive (all modes)', p, 'must survive it');
+}
+
+// ---- edit: the TEXT RULE ----
+//
+// The one fix in this file with a measured before AND after. On 2026-08-25, on
+// production, `gemini` under a loose prompt painted invented garbled Arabic and
+// fake Latin onto a wrapper and a menu board in an image whose prompt said "no
+// extra words"; the same model under a prompt carrying the rule below produced a
+// clean frame. Three things carried it — an override claim, a COUNT plus a NAMED
+// SURFACE, and an ENUMERATION of the surfaces invented text lands on — and each
+// is pinned separately here, because losing any one of them is a silent
+// regression to the version that failed.
+//
+// Every needle is drawn from buildTextRule()'s own emitted lines. None comes from
+// a mode `task`, which is the fallback string an unknown editType also produces.
+{
+  for (const mode of ['background_replace', 'object_remove', 'color_change', 'style_transfer']) {
+    const p = buildEditPrompt({ editType: mode, editDescription: 'a modern office' });
+    contains(`edit/${mode}: the containment rule is stated as an override`, p,
+      'TEXT RULE — this overrides everything else in this prompt');
+    contains(`edit/${mode}: no invented text at all`, p,
+      'Do not add, invent, redraw or translate ANY text');
+    contains(`edit/${mode}: every other surface is enumerated and blanked`, p,
+      'must be COMPLETELY BLANK');
+    // The amendment the quoted rule needed for an EDIT studio: the source photo
+    // already HAS text on it, and "the only text is X" would order the model to
+    // erase the customer's own packaging.
+    contains(`edit/${mode}: the customer's own printed text survives`, p,
+      "Text already printed on the customer's product in the attached photograph stays exactly as photographed");
+    omits(`edit/${mode}: no NEW-text clause on a mode that adds none`, p, 'The only NEW text');
+    after(`edit/${mode}: the override is stated AFTER the lists it overrides`, p,
+      'TEXT RULE —', '\nAvoid:');
+  }
+}
+{
+  const p = buildEditPrompt({ editType: 'text_add', editDescription: 'عرض اليوم' });
+  contains('edit/text_add: the rule names the exact string, delimited', p,
+    'The only NEW text anywhere in the entire image is: "عرض اليوم"');
+  contains('edit/text_add: one occurrence, on a named surface, nowhere else', p,
+    'It appears EXACTLY ONCE, on one clear area of empty space in the image, and nowhere else.');
+  contains('edit/text_add: existing print still survives', p,
+    "Text already printed on the customer's product in the attached photograph stays exactly as photographed");
+  contains('edit/text_add: every other surface is enumerated and blanked', p,
+    'must be COMPLETELY BLANK');
+  after('edit/text_add: the override is stated AFTER the lists it overrides', p,
+    'TEXT RULE —', '\nAvoid:');
+  // The old `avoid` bullet is kept as well. It is not what carried the fix — an
+  // avoid line has no count, no named surface and no override claim — but
+  // deleting it would be a change nothing else here would notice.
+  contains('edit/text_add: the older avoid bullet is still there too', p,
+    'Adding any word that is not between those quotation marks');
+}
+{
+  // A preset's whole contribution to text_add is naming the ONE surface. This is
+  // the half that was measured missing.
+  const badge = buildEditPrompt({ editType: 'text_add', editDescription: 'عرض اليوم', editPreset: 'promo_badge' });
+  contains('edit/promo_badge: the rule names the badge as the one surface', badge,
+    'It appears EXACTLY ONCE, on a single flat badge in the emptiest area of the background, and nowhere else.');
+  const label = buildEditPrompt({ editType: 'text_add', editDescription: 'خصم ٥٠٪', editPreset: 'product_label' });
+  contains('edit/product_label: the rule names the label as the one surface', label,
+    "It appears EXACTLY ONCE, on the product's own front label, and nowhere else.");
+  contains('edit/product_label: the text is printed on, not floated over', label,
+    "Wrap the text to the label's curvature and perspective");
+  contains('edit/promo_badge: the badge never touches the product', badge,
+    'Keep the badge entirely off the product');
+}
+
+// ---- edit: presets, i.e. the customer picking instead of typing ----
+//
+// Needles below come from a preset's `direction`, `must` or `avoid` — never from
+// the mode `task`, and never from the editType slug. `buildEditPrompt` falls back
+// to `Apply the requested edit: <slug with spaces>` for an unknown mode, so a
+// needle like 'background' passes against a completely gutted table and proves
+// nothing. Same trap the four-mode block above documents.
+{
+  const p = buildEditPrompt({ editType: 'background_replace', editPreset: 'marketplace_white' });
+  // The spec a customer cannot reach by typing "white background", and the
+  // reason presets exist at all.
+  contains('edit/marketplace_white: white is a measured value, not an impression', p,
+    'true RGB 255,255,255');
+  contains('edit/marketplace_white: the product fills ~85% of the frame', p,
+    'spans about 85% of the corresponding frame dimension');
+  contains('edit/marketplace_white: no badge, tag or watermark', p, 'rejected outright');
+  contains('edit/marketplace_white: the cutout leaves nothing behind', p,
+    'no surviving pixels of the old background');
+  // A preset REFINES the mode; it does not replace it. Both of these come from
+  // EDIT_MODES.background_replace and must survive a preset being chosen —
+  // otherwise a preset is a way to silently opt out of the mode's guarantees.
+  contains('edit/marketplace_white: the mode cutout rule survives', p, 'no halo, no fringing');
+  contains('edit/marketplace_white: the mode subject rule survives', p,
+    'Altering, moving, cropping or restyling the subject itself');
+  // And the whole point: no typing happened.
+  omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
+}
+{
+  // A preset from a DIFFERENT editType is refused by the route with a 400. The
+  // builder drops it too, so no caller can compose a background swap under a
+  // colour-change task.
+  const p = buildEditPrompt({ editType: 'color_change', editPreset: 'marketplace_white', editDescription: 'make the lid red' });
+  omits('edit: a mismatched preset composes nothing', p, 'true RGB 255,255,255');
+  contains('edit: the mode still stands on its own', p, 'Applying a flat colour fill');
+  ok('edit: the type-match rule refuses a foreign preset',
+    !editPresetMatchesType('marketplace_white', 'color_change'));
+  ok('edit: the type-match rule accepts its own preset',
+    editPresetMatchesType('marketplace_white', 'background_replace'));
+  ok('edit: an unknown preset id matches nothing',
+    !editPresetMatchesType('not_a_preset', 'background_replace'));
+}
+{
+  const preset = buildEditPrompt({ editType: 'background_replace', editPreset: 'marketplace_white' });
+  omits('edit: preset alone requires no typing', preset, 'Customer instruction:');
+  const both = buildEditPrompt({
+    editType: 'background_replace', editPreset: 'marketplace_white', editDescription: 'keep the shadow soft',
+  });
+  contains('edit: a preset and a note compose', both, 'Customer instruction: keep the shadow soft');
+  // The recipe is the specification, the free text is the amendment to it.
+  after('edit: the recipe is read before the amendment', both, 'Customer instruction:', 'Direction:');
+}
+
+// ---- edit: the brand kit reaches the model for the first time ----
+// `buildEditPrompt`'s `brandKit` parameter was documented DEAD until 2026-08-27
+// (review finding F10): the route had no `brandKitId` and never fetched a kit.
+function editKit(overrides: Partial<BrandKit>): BrandKit {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    user_id: '00000000-0000-4000-8000-000000000002',
+    name: 'مطعم الشام',
+    logo_url: null,
+    primary_color: '#1B4D3E',
+    secondary_color: '#E8D8C3',
+    accent_color: '#C8A24A',
+    font_primary: 'Tajawal',
+    font_secondary: 'Inter',
+    brand_voice: null,
+    is_default: true,
+    website_url: null,
+    industry: null,
+    description: null,
+    target_audience: null,
+    city: null,
+    created_at: '2026-08-27T00:00:00.000Z',
+    ...overrides,
+  };
+}
+{
+  const p = buildEditPrompt({
+    editType: 'background_replace', editPreset: 'studio_gradient', brandKit: editKit({}),
+  });
+  contains('edit/studio_gradient: the primary colour reaches the recipe', p,
+    '#1B4D3E in the deeper edge tone');
+  contains('edit/studio_gradient: the secondary colour reaches the recipe', p,
+    '#E8D8C3 in the lighter centre');
+
+  const noKit = buildEditPrompt({ editType: 'background_replace', editPreset: 'studio_gradient' });
+  omits('edit/studio_gradient: no kit means no invented palette', noKit, '#1B4D3E');
+  contains('edit/studio_gradient: no kit degrades to a stated neutral', noKit,
+    'smooth neutral-grey studio gradient sweep');
+}
+{
+  // Every brand_kits colour column is writable to an arbitrary string over
+  // PostgREST — 022's column lockdown covered `profiles`, 042 constrains
+  // `logo_url` alone — and a preset interpolates these straight into the prompt.
+  // "This one reaches the model" and "this one is filtered" are the same claim.
+  throws('edit: a blocked term in a brand colour is refused', () =>
+    buildEditPrompt({
+      editType: 'background_replace', editPreset: 'studio_gradient',
+      brandKit: editKit({ primary_color: 'gun metal' }),
+    })
+  );
+}
+{
+  const p = buildEditPrompt({
+    editType: 'color_change', editPreset: 'brand_color_match', brandKit: editKit({}),
+  });
+  contains('edit/brand_color_match: the brand colour IS the target', p,
+    "Recolour the product's main body panel to exactly #1B4D3E");
+  contains('edit/brand_color_match: the colour sits on the surface, not over it', p,
+    'must sit ON the existing surface');
+  // The route turns this flag into a clean 400 rather than spending a credit on
+  // the model's guess at what "the brand colour" might be.
+  ok('edit: brand_color_match declares that it needs a palette',
+    editPresetRequiresBrandColors('brand_color_match'));
+  ok('edit: a preset that degrades cleanly does not declare it',
+    !editPresetRequiresBrandColors('accurate_color'));
+  ok('edit: an unknown preset id requires nothing',
+    !editPresetRequiresBrandColors('not_a_preset'));
+}
+{
+  // The business facts, arriving the way the route sends them: built once, above
+  // the reservation, and passed IN.
+  const block = buildBrandContextBlock({
+    name: 'مطعم الشام', industry: 'restaurant', description: null, targetAudience: null, city: 'دبي',
+  });
+  const p = buildEditPrompt({
+    editType: 'background_replace', editPreset: 'lifestyle_scene', brandContextBlock: block,
+  });
+  contains('edit: the business facts reach the model', p, '- Business: مطعم الشام');
+  contains('edit: the city reaches the model', p, '- City: دبي');
+  contains('edit: the industry is resolved, not a raw slug', p, '- Industry: restaurant and food service');
+  contains('edit/lifestyle_scene: the recipe points the model AT that block', p,
+    'Take the setting from the CLIENT CONTEXT block above');
+
+  // No kit, no heading. `lifestyle_scene` names CLIENT CONTEXT in its own
+  // direction line, so the needle has to be the block's first FIELD rather than
+  // the heading — otherwise this passes for a prompt that opened a heading over
+  // nothing.
+  const bare = buildEditPrompt({ editType: 'background_replace', editPreset: 'lifestyle_scene' });
+  omits('edit: no facts means no CLIENT CONTEXT body', bare, '- Business:');
+}
+
+// ---- edit: the preset table itself ----
+// Golden strings above pin the presets that carry the most weight. This block
+// pins the SHAPE of every entry, because the failure mode for a table of 14 is
+// one stubbed entry nobody wrote a golden string for.
+{
+  const brand = { safePrimary: '#1B4D3E', safeSecondary: '#E8D8C3', safeAccent: '#C8A24A' };
+  for (const id of EDIT_PRESET_IDS) {
+    const preset = EDIT_PRESETS[id];
+    ok(`edit/${id}: belongs to a real editType`,
+      (EDIT_TYPES as readonly string[]).includes(preset.editType));
+    // A "real recipe, not a one-line stub" — the standard EDIT_MODES and
+    // lib/ai/prompts/photoshoot.ts are held to.
+    ok(`edit/${id}: states at least two MUST rules`, preset.must.length >= 2);
+    ok(`edit/${id}: states at least two AVOID rules`, preset.avoid.length >= 2);
+    ok(`edit/${id}: its direction is a specification, with a brand and without`,
+      preset.direction(null).length >= 120 && preset.direction(brand).length >= 120);
+    // Only text_add can name a text surface, and it always must — that is what
+    // makes "EXACTLY ONCE, on X" statable.
+    ok(`edit/${id}: names a text surface iff it is a text_add preset`,
+      preset.editType === 'text_add' ? Boolean(preset.textSurface) : preset.textSurface === undefined);
+
+    // …and all of it actually reaches the prompt. A perfect table wired to
+    // nothing is the exact shape of the defect this round fixed.
+    const p = buildEditPrompt({ editType: preset.editType, editPreset: id, editDescription: 'عرض اليوم' });
+    contains(`edit/${id}: its direction reaches the prompt`, p, preset.direction(null));
+    contains(`edit/${id}: its first MUST reaches the prompt`, p, preset.must[0]);
+    contains(`edit/${id}: its first AVOID reaches the prompt`, p, preset.avoid[0]);
+  }
+  for (const editType of EDIT_TYPES) {
+    ok(`edit/${editType}: has at least one preset`,
+      EDIT_PRESET_IDS.some((id) => EDIT_PRESETS[id].editType === editType));
+  }
+  // The marketplace white background is the one preset this round was required
+  // to ship. Pinned by id so "we redesigned the set" cannot quietly drop it.
+  ok('edit: the marketplace white preset exists and is a background replace',
+    editPresetMatchesType('marketplace_white', 'background_replace'));
 }
 
 if (failures > 0) {

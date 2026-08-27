@@ -18,7 +18,11 @@ export const PROMPT_VERSIONS: Record<string, string> = {
   marketing_plan: 'v3.0',
   voiceover_enhancer: 'v2.0',
   prompt_builder: 'v3.0',
-  edit: 'v1.0',
+  // v2.0 (2026-08-27): presets replaced the mandatory free-text instruction, the
+  // brand kit reaches the builder for the first time, and the measured TEXT RULE
+  // is stated as an override at the end of every prompt. Three material changes
+  // in one round; a generation recorded under v1.0 was produced by none of them.
+  edit: 'v2.0',
 };
 
 /**
