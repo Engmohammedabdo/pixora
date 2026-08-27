@@ -556,7 +556,7 @@
       },
       "remove_labels": {
         "label": "Remove shop labels",
-        "description": "Takes off price tags, barcodes and stickers and rebuilds the packaging under them."
+        "description": "Takes off price stickers and shop-applied labels and rebuilds the packaging under them."
       },
       "brand_color_match": {
         "label": "Match my brand colour",
