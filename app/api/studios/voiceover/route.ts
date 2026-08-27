@@ -89,7 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const config = getVoiceoverConfig(planId);
 
     // Check duration limit
-    const estimatedDuration = estimateVoiceoverDuration(safeScript.length, parseFloat(input.speed));
+    const estimatedDuration = estimateVoiceoverDuration(safeScript.length, parseFloat(input.speed), planId);
     if (estimatedDuration > config.maxDurationSeconds) {
       return NextResponse.json({
         success: false,
@@ -263,7 +263,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
     const deliveredDuration = estimateVoiceoverDuration(
       ttsResult.synthesizedChars,
-      parseFloat(input.speed)
+      parseFloat(input.speed),
+      // ratePlan, not planId: a fallback serve is read at the provider that
+      // actually spoke, which is the whole point of a per-provider rate.
+      ratePlan
     );
 
     let creditsCharged = creditCost;

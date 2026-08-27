@@ -49,7 +49,7 @@ for (const plan of PLANS) {
         // Only legitimate when the plan cap, not the price, is the binding limit.
         check(
           `${plan}@${speed}/${len}: budget below the priced length only when capped`,
-          estimateVoiceoverDuration(len, speed) > cap,
+          estimateVoiceoverDuration(len, speed, plan) > cap,
           true
         );
         continue;
@@ -62,13 +62,13 @@ for (const plan of PLANS) {
       );
       check(
         `${plan}@${speed}/${len}: the budget fits the plan duration cap`,
-        estimateVoiceoverDuration(budget, speed) <= cap,
+        estimateVoiceoverDuration(budget, speed, plan) <= cap,
         true
       );
       check(
         `${plan}@${speed}/${len}: one character past the budget costs more or breaches the cap`,
         calculateVoiceoverCost(budget + 1, speed, plan) > quoted ||
-          estimateVoiceoverDuration(budget + 1, speed) > cap,
+          estimateVoiceoverDuration(budget + 1, speed, plan) > cap,
         true
       );
     }
@@ -102,6 +102,20 @@ for (const plan of PLANS) {
     700 > maxCharsForBudget(quoted, 1, 'starter'),
     true
   );
+}
+
+// ---- The PRO worked example: the rate is per provider now. ----
+//
+// Measured 2026-08-28 on the first paid live sweep: ElevenLabs reads Arabic at
+// 10.7 chars/sec over the text actually spoken, twice consistently, while the
+// OpenAI-derived 8 overstated every Pro badge 1.37x. Pro is priced 3 credits
+// per 20s, so 300 chars at 10/sec is 30s -> 2 units -> 6 credits, and those 6
+// credits buy 2 x 20s x 10 = 400 characters of budget.
+{
+  const quoted = calculateVoiceoverCost(300, 1, 'pro');
+  check('pro/300ch/1x is quoted at 6 credits', quoted, 6);
+  check('pro/300ch/1x budgets 400 characters', maxCharsForBudget(quoted, 1, 'pro'), 400);
+  check('the pro budget covers the quoted script', maxCharsForBudget(quoted, 1, 'pro') >= 300, true);
 }
 
 // ---- A budget is never negative or zero, even at the smallest quote. ----

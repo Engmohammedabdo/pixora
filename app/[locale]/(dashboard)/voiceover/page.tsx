@@ -73,7 +73,7 @@ export default function VoiceOverPage(): React.ReactElement {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const estimatedDuration = estimateVoiceoverDuration(script.length, parseFloat(speed));
+  const estimatedDuration = estimateVoiceoverDuration(script.length, parseFloat(speed), planId);
   const creditCost = calculateVoiceoverCost(script.length, parseFloat(speed), planId);
   const isValid = script.length >= 1 && estimatedDuration <= config.maxDurationSeconds;
   const { balance, status: creditsStatus } = useCredits();

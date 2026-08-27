@@ -536,7 +536,15 @@ export function buildStudioCases(plan: string): StudioCase[] {
       const withUrl = shots.filter((sh) => typeof sh.url === 'string' && sh.url);
       const checks: CheckResult[] = [
         noMockMarker('no [mock] leaf reached a paid photoshoot', shots),
-        realModelCheck(shots.every((sh) => sh.mock !== true) && shots.length > 0),
+        // NOT realModelCheck(boolean): that helper takes the MOCK FLAG, and
+        // handing it "all shots are real === true" reads as mock=true — the
+        // inverted check failed a healthy run on 2026-08-28. Same shape as the
+        // single-shot case, stated directly.
+        {
+          name: 'a real model served every shot',
+          ok: shots.length > 0 && shots.every((sh) => sh.mock !== true),
+          detail: `mock flags: ${shots.map((sh) => String(sh.mock)).join(', ') || 'none'}`,
+        },
         countCheck('the requested shots were delivered', withUrl.length, 3),
         // The money identity: a missing shot must be refunded, not absorbed.
         // With all three delivered, creditsUsed must equal the price; short

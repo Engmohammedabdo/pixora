@@ -134,24 +134,45 @@ export function getVoiceoverConfig(planId: string): VoiceoverCostConfig {
  * rewrite is already repriced on `synthesizedChars` — at which point this number
  * stops being a price input and is only an up-front quote.
  *
- * Measured on OpenAI TTS, Arabic, `formal` dialect, speed 1. ElevenLabs (pro and
- * above) has NOT been measured and may differ; if voiceover pricing is revisited,
- * measure it there before assuming this carries over.
+ * ── ELEVENLABS MEASURED 2026-08-28, AND IT DIFFERS ─────────────────────────
+ * The first paid live sweep (Pro plan, real ElevenLabs, Arabic) measured the
+ * delivered rate over `synthesizedChars` — the text actually spoken, which on
+ * rewriting plans is NOT the submitted script — twice, consistently:
+ *
+ *     93 chars -> 8.70s   (10.7/sec)      ~96 chars -> 8.78s   (10.9/sec)
+ *
+ * At the OpenAI-derived 8, every ElevenLabs duration badge overstated 1.37x,
+ * and a script whose estimate crossed a 20-second unit boundary that its real
+ * audio did not was charged a whole premium unit (3 credits) too many. So the
+ * constant is now PER PROVIDER, resolved through the plan that names the
+ * provider — the same low-end rule for both: the slowest measured rate,
+ * rounded down, so the cap stays honest for the slowest voice and the
+ * residual error costs us rather than the customer.
  */
-const CHARS_PER_SECOND = 8;
+const PROVIDER_CHARS_PER_SECOND: Record<VoiceoverCostConfig['provider'], number> = {
+  openai: 8,
+  elevenlabs: 10,
+};
+
+function charsPerSecondFor(planId: string): number {
+  return PROVIDER_CHARS_PER_SECOND[getVoiceoverConfig(planId).provider];
+}
 
 export function calculateVoiceoverCost(scriptLength: number, speed: number, planId: string): number {
   const config = getVoiceoverConfig(planId);
-  const estimatedSeconds = Math.ceil((scriptLength / CHARS_PER_SECOND) / speed);
+  const estimatedSeconds = Math.ceil((scriptLength / charsPerSecondFor(planId)) / speed);
   const units = Math.max(1, Math.ceil(estimatedSeconds / config.unitSeconds));
   return units * config.creditsPerUnit;
 }
 
 /**
- * Estimate duration from script length and speed.
+ * Estimate duration from script length and speed. Takes the plan because the
+ * plan names the provider and the provider sets the read rate — an estimate
+ * computed at the wrong provider's rate is exactly the 1.37x badge the paid
+ * sweep measured.
  */
-export function estimateVoiceoverDuration(scriptLength: number, speed: number): number {
-  return Math.round((scriptLength / CHARS_PER_SECOND) / speed);
+export function estimateVoiceoverDuration(scriptLength: number, speed: number, planId: string): number {
+  return Math.round((scriptLength / charsPerSecondFor(planId)) / speed);
 }
 
 /**
@@ -177,5 +198,5 @@ export function maxCharsForBudget(creditCost: number, speed: number, planId: str
   const units = Math.max(1, Math.floor(creditCost / config.creditsPerUnit));
   const secondsAffordable = units * config.unitSeconds;
   const secondsAllowed = Math.min(secondsAffordable, config.maxDurationSeconds);
-  return Math.max(1, Math.floor(secondsAllowed * speed * CHARS_PER_SECOND));
+  return Math.max(1, Math.floor(secondsAllowed * speed * charsPerSecondFor(planId)));
 }
