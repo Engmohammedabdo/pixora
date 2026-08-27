@@ -13,8 +13,8 @@ import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
 import { formatFromUrl } from '@/lib/storage/image-format';
-import { Download, RefreshCw, AlertTriangle, Pencil, Info, X } from 'lucide-react';
-import { Link } from '@/i18n/routing';
+import { Download, RefreshCw, AlertTriangle, Info, X } from 'lucide-react';
+import { EditNextActions } from '@/components/studios/EditNextActions';
 
 interface CreatorPreviewProps {
   imageUrls: string[];
@@ -158,6 +158,11 @@ export function CreatorPreview({
               className="w-full h-auto"
             />
           </div>
+          {/* Directly under the image it acts on, in both branches. The old
+              pencil sat in the bottom action bar and always pointed at
+              imageUrls[0], so on a four-variation run three of the four images
+              had no way forward at all. */}
+          <EditNextActions imageUrl={imageUrls[0]} withTitle className="mt-3" />
         </motion.div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -184,6 +189,7 @@ export function CreatorPreview({
                   <Download className="h-4 w-4" />
                 </button>
               </div>
+              <EditNextActions imageUrl={url} className="mt-2" />
             </motion.div>
           ))}
         </div>
@@ -198,15 +204,6 @@ export function CreatorPreview({
         <Button variant="outline" onClick={onRegenerate} className="gap-2">
           <RefreshCw className="h-4 w-4" />
           {t('regenerate')}
-        </Button>
-        <Button variant="ghost" asChild className="gap-2">
-          <Link
-            href={`/edit?src=${encodeURIComponent(imageUrls[0])}`}
-            aria-label={tCreator('editImage')}
-            title={tCreator('editImage')}
-          >
-            <Pencil className="h-4 w-4" />
-          </Link>
         </Button>
       </div>
     </div>

@@ -11,6 +11,7 @@ import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
 import { formatFromUrl } from '@/lib/storage/image-format';
 import Image from 'next/image';
+import { EditNextActions } from '@/components/studios/EditNextActions';
 import { Download, AlertTriangle } from 'lucide-react';
 
 export interface PhotoshootShot {
@@ -106,35 +107,45 @@ export function PhotoshootPreview({
         </Button>
       </div>
 
-      {/* Grid */}
+      {/* Grid.
+          Each tile carries its OWN next actions, keyed on `shot.url` — the same
+          rule `handleDownloadAll` states about `shot.index`: the customer acts
+          on the shot they are looking at, and the filtered-position bug this
+          file already fixed once for filenames is the identical mistake in
+          another coat. This studio had no edit link at all, which made it the
+          largest gap in the product for a customer whose whole job is product
+          photographs. */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {shots.map((shot) => (
-          <div key={shot.index} className="relative group rounded-lg overflow-hidden border">
-            {shot.url ? (
-              <>
-                <div className="relative w-full aspect-square">
-                  <Image src={shot.url} alt={`Shot ${shot.index + 1}`} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" unoptimized />
+          <div key={shot.index} className="space-y-2">
+            <div className="relative group rounded-lg overflow-hidden border">
+              {shot.url ? (
+                <>
+                  <div className="relative w-full aspect-square">
+                    <Image src={shot.url} alt={`Shot ${shot.index + 1}`} fill className="object-cover" sizes="(max-width: 768px) 50vw, 33vw" unoptimized />
+                  </div>
+                  <div className="absolute inset-0 bg-black/0 lg:group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                      aria-label={tShoot('downloadShot', { number: shot.index + 1 })}
+                      onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full aspect-square bg-surface-2 flex items-center justify-center text-sm text-[var(--color-text-muted)]">
+                  {t('failed')}
                 </div>
-                <div className="absolute inset-0 bg-black/0 lg:group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                    aria-label={tShoot('downloadShot', { number: shot.index + 1 })}
-                    onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="w-full aspect-square bg-surface-2 flex items-center justify-center text-sm text-[var(--color-text-muted)]">
-                {t('failed')}
-              </div>
-            )}
-            <Badge variant="secondary" className="absolute top-2 start-2 text-[10px]">
-              #{shot.index + 1}
-            </Badge>
+              )}
+              <Badge variant="secondary" className="absolute top-2 start-2 text-[10px]">
+                #{shot.index + 1}
+              </Badge>
+            </div>
+            {shot.url && <EditNextActions imageUrl={shot.url} />}
           </div>
         ))}
       </div>

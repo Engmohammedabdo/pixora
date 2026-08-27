@@ -321,8 +321,7 @@
     "emptyState": "النتيجة ستظهر هنا",
     "surpriseMe": "فاجئني بفكرة",
     "generatedImageAlt": "صورة مولّدة بواسطة بايرا",
-    "generatedImageAltNumbered": "صورة مولّدة بواسطة بايرا رقم {number}",
-    "editImage": "تعديل الصورة"
+    "generatedImageAltNumbered": "صورة مولّدة بواسطة بايرا رقم {number}"
   },
   "photoshoot": {
     "title": "تصوير المنتجات",
