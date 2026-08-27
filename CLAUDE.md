@@ -1019,6 +1019,53 @@ existing print preserved and nothing invented elsewhere.
 - **The OpenAI image-edit adapter still does not exist**, so `edit` remains pinned
   to gemini. Now a quality option rather than a blocker.
 
+### The paid plans, measured — 2026-08-28 (sprint P0-1)
+
+Until this date **no paid path had ever been run**: every live measurement was
+made on a free account, and ElevenLabs, 2K/4K, unwatermarked output, the
+12-credit campaign and multi-shot photoshoot were all unexercised. The founder
+authorized a ledgered 150-credit grant and the e2e account moved to Pro; the
+harness became plan-aware (`buildStudioCases(plan)`, polarity-flipping
+watermark checks, per-plan voiceover arithmetic, a resolution promise check)
+and the whole paid surface was run against production.
+
+**Proved, with the run artifacts as evidence** (`.superpowers/live-runs/2026-08-27T21-*`):
+
+| Promise | Measured |
+|---|---|
+| Paid output carries NO watermark | asserted on the white-field marketplace outputs; confirmed by eye on every textured output |
+| Pro sells 2K | 3072×5504 delivered — the promise is exceeded, not merely met |
+| Pro voiceover is ElevenLabs | `provider: elevenlabs` from the response itself |
+| Campaign at 12 credits | 9 posts + 9 images, refund identity holds (delivered + failed = 9, charge = price − refund), captions 100% Arabic, images ad-grade by eye |
+| Multi-shot photoshoot | 3 delivered, pairwise-distinct (same-image-sold-twice is measured, not assumed), charge matches delivery |
+| Marketplace presets on paid | Amazon square and noon portrait both fully green, unwatermarked |
+
+**Found and fixed — the premium tier had its own version of the 1.8× defect.**
+ElevenLabs reads Arabic at **10.3–10.9 chars/sec over `synthesizedChars`** (the
+text actually spoken — the original script length is the WRONG numerator on
+rewriting plans, which the first paid run proved by printing 7.6 from it). At
+the OpenAI-derived 8, every Pro duration badge overstated 1.37×, and a script
+whose estimate crossed a 20s unit boundary its real audio did not was charged a
+whole 3-credit unit too many. `PROVIDER_CHARS_PER_SECOND { openai: 8,
+elevenlabs: 10 }`, resolved through the plan; `estimateVoiceoverDuration` takes
+the plan, and the route's delivered-duration reprices at `ratePlan` so a
+fallback serve is read at the rate of the provider that actually spoke.
+The badge's journey, all measured on production: **1.80 → 1.12 (openai) and
+1.37 → 1.02 (elevenlabs)**. `voiceover-budget` grew a Pro worked example (546).
+
+**Two harness defects of mine, found by their own run and recorded because the
+shape recurs:** two case bodies used invented field names instead of the
+routes' real `InputSchema`s (copy the schema, never recall it), and
+`realModelCheck` was handed "all shots are real" — a boolean — where it takes
+the MOCK FLAG, so a healthy run failed with `mock=true`. A checker's checks
+need the same adversarial reading as the product's.
+
+**Still unmeasured, stated rather than implied:** business/agency 4K (a
+different model id — `geminiImagePro`), the ElevenLabs premium voices
+(`el_premium_*`), the starter plan, and every dialect other than `formal`/
+`emirati`. The harness now runs as whatever plan the account holds, so each of
+these is one plan-switch away.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
