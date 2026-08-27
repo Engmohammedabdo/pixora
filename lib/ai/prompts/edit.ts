@@ -126,7 +126,11 @@ const EDIT_MODES: Record<string, { task: string; must: string[]; avoid: string[]
       'Render any Arabic as connected cursive script running right-to-left, each glyph in its correct contextual form (initial, medial, final, isolated)',
       'Reproduce only the diacritics (harakat) that appear in the given text — no more, no fewer',
       'Keep the given text in its own language: no transliteration, no translation',
-      'Place it in existing negative space with enough contrast to be legible',
+      // "in existing negative space" was the earlier wording, and on a frame
+      // with none it reads as a precondition rather than a preference — the
+      // model declined rather than compromised. Stated as an ordering now, so
+      // there is always a legal placement.
+      'Place it in the clearest space available, preferring empty areas, with enough contrast to be legible',
       'Match the perspective and lighting of the surface it sits on',
     ],
     avoid: [
@@ -393,12 +397,19 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     editType: 'text_add',
     textSurface: "the product's own front label",
     direction: () =>
-      "Set the customer's text onto the product's own front label surface, as though it had been printed there in the same production run as the artwork already on it — same ink, same press, same substrate.",
+      "Set the customer's text onto the product's own front label surface, as though it had been printed there in the same production run as the artwork already on it — same ink, same press, same substrate. If the label carries no clear area large enough to hold the text legibly, place it instead on the largest uninterrupted area of the product's own packaging — still on the product, still matched to its print.",
     must: [
       "Wrap the text to the label's curvature and perspective so it sits ON the surface rather than floating above it",
       "Match the existing print: same finish, same sheen, same slight ink absorption as the label's own type",
-      "Size it within the label's existing type hierarchy — never larger than the product name already printed there",
-      "Keep the text entirely inside the label, never crossing the product's silhouette",
+      // NOT "never larger than the product name already printed there". Measured
+      // on production 2026-08-27: on a wrapper covered edge to edge in small
+      // repeated print, that ceiling plus "place it in existing negative space"
+      // left the model nowhere to put anything legible, and it declined — the
+      // edit came back visually unchanged twice while the route returned 200 and
+      // charged for it. Legibility is the point of putting a name on a product;
+      // a rule that can drive the type to invisible is the wrong rule.
+      'Size it to be clearly legible at a glance, and no larger than it needs to be for that',
+      "Keep the text on the product itself, never crossing its silhouette into the background",
     ],
     avoid: [
       'Flat, perfectly rectangular text pasted over a curved surface',

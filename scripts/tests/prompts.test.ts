@@ -655,6 +655,47 @@ const planInput = {
   omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
 }
 {
+  // NO text_add RULE MAY BE A PRECONDITION WITH NO LEGAL PLACEMENT.
+  //
+  // Measured on production 2026-08-27, twice, on the same image: `product_label`
+  // returned the customer's photograph visually unchanged while the route
+  // answered 200 and charged a credit. The same mode with NO preset rendered the
+  // Arabic large, clean and correctly joined on the first try — so the mode, the
+  // script rules and the containment rule were all fine. The preset was not.
+  //
+  // Two of its rules could not both be met on a wrapper printed edge to edge:
+  // "place it in existing negative space" (there was none) and "never larger
+  // than the product name already printed there" (which drives the type toward
+  // invisible). A model facing a precondition it cannot satisfy declines, and
+  // declining is indistinguishable from success at the HTTP layer.
+  //
+  // HONEST LIMIT: no prompt test can prove a model will act. These pin the
+  // WORDING that was measured to matter — an ordering the model can always
+  // satisfy, and a fallback surface when the first choice has no room.
+  const label = buildEditPrompt({
+    editType: 'text_add', editPreset: 'product_label', editDescription: 'شاورما الشام',
+  } as never);
+
+  omits('edit/product_label: no ceiling that can drive the type to invisible', label,
+    'never larger than the product name');
+  contains('edit/product_label: legibility is the size rule', label,
+    'clearly legible at a glance');
+  contains('edit/product_label: a fallback surface when the label has no room', label,
+    'If the label carries no clear area large enough');
+
+  // The mode-level placement rule must be a PREFERENCE, not a precondition, for
+  // every text_add prompt — including the preset-less path that already works.
+  for (const preset of [undefined, 'product_label', 'promo_badge']) {
+    const p = buildEditPrompt({
+      editType: 'text_add', editPreset: preset, editDescription: 'شاورما الشام',
+    } as never);
+    contains(`edit/text_add${preset ? `/${preset}` : ''}: placement is an ordering, not a precondition`, p,
+      'Place it in the clearest space available, preferring empty areas');
+    omits(`edit/text_add${preset ? `/${preset}` : ''}: drops the absolute negative-space demand`, p,
+      'Place it in existing negative space');
+  }
+}
+{
   // A text_add prompt MUST NOT declare its own target surface off-limits.
   //
   // Measured on production 2026-08-27: `product_label` was a NO-OP. 1.93% of
