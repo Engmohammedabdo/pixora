@@ -75,11 +75,28 @@ for (const plan of PLANS) {
   }
 }
 
-// ---- The worked example from the audit: Starter, 300 chars, speed 1. ----
+// ---- The worked example: Starter, 300 chars, speed 1. ----
+//
+// The figures here changed on 2026-08-27 and the reason is worth stating,
+// because a test whose numbers move looks like a test being bent to fit.
+//
+// `CHARS_PER_SECOND` was 5 and is now 8, measured against three Arabic scripts
+// whose delivered MP3s were parsed frame by frame on production. At 5 the
+// product billed 1.8x the audio it handed over. So this example is quoted at 3
+// credits where it used to be 4 — the same script, correctly priced, one credit
+// cheaper — and the budget those credits buy is 360 characters rather than 300.
+//
+// What did NOT change is the property this file exists to hold: the budget is
+// still the exact inverse of the price, still bounded by the plan's duration
+// cap, and every one of the 500-odd generated cases above still proves it. Only
+// the anchor moved.
 {
   const quoted = calculateVoiceoverCost(300, 1, 'starter');
-  check('starter/300ch/1x is quoted at 4 credits', quoted, 4);
-  check('starter/300ch/1x budgets exactly 300 characters', maxCharsForBudget(quoted, 1, 'starter'), 300);
+  check('starter/300ch/1x is quoted at 3 credits', quoted, 3);
+  check('starter/300ch/1x budgets 360 characters', maxCharsForBudget(quoted, 1, 'starter'), 360);
+  // The budget must still COVER the script the customer was quoted for — a
+  // budget below the typed length would truncate work already paid for.
+  check('the budget covers the script it was quoted for', maxCharsForBudget(quoted, 1, 'starter') >= 300, true);
   check(
     'a 700-character rewrite is over budget and must be refused',
     700 > maxCharsForBudget(quoted, 1, 'starter'),

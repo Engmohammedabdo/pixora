@@ -507,19 +507,27 @@ export const STUDIO_CASES: StudioCase[] = [
         ok: a.seconds >= 1,
         detail: `${a.seconds.toFixed(2)}s measured from the frame headers; the route reported ${String(data.duration)}s`,
       });
-      // THIS CHECK FAILS ON PRODUCTION TODAY, AND THAT IS THE FINDING.
+      // WHAT THIS CHECK FOUND, AND WHAT IT COST TO FIND.
       //
-      // The price, the plan's duration cap and the badge on the player are all
-      // computed from estimateVoiceoverDuration()'s "~5 chars per second for
-      // Arabic" (lib/credits/voiceover-costs.ts:99-104). Nothing in the product
-      // has ever compared that constant against the audio a provider actually
-      // returns, and no gate can: test:voiceover-budget's 508 checks prove the
-      // char budget is the exact inverse of the price, which stays true whatever
-      // the constant is. Measured here 2026-08-27 against live OpenAI TTS, one
-      // 67-character Arabic script at speed 1: billed 13s, delivered 7.37s.
+      // It failed on production when it was written: one 67-character Arabic
+      // script, billed and displayed as 13s, delivered 6.96s of audio. Three
+      // scripts were then measured (33 / 67 / 130 chars), each MP3 parsed frame
+      // by frame and cross-checked against file size over bitrate:
       //
-      // Do NOT widen this tolerance to make the run green. Either the constant
-      // moves in lib/credits/voiceover-costs.ts, or this line records the
+      //     33ch -> 4.01s (8.2/sec)   67ch -> 6.96s (9.6)   130ch -> 14.35s (9.1)
+      //
+      // The constant behind the price, the plan's duration cap and this badge
+      // assumed 5 chars/sec. It is now 8 — the SLOWEST rate observed, not the
+      // mean, because the number is bounded on both sides and the remaining
+      // error should sit in the customer's favour.
+      //
+      // No gate could have caught it. test:voiceover-budget's 500+ checks prove
+      // the char budget is the exact inverse of the price, which stays true
+      // whatever the constant is, because both sides read the same constant.
+      // Only comparing the constant against real audio can.
+      //
+      // Do NOT widen this tolerance to make a run green. Either the constant
+      // moves in lib/credits/voiceover-costs.ts, or this comment records the
       // decision not to move it and says why.
       const reported = typeof data.duration === 'number' ? data.duration : null;
       if (reported !== null && reported > 0) {

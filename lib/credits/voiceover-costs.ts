@@ -89,10 +89,45 @@ export function getVoiceoverConfig(planId: string): VoiceoverCostConfig {
 /**
  * Calculate voiceover credit cost based on estimated duration and plan.
  */
+/**
+ * How fast the provider actually reads, in characters per second at speed 1.
+ *
+ * ── THIS WAS 5, AND IT WAS WRONG BY 1.8x ───────────────────────────────────
+ * Measured on production 2026-08-27 against three Arabic scripts, with the
+ * delivered MP3 parsed frame by frame and cross-checked against file size over
+ * bitrate (both derivations agreed to the centisecond):
+ *
+ *     chars   billed as   actually played   real rate
+ *        33          7s             4.01s     8.2/sec
+ *        67         13s             6.96s     9.6/sec
+ *       130         26s            14.35s     9.1/sec
+ *
+ * One constant sets three things, so a single wrong number was wrong three
+ * times over, all against the customer:
+ *   - PRICE. The 130-char script cost 2 credits for 14.35s of audio; the free
+ *     plan bills 1 credit per 15 seconds, so it should have cost 1.
+ *   - THE PLAN'S DURATION CAP. Free is sold as "30 seconds" and at 5 chars/sec
+ *     admitted only 150 characters — about 17 seconds of real speech. Customers
+ *     were getting a little over half the length they were sold.
+ *   - The duration badge on the player, which read roughly double.
+ *
+ * ── WHY 8 AND NOT THE MEAN OF 9.0 ──────────────────────────────────────────
+ * Deliberately the SLOWEST rate observed, rounded down, not the average. This
+ * number is bounded on both sides: too low overcharges, too high lets a script
+ * through that overruns the plan's own duration cap. Taking the low end of the
+ * measured range keeps the cap honest for the slowest voice while still removing
+ * most of the overcharge — and the remaining error is now in the customer's
+ * favour rather than ours.
+ *
+ * Measured on OpenAI TTS, Arabic, `formal` dialect, speed 1. ElevenLabs (pro and
+ * above) has NOT been measured and may differ; if voiceover pricing is revisited,
+ * measure it there before assuming this carries over.
+ */
+const CHARS_PER_SECOND = 8;
+
 export function calculateVoiceoverCost(scriptLength: number, speed: number, planId: string): number {
   const config = getVoiceoverConfig(planId);
-  // ~5 chars per second for Arabic at normal speed
-  const estimatedSeconds = Math.ceil((scriptLength / 5) / speed);
+  const estimatedSeconds = Math.ceil((scriptLength / CHARS_PER_SECOND) / speed);
   const units = Math.max(1, Math.ceil(estimatedSeconds / config.unitSeconds));
   return units * config.creditsPerUnit;
 }
@@ -101,7 +136,7 @@ export function calculateVoiceoverCost(scriptLength: number, speed: number, plan
  * Estimate duration from script length and speed.
  */
 export function estimateVoiceoverDuration(scriptLength: number, speed: number): number {
-  return Math.round((scriptLength / 5) / speed);
+  return Math.round((scriptLength / CHARS_PER_SECOND) / speed);
 }
 
 /**
@@ -115,11 +150,11 @@ export function estimateVoiceoverDuration(scriptLength: number, speed: number): 
  * for and breaches the plan's own limit, and a shorter one charges for silence.
  *
  * Derivation, against calculateVoiceoverCost above:
- *   cost    = max(1, ceil(ceil((len/5)/speed) / unitSeconds)) * creditsPerUnit
+ *   cost    = max(1, ceil(ceil((len/CHARS_PER_SECOND)/speed) / unitSeconds)) * creditsPerUnit
  *   so      units      = cost / creditsPerUnit
  *           maxSeconds = units * unitSeconds
- *           len        <= maxSeconds * speed * 5
- * and independently the cap requires len <= maxDurationSeconds * speed * 5.
+ *           len        <= maxSeconds * speed * CHARS_PER_SECOND
+ * and independently the cap requires len <= maxDurationSeconds * speed * CHARS_PER_SECOND.
  * The smaller of the two wins; floored, because a partial character buys nothing.
  */
 export function maxCharsForBudget(creditCost: number, speed: number, planId: string): number {
@@ -127,5 +162,5 @@ export function maxCharsForBudget(creditCost: number, speed: number, planId: str
   const units = Math.max(1, Math.floor(creditCost / config.creditsPerUnit));
   const secondsAffordable = units * config.unitSeconds;
   const secondsAllowed = Math.min(secondsAffordable, config.maxDurationSeconds);
-  return Math.max(1, Math.floor(secondsAllowed * speed * 5));
+  return Math.max(1, Math.floor(secondsAllowed * speed * CHARS_PER_SECOND));
 }
