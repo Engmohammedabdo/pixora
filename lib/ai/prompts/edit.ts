@@ -542,7 +542,25 @@ export function editPresetRequiresBrandColors(presetId: string): boolean {
 function buildTextRule(editType: string, safeText: string, safeSurface: string): string {
   const header = `\n\nTEXT RULE — this overrides everything else in this prompt:`;
   const survives = `\n- Text already printed on the customer's product in the attached photograph stays exactly as photographed — same characters, same script, same position. Reproduce it; never redraw, translate or move it.`;
-  const blank = `\n- Every other surface — packaging, labels, menu boards, windows, price cards, neighbouring products, background signage — must be COMPLETELY BLANK. No lettering, no numbers, no logos, no decorative script of any kind.`;
+  // "ADD NOTHING", not "BE BLANK".
+  //
+  // The wording proved on production 2026-08-25 was "every other surface must be
+  // COMPLETELY BLANK", and it is correct THERE — that was creator, a
+  // text-to-image path, where nothing exists yet and blank is the desired end
+  // state. Carried into an EDIT it means something entirely different: erase
+  // what is in the customer's photograph.
+  //
+  // It did exactly that. Measured 2026-08-27 across all fourteen presets:
+  // `luxury_editorial` wiped a background menu board — which legitimately read
+  // شاورما الشام in the source — to a blank card, while `warm_appetite` and
+  // `bright_ecommerce` preserved it. The instruction was being obeyed; it was
+  // the instruction that was wrong, and it was destroying real content in one
+  // preset out of three by luck of interpretation.
+  //
+  // Stated as a prohibition on ADDING now. The anti-invention intent is intact —
+  // that is the defect this line was written for — without ordering the model to
+  // delete a sign the customer photographed on purpose.
+  const blank = `\n- Do not introduce text onto any surface that does not already carry it. Packaging, labels, menu boards, windows, price cards, neighbouring products and background signage all keep exactly what the photograph shows — no lettering, numbers, logos or decorative script added anywhere, and none removed.`;
 
   if (editType === 'text_add') {
     // NOT `blank`. Measured on production 2026-08-27: with the shared blank

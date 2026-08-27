@@ -576,8 +576,17 @@ const planInput = {
       'TEXT RULE — this overrides everything else in this prompt');
     contains(`edit/${mode}: no invented text at all`, p,
       'Do not add, invent, redraw or translate ANY text');
-    contains(`edit/${mode}: every other surface is enumerated and blanked`, p,
+    // "ADD NOTHING", never "BE BLANK". The blank form was proved on the
+    // GENERATION path, where nothing exists yet — carried into an edit it orders
+    // the model to erase what the customer photographed, and on 2026-08-27
+    // `luxury_editorial` did exactly that to a background menu board that
+    // legitimately read شاورما الشام, while two sibling presets preserved it.
+    contains(`edit/${mode}: forbids ADDING text rather than demanding blankness`, p,
+      'Do not introduce text onto any surface that does not already carry it');
+    omits(`edit/${mode}: never orders an existing surface erased`, p,
       'must be COMPLETELY BLANK');
+    contains(`edit/${mode}: says explicitly that nothing is removed either`, p,
+      'and none removed');
     // The amendment the quoted rule needed for an EDIT studio: the source photo
     // already HAS text on it, and "the only text is X" would order the model to
     // erase the customer's own packaging.
@@ -730,7 +739,8 @@ const planInput = {
   const bg = buildEditPrompt({
     editType: 'background_replace', editPreset: 'marketplace_white',
   } as never);
-  contains('edit/non-text modes keep the blanket blank rule', bg, 'must be COMPLETELY BLANK');
+  contains('edit/non-text modes keep the containment rule', bg,
+    'Do not introduce text onto any surface that does not already carry it');
   contains('edit/non-text modes still forbid inventing text', bg,
     'Do not add, invent, redraw or translate ANY text');
 }
