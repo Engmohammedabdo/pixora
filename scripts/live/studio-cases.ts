@@ -507,6 +507,30 @@ export const STUDIO_CASES: StudioCase[] = [
         ok: a.seconds >= 1,
         detail: `${a.seconds.toFixed(2)}s measured from the frame headers; the route reported ${String(data.duration)}s`,
       });
+      // THIS CHECK FAILS ON PRODUCTION TODAY, AND THAT IS THE FINDING.
+      //
+      // The price, the plan's duration cap and the badge on the player are all
+      // computed from estimateVoiceoverDuration()'s "~5 chars per second for
+      // Arabic" (lib/credits/voiceover-costs.ts:99-104). Nothing in the product
+      // has ever compared that constant against the audio a provider actually
+      // returns, and no gate can: test:voiceover-budget's 508 checks prove the
+      // char budget is the exact inverse of the price, which stays true whatever
+      // the constant is. Measured here 2026-08-27 against live OpenAI TTS, one
+      // 67-character Arabic script at speed 1: billed 13s, delivered 7.37s.
+      //
+      // Do NOT widen this tolerance to make the run green. Either the constant
+      // moves in lib/credits/voiceover-costs.ts, or this line records the
+      // decision not to move it and says why.
+      const reported = typeof data.duration === 'number' ? data.duration : null;
+      if (reported !== null && reported > 0) {
+        const ratio = reported / a.seconds;
+        checks.push({
+          name: 'the billed duration matches the audio that was delivered',
+          ok: ratio <= 1.35 && ratio >= 1 / 1.35,
+          detail: `billed and displayed ${reported}s, the file plays ${a.seconds.toFixed(2)}s — ratio ${ratio.toFixed(2)} (tolerance 0.74-1.35). ` +
+            'Over 1 means the customer is charged for, and capped at, more audio than they receive.',
+        });
+      }
       // The free plan's own cap (lib/credits/voiceover-costs.ts). Exceeding it
       // means the LLM rewrite outgrew the budget the customer was priced on —
       // the exact failure `maxCharsForBudget` was written to prevent, seen from
