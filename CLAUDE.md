@@ -748,7 +748,7 @@ Now the business facts are collected **once** — optionally read off the custom
 | Onboarding starts from the customer's website | ✅ built | `components/onboarding/WebsiteStep.tsx` — skip, success and failure all land on the same editable form **by construction**, not by three parallel paths |
 | `POST /api/brand-kits/extract` | ✅ built | auth → config check → throttle (5/60, fails CLOSED) → 90 s deadline → 256 kB bounded read. Our container **never fetches a customer URL** — it calls one fixed n8n webhook from env |
 | n8n + Apify extraction workflow | ⚠️ deployed, **inactive** | id `qH3LzMlpap3VRjPm`. Needs its own header credential — the current one is **shared** with another workflow |
-| Arabic text on generated images | ⚠️ **partially works — measured, not assumed** | Verified on production 2026-08-25 with a real generation (`mock: false`, 1 credit). The requested string rendered **correctly joined and right-to-left**, no diacritics, no transliteration — the rule holds. **But the model also painted invented, garbled Arabic and fake Latin onto the wrapper and the menu board in the same image**, against the prompt's explicit "no extra words". So the joining/RTL half is proved and the "set only this text" half is not. See below |
+| Arabic text on generated images | ✅ **works — proved on production, both halves** | Verified 2026-08-25 and again 2026-08-27 with real generations (`mock: false`). Fidelity was never the problem: the requested string renders correctly joined, right-to-left, no invented harakat, no transliteration. Containment WAS the problem and was a PROMPT defect, not a model one — the same model that invented garbled text under a loose prompt produced a completely clean frame under an explicit one-occurrence rule. See "The Arabic containment fix" below |
 | `food` environment in photoshoot, six real recipes | ✅ built | `lib/ai/prompts/photoshoot.ts` |
 | `profiles.onboarding_step` written for the first time | ✅ fixed | read by `ProfileCompletion.tsx:23` since it was built, written by **nothing** until now |
 | `sharp` declared | ✅ fixed | resolved only via `next@15.5.14`'s hoisted transitive; the free-plan watermark is fail-CLOSED, so a hoisting change fails **every** free-plan image |
@@ -900,6 +900,101 @@ onboarding signups end to end in a browser.
 - **`docs/INVARIANTS.md` was stale at 11 of 17 rules** and is now complete. It goes stale
   silently; there is no gate on it.
 
+
+### The edit studio — project context, presets, and the Arabic containment fix (2026-08-27)
+
+The owner's framing, and it was right: *"I'm a paying subscriber with a project.
+This is a **product photography** studio. I should not be writing prompts — the
+system already understands my project, so generating AND editing should both be
+correct and dynamic from that."*
+
+Two things were measured before any code, and one of them corrected a claim this
+file had been making.
+
+**1. Garbled Arabic was a PROMPT defect, not a model defect.** The 2026-08-25
+entry blamed the model. Wrong. `gemini` and `gpt-image-2` were run on production
+with the same brief: both render the requested Arabic correctly. `gemini`
+invented extra garbled text; `gpt` did not. Then `gemini` was run again with an
+explicit one-occurrence rule and every other surface came back **completely
+blank**. The rule that worked is now `buildTextRule()` in `lib/ai/prompts/edit.ts`.
+
+**2. "Any model can edit an image if the prompt is right" is false at the API
+layer**, and this repo already documented it. `lib/ai/openai.ts` posts to
+`/v1/images/generations`, which has **no image field at all**; `lib/ai/replicate.ts`
+sends `{prompt,width,height}` to `flux-1.1-pro`. `router.ts:67` already guards
+this with `IMAGE_INPUT_CAPABLE = ['gemini']` because routing an edit to those
+adapters *"silently discards the customer's photo … while still charging for it."*
+The **models** can edit (`gpt-image-2` via `/v1/images/edits`, flux via kontext);
+**our adapters** cannot. No prompt fills a missing request field. Building that
+adapter is real work and was **deliberately deprioritised** — it was not the
+blocker.
+
+| What | State | Proof |
+|------|-------|-------|
+| `edit` receives the customer's brand context | ✅ built | explicit kit → project kit → account default, the `photoshoot` pattern. `edit.ts`'s branch documented DEAD since F10 is finally fed |
+| 14 presets instead of a free-text box | ✅ built | `EDIT_PRESETS`. `editDescription` is now optional — except `text_add`, where it is the text to render, not an instruction |
+| Marketplace-grade white background | ✅ **proved on production** | `marketplace_white`: 6 of 6 background sample points exactly `rgb(255,255,255)` |
+| Arabic text onto the customer's own product | ✅ **proved on production** | three runs, same image — see below |
+| Named next actions after a generation | ✅ built | `EditNextActions` on creator AND photoshoot. Photoshoot had **no** edit link at all, and it is the product-photography studio |
+| Free-plan watermark | ✅ changed | one corner mark instead of a grid across the merchandise |
+
+#### The failure that no gate in this repo could have caught
+
+`product_label` returned the customer's photograph **visually unchanged**, twice,
+while the route answered **200**, charged a credit, and wrote an asset row.
+Nothing threw. `tsc`, `eslint`, 17 invariants and 306 prompt checks were green
+for the broken version and the working one alike.
+
+It took three production runs to isolate, and the decisive one was the run that
+**removed** a variable: the same mode with **no preset** rendered شاورما الشام
+large, clean, correctly joined and right-to-left on the first try. So the mode,
+the Arabic rules and the containment rule were all fine — the preset was not.
+
+Two causes, found in that order:
+
+1. **The containment rule named its own target.** The shared blank line listed
+   *"packaging, labels"* as surfaces that must be COMPLETELY BLANK, and on a
+   product close-up the label is exactly where `product_label` puts the text. The
+   model was told to print on the label, leave labels blank, keep existing print
+   exactly, and not redraw the label's artwork. Doing nothing breaks none of
+   them. `text_add` now states containment as an **exclusion of its own target**
+   — a fixed list of nouns cannot know what a preset aimed at, which is precisely
+   how it came to name it.
+2. **The preset demanded space that did not exist.** *"Place it in existing
+   negative space"* (there was none, on a wrapper printed edge to edge) plus
+   *"never larger than the product name already printed there"* (which drives the
+   type toward invisible). A model facing a precondition it cannot satisfy
+   declines — and at the HTTP layer declining is indistinguishable from success.
+   Placement is now an **ordering** the model can always satisfy, the size rule
+   is legibility, and the preset names a fallback surface.
+
+**Proved:** after the second fix, the same request put شاورما الشام on the
+wrapper itself, following the wrap's curvature in the same brown ink, with the
+existing print preserved and nothing invented elsewhere.
+
+#### Two notes on method, both of which cost a round
+
+- **The pixel diff is a weak discriminator for text edits.** It was used to call
+  the first run a no-op and was directionally right, but the run that visibly
+  **worked** scores 3.19% changed against 2.67% for one that did nothing — text
+  occupies too little of the frame. Looking at the image decided all three runs.
+  Do not build a gate on that number.
+- **A prompt test cannot prove a model will act.** The nine checks added here pin
+  the *wording* measured to matter. That limit is stated where they live, because
+  a test that looks like a behavioural guarantee and is not is worse than no test.
+
+#### Still open, deliberately
+
+- **A studio can bill for a no-op and nothing notices.** Three failed runs each
+  returned 200 with a credit charged. A post-generation check comparing input to
+  output would catch it — but the obvious metric is the weak one above, so this
+  needs a real design, not a threshold.
+- **`marketplace_white` does not reach its own 85% framing rule.** The model keeps
+  the source composition. Re-framing is **arithmetic, not judgement**: a
+  deterministic `sharp` crop after the model gives exactly 85% every time, where a
+  stronger sentence gives "about". Not attempted.
+- **The OpenAI image-edit adapter still does not exist**, so `edit` remains pinned
+  to gemini. Now a quality option rather than a blocker.
 
 ### Not built — do not describe these as done
 
