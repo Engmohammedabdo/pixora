@@ -206,6 +206,16 @@ interface EditPreset {
    * that retouches the customer's photo rather than re-staging it.
    */
   aspectRatio?: '1:1' | '2:3';
+  /**
+   * The background is a NUMBER, not a look: after generation the route runs
+   * `snapWhiteField()`, which flood-fills from the frame borders and sets the
+   * connected near-white field to exact 255. Measured need, not a precaution —
+   * the same prompt produced exact 255 on one canvas and a 246–253 warm white
+   * on the other in a single live run (2026-08-27). Only for presets whose
+   * spec states the background as an RGB value; everywhere else an off-white
+   * background is the customer's photograph.
+   */
+  pureWhiteField?: true;
 }
 
 /**
@@ -271,6 +281,7 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     // extend the white field, never crop or stretch the product — because a
     // precondition it cannot meet is how a preset no-ops at HTTP 200.
     aspectRatio: '1:1',
+    pureWhiteField: true,
     // "No props in the background" was measured insufficient on 2026-08-27: on
     // a styled food photo the model read the board, cutlery and side bowls as
     // FOREGROUND belonging to the product and kept the whole arrangement on
@@ -304,6 +315,7 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     // specs disagree on the one thing a seller cannot fix after the fact: the
     // shape of the canvas.
     aspectRatio: '2:3',
+    pureWhiteField: true,
     direction: () =>
       'Re-stage the product onto a PORTRAIT 2:3 canvas with a pure white seamless studio background built to the noon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The subject is the product ITSELF and nothing else — any board, plate, bowl, cutlery, cloth, stand or loose garnish around it belongs to the background and is replaced by the white field along with it. The canvas is portrait regardless of the original photo’s shape — centre the product and extend the white field to fill it.',
     must: [
@@ -579,6 +591,12 @@ export function editPresetRequiresBrandColors(presetId: string): boolean {
  *  original is the self-contradiction documented on `aspectRatio` above. */
 export function editPresetAspectRatio(presetId: string): '1:1' | '2:3' | null {
   return isEditPresetId(presetId) ? EDIT_PRESETS[presetId].aspectRatio ?? null : null;
+}
+
+/** Whether the route should snap the background to exact 255 after
+ *  generation. See `pureWhiteField` on the preset type. */
+export function editPresetPureWhiteField(presetId: string): boolean {
+  return isEditPresetId(presetId) && EDIT_PRESETS[presetId].pureWhiteField === true;
 }
 
 /**

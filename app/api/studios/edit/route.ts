@@ -8,8 +8,10 @@ import {
   buildEditPrompt,
   editPresetAspectRatio,
   editPresetMatchesType,
+  editPresetPureWhiteField,
   editPresetRequiresBrandColors,
 } from '@/lib/ai/prompts/edit';
+import { snapWhiteFieldOnDataUrl } from '@/lib/image/white-field';
 import { buildBrandContextBlock } from '@/lib/ai/prompts/brand-context';
 import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
@@ -341,6 +343,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', user.id)
         .single();
       const planId = profile?.plan_id || 'free';
+
+      // ── THE MARKETPLACE WHITE IS A NUMBER, NOT A LOOK ─────────────────────
+      // For presets whose spec states the background as an RGB value, snap the
+      // border-connected near-white field to exact 255. Measured need: the same
+      // prompt produced exact 255 on one canvas and a 246–253 warm white on the
+      // other in a single live run (2026-08-27). BEFORE the effect measurement,
+      // so what is measured is what ships. Fail-open inside the helper.
+      if (result.url && input.editPreset && editPresetPureWhiteField(input.editPreset)) {
+        result.url = await snapWhiteFieldOnDataUrl(result.url);
+      }
 
       // ── DID THIS EDIT ACTUALLY CHANGE ANYTHING? ───────────────────────────
       // Measured HERE, before persistGeneratedImage replaces `result.url` with a
