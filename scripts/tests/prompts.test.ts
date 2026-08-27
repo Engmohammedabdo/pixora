@@ -649,6 +649,38 @@ const planInput = {
   omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
 }
 {
+  // THE PALETTE IS GATED ON THE PRESET, NOT ON THE KIT EXISTING.
+  //
+  // This repo shipped the identical contradiction once in the sibling studio:
+  // "The photoshoot BRAND block asked for colour 'in the set dressing' and was
+  // appended to `white_studio`, which specifies 'no props'". Handing a model a
+  // palette while the same prompt forbids colour is an instruction pulling the
+  // other way, and on `marketplace_white` losing that argument means a tinted
+  // background — a rejected listing, not a matter of taste.
+  const kit = { primary_color: '#C8102E', secondary_color: '#1B1B1B', accent_color: '#F5C518' };
+
+  const white = buildEditPrompt({
+    editType: 'background_replace', editPreset: 'marketplace_white', brandKit: kit,
+  } as never);
+  omits('edit/palette: marketplace_white never carries the brand palette', white, 'Brand Colors:');
+  omits('edit/palette: nor the primary hex by any other route', white, '#C8102E');
+
+  // The preset that exists to USE the palette must still receive it, or the
+  // gate above would be indistinguishable from deleting the feature.
+  const match = buildEditPrompt({
+    editType: 'color_change', editPreset: 'brand_color_match', brandKit: kit,
+  } as never);
+  contains('edit/palette: brand_color_match still receives it', match, 'Brand Colors:');
+  contains('edit/palette: brand_color_match receives the real hex', match, '#C8102E');
+
+  // Free text keeps it: the customer may be naming their own colours in words,
+  // and the model needs the hex to match what they meant.
+  const free = buildEditPrompt({
+    editType: 'background_replace', editDescription: 'خلي الخلفية بلون علامتي', brandKit: kit,
+  } as never);
+  contains('edit/palette: the free-text path still receives it', free, 'Brand Colors:');
+}
+{
   // A preset from a DIFFERENT editType is refused by the route with a 400. The
   // builder drops it too, so no caller can compose a background swap under a
   // colour-change task.

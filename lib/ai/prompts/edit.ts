@@ -615,7 +615,22 @@ export function buildEditPrompt(input: EditPromptInput): string {
     prompt += `\nCustomer instruction: ${safeDescription}`;
   }
 
-  if (brandColors) {
+  // Gated on the preset, NOT merely on the kit existing.
+  //
+  // This repo has already shipped this exact contradiction once, in the sibling
+  // studio: "The photoshoot BRAND block asked for colour 'in the set dressing'
+  // and was appended to `white_studio`, which specifies 'no props'"
+  // (CLAUDE.md, 2026-08-24 round). Handing a model a palette while the same
+  // prompt forbids colour is not a neutral extra fact — it is an instruction
+  // pulling the other way, and `marketplace_white` is the preset where losing
+  // that argument is most expensive: a tinted background is a rejected
+  // marketplace listing, not a matter of taste.
+  //
+  // So the palette is emitted only where a preset actually consumes it, or on
+  // the free-text path, where the customer may well be referring to their own
+  // colours in words and the model needs the hex to match them.
+  const presetUsesBrandColors = preset ? preset.requiresBrandColors === true : true;
+  if (brandColors && presetUsesBrandColors) {
     prompt += `\nBrand Colors: Primary ${brandColors.safePrimary}, Secondary ${brandColors.safeSecondary}, Accent ${brandColors.safeAccent}`;
   }
 
