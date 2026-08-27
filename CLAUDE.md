@@ -989,10 +989,19 @@ existing print preserved and nothing invented elsewhere.
   returned 200 with a credit charged. A post-generation check comparing input to
   output would catch it — but the obvious metric is the weak one above, so this
   needs a real design, not a threshold.
-- **`marketplace_white` does not reach its own 85% framing rule.** The model keeps
-  the source composition. Re-framing is **arithmetic, not judgement**: a
-  deterministic `sharp` crop after the model gives exactly 85% every time, where a
-  stronger sentence gives "about". Not attempted.
+- ~~`marketplace_white` does not reach its own 85% framing rule.~~ **RETRACTED
+  2026-08-27 — the claim was mine and it was wrong.** The rule asks that the
+  product's *longest side* span about 85% of the corresponding frame dimension.
+  Measured on the real output: subject bbox 1162×516 in a 1376×768 frame, so
+  1162/1376 = **84.4%**. The preset met it. What I had actually measured was the
+  share of non-white **pixels** (26%) — an AREA figure — and compared it against a
+  LINEAR rule. A `sharp` re-framing step was written on that premise and deleted
+  unbuilt rather than shipped as dead code.
+  Still open as a *product* question, not a defect: the output inherits the
+  source's aspect ratio, so a landscape photo stays landscape, while both
+  marketplaces want a square main image. Squaring is a deliberate choice with a
+  visible cost — a wide product in a square frame reads smaller — and belongs to
+  whoever owns the listing, not to a silent post-process.
 - **The OpenAI image-edit adapter still does not exist**, so `edit` remains pinned
   to gemini. Now a quality option rather than a blocker.
 
