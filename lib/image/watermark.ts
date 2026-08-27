@@ -4,6 +4,19 @@ import { getPlan } from '@/lib/stripe/plans';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
+ * The wordmark burned into free-plan output.
+ *
+ * `system_settings.app_config.watermark_text` holds the same string on the live
+ * database and is read by NOTHING — the previous implementation hardcoded it
+ * here too. Left as a literal rather than wired up, because a watermark that
+ * changes on a database write is a way to ship an image marked with someone
+ * else's brand, and this is a fail-closed path. If it ever should be
+ * configurable, that is a deliberate feature with its own validation, not a
+ * `.select()` added here.
+ */
+const MARK_TEXT = 'PyraSuite';
+
+/**
  * Apply "PyraSuite" watermark to generated images for Free plan users.
  * Uses sharp to composite a semi-transparent diagonal text overlay.
  * The watermark is burned into the pixels — not a CSS overlay.
@@ -182,8 +195,44 @@ async function probeTextRendering(): Promise<void> {
 }
 
 /**
- * Apply diagonal repeating "PyraSuite" watermark across the entire image.
- * Semi-transparent white text with dark shadow for visibility on any background.
+ * Apply the free-plan "PyraSuite" mark to one corner of the image.
+ *
+ * ── WHY A CORNER MARK AND NOT THE TILED DIAGONAL IT REPLACED ───────────────
+ * This used to stamp rotated "PyraSuite" across the WHOLE frame at 15% opacity,
+ * roughly 30 times on a 1024px image. Founder decision, 2026-08-25: keep the
+ * mark, move it to a single corner the way Gemini marks its own output.
+ *
+ * The reasoning is commercial, and it is worth writing down because the tiled
+ * version looks like the "safer" choice and is not:
+ *
+ *   - This is a PRODUCT PHOTOGRAPHY product. A tiled overlay does not protect a
+ *     product shot, it destroys it — the mark sits directly on the merchandise,
+ *     which is the one part of the frame a customer is judging. The free tier
+ *     stops being a demonstration of quality and becomes a demonstration of
+ *     watermarking.
+ *   - A free plan exists to show someone what they would be buying. A mark that
+ *     makes the output unshowable does not convert; it just makes the free tier
+ *     look worse than a competitor's free tier.
+ *
+ * What it does NOT change: the mark is still burned in before the single upload,
+ * still fail-CLOSED (see `assertTextRenderingAvailable` above and the refusal on
+ * unknown dimensions below), and the clean original is still never served.
+ *
+ * ── ONE THING TO KNOW BEFORE ANYONE CALLS THIS "SOLVED" ────────────────────
+ * Amazon.ae and Noon both REQUIRE a main product image with no watermark, no
+ * text and no logo of any kind, on a pure-white background. A corner mark is
+ * still a mark: a free-plan image cannot be listed as a main image on either
+ * marketplace. That is a pricing decision (mark-free output is a paid feature),
+ * not a bug — recorded here so it is discovered now rather than by a customer
+ * whose listing was rejected.
+ *
+ * ── WHY A PILL BEHIND THE TEXT ─────────────────────────────────────────────
+ * White text alone is invisible on exactly the background this product produces
+ * most often: the pure-white studio sweep. A single translucent dark pill is
+ * legible on white, on black and on a busy lifestyle scene, and reads as a
+ * deliberate credit rather than as damage. The tiled version needed no such
+ * thing only because it covered everything and was therefore always over
+ * *something*.
  */
 export async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
   await assertTextRenderingAvailable();
@@ -195,33 +244,54 @@ export async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
   // probe above covers: the overlay was built at the guessed size and pasted at
   // top-left, so on anything larger the rest of the image carried no mark at
   // all — composite() succeeded, nothing threw, and persist-image.ts took the
-  // success path. If sharp cannot report the dimensions we cannot cover the
-  // image, so refuse rather than half-cover it.
+  // success path. If sharp cannot report the dimensions we cannot place the
+  // mark correctly, so refuse rather than mark the wrong place.
   const { width, height } = metadata;
   if (!width || !height) {
     throw new Error('Cannot watermark: image dimensions unavailable');
   }
 
-  const fontSize = Math.max(24, Math.round(Math.min(width, height) * 0.035));
-  const lineHeight = fontSize * 3;
+  const shorterSide = Math.min(width, height);
 
-  const watermarkLines: string[] = [];
+  // Scales with the image so a 4K shot is not marked with 14px type and a small
+  // thumbnail is not half-covered. Clamped at both ends because the ratio alone
+  // misbehaves outside the sizes this product actually generates.
+  const fontSize = Math.min(44, Math.max(13, Math.round(shorterSide * 0.028)));
+  const margin = Math.max(10, Math.round(shorterSide * 0.022));
 
-  for (let y = -height; y < height * 2; y += lineHeight) {
-    for (let x = -width; x < width * 2; x += fontSize * 10) {
-      // Shadow for readability on light backgrounds
-      watermarkLines.push(
-        `<text x="${x + 1}" y="${y + 1}" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="bold" fill="black" fill-opacity="0.08" transform="rotate(-30,${x},${y})">PyraSuite</text>`
-      );
-      // Main watermark text
-      watermarkLines.push(
-        `<text x="${x}" y="${y}" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="bold" fill="white" fill-opacity="0.15" transform="rotate(-30,${x},${y})">PyraSuite</text>`
-      );
-    }
+  // Arial Bold advances at roughly 0.58em per character across this wordmark.
+  // Approximate on purpose: sharp cannot measure text, and the pill only has to
+  // contain the glyphs, not fit them exactly.
+  const textWidth = Math.round(MARK_TEXT.length * fontSize * 0.58);
+  const padX = Math.round(fontSize * 0.6);
+  const padY = Math.round(fontSize * 0.34);
+
+  const pillWidth = textWidth + padX * 2;
+  const pillHeight = fontSize + padY * 2;
+  const pillX = width - margin - pillWidth;
+  const pillY = height - margin - pillHeight;
+
+  // A mark that would not fit inside its own image is not a mark. Better to
+  // return the image unmarked-shaped than to paste a pill larger than the frame
+  // — but this must still FAIL, because free-plan output is never served clean.
+  if (pillX < 0 || pillY < 0) {
+    throw new Error(
+      `Cannot watermark: image ${width}x${height} is too small for the corner mark ` +
+        `(${pillWidth}x${pillHeight} plus margin)`
+    );
   }
 
+  const textX = pillX + padX;
+  const textBaseline = pillY + padY + Math.round(fontSize * 0.8);
+  const radius = Math.round(pillHeight / 2);
+
   const svgOverlay = Buffer.from(
-    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${watermarkLines.join('')}</svg>`
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">` +
+      `<rect x="${pillX}" y="${pillY}" width="${pillWidth}" height="${pillHeight}" ` +
+      `rx="${radius}" ry="${radius}" fill="black" fill-opacity="0.30"/>` +
+      `<text x="${textX}" y="${textBaseline}" font-family="Arial,Helvetica,sans-serif" ` +
+      `font-size="${fontSize}" font-weight="bold" fill="white" fill-opacity="0.92">${MARK_TEXT}</text>` +
+      `</svg>`
   );
 
   return image
