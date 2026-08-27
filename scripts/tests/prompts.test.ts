@@ -685,7 +685,8 @@ const planInput = {
   // One preset per marketplace, because the two specs disagree on the canvas.
   const p = buildEditPrompt({ editType: 'background_replace', editPreset: 'noon_white' });
   contains('edit/noon_white: the canvas is portrait 2:3', p, 'PORTRAIT 2:3 canvas');
-  contains('edit/noon_white: the fill follows noon, not Amazon', p, 'about 70–80% of the portrait frame');
+  contains('edit/noon_white: the fill follows noon, not Amazon', p, 'height spans 70–80% of the frame height');
+  contains('edit/noon_white: the error direction is stated', p, 'err toward LARGER, never smaller');
   contains('edit/noon_white: white is a measured value here too', p, 'true RGB 255,255,255');
   contains('edit/noon_white: noon rejection reasons are stated', p, 'hard shadows and hard reflections');
   contains('edit/noon_white: the subject is defined here too', p,

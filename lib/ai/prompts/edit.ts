@@ -319,7 +319,7 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     direction: () =>
       'Re-stage the product onto a PORTRAIT 2:3 canvas with a pure white seamless studio background built to the noon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The subject is the product ITSELF and nothing else — any board, plate, bowl, cutlery, cloth, stand or loose garnish around it belongs to the background and is replaced by the white field along with it. The canvas is portrait regardless of the original photo’s shape — centre the product and extend the white field to fill it.',
     must: [
-      'Scale and centre the product so it occupies about 70–80% of the portrait frame, with even margins and nothing clipped at the edges',
+      'Scale the product LARGE and centre it: its height spans 70–80% of the frame height — when in doubt err toward LARGER, never smaller, with nothing clipped at the edges. Measured across three live runs the failure mode is always a product rendered too small in the portrait frame',
       'Show the product completely alone on the white — a marketplace main image is rejected for any accessory, dish or surface that is not physically part of the product',
       'Keep the white a flat, even 255,255,255 everywhere the product is not — measured as a value, not as an impression of brightness',
       'Ground the product with a light, soft contact shadow directly beneath it only — noon rejects hard shadows and hard reflections by name',

@@ -327,6 +327,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // the customer the length of a script that was never read aloud.
         duration: deliveredDuration,
         provider: ttsResult.provider,
+        // What was actually read aloud, in characters. The settlement already
+        // reprices on this figure; exposing it makes the delivered read rate
+        // MEASURABLE from outside — on rewriting plans the original script
+        // length is the wrong numerator, which the first paid live sweep
+        // demonstrated (2026-08-28). Diagnostic, not rendered by the player.
+        synthesizedChars: ttsResult.synthesizedChars,
         enhanced: ttsResult.enhanced,
         // The customer paid the premium rate for a dialect; if the rewrite failed they
         // received a plain reading of their own text and nothing said so.

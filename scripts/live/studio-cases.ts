@@ -526,7 +526,7 @@ export function buildStudioCases(plan: string): StudioCase[] {
     fixture: 'clean_white',
     intent: 'three shots for one price: all delivered, all distinct, and a partial failure refunds its own share',
     body: (tools) => ({
-      imageUrl: tools.fixture?.url,
+      productImageUrl: tools.fixture?.url,
       environment: 'luxury',
       shots: 3,
     }),
@@ -585,9 +585,9 @@ export function buildStudioCases(plan: string): StudioCase[] {
     cost: CREDIT_COSTS.campaign,
     intent: 'the full 12-credit campaign: nine captions AND nine images, any failed image refunded and disclosed',
     body: () => ({
-      productName: 'شاورما الشام',
-      description: 'مطعم شاورما في الكرامة بدبي، وصفات شامية أصيلة وتوصيل سريع',
-      audience: 'سكان دبي المهتمون بالمأكولات الشامية',
+      productDescription: 'مطعم شاورما الشام في الكرامة بدبي — وصفات شامية أصيلة وتوصيل سريع',
+      targetAudience: 'سكان دبي المهتمون بالمأكولات الشامية، من 20 إلى 45 سنة',
+      dialect: 'emirati',
       platform: 'instagram',
       generateImages: true,
     }),
@@ -724,10 +724,17 @@ export function buildStudioCases(plan: string): StudioCase[] {
       // constant. CHARS_PER_SECOND=8 was measured on OpenAI TTS ONLY, and its
       // own comment says ElevenLabs may differ — this line is where that
       // difference will first show up.
+      // synthesizedChars is what was actually read aloud. On rewriting plans
+      // (pro+, toneEnabled) the original script length is the WRONG numerator —
+      // the first paid run printed 7.6 chars/sec from the original 67 chars
+      // while the billed estimate implied ~10.9 on the ~96-char rewrite.
+      const spoken = typeof data.synthesizedChars === 'number' ? data.synthesizedChars : null;
       checks.push({
         name: `measured read rate (${planConfig.provider})`,
         ok: true,
-        detail: `${(VOICEOVER_SCRIPT.length / a.seconds).toFixed(1)} chars/sec delivered; the pricing constant assumes 8 (measured on openai). INFORMATIONAL.`,
+        detail: spoken === null
+          ? `route did not report synthesizedChars — rate UNMEASURABLE on a rewriting plan (original ${VOICEOVER_SCRIPT.length} chars / ${a.seconds.toFixed(2)}s = ${(VOICEOVER_SCRIPT.length / a.seconds).toFixed(1)}, a floor only). INFORMATIONAL.`
+          : `${(spoken / a.seconds).toFixed(1)} chars/sec over the ${spoken} chars actually spoken; the pricing constant assumes 8 (measured on openai). INFORMATIONAL.`,
       });
       checks.push({
         name: 'it is not digital silence',
