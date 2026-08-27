@@ -539,6 +539,31 @@ export function editPresetRequiresBrandColors(presetId: string): boolean {
  * own line saying it survives untouched. Dropping that line to keep the
  * quoted wording byte-identical would trade one defect for a worse one.
  */
+/** Arabic combining marks: fatha .. sukun, plus superscript alef and the
+ *  Quranic range that image models like to decorate with. */
+const ARABIC_HARAKAT = /[ً-ْٰۖ-ۭ]/;
+
+/**
+ * A CONCRETE claim about the customer's actual text, not a general instruction.
+ *
+ * `must` already carried "reproduce only the diacritics that appear in the given
+ * text — no more, no fewer", and on production 2026-08-27 the model ignored it:
+ * given `شاورما الشام`, with no harakat at all, it printed `شَاوُرمَا الشَّام` —
+ * four invented marks. Every measured check passed; it was visible only at zoom
+ * on the label.
+ *
+ * A rule phrased as a relation ("only the ones that appear") asks the model to
+ * inspect the input and infer a count. Naming the fact directly — this string has
+ * none, do not add any — is a claim it can check in one step, and it is generated
+ * per request rather than asserted in general, so a customer who DOES supply
+ * vowelled text gets the opposite instruction and keeps their marks.
+ */
+function buildDiacriticsRule(safeText: string): string {
+  return ARABIC_HARAKAT.test(safeText)
+    ? `\n- The text carries harakat exactly where shown. Reproduce those and add no others.`
+    : `\n- The text carries NO harakat at all. Do not add fatha, damma, kasra, shadda, sukun or any other diacritic to any letter — set the letters bare, exactly as given.`;
+}
+
 function buildTextRule(editType: string, safeText: string, safeSurface: string): string {
   const header = `\n\nTEXT RULE — this overrides everything else in this prompt:`;
   const survives = `\n- Text already printed on the customer's product in the attached photograph stays exactly as photographed — same characters, same script, same position. Reproduce it; never redraw, translate or move it.`;
@@ -582,6 +607,7 @@ function buildTextRule(editType: string, safeText: string, safeSurface: string):
       header +
       `\n- The only NEW text anywhere in the entire image is: "${safeText}"` +
       `\n- It appears EXACTLY ONCE, on ${safeSurface}, and nowhere else.` +
+      buildDiacriticsRule(safeText) +
       `\n- Add it there even if that surface already carries printed artwork — set the new text into the space around that artwork without redrawing, covering or removing it.` +
       survives +
       `\n- No text of any kind is added to any surface other than ${safeSurface}. Every one of those other surfaces keeps exactly what the photograph shows — nothing added, nothing invented, nothing removed.`

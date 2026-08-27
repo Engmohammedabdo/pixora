@@ -664,6 +664,33 @@ const planInput = {
   omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
 }
 {
+  // THE DIACRITICS RULE IS A CLAIM ABOUT THE ACTUAL TEXT, NOT A RELATION.
+  //
+  // Measured on production 2026-08-27: given `شاورما الشام`, which carries no
+  // harakat at all, the model printed `شَاوُرمَا الشَّام` — four invented marks —
+  // while a `must` entry said "reproduce only the diacritics that appear in the
+  // given text, no more, no fewer". Every measured check passed; it was visible
+  // only by zooming into the label.
+  //
+  // A rule phrased as a relation asks the model to inspect the input and infer a
+  // count. Naming the fact — this string has none — is one step, and it has to be
+  // generated per request, because a customer who DOES supply vowelled text must
+  // get the opposite instruction.
+  const bare = buildEditPrompt({
+    editType: 'text_add', editPreset: 'product_label', editDescription: 'شاورما الشام',
+  } as never);
+  const vowelled = buildEditPrompt({
+    editType: 'text_add', editPreset: 'product_label', editDescription: 'شَاوُرمَا الشَّام',
+  } as never);
+
+  contains('edit/diacritics: bare text is told it has none', bare, 'The text carries NO harakat at all');
+  contains('edit/diacritics: bare text names the marks to withhold', bare, 'fatha, damma, kasra, shadda, sukun');
+  omits('edit/diacritics: bare text is not told to reproduce marks', bare, 'carries harakat exactly where shown');
+
+  contains('edit/diacritics: vowelled text keeps its marks', vowelled, 'carries harakat exactly where shown');
+  omits('edit/diacritics: vowelled text is not told it has none', vowelled, 'carries NO harakat at all');
+}
+{
   // NO text_add RULE MAY BE A PRECONDITION WITH NO LEGAL PLACEMENT.
   //
   // Measured on production 2026-08-27, twice, on the same image: `product_label`
