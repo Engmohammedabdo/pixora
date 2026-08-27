@@ -534,12 +534,28 @@ function buildTextRule(editType: string, safeText: string, safeSurface: string):
   const blank = `\n- Every other surface — packaging, labels, menu boards, windows, price cards, neighbouring products, background signage — must be COMPLETELY BLANK. No lettering, no numbers, no logos, no decorative script of any kind.`;
 
   if (editType === 'text_add') {
+    // NOT `blank`. Measured on production 2026-08-27: with the shared blank
+    // line, `product_label` was a NO-OP — 1.93% of pixels changed and a mean
+    // channel delta of 1.43, against 81% / 129 for a background replace on the
+    // same image. The customer paid a credit and got their photograph back.
+    //
+    // The cause was a contradiction inside this one block. `blank` names
+    // "packaging, labels" as surfaces that must be COMPLETELY BLANK, and on a
+    // product close-up the label IS the target — so the model was told to print
+    // on the label, to leave labels blank, to keep existing print exactly, and
+    // (from the preset's own avoid list) not to redraw the label's artwork.
+    // Faced with that, doing nothing is the only move that violates no rule.
+    //
+    // Stated as an EXCLUSION of the target instead of a fixed list of nouns. A
+    // fixed list cannot know what the preset aimed at, which is precisely how
+    // it came to name it.
     return (
       header +
       `\n- The only NEW text anywhere in the entire image is: "${safeText}"` +
       `\n- It appears EXACTLY ONCE, on ${safeSurface}, and nowhere else.` +
+      `\n- Add it there even if that surface already carries printed artwork — set the new text into the space around that artwork without redrawing, covering or removing it.` +
       survives +
-      blank
+      `\n- No text of any kind is added to any surface other than ${safeSurface}. Every one of those other surfaces keeps exactly what the photograph shows — nothing added, nothing invented, nothing removed.`
     );
   }
 

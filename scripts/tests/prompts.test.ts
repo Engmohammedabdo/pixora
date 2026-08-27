@@ -596,8 +596,14 @@ const planInput = {
     'It appears EXACTLY ONCE, on one clear area of empty space in the image, and nowhere else.');
   contains('edit/text_add: existing print still survives', p,
     "Text already printed on the customer's product in the attached photograph stays exactly as photographed");
-  contains('edit/text_add: every other surface is enumerated and blanked', p,
-    'must be COMPLETELY BLANK');
+  // NOT `must be COMPLETELY BLANK` — that assertion pinned the defect. On
+  // production 2026-08-27 the blanket list named "packaging, labels" as blank
+  // while `product_label` targets the label, and the edit came back a no-op
+  // (1.93% of pixels changed vs 81% for a real edit). text_add states
+  // containment by EXCLUDING its target instead; the blanket form is still
+  // asserted for every mode that adds no text, in the loop above.
+  contains('edit/text_add: containment excludes the target rather than listing nouns', p,
+    'No text of any kind is added to any surface other than');
   after('edit/text_add: the override is stated AFTER the lists it overrides', p,
     'TEXT RULE —', '\nAvoid:');
   // The old `avoid` bullet is kept as well. It is not what carried the fix — an
@@ -647,6 +653,45 @@ const planInput = {
     'Altering, moving, cropping or restyling the subject itself');
   // And the whole point: no typing happened.
   omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
+}
+{
+  // A text_add prompt MUST NOT declare its own target surface off-limits.
+  //
+  // Measured on production 2026-08-27: `product_label` was a NO-OP. 1.93% of
+  // pixels changed, mean channel delta 1.43 — against 81% / 129 for a
+  // background replace on the same image. The customer paid a credit and got
+  // their photograph back unchanged.
+  //
+  // The cause was one sentence. The shared containment line named "packaging,
+  // labels" as surfaces that must be COMPLETELY BLANK, and on a product
+  // close-up the label IS where the text goes. The model was told to print on
+  // the label, to leave labels blank, and not to redraw the label's artwork;
+  // doing nothing was the only move that broke no rule.
+  //
+  // A fixed list of nouns cannot know what the preset aimed at, which is
+  // exactly how it came to name it. So the rule is now an EXCLUSION of the
+  // target, and that is what these checks pin.
+  for (const presetId of ['product_label', 'promo_badge'] as const) {
+    const p = buildEditPrompt({
+      editType: 'text_add', editPreset: presetId, editDescription: 'شاورما الشام',
+    } as never);
+    omits(`edit/${presetId}: never declares any surface blanket-BLANK`, p,
+      'must be COMPLETELY BLANK');
+    contains(`edit/${presetId}: states containment as an exclusion of the target`, p,
+      'No text of any kind is added to any surface other than');
+    contains(`edit/${presetId}: existing artwork on the target survives the addition`, p,
+      'even if that surface already carries printed artwork');
+  }
+
+  // The blanket rule is still right for every mode that adds NO text, and must
+  // not be lost while fixing text_add — otherwise this trades one defect for
+  // the invented-text defect it was written for.
+  const bg = buildEditPrompt({
+    editType: 'background_replace', editPreset: 'marketplace_white',
+  } as never);
+  contains('edit/non-text modes keep the blanket blank rule', bg, 'must be COMPLETELY BLANK');
+  contains('edit/non-text modes still forbid inventing text', bg,
+    'Do not add, invent, redraw or translate ANY text');
 }
 {
   // THE PALETTE IS GATED ON THE PRESET, NOT ON THE KIT EXISTING.
