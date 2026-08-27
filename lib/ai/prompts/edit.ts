@@ -271,10 +271,17 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     // extend the white field, never crop or stretch the product — because a
     // precondition it cannot meet is how a preset no-ops at HTTP 200.
     aspectRatio: '1:1',
+    // "No props in the background" was measured insufficient on 2026-08-27: on
+    // a styled food photo the model read the board, cutlery and side bowls as
+    // FOREGROUND belonging to the product and kept the whole arrangement on
+    // white. Same lesson as buildTextRule — define the referent, don't command
+    // an end state. The direction now says what "the product" IS, so the mode's
+    // own "never alter the subject" rule protects the right thing.
     direction: () =>
-      'Re-stage the product onto a SQUARE 1:1 canvas with a pure white seamless studio background built to the Amazon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The canvas is square regardless of the original photo’s shape — centre the product and extend the white field to fill the square.',
+      'Re-stage the product onto a SQUARE 1:1 canvas with a pure white seamless studio background built to the Amazon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The subject is the product ITSELF and nothing else — any board, plate, bowl, cutlery, cloth, stand or loose garnish around it belongs to the background and is replaced by the white field along with it. The canvas is square regardless of the original photo’s shape — centre the product and extend the white field to fill the square.',
     must: [
       'Scale and centre the product so its longest side spans about 85% of the square frame, with even margins and nothing clipped at the edges',
+      'Show the product completely alone on the white — a marketplace main image is rejected for any accessory, dish or surface that is not physically part of the product',
       'Keep the white a flat, even 255,255,255 everywhere the product is not — measured as a value, not as an impression of brightness',
       'Ground the product with a soft contact shadow directly beneath it only, never a cast shadow reaching out across the backdrop',
       'Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text',
@@ -298,9 +305,10 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
     // shape of the canvas.
     aspectRatio: '2:3',
     direction: () =>
-      'Re-stage the product onto a PORTRAIT 2:3 canvas with a pure white seamless studio background built to the noon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The canvas is portrait regardless of the original photo’s shape — centre the product and extend the white field to fill it.',
+      'Re-stage the product onto a PORTRAIT 2:3 canvas with a pure white seamless studio background built to the noon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The subject is the product ITSELF and nothing else — any board, plate, bowl, cutlery, cloth, stand or loose garnish around it belongs to the background and is replaced by the white field along with it. The canvas is portrait regardless of the original photo’s shape — centre the product and extend the white field to fill it.',
     must: [
       'Scale and centre the product so it occupies about 70–80% of the portrait frame, with even margins and nothing clipped at the edges',
+      'Show the product completely alone on the white — a marketplace main image is rejected for any accessory, dish or surface that is not physically part of the product',
       'Keep the white a flat, even 255,255,255 everywhere the product is not — measured as a value, not as an impression of brightness',
       'Ground the product with a light, soft contact shadow directly beneath it only — noon rejects hard shadows and hard reflections by name',
       'Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text',

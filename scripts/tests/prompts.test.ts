@@ -656,6 +656,13 @@ const planInput = {
   // original's shape, and a prompt carrying both is how an edit no-ops at
   // HTTP 200 with the credit charged (product_label, 2026-08-27).
   contains('edit/marketplace_white: the canvas is square 1:1', p, 'SQUARE 1:1 canvas');
+  // Measured 2026-08-27: "no props in the background" alone let the model keep
+  // a food photo's board, fork and side bowls as "foreground". The prompt must
+  // DEFINE the subject, not merely forbid props — same shape as buildTextRule.
+  contains('edit/marketplace_white: the subject is defined, not implied', p,
+    'The subject is the product ITSELF and nothing else');
+  contains('edit/marketplace_white: supporting dishes are named as background', p,
+    'board, plate, bowl, cutlery');
   contains('edit/marketplace_white: the square is reached by extending white, not cropping', p,
     'extend the white background to fill the new shape');
   omits('edit/marketplace_white: the same-aspect closing rule must NOT survive', p,
@@ -681,6 +688,8 @@ const planInput = {
   contains('edit/noon_white: the fill follows noon, not Amazon', p, 'about 70–80% of the portrait frame');
   contains('edit/noon_white: white is a measured value here too', p, 'true RGB 255,255,255');
   contains('edit/noon_white: noon rejection reasons are stated', p, 'hard shadows and hard reflections');
+  contains('edit/noon_white: the subject is defined here too', p,
+    'The subject is the product ITSELF and nothing else');
   omits('edit/noon_white: the same-aspect closing rule must NOT survive', p,
     'same aspect ratio and resolution as the original');
   omits('edit/noon_white: a preset needs no customer instruction', p, 'Customer instruction:');
