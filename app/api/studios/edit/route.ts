@@ -21,6 +21,11 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import {
+  LOW_EFFECT_THRESHOLD,
+  effectSignatureFromDataUrl,
+  strongestLocalChange,
+} from '@/lib/image/edit-effect';
 
 /**
  * `editDescription` is OPTIONAL as of 2026-08-27, and that is the point of this
@@ -306,6 +311,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: nothingWasCharged ? 'insufficient_credits' : 'credit_reservation_failed', required: CREDIT_COST }, { status: 402 });
     }
 
+    // Recorded onto the generation so the rate of no-ops becomes a measured
+    // number rather than an impression. Null when it could not be measured.
+    let editEffect: number | null = null;
     let result: Awaited<ReturnType<typeof generateImage>>;
     try {
       // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
@@ -320,6 +328,37 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', user.id)
         .single();
       const planId = profile?.plan_id || 'free';
+
+      // ── DID THIS EDIT ACTUALLY CHANGE ANYTHING? ───────────────────────────
+      // Measured HERE, before persistGeneratedImage replaces `result.url` with a
+      // storage URL: at this moment the output is still the model's inline
+      // `data:` payload, so both sides of the comparison are already in memory
+      // and this costs no fetch.
+      //
+      // WARNING ONLY — it must never refund. See lib/image/edit-effect.ts for the
+      // measured separation (worst no-op 23.3, weakest real edit 30.1, on eight
+      // labelled production runs). That gap is enough to flag for a human and
+      // nowhere near enough to move money: refusing a real edit and telling the
+      // customer it failed is worse than the defect being detected.
+      if (result.inputSignature && result.url) {
+        try {
+          const after = await effectSignatureFromDataUrl(result.url);
+          const effect = after ? strongestLocalChange(result.inputSignature, after) : null;
+          if (effect !== null) {
+            editEffect = Math.round(effect * 10) / 10;
+            if (effect < LOW_EFFECT_THRESHOLD) {
+              console.warn(
+                `[edit][low-effect] generation ${generation?.id ?? '?'} preset=${input.editPreset ?? 'none'} ` +
+                  `type=${input.editType} effect=${editEffect} (< ${LOW_EFFECT_THRESHOLD}): the model may have ` +
+                  'returned the input essentially unchanged, and the customer has been charged.'
+              );
+            }
+          }
+        } catch {
+          // Diagnostics never fail a paid generation.
+        }
+      }
+
       if (result.url) {
         // Pyra returns a data: URL. Persisting it keeps the whole image out of
         // generations.output and assets.url, and burns in the free-plan
@@ -350,7 +389,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (generation) {
-      await finalizeGeneration(supabase, generation.id, { status: 'completed', output: { imageUrl: result.url, mock: result.mock } }, 'edit');
+      await finalizeGeneration(supabase, generation.id, { status: 'completed', output: { imageUrl: result.url, mock: result.mock, editEffect } }, 'edit');
       // `format` was omitted here and nowhere else, so every edit export and library
       // download was named .png regardless of the bytes — the same wrong-extension
       // defect that was fixed for the export ZIP.

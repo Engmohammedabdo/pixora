@@ -5,6 +5,7 @@ import { isValidApiKey } from './utils';
 import { MODELS, geminiImageSize } from './models';
 import { PROVIDER_TIMEOUTS, ProviderPermanentError, fetchWithTimeout } from './http';
 import { mockFromSchema } from './mock-from-schema';
+import { effectSignature } from '@/lib/image/edit-effect';
 
 interface GenerateImageOptions {
   prompt: string;
@@ -31,6 +32,16 @@ interface AIResult {
   text?: string;
   model: AIModel;
   mock: boolean;
+  /**
+   * A grayscale fingerprint of the REFERENCE image, when one was sent.
+   *
+   * Computed here because this is the only place the input bytes already exist —
+   * they have just been fetched and base64-encoded for the model. Measuring
+   * whether an edit changed anything therefore costs no second fetch of the
+   * customer's photo. Never serialised anywhere: the edit route reduces it to a
+   * single number and drops it. See lib/image/edit-effect.ts.
+   */
+  inputSignature?: Buffer | null;
 }
 
 const MOCK_IMAGE_URLS = [
@@ -133,14 +144,33 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
 
   // Build multimodal parts (text + optional reference image)
   const requestParts: Array<Record<string, unknown>> = [{ text: options.prompt }];
+  let referenceBase64: string | null = null;
   if (options.referenceImageUrl) {
     try {
       const { mimeType, base64 } = await fetchReferenceImage(options.referenceImageUrl);
       requestParts.push({ inlineData: { mimeType, data: base64 } });
+      referenceBase64 = base64;
     } catch (e) {
       // The photoshoot and edit studios are meaningless without the user's image:
       // generating "something else" would silently bill for the wrong result.
       throw new Error(`Reference image could not be loaded: ${e instanceof Error ? e.message : 'unknown error'}`);
+    }
+  }
+
+  // Fingerprint taken from bytes already in hand, so it costs no second fetch.
+  //
+  // Deliberately OUTSIDE the try above. That catch turns anything thrown into
+  // "Reference image could not be loaded", which the caller treats as a failed
+  // generation — refund, `failed` row, 500. A diagnostic must never be able to
+  // trigger that, and `Buffer.from(…, 'base64')` on a malformed payload is
+  // exactly the kind of thing that would. `effectSignature` swallows its own
+  // failures and returns null; this guard covers the decode before it.
+  let inputSignature: Buffer | null = null;
+  if (referenceBase64) {
+    try {
+      inputSignature = await effectSignature(Buffer.from(referenceBase64, 'base64'));
+    } catch {
+      inputSignature = null;
     }
   }
 
@@ -186,6 +216,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
       url: `data:${mimeType};base64,${base64}`,
       model: 'gemini',
       mock: false,
+      inputSignature,
     };
   }
 

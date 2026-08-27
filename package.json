@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "postbuild": "npm run test:built-document",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:mock-from-schema",
+    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:mock-from-schema && npm run test:edit-effect",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -35,7 +35,8 @@
     "test:brand-context": "npx tsx scripts/tests/brand-context.test.ts",
     "test:mock-from-schema": "npx tsx scripts/tests/mock-from-schema.test.ts",
     "test:website-url": "npx tsx scripts/tests/website-url.test.ts",
-    "test:beta-credits": "npx tsx scripts/tests/beta-credits.test.ts"
+    "test:beta-credits": "npx tsx scripts/tests/beta-credits.test.ts",
+    "test:edit-effect": "npx tsx scripts/tests/edit-effect.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

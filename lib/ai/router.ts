@@ -48,6 +48,17 @@ interface GenerationResult {
   mock: boolean;
   usedFallback: boolean;
   originalModel?: AIModel;
+  /**
+   * Fingerprint of the reference image, when the serving adapter sent one.
+   *
+   * Only the gemini branch produces it, which is not a gap: `IMAGE_INPUT_CAPABLE`
+   * already restricts any request carrying a reference image to gemini, because
+   * the other two adapters have no field to put an image in. So "there was a
+   * reference image but no signature" means the fingerprint failed, not that a
+   * different provider served — and the caller treats a missing signature as
+   * "cannot measure" rather than as a verdict.
+   */
+  inputSignature?: Buffer | null;
 }
 
 const DEFAULT_MODELS: Partial<Record<Studio, AIModel>> = {
@@ -232,6 +243,10 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
         url: result.url,
         model,
         mock: result.mock,
+        // Only the gemini adapter sets this, and only when a reference image was
+        // sent. Passed straight through rather than recomputed here: the point
+        // of the fingerprint is that it is taken where the bytes already exist.
+        inputSignature: (result as { inputSignature?: Buffer | null }).inputSignature ?? null,
         // Compare against the requested model, NOT the loop index. The
         // reference-image guard above REPLACES fallbackOrder with the capable
         // subset, so a re-route can land at index 0 — `i > 0` then reported no
