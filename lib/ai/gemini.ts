@@ -11,6 +11,11 @@ interface GenerateImageOptions {
   prompt: string;
   resolution: string;
   referenceImageUrl?: string;
+  /** Output canvas shape, e.g. '1:1' or '2:3'. Forwarded to the API's
+   *  `imageConfig.aspectRatio` so the canvas is a request parameter, not a hope
+   *  expressed in prose — the model composes to the canvas it is given. Absent,
+   *  the model keeps its default (edits follow the reference image's shape). */
+  aspectRatio?: string;
 }
 
 interface GenerateTextOptions {
@@ -190,7 +195,10 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
         contents: [{ parts: requestParts }],
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: { imageSize },
+          imageConfig: {
+            imageSize,
+            ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+          },
         },
       }),
     },

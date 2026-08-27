@@ -44,6 +44,12 @@ export interface EditCase {
     pureWhiteBackground?: boolean;
     /** Subject's longest side, as a share of the frame's — the rule as written. */
     minSubjectSpan?: number;
+    /** Output width/height must be this ratio (±3%). The marketplace presets'
+     *  canvas is part of the written spec — Amazon 1:1, noon 2:3 — and the ONE
+     *  property a seller cannot repair after the fact. Checked against the
+     *  decoded pixels because the fixtures are deliberately non-square, so a
+     *  model that ignored the recomposition passes every other check here. */
+    aspect?: number;
   };
 }
 
@@ -56,7 +62,9 @@ export interface EditCase {
  */
 export const EDIT_CASES: EditCase[] = [
   { preset: 'marketplace_white', fixture: 'busy_scene',
-    expect: { pureWhiteBackground: true, minSubjectSpan: 0.7 } },
+    expect: { pureWhiteBackground: true, minSubjectSpan: 0.7, aspect: 1 } },
+  { preset: 'noon_white', fixture: 'busy_scene',
+    expect: { pureWhiteBackground: true, minSubjectSpan: 0.55, aspect: 2 / 3 } },
   { preset: 'studio_gradient', fixture: 'busy_scene' },
   { preset: 'lifestyle_scene', fixture: 'clean_white' },
   { preset: 'festive_gifting', fixture: 'clean_white' },

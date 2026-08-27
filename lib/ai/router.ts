@@ -29,6 +29,16 @@ interface ImageGenerationInput {
   model: AIModel;
   resolution: string;
   referenceImageUrl?: string;
+  /**
+   * Output canvas shape ('1:1', '2:3'). Only the gemini adapter forwards it —
+   * which is not a silent-drop today, because the one caller that sets it
+   * (edit's marketplace presets) always carries a reference image, and
+   * IMAGE_INPUT_CAPABLE pins that request to gemini. If a text-to-image caller
+   * ever passes this, extend the gpt/flux adapters FIRST: an aspect ratio that
+   * is part of a paid spec being quietly ignored is exactly the defect class
+   * this file's other comments catalogue.
+   */
+  aspectRatio?: string;
 }
 
 interface TextGenerationInput {
@@ -221,6 +231,7 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
               prompt: input.prompt,
               resolution: input.resolution,
               referenceImageUrl: input.referenceImageUrl,
+              aspectRatio: input.aspectRatio,
             });
           case 'gpt':
             return openaiImage({

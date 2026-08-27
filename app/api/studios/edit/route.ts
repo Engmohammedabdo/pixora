@@ -6,6 +6,7 @@ import {
   EDIT_PROMPT_VERSION,
   EDIT_TYPES,
   buildEditPrompt,
+  editPresetAspectRatio,
   editPresetMatchesType,
   editPresetRequiresBrandColors,
 } from '@/lib/ai/prompts/edit';
@@ -320,7 +321,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // 'gemini', not 'gpt': lib/ai/router.ts forwards `referenceImageUrl` only in
       // the gemini branch. With 'gpt' the image to edit never reached the model, so
       // "edit this photo" generated an unrelated picture from the instruction alone.
-      result = await generateImage({ prompt, model: 'gemini', resolution: '1080p', referenceImageUrl: input.imageUrl });
+      //
+      // `aspectRatio` is the marketplace presets' canvas (Amazon 1:1, noon 2:3),
+      // sent as an API parameter because the prompt alone asking for a shape the
+      // request pins to the original is a self-contradiction — and a contradicted
+      // model declines at HTTP 200 with the credit charged.
+      result = await generateImage({
+        prompt,
+        model: 'gemini',
+        resolution: '1080p',
+        referenceImageUrl: input.imageUrl,
+        aspectRatio: input.editPreset ? editPresetAspectRatio(input.editPreset) ?? undefined : undefined,
+      });
 
       // Apply watermark for free plan users
       const { data: profile } = await supabase

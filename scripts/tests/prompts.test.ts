@@ -650,7 +650,16 @@ const planInput = {
   contains('edit/marketplace_white: white is a measured value, not an impression', p,
     'true RGB 255,255,255');
   contains('edit/marketplace_white: the product fills ~85% of the frame', p,
-    'spans about 85% of the corresponding frame dimension');
+    'spans about 85% of the square frame');
+  // The canvas is SQUARE — Amazon's written spec — and the request must not
+  // contradict itself: the generic closing line pins the output to the
+  // original's shape, and a prompt carrying both is how an edit no-ops at
+  // HTTP 200 with the credit charged (product_label, 2026-08-27).
+  contains('edit/marketplace_white: the canvas is square 1:1', p, 'SQUARE 1:1 canvas');
+  contains('edit/marketplace_white: the square is reached by extending white, not cropping', p,
+    'extend the white background to fill the new shape');
+  omits('edit/marketplace_white: the same-aspect closing rule must NOT survive', p,
+    'same aspect ratio and resolution as the original');
   contains('edit/marketplace_white: no badge, tag or watermark', p, 'rejected outright');
   contains('edit/marketplace_white: the cutout leaves nothing behind', p,
     'no surviving pixels of the old background');
@@ -662,6 +671,27 @@ const planInput = {
     'Altering, moving, cropping or restyling the subject itself');
   // And the whole point: no typing happened.
   omits('edit/marketplace_white: a preset needs no customer instruction', p, 'Customer instruction:');
+}
+{
+  // noon is NOT Amazon: its written spec is a 2:3 PORTRAIT (660×990) at 70–80%
+  // fill, with hard shadows and hard reflections as named rejection reasons.
+  // One preset per marketplace, because the two specs disagree on the canvas.
+  const p = buildEditPrompt({ editType: 'background_replace', editPreset: 'noon_white' });
+  contains('edit/noon_white: the canvas is portrait 2:3', p, 'PORTRAIT 2:3 canvas');
+  contains('edit/noon_white: the fill follows noon, not Amazon', p, 'about 70–80% of the portrait frame');
+  contains('edit/noon_white: white is a measured value here too', p, 'true RGB 255,255,255');
+  contains('edit/noon_white: noon rejection reasons are stated', p, 'hard shadows and hard reflections');
+  omits('edit/noon_white: the same-aspect closing rule must NOT survive', p,
+    'same aspect ratio and resolution as the original');
+  omits('edit/noon_white: a preset needs no customer instruction', p, 'Customer instruction:');
+}
+{
+  // A NON-marketplace preset keeps the original's shape — the closing rule that
+  // is a contradiction for the marketplace presets is the correct guarantee for
+  // every edit that retouches the customer's photo rather than re-staging it.
+  const p = buildEditPrompt({ editType: 'background_replace', editPreset: 'studio_gradient' });
+  contains('edit/studio_gradient: a retouch keeps the original canvas', p,
+    'same aspect ratio and resolution as the original');
 }
 {
   // THE DIACRITICS RULE IS A CLAIM ABOUT THE ACTUAL TEXT, NOT A RELATION.

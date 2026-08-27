@@ -531,8 +531,12 @@
     "presetsHint": "Pick a recipe and Pyra takes it from there — no writing needed 🦊",
     "presets": {
       "marketplace_white": {
-        "label": "Marketplace white",
-        "description": "Pure white to the Amazon and Noon main-image spec, product centred in frame."
+        "label": "Amazon main image",
+        "description": "Square 1:1 to the Amazon spec: pure white, product filling 85% of the frame."
+      },
+      "noon_white": {
+        "label": "noon main image",
+        "description": "Portrait 2:3 to the noon spec: pure white, product filling 70–80% of the frame."
       },
       "studio_gradient": {
         "label": "Studio gradient",

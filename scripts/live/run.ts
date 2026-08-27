@@ -47,7 +47,7 @@ import { CREDIT_COSTS } from '../../lib/credits/costs';
 import { LOW_EFFECT_THRESHOLD, LOW_OVERALL_THRESHOLD, looksLikeNoOp } from '../../lib/image/edit-effect';
 import { mintSession } from './session';
 import { EDIT_CASES, FIXTURES, editTypeFor, uncoveredPresets, type EditCase } from './cases';
-import { cornerMarkPresent, editEffect, subjectSpan, whiteBackground, type CheckResult } from './checks';
+import { cornerMarkPresent, editEffect, frameAspect, subjectSpan, whiteBackground, type CheckResult } from './checks';
 import { STUDIO_CASES, groupCost, uncoveredStudios, type CaseTools, type StudioCase, type StudioGroup } from './studio-cases';
 
 const ROOT = join(__dirname, '..', '..');
@@ -318,6 +318,18 @@ async function main(): Promise<void> {
           name: 'subject spans enough of the frame',
           ok: span !== null && span >= c.expect.minSubjectSpan,
           detail: span === null ? 'no subject found' : `longest side ${(span * 100).toFixed(1)}% of frame (min ${(c.expect.minSubjectSpan * 100).toFixed(0)}%)`,
+        });
+      }
+      if (c.expect?.aspect !== undefined) {
+        // The marketplace canvas is the spec's own shape, and the fixture is
+        // deliberately non-square — so this only passes if the model actually
+        // recomposed rather than returning the source's aspect ratio.
+        const a = await frameAspect(out);
+        const want = c.expect.aspect;
+        rep.checks.push({
+          name: 'output canvas matches the marketplace shape',
+          ok: a !== null && Math.abs(a - want) / want <= 0.03,
+          detail: a === null ? 'could not read dimensions' : `width/height ${a.toFixed(3)} (want ${want.toFixed(3)} ±3%)`,
         });
       }
 

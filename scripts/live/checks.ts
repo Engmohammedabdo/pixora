@@ -111,3 +111,15 @@ export async function cornerMarkPresent(buf: Buffer): Promise<boolean> {
   // A mark forces both a dark pill and light glyphs into one small region.
   return max - min > 60;
 }
+
+/**
+ * The output canvas's width/height ratio. A marketplace preset's shape IS the
+ * deliverable — Amazon main images are 1:1, noon's are 2:3 — and the shape is
+ * the one property the customer cannot repair after the fact. Measured from
+ * the decoded pixels, not the container metadata.
+ */
+export async function frameAspect(buf: Buffer): Promise<number | null> {
+  const meta = await sharp(buf).metadata();
+  if (!meta.width || !meta.height) return null;
+  return meta.width / meta.height;
+}

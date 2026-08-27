@@ -187,6 +187,25 @@ interface EditPreset {
    *  The route turns this into a 400 rather than sending a prompt that asks the
    *  model to match a colour nobody named. */
   requiresBrandColors?: true;
+  /**
+   * The output canvas this preset composes for, set only when the target spec
+   * DEFINES the shape — a marketplace main image's aspect ratio is part of the
+   * written requirement, not a stylistic preference. Measured against the
+   * sellers' own documentation, not assumed: Amazon's main image is 1:1 square
+   * (85% fill); noon's is 660×990, a 2:3 PORTRAIT (70–80% fill). "Marketplaces
+   * want squares" was itself half wrong, which is why this is per-preset.
+   *
+   * Stated in TWO places on purpose. The route forwards it to the provider as
+   * an API parameter (gemini `imageConfig.aspectRatio`), and `buildEditPrompt`
+   * swaps its closing same-aspect rule for a recomposition order — because a
+   * prompt that asks for a square while the closing line pins the canvas to the
+   * original's shape is a self-contradiction, and a contradicted model declines
+   * at HTTP 200 with a credit charged (`product_label`, measured 2026-08-27).
+   *
+   * Absent, the edit keeps the original's aspect ratio — right for every preset
+   * that retouches the customer's photo rather than re-staging it.
+   */
+  aspectRatio?: '1:1' | '2:3';
 }
 
 /**
@@ -212,6 +231,7 @@ interface EditPreset {
 export const EDIT_PRESET_IDS = [
   // background_replace
   'marketplace_white',
+  'noon_white',
   'studio_gradient',
   'lifestyle_scene',
   'festive_gifting',
@@ -237,14 +257,24 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
   marketplace_white: {
     editType: 'background_replace',
     // The highest-value preset on the list, and the reason the list exists.
-    // Amazon.ae and Noon both reject a main product image that is not a pure
-    // white seamless with the product filling most of the frame and carrying no
-    // text, badge or logo. That is a written specification, and a customer
-    // typing "white background" hits none of it.
+    // Amazon rejects a main product image that is not a pure white seamless
+    // with the product filling most of the frame and carrying no text, badge
+    // or logo. That is a written specification, and a customer typing "white
+    // background" hits none of it.
+    //
+    // SQUARE since 2026-08-27, and the shape is the point: Amazon's spec is
+    // 1:1 (2000×2000 recommended) and the studio previously returned the
+    // source photo's own aspect ratio, so a landscape shot produced a
+    // landscape "main image" the marketplace form then letterboxes or refuses.
+    // The square is requested at the API layer (`aspectRatio` above) and the
+    // composition is stated here as something the model can ALWAYS satisfy —
+    // extend the white field, never crop or stretch the product — because a
+    // precondition it cannot meet is how a preset no-ops at HTTP 200.
+    aspectRatio: '1:1',
     direction: () =>
-      'Replace the background with a pure white seamless studio sweep built to the marketplace main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind.',
+      'Re-stage the product onto a SQUARE 1:1 canvas with a pure white seamless studio background built to the Amazon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The canvas is square regardless of the original photo’s shape — centre the product and extend the white field to fill the square.',
     must: [
-      'Scale and centre the product so its longest side spans about 85% of the corresponding frame dimension, with even margins and nothing clipped at the edges',
+      'Scale and centre the product so its longest side spans about 85% of the square frame, with even margins and nothing clipped at the edges',
       'Keep the white a flat, even 255,255,255 everywhere the product is not — measured as a value, not as an impression of brightness',
       'Ground the product with a soft contact shadow directly beneath it only, never a cast shadow reaching out across the backdrop',
       'Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text',
@@ -254,6 +284,33 @@ export const EDIT_PRESETS: Record<EditPresetId, EditPreset> = {
       'Props, surfaces, reflections, gradients, vignettes, borders or coloured tints anywhere in the background',
       'Any added badge, price tag, promotional sticker or watermark — a marketplace main image is rejected outright for these',
       'Cropping any part of the product out of the frame to reach the 85%',
+      'Stretching or distorting the product to fill the square — the white field grows, the product does not',
+    ],
+  },
+  noon_white: {
+    editType: 'background_replace',
+    // noon's written spec is NOT square, and that was measured against the
+    // seller help centre rather than assumed from "marketplaces want squares":
+    // 660×990 — a 2:3 PORTRAIT — with the product at 70–80% of the frame,
+    // pure white, and light shadows only (hard shadows and hard reflections
+    // are named rejection reasons). One preset per marketplace because the two
+    // specs disagree on the one thing a seller cannot fix after the fact: the
+    // shape of the canvas.
+    aspectRatio: '2:3',
+    direction: () =>
+      'Re-stage the product onto a PORTRAIT 2:3 canvas with a pure white seamless studio background built to the noon main-image specification: a true RGB 255,255,255 across the entire background, no gradient, no grey falloff in the corners, no horizon line, no visible backdrop seam and no props of any kind. The canvas is portrait regardless of the original photo’s shape — centre the product and extend the white field to fill it.',
+    must: [
+      'Scale and centre the product so it occupies about 70–80% of the portrait frame, with even margins and nothing clipped at the edges',
+      'Keep the white a flat, even 255,255,255 everywhere the product is not — measured as a value, not as an impression of brightness',
+      'Ground the product with a light, soft contact shadow directly beneath it only — noon rejects hard shadows and hard reflections by name',
+      'Preserve the product exactly: identical shape, proportions, colours, materials, logos and every character of its printed text',
+      'Cut cleanly around hair, fur, glass, mesh and transparent edges — no halo, no dark fringe, no surviving pixels of the old background',
+    ],
+    avoid: [
+      'Props, surfaces, reflections, gradients, vignettes, borders or coloured tints anywhere in the background',
+      'Any added badge, price tag, promotional sticker or watermark — a marketplace main image is rejected outright for these',
+      'Hard shadows or mirror-like reflections under the product',
+      'Stretching or distorting the product to fill the portrait — the white field grows, the product does not',
     ],
   },
   studio_gradient: {
@@ -508,6 +565,14 @@ export function editPresetRequiresBrandColors(presetId: string): boolean {
   return isEditPresetId(presetId) && EDIT_PRESETS[presetId].requiresBrandColors === true;
 }
 
+/** The output canvas a preset's spec defines, or null when the edit keeps the
+ *  original's shape. The route forwards this to the provider as an API
+ *  parameter — the prompt alone asking for a shape the request pins to the
+ *  original is the self-contradiction documented on `aspectRatio` above. */
+export function editPresetAspectRatio(presetId: string): '1:1' | '2:3' | null {
+  return isEditPresetId(presetId) ? EDIT_PRESETS[presetId].aspectRatio ?? null : null;
+}
+
 /**
  * The containment rule, stated last so it is the last thing the model reads.
  *
@@ -738,7 +803,17 @@ export function buildEditPrompt(input: EditPromptInput): string {
   // working. See buildTextRule().
   prompt += buildTextRule(editType, safeDescription, activePreset?.textSurface ?? DEFAULT_TEXT_SURFACE);
 
-  prompt += `\n\nReturn the edited image at the same aspect ratio and resolution as the original.`;
+  // The closing canvas rule. For almost every edit the right answer is "the
+  // customer's photo, its shape untouched" — but a marketplace preset's shape
+  // IS the deliverable, and keeping the old line alongside the square ask would
+  // hand the model a self-contradiction, which is how an edit no-ops at 200
+  // (`product_label`, 2026-08-27). One canvas rule, never two.
+  if (activePreset?.aspectRatio) {
+    const shape = activePreset.aspectRatio === '1:1' ? 'square 1:1' : 'portrait 2:3';
+    prompt += `\n\nCompose the output on a ${shape} canvas: keep every pixel of the product, extend the white background to fill the new shape, and never stretch or crop the product to reach it.`;
+  } else {
+    prompt += `\n\nReturn the edited image at the same aspect ratio and resolution as the original.`;
+  }
 
   return prompt;
 }
