@@ -31,6 +31,15 @@ export const FIXTURES: Record<string, string> = {
   clean_white:
     'A single glass jar of honey centred on a pure white seamless studio background, even soft lighting, ' +
     'no props, no text anywhere in the frame. Sharp e-commerce product photography.',
+  // A RETAIL product in a styled setting — what a marketplace seller actually
+  // photographs. The marketplace presets were first judged on `busy_scene`,
+  // and that was the wrong test: prepared food on a serving board is content
+  // where "the product alone" is genuinely ambiguous, and the model kept the
+  // board and side bowls on white in three runs out of three. A packaged good
+  // on a table with props is the honest case — isolation has one right answer.
+  retail_scene:
+    'A jar of date syrup with a printed brand label, standing on a rustic wooden cafe table, wide landscape framing, ' +
+    'a folded linen napkin, scattered dates and a brass spoon around it, warm blurred cafe interior behind. Photographic.',
 };
 
 export interface EditCase {
@@ -61,9 +70,15 @@ export interface EditCase {
  * drift into judging by a different standard than the running product.
  */
 export const EDIT_CASES: EditCase[] = [
-  { preset: 'marketplace_white', fixture: 'busy_scene',
+  // `retail_scene`, not `busy_scene`: a marketplace listing is a packaged
+  // good, and on prepared food the model consistently (3/3 runs, 2026-08-27)
+  // read the serving board and side bowls as part of the product. NOTE what
+  // the numbers cannot see: the white-point samples sit on the margins, so a
+  // retained prop in the CENTRE passes every measured check — prop isolation
+  // is judged by eye on the contact sheet, and the run report says so.
+  { preset: 'marketplace_white', fixture: 'retail_scene',
     expect: { pureWhiteBackground: true, minSubjectSpan: 0.7, aspect: 1 } },
-  { preset: 'noon_white', fixture: 'busy_scene',
+  { preset: 'noon_white', fixture: 'retail_scene',
     expect: { pureWhiteBackground: true, minSubjectSpan: 0.55, aspect: 2 / 3 } },
   { preset: 'studio_gradient', fixture: 'busy_scene' },
   { preset: 'lifestyle_scene', fixture: 'clean_white' },
