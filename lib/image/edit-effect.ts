@@ -52,12 +52,56 @@ const SIGNATURE_PX = 256;
 const GRID = 16;
 
 /**
- * Below this, log it for review. NOT a refund threshold — see the header. Set
- * below the worst observed no-op (23.3) rather than between the classes, because
- * the cost of a missed no-op is a log line nobody reads, and the cost of a false
- * flag is noise that trains the reader to ignore the signal.
+ * Two thresholds, because there are two kinds of real edit — learned by getting
+ * it wrong on the first full sweep.
+ *
+ * The concentrated measure alone flagged FOUR of fourteen presets that had
+ * plainly worked. `warm_appetite` scored 16.5 on it, LOWER than either labelled
+ * no-op, because a warm grade changes the whole frame a little and changes no
+ * single cell a lot — which is precisely the no-op signature. Measured over the
+ * same sweep:
+ *
+ *     labelled NO-OP        max 23.3   mean 0.96 / 1.33   <- low on BOTH
+ *     warm_appetite  WORKED max 16.5   mean 2.45
+ *     accurate_color WORKED max 11.6   mean 3.02
+ *     bright_ecommerce      max 20.8   mean 14.84
+ *     product_label  WORKED max 30.3   mean 2.15
+ *     background replaces   max 157+   mean 43+
+ *
+ * So: a real edit clears AT LEAST ONE. A no-op is low on both. Requiring either
+ * deliberately trades sensitivity for quiet — this only warns, and a warning
+ * that cries wolf on four of fourteen is a warning the reader learns to skip.
  */
 export const LOW_EFFECT_THRESHOLD = 26;
+
+/** Companion threshold for diffuse, whole-frame edits — colour correction and
+ *  style grades. Above the noisiest labelled no-op (1.33) and below the
+ *  subtlest real grade observed (2.45). */
+export const LOW_OVERALL_THRESHOLD = 2;
+
+/**
+ * Mean absolute difference across the whole signature.
+ *
+ * The measure the concentrated one cannot make: a global tone shift moves every
+ * pixel slightly and no cell dramatically.
+ */
+export function overallChange(before: Buffer, after: Buffer): number | null {
+  if (before.length !== after.length || before.length !== SIGNATURE_PX * SIGNATURE_PX) return null;
+  let sum = 0;
+  for (let i = 0; i < before.length; i++) sum += Math.abs(before[i] - after[i]);
+  return sum / before.length;
+}
+
+/**
+ * Did this edit do anything at all? True when BOTH measures are low.
+ *
+ * Returns false when either is unmeasurable: "cannot measure" is never a verdict
+ * of "did nothing", and a diagnostic that guesses is worse than one that abstains.
+ */
+export function looksLikeNoOp(maxLocal: number | null, overall: number | null): boolean {
+  if (maxLocal === null || overall === null) return false;
+  return maxLocal < LOW_EFFECT_THRESHOLD && overall < LOW_OVERALL_THRESHOLD;
+}
 
 /**
  * A comparable fingerprint of an image.

@@ -26,8 +26,11 @@
 import sharp from 'sharp';
 import {
   LOW_EFFECT_THRESHOLD,
+  LOW_OVERALL_THRESHOLD,
   effectSignature,
   effectSignatureFromDataUrl,
+  looksLikeNoOp,
+  overallChange,
   strongestLocalChange,
 } from '../../lib/image/edit-effect';
 
@@ -84,10 +87,44 @@ async function main(): Promise<void> {
   check('a concentrated edit outscores diffuse noise', local !== null && noise !== null && local > noise * 2,
     `local ${String(local)} vs noise ${String(noise)}`);
 
-  // The measured ordering from production. If someone retunes the threshold,
+  // The measured ordering from production. If someone retunes a threshold,
   // these are the numbers it has to stay consistent with.
-  check('threshold sits below the worst observed no-op (23.3)', LOW_EFFECT_THRESHOLD >= 23.3);
-  check('threshold sits below the weakest observed real edit (30.1)', LOW_EFFECT_THRESHOLD < 30.1);
+  check('local threshold sits at or above the worst observed no-op (23.3)', LOW_EFFECT_THRESHOLD >= 23.3);
+  check('local threshold sits below the weakest observed local edit (30.1)', LOW_EFFECT_THRESHOLD < 30.1);
+  check('overall threshold sits above the noisiest observed no-op (1.33)', LOW_OVERALL_THRESHOLD > 1.33);
+  check('overall threshold sits below the subtlest observed grade (2.45)', LOW_OVERALL_THRESHOLD < 2.45);
+
+  // ── THE CASE THAT BROKE THE FIRST VERSION ────────────────────────────────
+  // A whole-frame tone grade changes everything a little and no cell a lot,
+  // which is the NO-OP signature on the concentrated measure alone. Measured on
+  // production: `warm_appetite` scored local 16.5 — LOWER than either labelled
+  // no-op — with overall 2.45. On one metric it was indistinguishable from doing
+  // nothing, and the first sweep duly flagged four working presets.
+  const REAL_EDITS: [string, number, number][] = [
+    ['warm_appetite (subtle grade)', 16.5, 2.45],
+    ['accurate_color (cast removal)', 11.6, 3.02],
+    ['bright_ecommerce', 20.8, 14.84],
+    ['product_label (local text)', 30.3, 2.15],
+    ['background replace', 157.6, 42.98],
+  ];
+  for (const [name, local, overall] of REAL_EDITS) {
+    check(`real edit is not called a no-op: ${name}`, !looksLikeNoOp(local, overall),
+      `local ${local}, overall ${overall}`);
+  }
+  const KNOWN_NOOPS: [string, number, number][] = [
+    ['labelled no-op #1', 23.3, 0.96],
+    ['labelled no-op #2', 23.3, 1.33],
+  ];
+  for (const [name, local, overall] of KNOWN_NOOPS) {
+    check(`known no-op is still caught: ${name}`, looksLikeNoOp(local, overall), `local ${local}, overall ${overall}`);
+  }
+
+  // "Cannot measure" is never a verdict of "did nothing".
+  check('an unmeasurable pair is not called a no-op', !looksLikeNoOp(null, 0) && !looksLikeNoOp(0, null));
+
+  const noiseOverall = overallChange(sigFlat, sigNoise);
+  check('diffuse noise stays below the overall threshold too',
+    noiseOverall !== null && noiseOverall < LOW_OVERALL_THRESHOLD, `noise overall ${String(noiseOverall)}`);
 
   // ── It must never be able to break a generation ──────────────────────────
   check('mismatched signature lengths return null, not a throw',

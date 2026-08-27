@@ -36,7 +36,8 @@
     "test:mock-from-schema": "npx tsx scripts/tests/mock-from-schema.test.ts",
     "test:website-url": "npx tsx scripts/tests/website-url.test.ts",
     "test:beta-credits": "npx tsx scripts/tests/beta-credits.test.ts",
-    "test:edit-effect": "npx tsx scripts/tests/edit-effect.test.ts"
+    "test:edit-effect": "npx tsx scripts/tests/edit-effect.test.ts",
+    "verify:live": "npx tsx scripts/live/run.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

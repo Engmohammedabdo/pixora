@@ -22,8 +22,9 @@ import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/a
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
 import {
-  LOW_EFFECT_THRESHOLD,
   effectSignatureFromDataUrl,
+  looksLikeNoOp,
+  overallChange,
   strongestLocalChange,
 } from '@/lib/image/edit-effect';
 
@@ -343,16 +344,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (result.inputSignature && result.url) {
         try {
           const after = await effectSignatureFromDataUrl(result.url);
-          const effect = after ? strongestLocalChange(result.inputSignature, after) : null;
-          if (effect !== null) {
-            editEffect = Math.round(effect * 10) / 10;
-            if (effect < LOW_EFFECT_THRESHOLD) {
-              console.warn(
-                `[edit][low-effect] generation ${generation?.id ?? '?'} preset=${input.editPreset ?? 'none'} ` +
-                  `type=${input.editType} effect=${editEffect} (< ${LOW_EFFECT_THRESHOLD}): the model may have ` +
-                  'returned the input essentially unchanged, and the customer has been charged.'
-              );
-            }
+          const maxLocal = after ? strongestLocalChange(result.inputSignature, after) : null;
+          const overall = after ? overallChange(result.inputSignature, after) : null;
+          if (maxLocal !== null) editEffect = Math.round(maxLocal * 10) / 10;
+          // BOTH measures, because there are two kinds of real edit. A localized
+          // change shows in the strongest cell; a colour or style grade shows
+          // only in the mean, and on that measure alone a genuine warm grade
+          // scored LOWER than a labelled no-op. See lib/image/edit-effect.ts.
+          if (looksLikeNoOp(maxLocal, overall)) {
+            console.warn(
+              `[edit][low-effect] generation ${generation?.id ?? '?'} preset=${input.editPreset ?? 'none'} ` +
+                `type=${input.editType} local=${maxLocal?.toFixed(1)} overall=${overall?.toFixed(2)}: ` +
+                'the model may have returned the input essentially unchanged, and the customer has been charged.'
+            );
           }
         } catch {
           // Diagnostics never fail a paid generation.

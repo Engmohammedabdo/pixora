@@ -46,3 +46,6 @@ next-env.d.ts
 
 # subagent-driven-development scratch (briefs, reports, review packages)
 .superpowers/
+
+# Live verification artifacts — real generated images, not repo content
+/.superpowers/live-runs/
