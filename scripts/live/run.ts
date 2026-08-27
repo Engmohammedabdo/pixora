@@ -2,9 +2,11 @@
  * Live verification: run the product for real, measure what came back, and lay
  * the output out so a human or a vision agent can look at all of it at once.
  *
- *   npm run verify:live                      # against production
+ *   npm run verify:live                              # edit sweep only (the default)
+ *   npm run verify:live -- --studios text --edits off --yes
+ *   npm run verify:live -- --studios all --yes
  *   npm run verify:live -- --base http://localhost:3000
- *   npm run verify:live -- --only marketplace_white,promo_badge
+ *   npm run verify:live -- --only marketplace_white,plan_en
  *
  * ── WHY THIS EXISTS ────────────────────────────────────────────────────────
  * On 2026-08-27 four defects shipped past every gate in this repo — `tsc`,
@@ -22,26 +24,36 @@
  * files on disk.
  *
  * ── IT SPENDS REAL CREDITS, AND SAYS SO BEFORE IT DOES ─────────────────────
- * A full sweep is ~5 fixtures + 14 edits = 19 credits on the configured account.
- * The plan is printed and the run is refused without `--yes`, because a
- * verification tool that quietly bills you is its own kind of defect.
+ * Every case declares its price, the whole plan is printed with the account's
+ * balance beside it, and the run is refused without `--yes` and refused outright
+ * when the plan costs more than the account holds. A verification tool that
+ * quietly bills you is its own kind of defect.
+ *
+ * The studio sweep is opt-in per group for the same reason: storyboard is 14
+ * credits and campaign 12, so "run everything" is over budget before it starts.
+ * The default stays the edit sweep, and `--studios` prints what each group costs
+ * before it is chosen.
  *
  * ── WHAT IT DOES NOT DO ────────────────────────────────────────────────────
- * It does not judge whether an image is good, or whether the model invented
- * something. Those need eyes. It produces `sheet-*.png` and a report for exactly
- * that pass, and states plainly in the report which questions it did not answer.
+ * It does not judge whether an image is good, whether a marketing plan is any
+ * use, or whether a voice sounds human. Those need eyes and ears. It writes
+ * `sheet-*.png` and one JSON file per deliverable for exactly that pass, and
+ * states plainly in the report which questions it did not answer.
  */
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { CREDIT_COSTS } from '../../lib/credits/costs';
 import { LOW_EFFECT_THRESHOLD, LOW_OVERALL_THRESHOLD, looksLikeNoOp } from '../../lib/image/edit-effect';
 import { mintSession } from './session';
 import { EDIT_CASES, FIXTURES, editTypeFor, uncoveredPresets, type EditCase } from './cases';
 import { cornerMarkPresent, editEffect, subjectSpan, whiteBackground, type CheckResult } from './checks';
+import { STUDIO_CASES, groupCost, uncoveredStudios, type CaseTools, type StudioCase, type StudioGroup } from './studio-cases';
 
 const ROOT = join(__dirname, '..', '..');
 const DEFAULT_BASE = 'https://pyrasuite.pyramedia.cloud';
 const DEFAULT_EMAIL = 'pyra-e2e-shawarma@pyramedia.info';
+const GROUPS: StudioGroup[] = ['text', 'image', 'audio'];
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -51,6 +63,21 @@ const BASE = (arg('--base') ?? DEFAULT_BASE).replace(/\/$/, '');
 const EMAIL = arg('--email') ?? DEFAULT_EMAIL;
 const ONLY = arg('--only')?.split(',').map((s) => s.trim()).filter(Boolean);
 const CONFIRMED = process.argv.includes('--yes');
+/** Default off, so `npm run verify:live` costs exactly what it always did. */
+const STUDIO_SELECTION = (arg('--studios') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+/** Default on, so the existing default run is unchanged; `--edits off` is how a
+ *  studio-only sweep avoids paying the edit sweep's 19 credits as well. */
+const EDITS_ON = (arg('--edits') ?? 'on') !== 'off';
+
+function selectedGroups(): Set<StudioGroup> {
+  if (STUDIO_SELECTION.includes('all')) return new Set(GROUPS);
+  const unknown = STUDIO_SELECTION.filter((g) => g !== 'all' && !GROUPS.includes(g as StudioGroup));
+  if (unknown.length) {
+    console.error(`unknown --studios group: ${unknown.join(', ')}. Valid: ${GROUPS.join(', ')}, all`);
+    process.exit(1);
+  }
+  return new Set(STUDIO_SELECTION as StudioGroup[]);
+}
 
 interface CaseReport {
   preset: string;
@@ -61,6 +88,18 @@ interface CaseReport {
   overall?: number | null;
   checks: CheckResult[];
   imageFile?: string;
+  error?: string;
+}
+
+interface StudioReport {
+  id: string;
+  studio: string;
+  group: StudioGroup;
+  declared: number;
+  status: 'passed' | 'failed' | 'errored';
+  credits?: number;
+  checks: CheckResult[];
+  outputFile?: string;
   error?: string;
 }
 
@@ -78,6 +117,19 @@ async function download(url: string): Promise<Buffer> {
   const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
   if (!res.ok) throw new Error(`download ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+/** What the account actually holds, read from the product rather than assumed —
+ *  the plan below is only honest if the balance beside it is real. Null when it
+ *  cannot be read, which is reported as unknown and never as zero. */
+async function readBalance(cookie: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${BASE}/api/credits/balance`, { headers: { Cookie: cookie }, signal: AbortSignal.timeout(60_000) });
+    const json = (await res.json()) as { data?: { balance?: number } };
+    return typeof json.data?.balance === 'number' ? json.data.balance : null;
+  } catch {
+    return null;
+  }
 }
 
 /** One labelled contact sheet, because judging fourteen images one at a time is
@@ -109,32 +161,78 @@ async function sheet(dir: string, out: string, items: [string, string][]): Promi
 }
 
 async function main(): Promise<void> {
+  // ── Coverage, asserted before anything is spent ──────────────────────────
+  // Both refusals are the same rule: something the product ships that this sweep
+  // has no case for would otherwise ship unrun and unlooked-at, which is exactly
+  // the state all fourteen edit presets were in before the first sweep.
   const gaps = uncoveredPresets();
   if (gaps.length) {
     console.error(`REFUSING TO RUN: presets with no case — ${gaps.join(', ')}`);
     console.error('Add them to scripts/live/cases.ts with a fixture that contains what they act on.');
     process.exit(1);
   }
+  const studioGaps = uncoveredStudios();
+  if (studioGaps.length) {
+    console.error(`REFUSING TO RUN: studios with no case — ${studioGaps.join(', ')}`);
+    console.error('Every directory under app/api/studios needs a case in scripts/live/studio-cases.ts,');
+    console.error('or an entry in COVERED_ELSEWHERE there saying where it IS covered and why.');
+    process.exit(1);
+  }
 
-  const cases = ONLY ? EDIT_CASES.filter((c) => ONLY.includes(c.preset)) : EDIT_CASES;
-  const fixtures = [...new Set(cases.map((c) => c.fixture))];
-  const cost = fixtures.length + cases.length;
+  const groups = selectedGroups();
+  const cases = (EDITS_ON ? EDIT_CASES : []).filter((c) => !ONLY || ONLY.includes(c.preset));
+  const studioCases = STUDIO_CASES
+    .filter((c) => groups.has(c.group))
+    .filter((c) => !ONLY || ONLY.includes(c.id));
+
+  const fixtures = [...new Set([
+    ...cases.map((c) => c.fixture as string),
+    ...studioCases.map((c) => c.fixture).filter((f): f is string => Boolean(f)),
+  ])];
+
+  const fixtureCost = fixtures.length * CREDIT_COSTS.image['1080p'];
+  const editCost = cases.length * CREDIT_COSTS.edit;
+  const studioCost = studioCases.reduce((sum, c) => sum + c.cost, 0);
+  const cost = fixtureCost + editCost + studioCost;
 
   console.log(`target        ${BASE}`);
   console.log(`account       ${EMAIL}`);
-  console.log(`fixtures      ${fixtures.length}   (1 credit each)`);
-  console.log(`edit cases    ${cases.length}   (1 credit each)`);
-  console.log(`TOTAL COST    ${cost} credits of real money\n`);
+  console.log('');
+  console.log(`fixtures      ${String(fixtures.length).padStart(2)} images   ${String(fixtureCost).padStart(3)} credits   ${fixtures.join(', ') || '—'}`);
+  console.log(`edit cases    ${String(cases.length).padStart(2)} cases    ${String(editCost).padStart(3)} credits   ${EDITS_ON ? '(--edits off to skip)' : '(SKIPPED via --edits off)'}`);
+  console.log(`studio cases  ${String(studioCases.length).padStart(2)} cases    ${String(studioCost).padStart(3)} credits   ${STUDIO_SELECTION.join(',') || 'none — opt in with --studios'}`);
+  for (const c of studioCases) console.log(`                 ${c.id.padEnd(20)} ${String(c.cost).padStart(3)} cr   ${c.intent}`);
+  console.log('');
+  console.log('groups available (before fixtures):');
+  for (const g of GROUPS) {
+    const n = STUDIO_CASES.filter((c) => c.group === g).length;
+    console.log(`  --studios ${g.padEnd(6)} ${String(groupCost(g)).padStart(3)} credits over ${n} case${n === 1 ? '' : 's'}`);
+  }
+  console.log(`  --studios all    ${String(GROUPS.reduce((s, g) => s + groupCost(g), 0)).padStart(3)} credits over ${STUDIO_CASES.length} cases`);
+  console.log('');
+  console.log(`TOTAL COST    ${cost} credits of real money`);
+
+  if (!cases.length && !studioCases.length) {
+    console.log('\nNothing selected. Nothing spent.');
+    process.exit(0);
+  }
+
+  const session = await mintSession(ROOT, EMAIL);
+  const balanceBefore = await readBalance(session.cookie);
+  console.log(`balance       ${balanceBefore === null ? 'unknown' : balanceBefore} credits`);
+  if (balanceBefore !== null && balanceBefore < cost) {
+    console.error(`\nREFUSING TO RUN: the plan costs ${cost} credits and the account holds ${balanceBefore}.`);
+    console.error('A half-finished sweep spends the money and proves nothing. Narrow it with --studios / --only.');
+    process.exit(2);
+  }
   if (!CONFIRMED) {
-    console.log('Refusing to spend credits without --yes. Re-run with --yes to proceed.');
+    console.log('\nRefusing to spend credits without --yes. Re-run with --yes to proceed.');
     process.exit(2);
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const dir = join(ROOT, '.superpowers', 'live-runs', stamp);
   mkdirSync(dir, { recursive: true });
-
-  const session = await mintSession(ROOT, EMAIL);
   console.log(`session       ${session.userId}\n`);
 
   // ── Fixtures ────────────────────────────────────────────────────────────
@@ -157,7 +255,11 @@ async function main(): Promise<void> {
     console.log(`fixture ${name.padEnd(18)} ok${data?.mock ? '  (MOCK — not a real model call)' : ''}`);
   }
 
-  // ── Cases ───────────────────────────────────────────────────────────────
+  // Extra images a studio case asks to keep, laid out on the same contact sheet
+  // as the edits — the reading pass should be one pass, not two.
+  const extraTiles: [string, string][] = [];
+
+  // ── Edit cases ──────────────────────────────────────────────────────────
   const reports: CaseReport[] = [];
   for (const c of cases as EditCase[]) {
     const rep: CaseReport = { preset: c.preset, fixture: c.fixture, status: 'passed', checks: [] };
@@ -238,31 +340,122 @@ async function main(): Promise<void> {
     reports.push(rep);
   }
 
+  // ── Studio cases ────────────────────────────────────────────────────────
+  const studioReports: StudioReport[] = [];
+  for (const c of studioCases as StudioCase[]) {
+    const rep: StudioReport = { id: c.id, studio: c.studio, group: c.group, declared: c.cost, status: 'passed', checks: [] };
+    try {
+      const tools: CaseTools = {
+        download,
+        keepImage: (file, bytes, label) => {
+          writeFileSync(join(dir, file), bytes);
+          extraTiles.push([file, label]);
+        },
+        fixture: c.fixture
+          ? { url: fixtureUrls.get(c.fixture) as string, bytes: fixtureBytes.get(c.fixture) as Buffer }
+          : null,
+      };
+
+      const r = await post(c.path, session.cookie, c.body(tools));
+      const data = r.json.data as Record<string, unknown> | undefined;
+      if (r.status !== 200 || !data) {
+        rep.status = 'errored';
+        // The error code is the whole diagnosis for a studio route — a 400 says
+        // the request shape is wrong and teaches nothing about the model, a 500
+        // `generation_parse_failed` says the model answered and we refused it.
+        rep.error = `HTTP ${r.status} ${String(r.json.error ?? '')}${r.json.details ? ' ' + JSON.stringify(r.json.details).slice(0, 300) : ''}`;
+        studioReports.push(rep);
+        console.log(`${c.id.padEnd(20)} ERRORED  ${rep.error}`);
+        continue;
+      }
+      if (typeof data.creditsUsed === 'number') rep.credits = data.creditsUsed;
+
+      // The deliverable goes to disk whatever the checks say. The numbers below
+      // cannot tell whether a marketing plan is any USE — that pass needs a
+      // reader, and it needs the text in front of it.
+      const file = `${c.id}.json`;
+      writeFileSync(join(dir, file), JSON.stringify(c.deliverable(data), null, 2), 'utf8');
+      rep.outputFile = file;
+
+      rep.checks = await c.verify(data, tools);
+      rep.status = rep.checks.every((k) => k.ok) ? 'passed' : 'failed';
+      const flags = rep.checks.filter((k) => !k.ok).map((k) => k.name).join('; ');
+      console.log(`${c.id.padEnd(20)} ${rep.status.toUpperCase().padEnd(8)} ${String(rep.credits ?? '—').padStart(2)}cr  ${rep.checks.filter((k) => k.ok).length}/${rep.checks.length} checks${flags ? '  <- ' + flags : ''}`);
+    } catch (e) {
+      rep.status = 'errored';
+      rep.error = (e as Error).message;
+      console.log(`${c.id.padEnd(20)} ERRORED  ${rep.error}`);
+    }
+    studioReports.push(rep);
+  }
+
+  const balanceAfter = await readBalance(session.cookie);
+  const spent = balanceBefore !== null && balanceAfter !== null ? balanceBefore - balanceAfter : null;
+
   // ── Artifacts for the pass this cannot do ───────────────────────────────
-  const tiles = reports.filter((r) => r.imageFile).map((r) => [r.imageFile as string, r.preset] as [string, string]);
+  const tiles = [
+    ...reports.filter((r) => r.imageFile).map((r) => [r.imageFile as string, r.preset] as [string, string]),
+    ...extraTiles,
+  ];
   const half = Math.ceil(tiles.length / 2);
   await sheet(dir, 'sheet-A.png', tiles.slice(0, half));
   await sheet(dir, 'sheet-B.png', tiles.slice(half));
   await sheet(dir, 'sheet-fixtures.png', fixtures.map((f) => [`fixture-${f}.png`, `SOURCE: ${f}`] as [string, string]));
 
   const failed = reports.filter((r) => r.status !== 'passed');
+  const studioFailed = studioReports.filter((r) => r.status !== 'passed');
+  const totalCases = reports.length + studioReports.length;
+  const totalFailed = failed.length + studioFailed.length;
+
   const md = [
     `# Live verification — ${stamp}`,
     ``,
-    `Target \`${BASE}\` · account \`${EMAIL}\` · ${cost} credits spent.`,
+    `Target \`${BASE}\` · account \`${EMAIL}\``,
     ``,
-    `**${reports.length - failed.length} of ${reports.length} passed the measured checks.**`,
+    `| | |`,
+    `|---|---|`,
+    `| planned cost | ${cost} credits |`,
+    `| balance before | ${balanceBefore ?? 'unknown'} |`,
+    `| balance after | ${balanceAfter ?? 'unknown'} |`,
+    `| actually spent | ${spent === null ? 'unknown' : `${spent} credits`} |`,
     ``,
-    `| preset | fixture | status | effect | credits |`,
-    `|---|---|---|---|---|`,
-    ...reports.map((r) => `| \`${r.preset}\` | ${r.fixture} | ${r.status} | ${r.effect?.toFixed(1) ?? '—'} | ${r.credits ?? '—'} |`),
+    `**${totalCases - totalFailed} of ${totalCases} passed the measured checks.**`,
     ``,
-    ...failed.flatMap((r) => [
-      `### ${r.preset} — ${r.status}`,
-      r.error ? `\`${r.error}\`` : '',
-      ...r.checks.filter((k) => !k.ok).map((k) => `- **${k.name}** — ${k.detail}`),
+    ...(reports.length ? [
+      `## Edit presets`,
       ``,
-    ]),
+      `| preset | fixture | status | effect | credits |`,
+      `|---|---|---|---|---|`,
+      ...reports.map((r) => `| \`${r.preset}\` | ${r.fixture} | ${r.status} | ${r.effect?.toFixed(1) ?? '—'} | ${r.credits ?? '—'} |`),
+      ``,
+    ] : []),
+    ...(studioReports.length ? [
+      `## Studios`,
+      ``,
+      `| case | studio | group | status | checks | declared | charged | output |`,
+      `|---|---|---|---|---|---|---|---|`,
+      ...studioReports.map((r) =>
+        `| \`${r.id}\` | ${r.studio} | ${r.group} | ${r.status} | ${r.checks.filter((k) => k.ok).length}/${r.checks.length} | ${r.declared} | ${r.credits ?? '—'} | ${r.outputFile ? `\`${r.outputFile}\`` : '—'} |`),
+      ``,
+      `### Every measurement, passing or not`,
+      ``,
+      ...studioReports.flatMap((r) => [
+        `**${r.id}** — ${r.status}${r.error ? ` · \`${r.error}\`` : ''}`,
+        ``,
+        ...r.checks.map((k) => `- ${k.ok ? 'ok' : '**FAIL**'} — ${k.name} — ${k.detail}`),
+        ``,
+      ]),
+    ] : []),
+    ...(failed.length ? [
+      `## Failed edit presets`,
+      ``,
+      ...failed.flatMap((r) => [
+        `### ${r.preset} — ${r.status}`,
+        r.error ? `\`${r.error}\`` : '',
+        ...r.checks.filter((k) => !k.ok).map((k) => `- **${k.name}** — ${k.detail}`),
+        ``,
+      ]),
+    ] : []),
     `## What this run did NOT answer`,
     ``,
     `The checks above are measurements. They cannot tell whether an image is any`,
@@ -273,14 +466,37 @@ async function main(): Promise<void> {
     `Open \`sheet-A.png\`, \`sheet-B.png\` and \`sheet-fixtures.png\` and compare each`,
     `output against its source before calling this run clean.`,
     ``,
+    ...(studioReports.length ? [
+      `For the studios, specifically unanswered:`,
+      ``,
+      `- **Whether the text is any good.** A plan can name four filled tabs, be in the`,
+      `  right language, and still be generic advice that fits any business. Read the`,
+      `  \`*.json\` files in this directory — that is what they are written for.`,
+      `- **Whether the business context reached the model.** Nothing here proves the`,
+      `  deliverable is about the business that was described rather than about`,
+      `  restaurants in general.`,
+      `- **Whether a voiceover says the right words, in the right dialect, in a voice`,
+      `  worth paying for.** The audio checks prove the file decodes, plays for a`,
+      `  measured time, stays inside the plan cap and is not digital silence. They`,
+      `  cannot hear it. Play the file.`,
+      `- **Whether three prompt-builder prompts differ in APPROACH** rather than merely`,
+      `  in wording. Distinctness is measurable; usefulness is not.`,
+      `- **The campaign image path and multi-shot photoshoot.** This sweep runs campaign`,
+      `  with images off (3 credits, not 12) and photoshoot at one shot, so the`,
+      `  per-post image loop and the partial-refund arithmetic above one shot are`,
+      `  exercised by neither.`,
+      ``,
+    ] : []),
   ].join('\n');
   writeFileSync(join(dir, 'report.md'), md, 'utf8');
-  writeFileSync(join(dir, 'report.json'), JSON.stringify({ base: BASE, stamp, cost, reports }, null, 2), 'utf8');
+  writeFileSync(join(dir, 'report.json'), JSON.stringify({ base: BASE, stamp, cost, balanceBefore, balanceAfter, spent, reports, studioReports }, null, 2), 'utf8');
 
-  console.log(`\n${reports.length - failed.length}/${reports.length} passed the measured checks`);
+  console.log(`\n${totalCases - totalFailed}/${totalCases} passed the measured checks`);
+  console.log(`credits: planned ${cost}, actually spent ${spent === null ? 'unknown' : spent}`);
   console.log(`artifacts: ${dir}`);
-  console.log('NOW LOOK AT sheet-A.png / sheet-B.png — the measurements cannot see invented or erased content.');
-  process.exit(failed.length ? 1 : 0);
+  if (tiles.length) console.log('NOW LOOK AT sheet-A.png / sheet-B.png — the measurements cannot see invented or erased content.');
+  if (studioReports.length) console.log('NOW READ the *.json deliverables — the measurements cannot see whether the text is any use.');
+  process.exit(totalFailed ? 1 : 0);
 }
 
 void main().catch((e: unknown) => {
