@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient } from '@/lib/supabase/server';
 import { consumeAttempt } from '@/lib/throttle';
-import { isClientReportable, type EventParams } from '@/lib/analytics/events';
+import { EVENTS, isClientReportable, type EventParams } from '@/lib/analytics/events';
 import { readGaIds, trackEventWithIds } from '@/lib/analytics/track';
+import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 
 /**
  * The ONE way a browser is allowed to report an event.
@@ -92,6 +93,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Awaited, unlike the studio paths: this request exists only to record the
     // event, so there is no customer work for it to delay.
     await trackEventWithIds(user.id, name, params as EventParams, await readGaIds());
+
+    // Meta's CompleteRegistration — the password-signup witness (the OAuth one
+    // is the callback route). Gated on account age like the callback's
+    // isNewAccount rule: this route trusts the session for WHO but not for
+    // WHEN, and without the gate any old account could replay sign_up into the
+    // ad platform's optimization data. The 48h (event_name, event_id) dedup
+    // keyed on the user id makes the two witnesses — and any retry — one event.
+    if (name === EVENTS.SIGN_UP) {
+      const createdAt = Date.parse(user.created_at ?? '');
+      if (Number.isFinite(createdAt) && Date.now() - createdAt < 5 * 60_000) {
+        await sendMetaCapiEvent({
+          eventName: 'CompleteRegistration',
+          eventId: `signup_${user.id}`,
+          email: user.email,
+          userId: user.id,
+          ...(await readMetaIds()),
+        });
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1066,6 +1066,98 @@ different model id — `geminiImagePro`), the ElevenLabs premium voices
 `emirati`. The harness now runs as whatever plan the account holds, so each of
 these is one plan-switch away.
 
+### Meta Pixel + Conversions API — built 2026-08-28
+
+The Meta half of the analytics architecture, mirroring the GA4 one deliberately
+— same division of labour, same attribution carry, same failure classes guarded
+the same way. Pixel id `945169027980538` (public by nature; hardcoded fallback
+in `lib/analytics/meta-config.ts`, one module imported by BOTH the browser tag
+and the server sender so the two cannot drift onto different pixels).
+
+**The browser owns what only the browser witnesses.** `MetaPixel.tsx` mounts
+beside `GoogleAnalytics` in `app/[locale]/layout.tsx` — both locales, never the
+admin panel, production-only — and reports the landing PageView; every SPA
+navigation is reported by `PageViewTracker`, which now owns the SPA half for
+BOTH tags (one navigation listener, two sinks). The pixel also plants
+`_fbp`/`_fbc`, which is what gives the server events their match quality.
+**It is a server component like GoogleAnalytics, and that was corrected by
+measurement, not taste:** the first version was a client component (it carried
+the SPA tracking itself), and the built `ar.html` contained no fbevents
+reference at all — the whole bootstrap lived in the layout chunk. As a server
+component the bootstrap ships in the prerendered document (flight payload) and
+the noscript fallback is real HTML — verifiable in the bytes that ship. One
+measured caveat for future greps: `next/script` `afterInteractive` NEVER emits
+an executable `<script>` into SSR HTML — the GA tag included; the document
+carries a preload link + the payload, and the client runtime injects both tags
+after hydration. And `grep -c` on a prerendered document counts LINES — the
+same one-line trap the built-document gate already records — which briefly
+made this round report a GA regression that had not happened. One rule the
+headers state and `test:analytics` enforces on the comment-stripped source of
+both components: **the browser never reports Purchase, CompleteRegistration or
+InitiateCheckout** — a client-reportable purchase is free Ads-Manager revenue
+for anyone with a devtools console, and would double-count against the
+webhook's copy.
+
+**The server owns the money and the funnel, via `lib/analytics/meta-capi.ts`:**
+
+| Event | Written where | Dedup key (`event_id`) |
+|-------|---------------|------------------------|
+| `Purchase` | Stripe webhook, inside the same guard as the GA4 purchase — a replay absorbed by `already_granted` reports to NEITHER sink | checkout session id, so Stripe's at-least-once delivery and the idempotency guard's deliberate re-run collapse to one sale |
+| `CompleteRegistration` | the two sign-up witnesses: `POST /api/events` (password, gated on `created_at` < 5 min so an old account cannot replay `sign_up` into ad-optimization data) and the OAuth callback (Google) | `signup_<userId>` — the two witnesses collapse to one registration |
+| `InitiateCheckout` | both checkout routes, fire-and-forget — the request IS the customer's browser, so cookies are readable there | `ic_<sessionId>` |
+
+Meta dedups on (event_name, event_id) for 48h. Match keys per event: hashed
+email (normalize-then-SHA256 — `test:analytics` holds a known-answer vector
+computed independently), hashed `external_id` (Supabase user id), and
+`_fbp`/`_fbc`. The webhook has no cookies (the request is Stripe's), so the
+checkout routes capture both cookies into session metadata — `metaFbp`/
+`metaFbc`, owned by the same `stripe-attribution.ts` module as the GA ids and
+for the same reason: a key-name typo is not an error, it is silently
+unattributed revenue. `_fbc` exists only when the visitor arrived through an ad
+click, which is exactly the case where losing it un-credits the campaign.
+
+**CSP: FIVE directives are load-bearing and fail SILENTLY** — script-src
+`connect.facebook.net`; img-src, connect-src, **form-action and frame-src**
+`www.facebook.com`. The last two are not in Meta's usual allowlist trio and
+were found by MEASUREMENT on a production build in a real browser: with only
+the first three, fbevents loaded, planted `_fbp`, and then delivered every
+PageView as a **form POST into a facebook.com iframe** — refused by
+`form-action 'self'` and the old frame-src, with no img/XHR fallback firing,
+and the only symptom two console lines nothing in CI can see. Widening
+form-action is normally the move to be most suspicious of (it is what stops an
+injected `<form>` exfiltrating credentials); one fixed Meta-operated origin is
+the acceptable shape of it. `test:analytics` asserts all five per-directive
+against comment-stripped `next.config.ts` (the beside-the-CSP comment names
+these very hosts, so an unstripped match would be satisfiable by the comment
+alone). Proved by removing one and watching the gate fail. Graph API pinned
+`v24.0`, confirmed live 2026-08-28 (v99.0 answers "Unknown path components";
+v24.0 answers a normal auth error).
+
+**Verified on a production build in a real browser (`next start`, 2026-08-28):**
+fbevents.js loads, `fbq.loaded: true`, the `_fbp` cookie is planted beside
+`_ga`/`_ga_*`, zero CSP violations under the final policy, and an SPA
+navigation `/ar` → `/ar/pricing` fired **exactly one** `fbq('track','PageView')`
+(measured by wrapping fbq — the landing view stays with the bootstrap, the
+initial-pathname skip held). The built documents carry the bootstrap + noscript
+once per customer-facing page and zero times on `/admin/*`; 62 of 62 documents
+still one `<html>` each.
+
+**Still open:**
+- **`META_CAPI_ACCESS_TOKEN` is NOT set** — the founder must generate it
+  (Events Manager → Data Sources → pixel → Settings → Conversions API) and set
+  it on the app service. Until then every server-sent Meta event is skipped
+  with one warning per process; the pixel still reports PageViews, so the
+  symptom is Ads Manager showing traffic but zero conversions. Optional
+  `META_CAPI_TEST_EVENT_CODE` routes CAPI events to Test Events for end-to-end
+  verification before going live.
+- **The pixel has never been OBSERVED in a real browser** — the same caveat GA4
+  carries, for the same structural reason: an API-driven harness has no `_fbp`
+  cookie. One more thing riding on the outstanding browser signups.
+- **Domain verification + ATT event prioritization** are Business Manager
+  steps, not code: verify `pyrasuite.pyramedia.cloud` and rank the events for
+  iOS delivery. Without them iOS-ATT users are measured worse — and the Gulf is
+  iOS-heavy, which is half the reason the CAPI path exists.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -1300,6 +1392,22 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=
 # internal user_events timeline is unaffected, so the symptom is GA4 Monetization
 # staying empty while the admin dashboard shows the revenue.
 GA4_API_SECRET=
+
+# Meta Pixel — OPTIONAL. Falls back to the hardcoded pixel id in
+# lib/analytics/meta-config.ts (the id is public — it ships in page source),
+# so production reports without this. Set it to test against a throwaway pixel.
+NEXT_PUBLIC_META_PIXEL_ID=
+
+# Server -> Meta Conversions API. NOT derivable from the pixel id.
+# Events Manager -> Data Sources -> (pixel) -> Settings -> Conversions API ->
+# Generate access token. Absent, every SERVER-sent Meta event (Purchase,
+# CompleteRegistration, InitiateCheckout) is skipped and warned once per
+# process — the browser pixel still reports PageViews, so the symptom is Ads
+# Manager showing traffic but ZERO conversions.
+META_CAPI_ACCESS_TOKEN=
+# Optional: routes CAPI events to Events Manager -> Test Events instead of
+# recording them — the way to verify the pipe without writing fake conversions.
+META_CAPI_TEST_EVENT_CODE=
 ```
 
 ---
@@ -1329,7 +1437,7 @@ npm run test:settle             #  12 checks: a charge only drops from a refund 
 npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
 npm run test:prompts            # 111 golden-string checks over the prompt builders
-npm run test:analytics          #  25 checks: the client may never report a server-witnessed event
+npm run test:analytics          #  46 checks: the client may never report a server-witnessed event — GA4 AND Meta — plus cookie parsers, Meta hashing, and the five load-bearing CSP hosts
 npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
 npm run test:website-url        #  48 checks: the URL normaliser and BOTH storage layers agree
 npm run test:brand-extract      # 135 checks: the extract route, its codes and its bounds

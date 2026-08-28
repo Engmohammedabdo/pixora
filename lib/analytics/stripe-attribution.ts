@@ -1,8 +1,9 @@
 import type Stripe from 'stripe';
 import { readGaIds, type GaIds } from './track';
+import { readMetaIds, type MetaIds } from './meta-capi';
 
 /**
- * Carrying the browser's GA identity across the Stripe round trip.
+ * Carrying the browser's GA — and Meta — identity across the Stripe round trip.
  *
  * ── THE PROBLEM THIS SOLVES ────────────────────────────────────────────────
  * `purchase` is the one event the business cares most about, and it is the one
@@ -34,6 +35,8 @@ import { readGaIds, type GaIds } from './track';
 
 const CLIENT_ID_KEY = 'gaClientId';
 const SESSION_ID_KEY = 'gaSessionId';
+const META_FBP_KEY = 'metaFbp';
+const META_FBC_KEY = 'metaFbc';
 
 /**
  * Call from a checkout route, inside the customer's request, and spread the
@@ -54,5 +57,30 @@ export function gaIdsFromMetadata(metadata: Stripe.Metadata | null | undefined):
   return {
     clientId: metadata?.[CLIENT_ID_KEY] || null,
     sessionId: metadata?.[SESSION_ID_KEY] || null,
+  };
+}
+
+/**
+ * The Meta half, same round trip and same reasoning. `_fbp` is the pixel's
+ * browser id and `_fbc` exists only when the visitor arrived through an ad
+ * click — exactly the case where losing it means the campaign that earned the
+ * sale is never credited. `_fbc` is also the shorter-lived of the two (the
+ * cookie is refreshed per ad click), so capturing it at checkout time rather
+ * than at webhook time is not just a transport necessity, it snapshots the
+ * click closest to the money.
+ */
+export async function metaCheckoutMetadata(): Promise<Record<string, string>> {
+  const { fbp, fbc } = await readMetaIds();
+  const md: Record<string, string> = {};
+  if (fbp) md[META_FBP_KEY] = fbp;
+  if (fbc) md[META_FBC_KEY] = fbc;
+  return md;
+}
+
+/** Call from the webhook with `session.metadata`. */
+export function metaIdsFromMetadata(metadata: Stripe.Metadata | null | undefined): MetaIds {
+  return {
+    fbp: metadata?.[META_FBP_KEY] || null,
+    fbc: metadata?.[META_FBC_KEY] || null,
   };
 }

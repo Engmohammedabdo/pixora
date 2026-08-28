@@ -69,16 +69,34 @@ const nextConfig: NextConfig = {
               // stranger with a free account. The wildcard is required because
               // GA4 routes collection regionally (region1.google-analytics.com
               // and friends), so the exact host is not known ahead of time.
-              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live https://www.googletagmanager.com`,
+              // The facebook entries are load-bearing for
+              // components/analytics/MetaPixel.tsx, exactly as the Google ones
+              // are for GoogleAnalytics.tsx: script-src loads fbevents.js from
+              // connect.facebook.net; img-src, connect-src, form-action and
+              // frame-src carry the /tr event delivery to www.facebook.com. A
+              // missing one fails SILENTLY. form-action and frame-src are NOT
+              // in Meta's usual allowlist trio and were added from MEASUREMENT,
+              // not docs: on a production build in a real browser, fbevents
+              // delivered the PageView as a form POST into a facebook.com
+              // iframe, and the console showed both directives blocking it —
+              // the img/XHR fallbacks never fired. All hosts are Meta-operated,
+              // not multi-tenant — nobody can register a subdomain under
+              // either. test:analytics asserts all five.
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://connect.facebook.net`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co https://www.googletagmanager.com https://*.google-analytics.com",
+              "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co https://www.googletagmanager.com https://*.google-analytics.com https://www.facebook.com",
               "media-src 'self' blob: https://*.pyramedia.cloud",
-              "connect-src 'self' https://api.stripe.com https://api.openai.com https://generativelanguage.googleapis.com https://api.replicate.com https://api.elevenlabs.io https://*.pyramedia.cloud https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com",
-              "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+              "connect-src 'self' https://api.stripe.com https://api.openai.com https://generativelanguage.googleapis.com https://api.replicate.com https://api.elevenlabs.io https://*.pyramedia.cloud https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net",
+              "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://www.facebook.com",
               "object-src 'none'",
               "base-uri 'self'",
-              "form-action 'self'",
+              // www.facebook.com here is for the pixel's form-POST transport
+              // (see the note above). Widening form-action is normally the
+              // directive to be most careful with — it is what stops an
+              // injected <form> from exfiltrating credentials — but the added
+              // action is one fixed Meta-operated origin, not a wildcard.
+              "form-action 'self' https://www.facebook.com",
               "frame-ancestors 'none'",
               "upgrade-insecure-requests",
             ].join('; '),

@@ -4,7 +4,8 @@ import { createServerClient, createServiceRoleClient } from '@/lib/supabase/serv
 import { stripe } from '@/lib/stripe/client';
 import { TOPUPS } from '@/lib/stripe/plans';
 import { resolveReturnLocale, persistLocale } from '@/lib/stripe/locale';
-import { gaCheckoutMetadata } from '@/lib/analytics/stripe-attribution';
+import { gaCheckoutMetadata, metaCheckoutMetadata } from '@/lib/analytics/stripe-attribution';
+import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 
 const InputSchema = z.object({
   topupId: z.enum(['small', 'medium', 'large', 'xl']),
@@ -64,14 +65,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       metadata: {
         // Captured here for the same reason the locale is, three lines up: the
         // webhook has no customer request to read them from. Without them the
-        // purchase reaches GA4 attributed to nobody. See lib/analytics/stripe-attribution.ts.
+        // purchase reaches GA4 and Meta attributed to nobody. See
+        // lib/analytics/stripe-attribution.ts.
         ...(await gaCheckoutMetadata()),
+        ...(await metaCheckoutMetadata()),
         userId: user.id,
         topupId,
         credits: String(topup.credits),
         type: 'topup',
       },
     });
+
+    // Same mid-funnel signal as create-checkout, same fire-and-forget contract.
+    void readMetaIds().then((ids) =>
+      sendMetaCapiEvent({
+        eventName: 'InitiateCheckout',
+        eventId: `ic_${session.id}`,
+        email: user.email,
+        userId: user.id,
+        ...ids,
+        customData: { content_name: `topup_${topupId}` },
+      })
+    ).catch(() => {});
 
     return NextResponse.json({ success: true, data: { url: session.url } });
   } catch (error) {

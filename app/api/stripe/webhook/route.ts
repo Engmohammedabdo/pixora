@@ -5,7 +5,8 @@ import { getCreditsForPlan, PLANS } from '@/lib/stripe/plans';
 import { sendPaymentFailedEmail } from '@/lib/email/send';
 import { planSwitchBalance } from '@/lib/credits/plan-switch';
 import { trackEventWithIds } from '@/lib/analytics/track';
-import { gaIdsFromMetadata } from '@/lib/analytics/stripe-attribution';
+import { gaIdsFromMetadata, metaIdsFromMetadata } from '@/lib/analytics/stripe-attribution';
+import { sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 import { EVENTS } from '@/lib/analytics/events';
 import type Stripe from 'stripe';
 
@@ -308,6 +309,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // checkout route — see lib/analytics/stripe-attribution.ts.
             gaIdsFromMetadata(session.metadata)
           );
+
+          // Meta's copy of the same sale, inside the same guard — so a replay
+          // that the `already_granted` branch absorbed reports to neither sink.
+          // event_id is the session id: Meta dedups on (event_name, event_id)
+          // for 48h, which covers both Stripe's at-least-once delivery and the
+          // idempotency guard's deliberate re-run of an unfinished event.
+          // Awaited like the GA send: this request is Stripe's, not a
+          // customer's, and delivery matters more than latency here.
+          await sendMetaCapiEvent({
+            eventName: 'Purchase',
+            eventId: session.id,
+            // The email Stripe verified at payment — present on every
+            // completed checkout, and worth more to matching than fbp alone.
+            email: session.customer_details?.email,
+            userId,
+            ...metaIdsFromMetadata(session.metadata),
+            customData: {
+              currency,
+              value,
+              content_name: purchase.itemId,
+            },
+          });
         }
         break;
       }

@@ -4,7 +4,9 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
 /**
- * Owns the SPA half of page_view reporting.
+ * Owns the SPA half of page_view reporting — for BOTH tags, GA4 and the Meta
+ * Pixel. One navigation listener, two sinks, so the two can never disagree
+ * about what counts as a pageview.
  *
  * ── WHY THE CODE OWNS THIS, AND NOT A GA4 TOGGLE ───────────────────────────
  * This is an App Router app: after the first document load every navigation is
@@ -61,6 +63,14 @@ export function PageViewTracker(): null {
       page_location: window.location.href,
       page_title: document.title,
     });
+
+    // Meta's copy of the same navigation. OPTIONAL call, not a shim, and that
+    // is load-bearing: the pixel bootstrap starts `if (f.fbq) return`, so a
+    // stub created here before it runs would make it bail without ever loading
+    // fbevents.js — losing the entire pixel to save one racing PageView. The
+    // landing PageView belongs to the bootstrap in MetaPixel.tsx, same split
+    // as gtag's `config` above.
+    (window as { fbq?: (...args: unknown[]) => void }).fbq?.('track', 'PageView');
   }, [pathname]);
 
   return null;

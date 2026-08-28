@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCachedFeatureFlags } from '@/lib/admin/settings';
 import { trackEventNow } from '@/lib/analytics/track';
+import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 import { EVENTS } from '@/lib/analytics/events';
 
 function getBaseUrl(request: NextRequest): string {
@@ -140,6 +141,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             userId,
             name: EVENTS.SIGN_UP,
             params: { method: 'google', locale },
+          });
+
+          // The Google half of Meta's CompleteRegistration (the password half
+          // is POST /api/events). Same event_id on both, so an account that
+          // somehow trips both witnesses is still one registration to Meta.
+          // This request is the browser's redirect back from Google, so the
+          // _fbp/_fbc cookies are readable here. Awaited for the same
+          // fire-and-lose reason as the track call above.
+          await sendMetaCapiEvent({
+            eventName: 'CompleteRegistration',
+            eventId: `signup_${userId}`,
+            email: sessionData?.user?.email,
+            userId,
+            ...(await readMetaIds()),
           });
 
           // The signup page gets the gate status for free (it already fetched it

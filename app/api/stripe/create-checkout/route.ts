@@ -4,7 +4,8 @@ import { createServerClient, createServiceRoleClient } from '@/lib/supabase/serv
 import { stripe } from '@/lib/stripe/client';
 import { PLANS } from '@/lib/stripe/plans';
 import { resolveReturnLocale, persistLocale } from '@/lib/stripe/locale';
-import { gaCheckoutMetadata } from '@/lib/analytics/stripe-attribution';
+import { gaCheckoutMetadata, metaCheckoutMetadata } from '@/lib/analytics/stripe-attribution';
+import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 
 const InputSchema = z.object({
   planId: z.enum(['starter', 'pro', 'business', 'agency']),
@@ -102,8 +103,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       metadata: {
         // Captured here for the same reason the locale is, three lines up: the
         // webhook has no customer request to read them from. Without them the
-        // purchase reaches GA4 attributed to nobody. See lib/analytics/stripe-attribution.ts.
+        // purchase reaches GA4 and Meta attributed to nobody. See
+        // lib/analytics/stripe-attribution.ts.
         ...(await gaCheckoutMetadata()),
+        ...(await metaCheckoutMetadata()),
         userId: user.id,
         planId,
         credits: String(plan.credits),
@@ -115,6 +118,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
       },
     });
+
+    // Mid-funnel signal for Meta's optimizer, sent from here rather than the
+    // browser because this request already witnesses the intent AND carries
+    // the customer's cookies. Fire-and-forget: reporting must never delay or
+    // fail a checkout. Keyed on the session id so a double-click that creates
+    // two sessions counts twice — which it genuinely is — while a retry of
+    // the SAME session collapses.
+    void readMetaIds().then((ids) =>
+      sendMetaCapiEvent({
+        eventName: 'InitiateCheckout',
+        eventId: `ic_${session.id}`,
+        email: user.email,
+        userId: user.id,
+        ...ids,
+        customData: { content_name: `plan_${planId}` },
+      })
+    ).catch(() => {});
 
     return NextResponse.json({ success: true, data: { url: session.url } });
   } catch (error) {

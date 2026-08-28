@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { MetaPixel } from '@/components/analytics/MetaPixel';
 import { PageViewTracker } from '@/components/analytics/PageViewTracker';
 import { OG_CONTENT } from '@/lib/seo/og-content';
 import '../globals.css';
@@ -141,14 +142,15 @@ export default async function RootLayout({
             </ThemeProvider>
           </DirectionProvider>
         </NextIntlClientProvider>
-        {/* Outside the provider tree on purpose — it needs no locale, no theme
-            and no query client, and keeping it last means the tag can never
-            delay hydration of the app itself. PageViewTracker reads only
-            usePathname — no auth, no query client — which is what makes it
-            safe to mount HERE, unlike AnalyticsIdentity (see the 2026-08-25
-            two-<html> regression in CLAUDE.md for what mounting the wrong
-            component in this layout did). Verified by test:built-document. */}
+        {/* Outside the provider tree on purpose — they need no locale, no theme
+            and no query client, and keeping them last means the tags can never
+            delay hydration of the app itself. PageViewTracker and MetaPixel
+            read only usePathname — no auth, no query client — which is what
+            makes them safe to mount HERE, unlike AnalyticsIdentity (see the
+            2026-08-25 two-<html> regression in CLAUDE.md for what mounting the
+            wrong component in this layout did). Verified by test:built-document. */}
         <GoogleAnalytics />
+        <MetaPixel />
         <PageViewTracker />
       </body>
     </html>
