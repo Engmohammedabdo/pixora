@@ -36,9 +36,13 @@ import { ExtractInputSchema } from '@/lib/brand-kits/extract-input';
  * `POST /api/brand-kits`. Saving here would present a guess as a fact.
  */
 
-// Measured crawls take 25-60s; this is a ceiling; a shorter deadline would
-// fail honest requests.
-const UPSTREAM_TIMEOUT_MS = 90_000;
+// Measured crawls take 25-60s — and the FIRST live end-to-end run of the
+// success arm (2026-08-28, pyramedia.info, a JS-heavy site through
+// playwright:adaptive) took 123s and returned a real draft. A 90s ceiling
+// would have aborted a request the upstream then completed and threw away.
+// The workflow's own crawl budget is 120s + model time, so the ceiling sits
+// above the whole upstream budget, not above the average case.
+const UPSTREAM_TIMEOUT_MS = 150_000;
 
 // The draft is well under 4 kB. 256 kB is ample headroom and stops a
 // misbehaving upstream from streaming unbounded bytes into this process.
