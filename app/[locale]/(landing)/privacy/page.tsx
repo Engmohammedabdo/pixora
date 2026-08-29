@@ -4,12 +4,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
 import { Shield } from 'lucide-react';
+import { getLegalDoc } from '@/lib/legal/policy';
 
 // Legal copy changes rarely and never per-visitor — see the landing page's
 // `revalidate` note for why marketing-tier routes are cacheable. A day-long
 // window is fine here since updates go through a deploy anyway.
 export const revalidate = 86400;
 
+/**
+ * REWRITTEN 2026-08-29, for two reasons that were both measured.
+ *
+ * 1. THIS PAGE SERVED ARABIC ON /en. Every string was hardcoded Arabic with no
+ *    `getTranslations` call anywhere in the file, so an English visitor — and an
+ *    English-speaking ad reviewer — got a document they could not read.
+ *
+ * 2. IT DISCLOSED NO TRACKING AT ALL. Grep for cookie / كوكي / pixel / بكسل /
+ *    analytics / Meta / Google over the old file returned ZERO matches, while
+ *    `app/[locale]/layout.tsx` mounts GoogleAnalytics, MetaPixel and
+ *    PageViewTracker on every landing view and the pixel plants `_fbp`/`_fbc`.
+ *    A privacy policy that does not disclose live tracking is the specific thing
+ *    a manual ad reviewer opens, and the penalty is a domain or ad-account flag
+ *    that follows every future campaign — not a single rejected ad.
+ *
+ * The prose now lives in `lib/legal/policy.ts`; that module's header explains why
+ * long-form legal text is a deliberate exception to this repo's i18n convention.
+ */
 export default async function PrivacyPage({
   params,
 }: {
@@ -18,58 +37,38 @@ export default async function PrivacyPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
+  const doc = getLegalDoc(locale, 'privacy');
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       <NavBar />
-      <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="p-6 max-w-3xl mx-auto space-y-6 pt-28">
         <div className="flex items-center gap-3">
           <Shield className="h-6 w-6 text-primary-500" />
-          <h1 className="text-2xl font-bold font-cairo">سياسة الخصوصية</h1>
+          <h1 className="text-2xl font-bold font-cairo">{doc.title}</h1>
         </div>
-        <p className="text-sm text-[var(--color-text-muted)]">آخر تحديث: مارس 2026</p>
+        <p className="text-sm text-[var(--color-text-muted)]">{doc.updated}</p>
+        <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">{doc.intro}</p>
+
+        {doc.sections.map((section) => (
+          <Card key={section.heading}>
+            <CardHeader>
+              <CardTitle className="text-base">{section.heading}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm leading-relaxed space-y-2">
+              {section.body.map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
 
         <Card>
-          <CardHeader><CardTitle className="text-base">1. المعلومات التي نجمعها</CardTitle></CardHeader>
-          <CardContent className="text-sm leading-relaxed space-y-2">
-            <p>نجمع المعلومات التي تقدمها لنا مباشرة عند إنشاء حساب، بما في ذلك اسمك وبريدك الإلكتروني.</p>
-            <p>نجمع أيضاً بيانات الاستخدام تلقائياً مثل الصفحات التي تزورها والاستوديوهات التي تستخدمها.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">2. كيف نستخدم معلوماتك</CardTitle></CardHeader>
-          <CardContent className="text-sm leading-relaxed space-y-2">
-            <p>نستخدم معلوماتك لتقديم خدماتنا وتحسينها، ومعالجة المدفوعات، والتواصل معك بشأن حسابك.</p>
-            <p>لا نبيع معلوماتك الشخصية لأطراف ثالثة.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">3. المحتوى المُولّد</CardTitle></CardHeader>
-          <CardContent className="text-sm leading-relaxed space-y-2">
-            <p>المحتوى الذي تنشئه باستخدام PyraSuite (صور، نصوص، حملات) يعود ملكيته لك بالكامل.</p>
-            <p>نحتفظ بنسخ من المحتوى المُولّد لتقديم الخدمة فقط ولا نستخدمه لأي غرض آخر.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">4. أمان البيانات</CardTitle></CardHeader>
-          <CardContent className="text-sm leading-relaxed space-y-2">
-            <p>نستخدم تشفير SSL/TLS لحماية بياناتك أثناء النقل. جميع البيانات مُخزنة في بنية تحتية آمنة مع Row Level Security.</p>
-            <p>مدفوعاتك تُعالج بواسطة Stripe ولا نُخزن بيانات بطاقتك الائتمانية على خوادمنا.</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">5. حقوقك</CardTitle></CardHeader>
-          <CardContent className="text-sm leading-relaxed space-y-2">
-            <p>يمكنك الوصول لبياناتك أو تعديلها أو حذف حسابك في أي وقت من صفحة الإعدادات.</p>
-            {/* Was "contact us by email" with no address given anywhere in the
-                product. Now points at a channel that exists. */}
+          <CardContent className="text-sm leading-relaxed pt-6">
             <p>
-              للاستفسارات المتعلقة بالخصوصية أو لطلب حذف بياناتك،{' '}
+              {doc.contact.note}{' '}
               <Link href="/contact" className="text-[var(--color-link)] hover:underline">
-                كلّمنا من هنا
+                {doc.contact.linkLabel}
               </Link>
               .
             </p>

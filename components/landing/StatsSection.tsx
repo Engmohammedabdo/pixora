@@ -4,10 +4,22 @@ import { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
+import { BETA_CREDITS } from '@/lib/credits/beta';
 
+/*
+ * The second stat was the literal 25 — the free plan's monthly allowance — while
+ * the hero forty pixels up advertises the 100-credit launch gift. One offer
+ * stated as two numbers reads to a visitor as a discount, not a bonus, and it
+ * was the single most expensive contradiction on the acquisition surface.
+ *
+ * It now carries the GIFT, and takes it from BETA_CREDITS rather than a literal.
+ * That constant already has a live test (`npm run test:beta-credits`) asserting
+ * the number this page PROMISES equals the number the database GRANTS — so the
+ * figure here can no longer drift from the one the customer actually receives.
+ */
 const STATS = [
   { value: 9, suffixKey: null, labelKey: 'stats.stat1Label' },
-  { value: 25, suffixKey: null, labelKey: 'stats.stat2Label' },
+  { value: BETA_CREDITS, suffixKey: null, labelKey: 'stats.stat2Label' },
   { value: 5, suffixKey: null, labelKey: 'stats.stat3Label' },
   { value: 10, suffixKey: 'stats.stat4Suffix', labelKey: 'stats.stat4Label' },
 ] as const;

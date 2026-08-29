@@ -40,15 +40,28 @@ export default async function LandingPage({
         <JsonLd data={structuredData} />
         <NavBar />
         <HeroSection />
+        {/* SHOW BEFORE TELL — moved here from sixth position, 2026-08-29.
+            This page is bought for paid traffic arriving from an image ad, and
+            the only question that click raises is "can it really make that?".
+            The answer used to sit behind five screens of telling: pillars, three
+            steps, business-context, and only then a real generated output.
+            A cold visitor who came for the picture had to be persuaded to keep
+            scrolling to reach the picture. Now the proof is the first thing
+            after the promise, and everything below argues about a thing the
+            reader has already seen work. */}
+        <InteractiveDemo />
         <ValuePillars />
         <HowItWorks />
-        {/* Directly after the three steps, before the examples. The reader has
-            just been told the whole product is three steps, so the immediate
-            objection is "then how would it know anything about MY business?" —
-            this answers it in the same scroll, and the examples below then
-            prove it rather than introduce it. */}
+        {/* Directly after the three steps. The reader has just been told the
+            whole product is three steps, so the immediate objection is "then how
+            would it know anything about MY business?" — this answers it in the
+            same scroll.
+            NOTE: this comment used to end "and the examples below then prove it".
+            They no longer sit below; InteractiveDemo moved above ValuePillars in
+            the same change. The demo now SETS UP this section instead of
+            confirming it, which is the weaker of the two orders for this one
+            section and the deliberate price of showing proof early. */}
         <KnowsYourBusiness />
-        <InteractiveDemo />
         <StudiosShowcase />
         {/* Placed after the studios and before pricing on purpose: the comparison
             only lands once the reader knows what the nine studios are, and it is

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { setRequestLocale, getTranslations } from 'next-intl/server';
 import { Sparkles, Rocket, Gift, MessageSquareHeart } from 'lucide-react';
+import Image from 'next/image';
+import { NavBar } from '@/components/landing/NavBar';
 import { WaitlistForm } from '@/components/landing/WaitlistForm';
 import { Footer } from '@/components/landing/Footer';
 import { routing } from '@/i18n/routing';
@@ -59,7 +61,11 @@ export default async function WaitlistPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
-      <main className="flex flex-1 flex-col items-center justify-center px-6 py-20">
+      {/* A visitor an ad delivers straight here had NO way back to the story —
+          no nav, no logo, no link to the examples or the pricing they are being
+          asked to trust. The only exits were the form and the footer. */}
+      <NavBar />
+      <main className="flex flex-1 flex-col items-center justify-center px-6 pb-20 pt-32">
         <div className="flex w-full max-w-2xl flex-col items-center gap-8 text-center">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-4 py-1.5 text-sm font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
@@ -92,6 +98,38 @@ export default async function WaitlistPage({
               {t('subtitle')}
             </p>
           </div>
+
+          {/*
+            PROOF ABOVE THE FORM — added 2026-08-29.
+
+            Measured on production: the complete set of <img> tags this page
+            delivered was ONE — the Facebook tracking pixel. Every CTA on the
+            site lands here, and an ad bought on a picture is the natural thing
+            to point straight at it, so the most likely first screen of the whole
+            funnel was a badge, a headline and an email box with nothing to
+            believe. Asking for an address before showing anything is the
+            expensive half of this page.
+
+            One real output, the same shawarma business the landing copy names,
+            so the example is continuous with the story rather than a stock
+            flourish.
+          */}
+          <figure className="mx-auto w-full max-w-md">
+            <div className="relative overflow-hidden rounded-2xl border border-[var(--color-surface-2)] shadow-xl">
+              <Image
+                src="/examples/shawarma.jpg"
+                alt={t('proofAlt')}
+                width={1024}
+                height={1024}
+                priority
+                sizes="(max-width: 768px) 100vw, 448px"
+                className="h-auto w-full"
+              />
+            </div>
+            <figcaption className="mt-3 text-center text-sm leading-relaxed text-[var(--color-text-secondary)]">
+              {t('proofCaption')}
+            </figcaption>
+          </figure>
 
           <div className="flex w-full justify-center">
             <WaitlistForm source="waitlist-page" />

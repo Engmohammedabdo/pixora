@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -171,7 +172,40 @@ export function HeroSection(): React.ReactElement {
             </motion.p>
           </motion.div>
 
-          {/* Visual side — hidden on mobile */}
+          {/*
+            MOBILE PROOF — added 2026-08-29.
+
+            The visual column below is `hidden lg:block`, so below 1024px the hero
+            of an IMAGE-GENERATION product rendered no image at all, and the first
+            real photograph on the page was in the SIXTH section. The Gulf Meta
+            audience this page is bought for is overwhelmingly mobile, and the ad
+            that delivers them is a picture — so the landing page opened by
+            failing to answer the only question the ad had raised.
+
+            A real generated output, not an illustration: `shawarma.jpg` is the
+            deliberate lead example (see InteractiveDemo's header) and it is the
+            same business the copy names two lines above. `priority` because this
+            is the LCP element on mobile; explicit width/height so it reserves its
+            box and cannot shift the CTA under the reader's thumb.
+          */}
+          <div className="lg:hidden w-full mt-8">
+            <figure className="relative rounded-2xl overflow-hidden border border-[var(--color-surface-2)] shadow-xl">
+              <Image
+                src="/examples/shawarma.jpg"
+                alt={t('hero.exampleAlt')}
+                width={1024}
+                height={1024}
+                priority
+                sizes="(max-width: 1024px) 100vw, 0px"
+                className="w-full h-auto"
+              />
+              <figcaption className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-3">
+                <span className="text-xs text-white/95 leading-relaxed">{t('hero.exampleCaption')}</span>
+              </figcaption>
+            </figure>
+          </div>
+
+          {/* Visual side — hidden on mobile (the block above covers <lg) */}
           <motion.div
             className="flex-1 hidden lg:block relative min-h-[400px]"
             variants={slideInVisualSide}
