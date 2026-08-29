@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { checkKeyedRateLimit, getRequestIp } from '@/lib/rate-limit';
 import { sendWaitlistWelcomeEmail } from '@/lib/email/send';
+import { readMetaIds, sendMetaCapiEvent, waitlistEventId } from '@/lib/analytics/meta-capi';
 
 const InputSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -66,6 +67,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // this server; leaking "already registered" to the browser would turn a public
     // form into an oracle for testing whether an address is on the list.
     if (data === 'created') {
+      // The ONLY conversion this product can accept while the invite gate is on,
+      // and until 2026-08-29 it reported to nothing at all — so a paid campaign
+      // could be optimised toward PageView and nothing else.
+      //
+      // Fired on `created` ONLY. A repeat submission of an address already on the
+      // list is not a new lead, and counting it as one would inflate exactly the
+      // number the ad platform bids against — the same rule the Stripe webhook
+      // follows with `already_granted`.
+      //
+      // Not awaited: Meta must never be able to make a customer's signup fail or
+      // hang. The browser sends its own copy with the SAME event_id, and Meta
+      // dedups on (event_name, event_id) for 48h, so whichever arrives first wins
+      // and the pair counts once.
+      const metaIds = await readMetaIds();
+      void sendMetaCapiEvent({
+        eventName: 'Lead',
+        eventId: waitlistEventId(input.email),
+        email: input.email,
+        fbp: metaIds.fbp,
+        fbc: metaIds.fbc,
+        sourceUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/${input.locale}/waitlist`,
+        customData: { content_name: 'waitlist', content_category: input.segment || 'unspecified' },
+      });
+
       const mail = await sendWaitlistWelcomeEmail({
         email: input.email,
         name: input.name,

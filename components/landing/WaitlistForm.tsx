@@ -6,6 +6,34 @@ import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+/**
+ * The browser half of the waitlist Lead, and the reason it exists at all.
+ *
+ * The server already sends this event (app/api/waitlist/route.ts). This copy is
+ * NOT redundant: only the browser holds `_fbp`/`_fbc`, the cookies that give Meta
+ * the match quality to tie a lead back to the ad click that produced it. The
+ * server copy is the one that survives ad blockers and iOS/ATT. Meta dedups on
+ * (event_name, event_id) for 48h, so the pair counts once and whichever arrives
+ * first wins.
+ *
+ * The key MUST equal `waitlistEventId()` in lib/analytics/meta-capi.ts byte for
+ * byte — same normalisation, same hash, same 32-char prefix. That module cannot
+ * be imported here: it reads META_CAPI_ACCESS_TOKEN and uses `node:crypto`, so
+ * importing it into a client component would pull a server secret's module into
+ * the browser bundle. Hence Web Crypto, and hence this comment — a drift between
+ * the two is not an error that shows up anywhere. It silently DOUBLE-COUNTS the
+ * conversion, which halves the reported cost-per-lead and tells the founder to
+ * spend more on an ad that is performing worse than it looks.
+ */
+async function waitlistEventId(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `wl_${hex.slice(0, 32)}`;
+}
+
 const SEGMENTS = ['agency', 'store', 'freelancer', 'other'] as const;
 type Segment = (typeof SEGMENTS)[number];
 
@@ -45,6 +73,32 @@ export function WaitlistForm({ source = 'landing' }: Props): React.ReactElement 
       const json = await res.json();
 
       if (json?.success) {
+        // Report the conversion BEFORE swapping to the success view, and never
+        // let a reporting failure become a customer-visible failure — the signup
+        // is already stored server-side by this point.
+        //
+        // 'Lead' is the one standard event the browser may claim. MetaPixel.tsx
+        // forbids Purchase / CompleteRegistration / InitiateCheckout here because
+        // those are server-witnessed and a forged one is free Ads-Manager revenue.
+        // A waitlist join is witnessed only by this public, unauthenticated form,
+        // so there is no server witness to defer to — see the note on MetaEventName.
+        try {
+          const eventId = await waitlistEventId(email);
+          (window as { fbq?: (...args: unknown[]) => void }).fbq?.(
+            'track',
+            'Lead',
+            { content_name: 'waitlist', content_category: segment || 'unspecified' },
+            { eventID: eventId }
+          );
+          const dl = (window as { dataLayer?: unknown[] }).dataLayer;
+          if (dl) {
+            // GA4's own recommended lead event, so this is markable as a key event
+            // in the GA4 admin and importable into Google Ads.
+            dl.push(['event', 'generate_lead', { method: source, app_locale: locale }]);
+          }
+        } catch {
+          /* analytics must never break a signup */
+        }
         setState('done');
         return;
       }

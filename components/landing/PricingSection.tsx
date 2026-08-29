@@ -99,8 +99,19 @@ export default function PricingSection() {
                   className="w-full"
                   asChild
                 >
+                  {/*
+                    The button must name where it GOES, not what the plan is for.
+                    Until 2026-08-29 the paid cards read "اشترك الآن" / "Subscribe
+                    now" and linked here — to an email capture form behind the
+                    invite gate. That is the most expensive click on the page
+                    spent on a surprise, and `ctaPaid`/`ctaFree` — the correctly
+                    worded strings — already existed in the same namespace with
+                    zero readers. `subscribe`/`startFree` stay in the message
+                    files: they are the right words for the day the gate opens,
+                    and deleting them would only mean rewriting them then.
+                  */}
                   <Link href="/waitlist">
-                    {plan.price === 0 ? t('pricing.startFree') : t('pricing.subscribe')}
+                    {plan.price === 0 ? t('pricing.ctaFree') : t('pricing.ctaPaid')}
                   </Link>
                 </Button>
               </motion.div>

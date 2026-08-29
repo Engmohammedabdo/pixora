@@ -60,7 +60,29 @@ let warnedNoToken = false;
 /** The Meta STANDARD event names this app sends. A closed set on purpose —
  * a typo'd name becomes a "custom event" no campaign can optimize on, and
  * nothing errors. */
-export type MetaEventName = 'Purchase' | 'CompleteRegistration' | 'InitiateCheckout';
+export type MetaEventName = 'Purchase' | 'CompleteRegistration' | 'InitiateCheckout' | 'Lead';
+
+/*
+ * WHY 'Lead' IS THE ODD ONE OUT, AND WHY IT IS BROWSER-REPORTABLE.
+ *
+ * The other three are SERVER-WITNESSED: money settling, an account existing, a
+ * checkout opening. MetaPixel.tsx forbids the browser from claiming any of them,
+ * because a client-reportable Purchase is free Ads-Manager revenue for anyone
+ * with a devtools console.
+ *
+ * A waitlist join is different in kind. It is witnessed by an UNAUTHENTICATED
+ * public form — there is no session to attribute it to and no user_events row it
+ * could ever write (that table is keyed on user_id). Forging one costs the
+ * attacker an email address and gains them nothing but a worse lookalike
+ * audience for us. So it is reported from BOTH sides with a shared event_id and
+ * left to Meta's 48h dedup, which is what gives it iOS/ATT coverage the browser
+ * alone cannot reach.
+ *
+ * Until 2026-08-29 this type had three members and the funnel's ONLY reachable
+ * conversion — the invite gate makes the other three unreachable — was therefore
+ * invisible to Meta. A campaign could only be optimised toward PageView, i.e.
+ * toward the cheapest clicker rather than the person who signs up.
+ */
 
 export interface MetaIds {
   fbp: string | null;
@@ -104,6 +126,34 @@ export async function readMetaIds(): Promise<MetaIds> {
  */
 export function hashForMeta(value: string): string {
   return createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
+}
+
+/**
+ * The dedup key for a waitlist Lead, derived so the BROWSER and the SERVER
+ * compute the same string without either sending it to the other.
+ *
+ * Meta dedups on (event_name, event_id) for 48h. The two copies exist because
+ * neither alone is enough: the browser copy carries `_fbp`/`_fbc` and so has the
+ * match quality, while the server copy survives ad blockers and iOS/ATT — which
+ * in a Gulf audience is the larger half.
+ *
+ * Owned HERE, next to the sender, for the same reason stripe-attribution.ts owns
+ * the GA/Meta id key names: two call sites deriving "the same" key separately is
+ * not an error when they drift, it is a silently DOUBLE-COUNTED conversion — and
+ * a doubled lead count is a halved cost-per-lead, i.e. a number that tells the
+ * founder to spend more on an ad that is doing worse than it looks.
+ *
+ * Built on `hashForMeta` rather than a second hash of its own, so the key and the
+ * `em` identity sent alongside it can never normalise differently. Truncated to
+ * 32 chars: Meta caps event_id length and the collision risk over a waitlist is nil.
+ *
+ * NOTE for the browser copy: this module is server-only (`node:crypto`). The
+ * client computes the same key with Web Crypto — see WaitlistForm.tsx, where the
+ * duplication is deliberate and commented, because importing this file into a
+ * client component would pull the access token's module into the bundle.
+ */
+export function waitlistEventId(email: string): string {
+  return `wl_${hashForMeta(email).slice(0, 32)}`;
 }
 
 interface SendOptions {
