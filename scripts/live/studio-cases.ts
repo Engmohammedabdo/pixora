@@ -126,6 +126,139 @@ const VOICEOVER_SCRIPT = 'شاورما الشام، ألذ شاورما في د�
  * a paid photoshoot promises. A static list priced for 'free' would print an
  * honest-looking plan and then fail every paid case on arithmetic.
  */
+/**
+ * The one subject all four creator cases request, so the only thing that varies
+ * between them is the thing each is testing.
+ *
+ * `AR_RAW` is written the way a shawarma shop owner actually types: colloquial,
+ * vague about everything a photographer would need, and with the business goal
+ * ("makes you hungry") stated instead of the picture. That is the input the
+ * product receives today and sends to the image model verbatim.
+ *
+ * `EN_BRIEF` asks for the SAME PICTURE with the specificity
+ * lib/ai/prompts/prompt-builder.ts already tells the model to produce — subject,
+ * lens, lighting, composition, palette. It is the control, and it is
+ * deliberately written by hand rather than generated, so this run measures the
+ * CEILING the expansion layer would be aiming at rather than one sample of it.
+ */
+const CREATOR_AR_RAW = 'عايز صورة لساندوتش شاورما تجيب جوع لمطعمي في دبي';
+const CREATOR_EN_BRIEF =
+  'Appetising close-up of a Levantine chicken shawarma wrap on a warm wooden board, ' +
+  'shot on a 50mm at f/2.0, three-quarter angle, shallow depth of field. Golden side light ' +
+  'raking across the bread to show its char and texture, garlic sauce glistening at the open ' +
+  'end, shredded parsley and pickles visible in the filling. Warm amber and cream palette, ' +
+  'blurred Dubai restaurant interior behind. Sharp, commercial food photography.';
+
+/**
+ * creator is priced by RESOLUTION, not by studio: there is no
+ * `CREDIT_COSTS.creator`, and `getStudioCost('creator', res)` reads
+ * `CREDIT_COSTS.image[res]` (costs.ts:17-20). At 2K that is 2 credits, not 1.
+ *
+ * 2K rather than the cheaper 1080p because this run exists to show what a
+ * PAYING customer receives, and 2K is what the Pro plan sells. Reading the
+ * figure from the product rather than restating it is also what keeps the
+ * printed plan honest if the table ever moves.
+ */
+const CREATOR_RESOLUTION = '2K';
+const CREATOR_COST = getStudioCost('creator', CREATOR_RESOLUTION);
+
+/** The four cases, sharing one verify() because they differ in their INPUT, not
+ *  in what makes them correct. */
+function creatorCases(): StudioCase[] {
+  const verify = async (data: Record<string, unknown>, tools: CaseTools): Promise<CheckResult[]> => {
+    const urls = Array.isArray(data.imageUrls) ? (data.imageUrls as unknown[]) : [];
+    const checks: CheckResult[] = [
+      realModelCheck(data.mock),
+      countCheck('the requested image was delivered', urls.length, 1),
+      declaredCostCheck(CREATOR_COST, data.creditsUsed),
+    ];
+    for (const [i, url] of urls.entries()) {
+      if (typeof url !== 'string' || !url) continue;
+      const bytes = await tools.download(url);
+      tools.keepImage(`creator-${String(data.__caseId ?? i)}.png`, bytes, String(data.__caseLabel ?? 'creator'));
+      const size = await frameSize(bytes);
+      // Recorded, never asserted. The resolution a plan SELLS is checked by the
+      // plan-promise case; here the figure is context for the eye pass, and an
+      // assertion invented for it is how a healthy run gets failed.
+      checks.push({
+        name: 'frame size',
+        ok: true,
+        detail: size ? `${size.width}x${size.height} — INFORMATIONAL` : 'could not measure',
+      });
+      // Same polarity rule, and same honesty about it, as photoshoot above: a
+      // paid plan sells the mark's ABSENCE, and absence cannot be asserted with
+      // cornerMarkPresent on a textured photograph without manufacturing
+      // failures. Free must carry it, and that IS assertable.
+      if (tools.plan === 'free') {
+        checks.push({
+          name: 'carries the free-plan corner mark',
+          ok: await cornerMarkPresent(bytes),
+          detail: 'bottom-right corner carries a non-uniform mark',
+        });
+      } else {
+        checks.push({
+          name: 'watermark absence',
+          ok: true,
+          detail: 'paid plan — judged on the contact sheet, not measurable on a textured corner. INFORMATIONAL.',
+        });
+      }
+    }
+    return checks;
+  };
+
+  // Every field below is copied from creator's own InputSchema
+  // (app/api/studios/creator/route.ts:23-37). Recalling a route's fields from
+  // memory instead of copying them is a mistake this harness has already made
+  // once, and it fails the run rather than the product.
+  const base = { model: 'gemini', resolution: CREATOR_RESOLUTION, variations: 1 } as const;
+
+  const defs: ReadonlyArray<{ id: string; intent: string; prompt: string; style: string }> = [
+    {
+      id: 'creator_ar_raw',
+      intent: 'THE EXPERIMENT: what a customer actually types in Arabic, sent to the model exactly as the product sends it today',
+      prompt: CREATOR_AR_RAW,
+      style: 'photographic',
+    },
+    {
+      id: 'creator_en_brief',
+      intent: 'THE CONTROL: the same picture asked for as a proper English brief — the ceiling the expansion layer would aim at',
+      prompt: CREATOR_EN_BRIEF,
+      style: 'photographic',
+    },
+    {
+      id: 'creator_ar_bold',
+      intent: 'whether `style` does anything at all: the raw Arabic again, with the one word that is supposed to change the look',
+      prompt: CREATOR_AR_RAW,
+      style: 'bold',
+    },
+    {
+      id: 'creator_ar_signage',
+      // creator's whole text rule today is one line: "NO extra text, logos, or
+      // watermarks unless specified" (creator.ts:95). edit.ts earned a real
+      // containment rule over three production runs on exactly this failure.
+      intent: 'text containment: a request that invites in-image Arabic, against creator ONE line of defence',
+      prompt: 'صورة لواجهة مطعم شاورما في دبي، عليها لافتة مضيئة مكتوب عليها شاورما الشام',
+      style: 'photographic',
+    },
+  ];
+
+  return defs.map((d) => ({
+    id: d.id,
+    studio: 'creator',
+    group: 'image' as const,
+    path: '/api/studios/creator',
+    cost: CREATOR_COST,
+    intent: d.intent,
+    body: () => ({ ...base, prompt: d.prompt, style: d.style }),
+    deliverable: (data: Record<string, unknown>) => data.imageUrls,
+    // The id travels with the data so the kept file and its contact-sheet label
+    // name the case rather than an index — four creator frames on one sheet are
+    // unreadable otherwise, and reading them is the entire point of this group.
+    verify: (data: Record<string, unknown>, tools: CaseTools) =>
+      verify({ ...data, __caseId: d.id, __caseLabel: `${d.id} · ${d.style}` }, tools),
+  }));
+}
+
 export function buildStudioCases(plan: string): StudioCase[] {
   const paid = plan !== 'free';
   return [
@@ -422,6 +555,30 @@ export function buildStudioCases(plan: string): StudioCase[] {
   },
 
   // ── image ───────────────────────────────────────────────────────────────
+  //
+  // creator, measured as a SUBJECT rather than used as a tool.
+  //
+  // It ran on every sweep before this — as the fixture generator — and
+  // COVERED_ELSEWHERE said so, which is true and was the problem: "it executes"
+  // was accepted as "it is verified". Nothing had ever looked at what it
+  // returns, in the studio that is first in the product and where every
+  // customer starts. That exemption is now narrowed to the fixture role it
+  // actually describes.
+  //
+  // The four cases below are a DIAGNOSTIC SET, not a regression suite. They are
+  // arranged as one experiment with one control, because the prompt redesign
+  // they exist to inform rests on a claim nobody in this repo has ever tested:
+  // that a colloquial Arabic sentence is a weaker instruction to an image model
+  // than the English photographic brief the FREE prompt-builder studio already
+  // knows how to write. `creator_ar_raw` and `creator_en_brief` request the
+  // SAME PICTURE two ways and differ in nothing else. If they come back
+  // equivalent, the expansion layer is not worth building and this run said so
+  // for 2 credits.
+  //
+  // What these checks CANNOT do is say whether an image is any good. That needs
+  // eyes, the sweep says so about itself, and the contact sheet is written for
+  // exactly that pass.
+  ...creatorCases(),
   {
     id: 'photoshoot_luxury',
     studio: 'photoshoot',
@@ -777,7 +934,16 @@ const STUDIO_ROUTE_DIR = join(__dirname, '..', '..', 'app', 'api', 'studios');
 /** Studios this sweep covers somewhere other than STUDIO_CASES. Named, with the
  *  reason, so "covered" can be checked rather than believed. */
 const COVERED_ELSEWHERE: Record<string, string> = {
-  creator: 'runs on every sweep as the fixture generator (FIXTURES in cases.ts)',
+  // `creator` was listed here until 2026-08-31, with the reason "runs on every
+  // sweep as the fixture generator". That was TRUE and it was the defect: it
+  // recorded that creator EXECUTES, and was read as meaning creator is
+  // VERIFIED. Nothing had ever looked at what it returns — in the studio that
+  // is first in the product, that every customer starts in, and whose prompt is
+  // the shortest of the four image builders. An exemption that names a reason
+  // which does not actually certify coverage is worse than no exemption, since
+  // it satisfies the check that exists to find the gap.
+  //
+  // It now has cases of its own (creatorCases, above) and needs no entry.
   edit: 'covered preset-by-preset by EDIT_CASES, whose own coverage uncoveredPresets() asserts',
 };
 
