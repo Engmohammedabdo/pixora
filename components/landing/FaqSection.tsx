@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
+import { PLANS } from '@/lib/stripe/plans';
 import { ChevronDown } from 'lucide-react';
 
 const FAQ_KEYS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
@@ -59,7 +60,14 @@ export function FaqSection(): React.ReactElement {
                       className="overflow-hidden"
                     >
                       <div className="px-5 pb-5 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                        {t(`faq.a${num}`)}
+                        {/* `credits` is passed to EVERY answer, not just the one
+                            that uses it. next-intl ignores a param an answer does
+                            not reference, and the alternative — special-casing one
+                            index — is a rule about a number that would break the
+                            moment the questions are reordered. The value comes
+                            from PLANS.free so the answer cannot promise a balance
+                            the account does not receive. */}
+                        {t(`faq.a${num}`, { credits: PLANS.free.credits })}
                       </div>
                     </motion.div>
                   )}
