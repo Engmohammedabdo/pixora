@@ -110,7 +110,7 @@ export default function PricingSection() {
                     files: they are the right words for the day the gate opens,
                     and deleting them would only mean rewriting them then.
                   */}
-                  <Link href="/waitlist">
+                  <Link href="/signup">
                     {plan.price === 0 ? t('pricing.ctaFree') : t('pricing.ctaPaid')}
                   </Link>
                 </Button>

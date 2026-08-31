@@ -4,7 +4,7 @@ import { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
-import { BETA_CREDITS } from '@/lib/credits/beta';
+import { PLANS } from '@/lib/stripe/plans';
 
 /*
  * The second stat was the literal 25 — the free plan's monthly allowance — while
@@ -19,7 +19,10 @@ import { BETA_CREDITS } from '@/lib/credits/beta';
  */
 const STATS = [
   { value: 9, suffixKey: null, labelKey: 'stats.stat1Label' },
-  { value: BETA_CREDITS, suffixKey: null, labelKey: 'stats.stat2Label' },
+  // Was BETA_CREDITS (the 100-credit invite grant). With the gate open nobody
+  // redeems an invite, so the honest figure is what a new free account holds —
+  // read from PLANS rather than typed, for the same reason BETA_CREDITS was.
+  { value: PLANS.free.credits, suffixKey: null, labelKey: 'stats.stat2Label' },
   { value: 5, suffixKey: null, labelKey: 'stats.stat3Label' },
   { value: 10, suffixKey: 'stats.stat4Suffix', labelKey: 'stats.stat4Label' },
 ] as const;

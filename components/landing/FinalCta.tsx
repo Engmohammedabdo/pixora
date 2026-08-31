@@ -4,9 +4,8 @@ import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Gift } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { fadeInUp } from '@/lib/animations';
-import { BETA_CREDITS } from '@/lib/credits/beta';
 
 export function FinalCta(): React.ReactElement {
   const t = useTranslations('landing');
@@ -53,21 +52,17 @@ export function FinalCta(): React.ReactElement {
               className="px-10 text-base gap-2"
               asChild
             >
-              <Link href="/waitlist">
+              <Link href="/signup">
                 {t('cta.button')}
                 <ArrowRight className="h-4 w-4 rtl:rotate-180" />
               </Link>
             </Button>
           </motion.div>
 
-          {/* On the coloured CTA panel the brand pill from the hero would be
-              invisible, so the gift is stated in white here and the studio
-              count drops below it. Order matters: the reason to act goes above
-              the reassurance. */}
-          <p className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-white">
-            <Gift className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {t('cta.giftNote', { credits: BETA_CREDITS })}
-          </p>
+          {/* The gift note that sat here promised 100 credits from
+              `redeem_invite()`. The invite gate is open, so there are no
+              invites and no such grant — see HeroSection for the same removal
+              and the reasoning. */}
 
           <p className="mt-2 text-sm text-white/50">
             {t('cta.studios')}

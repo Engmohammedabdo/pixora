@@ -243,7 +243,7 @@ export function InteractiveDemo(): React.ReactElement {
 
         <div className="mt-6 flex justify-center">
           <Button asChild className="gap-2 rounded-xl px-6">
-            <Link href="/waitlist">
+            <Link href="/signup">
               <Sparkles className="h-4 w-4" />
               {t('demo.cta')}
             </Link>

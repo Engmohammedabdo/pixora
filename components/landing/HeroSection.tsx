@@ -7,14 +7,14 @@ import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Gift } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import {
   fadeInUp,
   slideInRight,
   slideInLeft,
   staggerContainer,
 } from '@/lib/animations';
-import { BETA_CREDITS } from '@/lib/credits/beta';
+import { PLANS } from '@/lib/stripe/plans';
 
 const TYPEWRITER_WORD_KEYS = ['word1', 'word2', 'word3', 'word4', 'word5'] as const;
 
@@ -135,7 +135,7 @@ export function HeroSection(): React.ReactElement {
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-4"
             >
               <Button size="lg" className="text-base px-8 gap-2" asChild>
-                <Link href="/waitlist">
+                <Link href="/signup">
                   {t('hero.ctaPrimary')}
                   <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                 </Link>
@@ -145,30 +145,22 @@ export function HeroSection(): React.ReactElement {
               </Button>
             </motion.div>
 
-            {/* The launch gift sits ABOVE the microcopy and looks different from
-                it on purpose. The line below is a list of caveats — invite only,
-                no credit card — and an incentive rendered in the same muted
-                12px grey reads as a fourth caveat. This is the reason to act,
-                so it gets the brand colour and its own container.
+            {/* The launch-gift pill that sat here is gone. It promised 100
+                credits granted by `redeem_invite()`, and with the invite gate
+                open there are no invites to redeem — a new account gets the
+                free plan's own allowance instead. A promise the product cannot
+                keep is a refund conversation, not a marketing line.
 
-                `color-mix`, not `bg-[var(--color-brand)]/10`: Tailwind 3.4.19
-                silently drops an opacity modifier on a var() arbitrary value
-                and emits no rule at all, which is what shipped 16 invisible
-                elements once and the onboarding error banner a second time.
-                There is an invariant for it now. */}
-            <motion.p
-              variants={slideInTextSide}
-              className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] px-4 py-1.5 text-sm font-medium text-[var(--color-brand)]"
-            >
-              <Gift className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {t('hero.giftNote', { credits: BETA_CREDITS })}
-            </motion.p>
+                The number below is read from PLANS.free rather than typed, so
+                the copy cannot drift from what the account actually receives —
+                the same rule `lib/credits/beta.ts` was written to enforce for
+                the figure this replaces. */}
 
             <motion.p
               variants={slideInTextSide}
               className="text-xs text-[var(--color-text-muted)]"
             >
-              {t('hero.microcopy')}
+              {t('hero.microcopy', { credits: PLANS.free.credits })}
             </motion.p>
           </motion.div>
 
