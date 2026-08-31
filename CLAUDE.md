@@ -1368,6 +1368,54 @@ request down the `custom` path — the shape of the original defect — made it
 unreachable and the gate passed. It is now stated as a biconditional on every
 case. *A rule that only runs on the arm you did not break is not a rule.*
 
+#### Verified live on production, 2026-08-31 — 10 credits after the deploy
+
+Gates cannot show that an image got better, and the whole point of this round is
+that nobody had looked. Every claim below is a before/after against a named file
+in `.superpowers/live-runs/`.
+
+**The canvas is fixed, and it is now reproducible.** Three requests that had come
+back at three different shapes returned the same one:
+
+```
+                 BEFORE            AFTER
+ar_raw           2752x1536 (1.79)  2048x2048 (1.00)
+ar_bold          1696x2528 (0.67)  2048x2048 (1.00)
+ar_signage       2848x1504 (1.89)  2048x2048 (1.00)
+ig_portrait      —                 1856x2304 (0.81, wanted 0.80)
+```
+
+The harness now ASSERTS this rather than printing it — it could not before,
+because with no ratio ever sent there was no promise to check against.
+
+**Containment held.** `creator_ar_signage` rendered شاورما الشام large and
+perfect, and the street of invented shop signs is gone: where the baseline zoom
+showed legible `BAWJIN`, `SHAAM` and fake phone numbers, the same crop now shows
+blurred smudges with **no legible invented text**. Not literally "COMPLETELY
+BLANK" as the rule asks — the model still suggests signage — but the harmful half,
+readable garbage, is absent.
+
+**And the regression the spec named as the row to watch did NOT happen — which
+took a fourth run to establish rather than assert.** `ar_raw` at the new 1:1
+default came back without the Dubai skyline the baseline had, and two variables
+had moved at once: the text rule AND the canvas. A square has no room for a
+cityscape a 16:9 frame does.
+
+So the same prompt was re-run at `platform: 'twitter'` — 16:9 = 1.778, within 1%
+of the baseline's own 1.79 — holding the canvas fixed so the prompt was the only
+variable left. **The Dubai skyline came back**: Burj Khalifa, the marina towers,
+terrace dining at sunset. The text rule does not suppress the customer's context.
+The square crop did. `creator_ar_wide` is now a permanent isolation case.
+
+`ig_portrait` (4:5) independently confirms the other half: the hand-held framing
+that `تجيب جوع` produces survives the text rule too.
+
+**A product question this raised, stated because it is measured and not yet
+decided:** the `general` 1:1 default measurably costs scene context on exactly the
+kind of request this product is for. It was chosen for predictability over a
+canvas that did not reproduce, and that trade is still right — but 4:5 would give
+both. One sample each way; not changed unilaterally.
+
 #### Still open, deliberately
 
 - **`creator` has no field naming the text to render**, so its containment rule

@@ -6,6 +6,7 @@ import { calculateVoiceoverCost, getVoiceoverConfig } from '../../lib/credits/vo
 import { LOW_EFFECT_THRESHOLD, LOW_OVERALL_THRESHOLD, looksLikeNoOp } from '../../lib/image/edit-effect';
 import type { CheckResult } from './checks';
 import { cornerMarkPresent, editEffect, frameSize } from './checks';
+import { aspectRatioFor } from '../../lib/ai/prompts/platform-framing';
 import { measureAudio, SILENCE_RUN_SHARE } from './audio';
 import {
   countCheck, declaredCostCheck, everyEntryHas, joinText, languageCheck,
@@ -177,13 +178,27 @@ function creatorCases(): StudioCase[] {
       const bytes = await tools.download(url);
       tools.keepImage(`creator-${String(data.__caseId ?? i)}.png`, bytes, String(data.__caseLabel ?? 'creator'));
       const size = await frameSize(bytes);
-      // Recorded, never asserted. The resolution a plan SELLS is checked by the
-      // plan-promise case; here the figure is context for the eye pass, and an
-      // assertion invented for it is how a healthy run gets failed.
+      // THE CANVAS IS NOW A PROMISE, SO IT IS ASSERTED.
+      //
+      // This was informational until 2026-08-31, and the baseline run is why it
+      // could not be anything else: four requests at one resolution came back as
+      // 1.79, 1.79, 0.67 and 1.89, because nothing ever sent gemini an
+      // aspectRatio and the model chose the shape from prompt content. There was
+      // no promise to check against.
+      //
+      // There is now. `platform` decides the ratio, defaults to `general` (1:1),
+      // and reaches all three adapters. The tolerance is 4%: a provider may snap
+      // to its own pixel grid (flux rounds to multiples of 32 SILENTLY), so an
+      // exact equality would fail an honest run — but three-quarters of a
+      // baseline that ranged 0.67 to 1.89 is not inside 4% of anything.
+      const wantRatio = expectedRatio(String(data.__casePlatform ?? 'general'));
+      const gotRatio = size ? size.width / size.height : null;
       checks.push({
-        name: 'frame size',
-        ok: true,
-        detail: size ? `${size.width}x${size.height} — INFORMATIONAL` : 'could not measure',
+        name: `the delivered frame is the canvas that was requested`,
+        ok: gotRatio !== null && Math.abs(gotRatio - wantRatio) / wantRatio <= 0.04,
+        detail: size
+          ? `${size.width}x${size.height} = ${gotRatio!.toFixed(3)}, wanted ${wantRatio.toFixed(3)}`
+          : 'could not measure',
       });
       // Same polarity rule, and same honesty about it, as photoshoot above: a
       // paid plan sells the mark's ABSENCE, and absence cannot be asserted with
@@ -206,13 +221,21 @@ function creatorCases(): StudioCase[] {
     return checks;
   };
 
+  // The ratio the product promises for a platform, read from the product rather
+  // than restated — a table duplicated into a test is a second source of truth,
+  // and CLAUDE.md already records what that cost on the waitlist credit figure.
+  const expectedRatio = (platform: string): number => {
+    const [w, h] = (aspectRatioFor(platform) ?? '1:1').split(':').map(Number);
+    return w / h;
+  };
+
   // Every field below is copied from creator's own InputSchema
   // (app/api/studios/creator/route.ts:23-37). Recalling a route's fields from
   // memory instead of copying them is a mistake this harness has already made
   // once, and it fails the run rather than the product.
   const base = { model: 'gemini', resolution: CREATOR_RESOLUTION, variations: 1 } as const;
 
-  const defs: ReadonlyArray<{ id: string; intent: string; prompt: string; style: string }> = [
+  const defs: ReadonlyArray<{ id: string; intent: string; prompt: string; style: string; platform?: string }> = [
     {
       id: 'creator_ar_raw',
       intent: 'THE EXPERIMENT: what a customer actually types in Arabic, sent to the model exactly as the product sends it today',
@@ -232,6 +255,30 @@ function creatorCases(): StudioCase[] {
       style: 'bold',
     },
     {
+      id: 'creator_ig_portrait',
+      intent: 'the new canvas field end to end: an Instagram request must come back 4:5, not whatever the model felt like',
+      prompt: CREATOR_AR_RAW,
+      style: 'photographic',
+      platform: 'instagram',
+    },
+    {
+      id: 'creator_ar_wide',
+      // THE ISOLATION CASE. The 2026-08-31 baseline for `creator_ar_raw` was
+      // 2752x1536 (1.79) and carried a recognisable Dubai skyline. After the
+      // text rule shipped, the same request at the new 1:1 default came back
+      // without it — but the CANVAS had also changed, and a square has no room
+      // for a cityscape a 16:9 frame does. Two variables moved at once.
+      //
+      // `twitter` is 16:9 = 1.778, within 1% of the baseline's 1.79. Running the
+      // same prompt there holds the canvas fixed so the only difference left is
+      // the prompt. Without this the claim "the text rule suppressed the city"
+      // is a guess, and this repo's whole rule is that a guess is not a finding.
+      intent: 'ISOLATION: the baseline prompt at the baseline aspect ratio, so the text rule is the only variable left',
+      prompt: CREATOR_AR_RAW,
+      style: 'photographic',
+      platform: 'twitter',
+    },
+    {
       id: 'creator_ar_signage',
       // creator's whole text rule today is one line: "NO extra text, logos, or
       // watermarks unless specified" (creator.ts:95). edit.ts earned a real
@@ -249,13 +296,16 @@ function creatorCases(): StudioCase[] {
     path: '/api/studios/creator',
     cost: CREATOR_COST,
     intent: d.intent,
-    body: () => ({ ...base, prompt: d.prompt, style: d.style }),
+    // `platform` is OMITTED unless the case names one, so the three diagnostic
+    // cases exercise the DEFAULT the route applies — which is the path every
+    // existing client takes and the one whose behaviour changed.
+    body: () => ({ ...base, prompt: d.prompt, style: d.style, ...(d.platform ? { platform: d.platform } : {}) }),
     deliverable: (data: Record<string, unknown>) => data.imageUrls,
     // The id travels with the data so the kept file and its contact-sheet label
     // name the case rather than an index — four creator frames on one sheet are
     // unreadable otherwise, and reading them is the entire point of this group.
     verify: (data: Record<string, unknown>, tools: CaseTools) =>
-      verify({ ...data, __caseId: d.id, __caseLabel: `${d.id} · ${d.style}` }, tools),
+      verify({ ...data, __caseId: d.id, __casePlatform: d.platform ?? 'general', __caseLabel: `${d.id} · ${d.style}` }, tools),
   }));
 }
 
