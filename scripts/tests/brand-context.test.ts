@@ -177,11 +177,11 @@ throwsBlocked('a blocked term in city is refused',
   });
 
   const withContext = buildCreatorPrompt({
-    userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
+    userPrompt: 'a red shoe on marble', style: 'photographic',
     brandKit: populatedKit,
   });
   const withoutContext = buildCreatorPrompt({
-    userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
+    userPrompt: 'a red shoe on marble', style: 'photographic',
     brandKit: null,
   });
 
@@ -200,16 +200,21 @@ throwsBlocked('a blocked term in city is refused',
   // is NOT NULL on every real row, so counting it meant the block could never
   // return '' for one). The heading must therefore be ABSENT here — this is
   // the exact case that regressed before the fix, when the heading fired on
-  // name alone. creator's own pre-existing "- Brand: …" line is a DIFFERENT
-  // label carrying the same value, and must still appear on its own: this
-  // also confirms the CLIENT CONTEXT assertions above were actually matching
-  // buildBrandContextBlock's heading, not this unrelated line.
+  // name alone. creator's own brand line is a DIFFERENT label carrying the same
+  // value, and must still appear on its own: this also confirms the CLIENT
+  // CONTEXT assertions above were actually matching buildBrandContextBlock's
+  // heading, not this unrelated line.
+  //
+  // The label moved from "- Brand: …" to "- Name: …" under a BRAND heading when
+  // creator was rewritten on 2026-08-31. Only the label changed — the invariant
+  // this check exists for is that creator emits the name ITSELF, independently
+  // of buildBrandContextBlock, and that is what is asserted.
   const preMigrationKit = kit({ name: 'Acme Coffee' });
   const preMigration = buildCreatorPrompt({
-    userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
+    userPrompt: 'a red shoe on marble', style: 'photographic',
     brandKit: preMigrationKit,
   });
-  contains('creator + pre-045-shaped kit: still emits its own Brand line', preMigration, '- Brand: Acme Coffee');
+  contains('creator + pre-045-shaped kit: still emits its own brand name line', preMigration, '- Name: Acme Coffee');
   omits('creator + pre-045-shaped kit: no CLIENT CONTEXT heading on name alone', preMigration, 'CLIENT CONTEXT');
   omits('creator + pre-045-shaped kit: no Industry line (null industry)', preMigration, 'Industry:');
   omits('creator + pre-045-shaped kit: no City line (null city)', preMigration, 'City:');

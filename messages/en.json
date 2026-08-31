@@ -314,6 +314,15 @@
       "minimalist": "Minimalist",
       "bold": "Bold"
     },
+    "platform": "Image size",
+    "platforms": {
+      "general": "General",
+      "instagram": "Instagram",
+      "tiktok": "TikTok",
+      "linkedin": "LinkedIn",
+      "twitter": "X",
+      "facebook": "Facebook"
+    },
     "useBrandKit": "Apply Brand Kit",
     "variations": "Variations",
     "singleImage": "Single Image",

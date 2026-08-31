@@ -314,6 +314,15 @@
       "minimalist": "بسيط",
       "bold": "جريء"
     },
+    "platform": "مقاس الصورة",
+    "platforms": {
+      "general": "عام",
+      "instagram": "إنستجرام",
+      "tiktok": "تيك توك",
+      "linkedin": "لينكدإن",
+      "twitter": "إكس",
+      "facebook": "فيسبوك"
+    },
     "useBrandKit": "تطبيق الهوية البصرية",
     "variations": "التنويعات",
     "singleImage": "صورة واحدة",

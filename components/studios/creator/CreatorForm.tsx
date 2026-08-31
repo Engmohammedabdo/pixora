@@ -18,6 +18,7 @@ import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { Upload, X, Sparkles, Palette, Shuffle, Loader2 } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
+import { PLATFORM_FRAMING, PLATFORM_IDS, type PlatformId } from '@/lib/ai/prompts/platform-framing';
 
 interface CreatorFormProps {
   onSubmit: (input: {
@@ -25,6 +26,7 @@ interface CreatorFormProps {
     model: AIModel;
     resolution: Resolution;
     style: string;
+    platform: PlatformId;
     variations: 1 | 4;
     brandKitId?: string;
     referenceImageUrl?: string;
@@ -47,6 +49,17 @@ const RANDOM_PROMPTS = [
 const STYLES = ['photographic', 'illustrative', 'minimalist', 'bold'] as const;
 
 /**
+ * The output canvas. Offered because without it the route's new `platform` field
+ * would default to `general` forever and nothing would ever set it — the
+ * "collected and read by nothing" shape CLAUDE.md already catalogues, in
+ * reverse.
+ *
+ * Read from PLATFORM_IDS rather than restated, so a platform added to the
+ * framing table appears here rather than being silently unreachable.
+ */
+const PLATFORM_CHOICES = PLATFORM_IDS;
+
+/**
  * What POST /api/upload actually accepts. The picker used to say `image/*`, so
  * every HEIC from a phone, every GIF and every AVIF was offered, refused with a
  * 400, and the refusal thrown away — the handler only acted on success, and a
@@ -66,6 +79,11 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const [model, setModel] = useState<AIModel>('gemini');
   const [resolution, setResolution] = useState<Resolution>('1080p');
   const [style, setStyle] = useState<string>('photographic');
+  // `general` is a square, which is what the API defaults to. Measured
+  // 2026-08-31: with no ratio sent at all, four identical requests came back in
+  // three different shapes — so "no choice" now means a predictable square
+  // rather than whatever the model felt like.
+  const [platform, setPlatform] = useState<PlatformId>('general');
   const [variations, setVariations] = useState<1 | 4>(1);
   const [useBrandKit, setUseBrandKit] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
@@ -116,6 +134,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       model,
       resolution,
       style,
+      platform,
       variations,
       brandKitId: selectedKit?.id,
       referenceImageUrl: referenceImage || undefined,
@@ -289,6 +308,32 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
               )}
             >
               {t(`styles.${s}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Output canvas */}
+      <div className="space-y-2">
+        <Label>{t('platform')}</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {PLATFORM_CHOICES.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPlatform(p)}
+              aria-pressed={platform === p}
+              className={cn(
+                'rounded-lg border px-3 py-2 text-sm transition-colors',
+                platform === p ? selectedChipClasses : unselectedChipClasses
+              )}
+            >
+              <span className="block">{t(`platforms.${p}`)}</span>
+              {/* The ratio is the thing the customer is actually choosing, and
+                  it is the one property they cannot repair after the fact. */}
+              <span className="block text-xs opacity-70" dir="ltr">
+                {PLATFORM_FRAMING[p].aspectRatio}
+              </span>
             </button>
           ))}
         </div>

@@ -6,6 +6,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
+import { buildCampaignImagePrompt } from '@/lib/ai/prompts/campaign-image';
+import { aspectRatioFor } from '@/lib/ai/prompts/platform-framing';
 import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
@@ -393,32 +395,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           return null;
         }
 
-        // `post.scenario` alone is ONE model-written sentence. Every other image in
-        // the product goes to the model with platform framing, brand colours and the
-        // no-text rule; this path had none of it, which is why campaign images looked
-        // nothing like the rest of the product's output.
-        const imagePrompt =
-          `Create a professional social media image.` +
-          `\n- Scene: ${safeScenario}` +
-          `\n- Platform: ${input.platform}` +
-          (safeBrandColorsLine ? `\n- Brand Colors: ${safeBrandColorsLine}` : '') +
-          // Placed after the scene/brand lines above and before the technical
-          // requirements below — the second of campaign's two prompt-building
-          // paths (the caption prompt above being the first).
-          campaignBrandContextBlock +
-          `\n\nTechnical Requirements:` +
-          // Kept even though these are social posts: CLAUDE.md records that Arabic
-          // text inside generated images is not handled, and the caption is
-          // delivered as text alongside the image.
-          `\n- NO text, logos or watermarks in the image` +
-          `\n- Professional lighting, high contrast, commercially appealing composition` +
-          `\n- Composed for ${input.platform}`;
+        // Moved into lib/ai/prompts/campaign-image.ts on 2026-08-31. It was built
+        // inline here, and this route's own comment above already named the cost:
+        // `prompt-builder-sanitized` scans lib/ai/prompts only, so the one image
+        // prompt built in a route was the one image prompt no invariant guarded —
+        // on the single path whose interpolated value is written by an LLM rather
+        // than typed by a customer.
+        const imagePrompt = buildCampaignImagePrompt({
+          // Pre-filtered, deliberately — see the builder's own header for why a
+          // second sanitizePrompt() here would escape the try/catch above and
+          // turn one blocked scenario into a failed 12-credit campaign.
+          safeScenario,
+          platform: input.platform,
+          safeBrandColors: safeBrandColorsLine,
+          brandContextBlock: campaignBrandContextBlock,
+        });
 
         try {
           const imgResult = await generateImage({
             prompt: imagePrompt,
             model: 'gemini',
             resolution: '1080p',
+            // Measured 2026-08-31: nine images came back 1024x1024 for a request
+            // carrying platform 'instagram'. Campaign is pinned to gemini right
+            // here, and gemini already forwards this (gemini.ts:200), so this
+            // does not wait on the gpt/flux adapter work that creator does.
+            aspectRatio: aspectRatioFor(input.platform),
           });
           return imgResult.url || null;
         } catch {

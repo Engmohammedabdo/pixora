@@ -30,13 +30,27 @@ interface ImageGenerationInput {
   resolution: string;
   referenceImageUrl?: string;
   /**
-   * Output canvas shape ('1:1', '2:3'). Only the gemini adapter forwards it —
-   * which is not a silent-drop today, because the one caller that sets it
-   * (edit's marketplace presets) always carries a reference image, and
-   * IMAGE_INPUT_CAPABLE pins that request to gemini. If a text-to-image caller
-   * ever passes this, extend the gpt/flux adapters FIRST: an aspect ratio that
-   * is part of a paid spec being quietly ignored is exactly the defect class
-   * this file's other comments catalogue.
+   * Output canvas shape ('1:1', '4:5', '9:16', '16:9', '2:3').
+   *
+   * ALL THREE adapters forward this as of 2026-08-31. Until then only gemini
+   * did, and this comment said so with the instruction to "extend the gpt/flux
+   * adapters FIRST" before any text-to-image caller passed it — which is what
+   * was done, in that order, when creator gained a platform field.
+   *
+   * Each adapter honours it in its own currency and each has a documented
+   * constraint that is enforced locally rather than discovered from an error:
+   *   gemini  `imageConfig.aspectRatio`, a 14-value set (10 on the Pro model
+   *           the 4K tier routes to — the four banner ratios are Flash-only)
+   *   gpt     computed into `size: "WxH"`; see openaiImageSize() for the four
+   *           constraints gpt-image-2 publishes
+   *   flux    the model's own `aspect_ratio` enum, falling back to `custom`
+   *           plus width/height. See fluxSize() — until this change flux
+   *           IGNORED width/height entirely and served a square on every tier.
+   *
+   * OMITTING it is not neutral. Gemini's docs say the model then picks a
+   * default, and measured behaviour on 2026-08-31 was three different ratios
+   * across four identical requests — undocumented, and not something to build
+   * on. A caller that cares about its canvas must say so.
    */
   aspectRatio?: string;
 }
@@ -237,11 +251,13 @@ export async function generateImage(input: ImageGenerationInput): Promise<Genera
             return openaiImage({
               prompt: input.prompt,
               resolution: input.resolution,
+              aspectRatio: input.aspectRatio,
             });
           case 'flux':
             return generateFlux({
               prompt: input.prompt,
               resolution: input.resolution,
+              aspectRatio: input.aspectRatio,
             });
           default:
             throw new Error(`Unknown model: ${model}`);

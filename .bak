@@ -9,14 +9,18 @@ import { CreatorPreview } from '@/components/studios/creator/CreatorPreview';
 import { GenerationHistory, type HistoryItem } from '@/components/shared/GenerationHistory';
 import { useCreditsStore } from '@/store/credits';
 import { toStudioError, type StudioError } from '@/lib/studio-errors';
-// Imported rather than re-declared. A local copy of this interface lived here
-// and `types/studios.ts`'s export had ZERO importers — so the exported one was
-// documentation and this one was the type that actually governed `lastInput`.
-// The local copy was missing `platform`, which is exactly the field the retry
-// path must not drop: the object survives today only because it is passed by
-// reference, and the first edit that rebuilds it field-by-field would silently
-// re-generate a 9:16 TikTok request as a square at full price.
-import type { CreatorInput } from '@/types/studios';
+import type { AIModel, Resolution } from '@/types/studios';
+
+interface CreatorInput {
+  prompt: string;
+  model: AIModel;
+  resolution: Resolution;
+  style: string;
+  variations: 1 | 4;
+  brandKitId?: string;
+  projectId?: string;
+  referenceImageUrl?: string;
+}
 
 function CreatorPageContent(): React.ReactElement {
   const t = useTranslations('creator');

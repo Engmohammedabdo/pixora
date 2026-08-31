@@ -7,6 +7,10 @@ import { mockFromSchema } from './mock-from-schema';
 interface GenerateImageOptions {
   prompt: string;
   resolution: string;
+  /** Forwarded to openaiImageSize(), which computes a WIDTHxHEIGHT meeting
+   *  gpt-image-2's documented constraints. Omitted means square, which is what
+   *  this adapter returned for every caller before it took a ratio. */
+  aspectRatio?: string;
 }
 
 interface GenerateTextOptions {
@@ -59,7 +63,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
       model: MODELS.openaiImage,
       prompt: options.prompt,
       n: 1,
-      size: openaiImageSize(options.resolution),
+      size: openaiImageSize(options.resolution, options.aspectRatio),
     }),
   }, PROVIDER_TIMEOUTS.image, 'gpt');
 

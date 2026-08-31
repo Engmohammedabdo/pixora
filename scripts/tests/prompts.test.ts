@@ -25,6 +25,10 @@ import {
   editPresetRequiresBrandColors,
 } from '../../lib/ai/prompts/edit';
 import { buildBrandContextBlock } from '../../lib/ai/prompts/brand-context';
+import { buildCreatorPrompt } from '../../lib/ai/prompts/creator';
+import { buildImageTextRule } from '../../lib/ai/prompts/image-text-rule';
+import { PLATFORM_IDS, aspectRatioFor, buildFramingBlock } from '../../lib/ai/prompts/platform-framing';
+import { buildCampaignImagePrompt } from '../../lib/ai/prompts/campaign-image';
 import type { BrandKit } from '../../lib/supabase/types';
 
 let failures = 0;
@@ -995,6 +999,167 @@ function editKit(overrides: Partial<BrandKit>): BrandKit {
   // to ship. Pinned by id so "we redesigned the set" cannot quietly drop it.
   ok('edit: the marketplace white preset exists and is a background replace',
     editPresetMatchesType('marketplace_white', 'background_replace'));
+}
+
+// ---------------------------------------------------------------------------
+// The text-containment rule, and the canvas
+// ---------------------------------------------------------------------------
+//
+// ── WHAT THESE CHECKS CAN AND CANNOT PROVE ────────────────────────────────
+// They pin WORDING that was measured to matter. They cannot prove a model will
+// obey it — `edit.ts` already states that limit where its own prompt checks
+// live, and it is worth restating here because a test that looks like a
+// behavioural guarantee and is not is worse than no test.
+//
+// What was measured, on production 2026-08-31: creator asked for a Dubai
+// shopfront whose sign reads شاورما الشام. The requested text rendered
+// perfectly; the model then invented garbled pseudo-Arabic and fake Latin
+// across a menu board and an entire street of background shop signs. creator's
+// whole defence at the time was one line.
+{
+  const contained = buildImageTextRule('contained', 'لافتة مكتوب عليها شاورما الشام');
+  const none = buildImageTextRule('none', 'a shawarma wrap on a board');
+
+  // Ingredient 1 of the three edit.ts:617-621 names: the override claim.
+  contains('text-rule/contained: claims to override the rest of the prompt', contained,
+    'overrides everything else in this prompt');
+  contains('text-rule/none: claims to override the rest of the prompt', none,
+    'overrides everything else in this prompt');
+
+  // Ingredient 2: a count plus a surface.
+  contains('text-rule/contained: states a count', contained, 'ONCE');
+  // Ingredient 3: the enumeration. These specific nouns are the surfaces the
+  // invented text actually landed on in the measured run — a generic "anywhere
+  // else" is what was already there and what failed.
+  for (const surface of ['menu boards', 'shopfronts', 'price cards', 'background']) {
+    contains(`text-rule/contained: enumerates "${surface}"`, contained, surface);
+    contains(`text-rule/none: enumerates "${surface}"`, none, surface);
+  }
+  contains('text-rule/none: states the strong concrete claim', none, 'NO text anywhere in this image');
+  contains('text-rule/contained: forbids inventing background signage', contained, 'Do not invent');
+
+  // ── THE CONTRADICTION THAT MAKES A MODEL DECLINE ─────────────────────────
+  // The first version of containedTextRule listed "signage, shopfronts" as
+  // surfaces that must be COMPLETELY BLANK, with no exclusion for the surface
+  // the customer actually asked to write on. Printing the assembled prompt for
+  // the measured signage request showed the model being told to print on the
+  // sign and to leave signage blank, in the same block — byte-for-byte the
+  // contradiction edit.ts:679-700 records turning `product_label` into a paid
+  // NO-OP at HTTP 200.
+  //
+  // The rule must therefore be an EXCLUSION OF ITS OWN TARGET, not a fixed list
+  // of nouns. edit.ts states why in its own words: "A fixed list cannot know
+  // what the preset aimed at, which is precisely how it came to name it."
+  contains('text-rule/contained: scopes the blank rule as an exclusion of the named surface',
+    contained, 'other than the one the SUBJECT named');
+  contains('text-rule/contained: permits the target even when it is a sign or a label',
+    contained, 'even if that surface is a sign, a label or a package');
+  // The absolute form belongs ONLY to `none`, where there is no target to
+  // collide with. Its presence in `contained` is the defect returning.
+  ok('text-rule/contained: does not state the unscoped absolute blank claim',
+    !contained.includes('Every surface is COMPLETELY BLANK'));
+  contains('text-rule/none: DOES state the unscoped absolute blank claim',
+    none, 'Every surface is COMPLETELY BLANK');
+
+  // ── THE BLOCKER ADVERSARIAL REVIEW CAUGHT ────────────────────────────────
+  // creator emitted `contained` on its REFERENCE-IMAGE path too, putting
+  // "every surface is COMPLETELY BLANK — packaging, labels …" into the same
+  // prompt as the MUST that orders the customer's own printed text preserved,
+  // with the text rule claiming to override it. A customer uploading a
+  // labelled product and asking only for a new setting was licensed to have
+  // their label wiped, or got a declined no-op at HTTP 200.
+  //
+  // With a photograph attached, creator IS an edit, and edit.ts:658-676 records
+  // the blank instruction measured erasing a real background menu board.
+  const preserve = buildImageTextRule('preserve', 'ضع المنتج على طاولة رخام');
+  ok('text-rule/preserve: never orders any surface blank',
+    !preserve.includes('COMPLETELY BLANK') && !preserve.includes('NO text anywhere'));
+  contains('text-rule/preserve: states the prohibition as ADDING, not blankness',
+    preserve, 'Do not introduce text onto any surface that does not already carry it');
+  contains('text-rule/preserve: existing print survives explicitly',
+    preserve, 'stays exactly as photographed');
+  contains('text-rule/preserve: still allows the words the SUBJECT names',
+    preserve, 'If the SUBJECT above names specific words');
+  contains('text-rule/none: forbids inventing background signage', none, 'Do not invent');
+
+  // The Arabic branch is decided on the REQUEST, and must not fire on a
+  // Latin-only one — an instruction about Arabic shaping spends the model's
+  // attention on nothing when there is no Arabic to shape.
+  contains('text-rule: Arabic request gets the harakat rule', contained, 'harakat');
+  ok('text-rule: Latin-only request gets no harakat rule',
+    !buildImageTextRule('contained', 'a shawarma wrap on a board').includes('harakat'));
+  contains('text-rule: unvowelled Arabic is told to add no diacritics', contained, 'Do not add fatha');
+
+  // The one self-contradiction that must never come back: `none` says there is
+  // no text at all, so it must not also instruct the model on how to render
+  // text. edit.ts:679-700 records a preset returning a NO-OP for exactly this
+  // shape of internally-unsatisfiable block.
+  ok('text-rule/none: never also asks for Arabic to be rendered',
+    !none.includes('Arabic you render'));
+}
+
+{
+  // Every platform states its ratio in prose as well as passing it as a
+  // parameter. Both, deliberately — the parameter sets the canvas and the prose
+  // stops the model composing a centred landscape subject inside a vertical
+  // crop.
+  for (const id of PLATFORM_IDS) {
+    const block = buildFramingBlock(id);
+    contains(`framing/${id}: emits a FRAME heading`, block, 'FRAME');
+    ok(`framing/${id}: says something specific about composition`, block.length >= 80);
+    ok(`framing/${id}: names its own ratio or orientation in the prose`,
+      /SQUARE|VERTICAL|WIDE|FULL-HEIGHT/.test(block));
+  }
+  // An id outside the table emits NOTHING rather than defaulting — silently
+  // composing for the wrong canvas is worse than composing for none.
+  ok('framing: an unknown platform emits no block', buildFramingBlock('myspace') === '');
+  ok('framing: an unknown platform requests no ratio', aspectRatioFor('myspace') === undefined);
+}
+
+{
+  // creator's rewritten shape, and the four dead lines that must stay gone.
+  const p = buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'bold', platform: 'instagram' });
+  contains('creator: opens with a SUBJECT heading', p, 'SUBJECT');
+  contains('creator: passes the customer text through verbatim', p, 'a red shoe on marble');
+  contains('creator: carries the style token', p, 'bold');
+  contains('creator: carries the platform framing', p, 'FRAME');
+  contains('creator: ends with the text rule', p, 'TEXT RULE');
+  ok('creator: the TEXT RULE is stated LAST, where it can override what precedes it',
+    p.lastIndexOf('TEXT RULE') > p.lastIndexOf('AVOID'));
+  // The four lines that shipped on every request with no field behind them.
+  for (const dead of ['Mood:', 'Resolution:', 'Resolution optimized']) {
+    ok(`creator: no longer emits the dead "${dead}" line`, !p.includes(dead));
+  }
+  // The reference-image branch is conditional: ordering the model to preserve
+  // an original that does not exist is a self-contradiction on the
+  // text-to-image path, which is the majority path.
+  ok('creator: says nothing about preserving an original when none is attached',
+    !p.includes('reference image is attached'));
+
+  // The mode must FOLLOW hasReferenceImage. This is the blocker check: the
+  // preservation MUST and an order to blank every label cannot ship together.
+  const withRef = buildCreatorPrompt({
+    userPrompt: 'ضع المنتج على طاولة رخام', style: 'photographic', hasReferenceImage: true,
+  });
+  ok('creator+reference: orders the customer printed text preserved',
+    withRef.includes('any printed text exactly'));
+  ok('creator+reference: does NOT also order every surface blank',
+    !withRef.includes('COMPLETELY BLANK') && !withRef.includes('NO text anywhere'));
+  ok('creator without a reference DOES use the blank form',
+    p.includes('COMPLETELY BLANK'));
+  contains('creator: says so when one IS attached',
+    buildCreatorPrompt({ userPrompt: 'a red shoe', style: 'bold', hasReferenceImage: true }),
+    'reference image is attached');
+}
+
+{
+  // campaign's image half: the same shared rule, in its strong form.
+  const p = buildCampaignImagePrompt({ safeScenario: 'a coffee cup on a table', platform: 'instagram' });
+  contains('campaign-image: opens with a SUBJECT heading', p, 'SUBJECT');
+  contains('campaign-image: carries the platform framing', p, 'FRAME');
+  contains('campaign-image: uses the NO-text form', p, 'NO text anywhere in this image');
+  ok('campaign-image: the TEXT RULE is stated last',
+    p.lastIndexOf('TEXT RULE') > p.lastIndexOf('AVOID'));
 }
 
 if (failures > 0) {

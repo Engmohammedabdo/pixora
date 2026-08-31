@@ -207,20 +207,20 @@ const kit = (over: Record<string, unknown> = {}) => ({
 
 // --- creator: the DEFAULT path, which every customer hits ---
 throwsBlocked('creator: a blocked word in `style` is refused', () =>
-  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: BLOCKED_WORD, resolution: '1080p' })
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: BLOCKED_WORD })
 );
 throwsBlocked('creator: a blocked word in the brand-kit NAME is refused', () =>
-  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p', brandKit: kit({ name: BLOCKED_WORD }) })
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', brandKit: kit({ name: BLOCKED_WORD }) })
 );
 throwsBlocked('creator: a blocked word in brand_voice is refused', () =>
-  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p', brandKit: kit({ brand_voice: BLOCKED_WORD }) })
+  buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'photographic', brandKit: kit({ brand_voice: BLOCKED_WORD }) })
 );
 
 // An over-long brand name is TRUNCATED, not refused: the honest path is unchanged
 // and the PostgREST path is truncated back onto it.
 checks++;
 if (buildCreatorPrompt({
-  userPrompt: 'a red shoe on marble', style: 'photographic', resolution: '1080p',
+  userPrompt: 'a red shoe on marble', style: 'photographic',
   brandKit: kit({ name: 'A'.repeat(5000) }),
 }).includes('A'.repeat(200))) {
   failures++;
@@ -230,7 +230,7 @@ if (buildCreatorPrompt({
 // A clean call must still produce a usable prompt — the filter must not eat content.
 checks++;
 {
-  const built = buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'cinematic', resolution: '4K', brandKit: kit() });
+  const built = buildCreatorPrompt({ userPrompt: 'a red shoe on marble', style: 'cinematic', brandKit: kit() });
   if (!built.includes('a red shoe on marble') || !built.includes('cinematic') || !built.includes('Acme')) {
     failures++;
     console.error('  FAIL  creator: a clean call must keep subject, style and brand in the prompt');

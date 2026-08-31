@@ -85,10 +85,88 @@ export function geminiImageSize(resolution: string | undefined): '1K' | '2K' | '
 }
 
 /** Maps the same labels to OpenAI's pixel `size` strings. */
-export function openaiImageSize(resolution: string | undefined): string {
-  switch (resolution) {
-    case '4K': return '2048x2048';
-    case '2K': return '1536x1536';
-    default: return '1024x1024';
+/**
+ * ── THE ACCEPTANCE RULE, FROM OPENAI'S OWN DOCS (checked 2026-08-31) ────────
+ * `gpt-image-2` has NO fixed size enum. The guide states it "accepts any
+ * resolution in the size parameter when it satisfies the constraints below":
+ *
+ *   - both edges must be multiples of 16
+ *   - maximum edge length <= 3840
+ *   - long:short ratio must not exceed 3:1
+ *   - total pixels within [655,360 , 8,294,400]
+ *
+ * The three values this function returned before — 1024x1024, 1536x1536 and
+ * 2048x2048 — all satisfy every one of them, so the suspicion that 2K/4K gpt
+ * requests were already failing in production is REFUTED. Recorded because a
+ * corrected claim is worth as much as a fixed defect.
+ *
+ * One real caution survives: 2048x2048 is 4,194,304 px, above the 2560x1440
+ * (3,686,400 px) line past which OpenAI explicitly calls output "experimental".
+ * The 4K tier therefore rides a band OpenAI reserves the right to change.
+ */
+const OPENAI_STEP = 16;
+const OPENAI_MAX_EDGE = 3840;
+const OPENAI_MIN_PIXELS = 655_360;
+const OPENAI_MAX_PIXELS = 8_294_400;
+const OPENAI_MAX_RATIO = 3;
+
+/** Longest edge per tier. Unchanged for the square case, so the sizes this
+ *  function already returned for a caller with no ratio are byte-identical. */
+const OPENAI_LONG_EDGE: Record<string, number> = {
+  '1080p': 1024,
+  '2K': 1536,
+  '4K': 2048,
+};
+
+function snap16(n: number): number {
+  return Math.max(OPENAI_STEP, Math.round(n / OPENAI_STEP) * OPENAI_STEP);
+}
+
+/**
+ * `WIDTHxHEIGHT` for the requested tier and shape.
+ *
+ * Every constraint above is enforced HERE rather than discovered from a 400,
+ * because OpenAI documents no size-specific error — the docs name no code, no
+ * message and no example for a rejected size, so a caller cannot tell that
+ * failure apart from any other bad request. The one thing the docs ARE explicit
+ * about is that image-generation user errors "must not be automatically
+ * retried", which makes a silently-wrong size a paid failure with no recovery.
+ */
+export function openaiImageSize(resolution: string | undefined, aspectRatio?: string): string {
+  const long = OPENAI_LONG_EDGE[resolution ?? ''] ?? OPENAI_LONG_EDGE['1080p'];
+  const [rw, rh] = (aspectRatio ?? '1:1').split(':').map(Number);
+  const valid = Number.isFinite(rw) && Number.isFinite(rh) && rw > 0 && rh > 0;
+  // An unparseable ratio falls back to square — the shape this function
+  // returned for every caller before it took a ratio at all.
+  const [w0, h0] = valid ? [rw, rh] : [1, 1];
+
+  const landscape = w0 >= h0;
+  let width = snap16(landscape ? long : (long * w0) / h0);
+  let height = snap16(landscape ? (long * h0) / w0 : long);
+
+  // Clamp in the order the constraints bind: edge, then ratio, then pixels.
+  // Scaling for the pixel ceiling last means the earlier clamps cannot push it
+  // back over — shrinking never increases area.
+  const overEdge = Math.max(width, height) / OPENAI_MAX_EDGE;
+  if (overEdge > 1) { width = snap16(width / overEdge); height = snap16(height / overEdge); }
+
+  const ratio = Math.max(width, height) / Math.min(width, height);
+  if (ratio > OPENAI_MAX_RATIO) {
+    if (width > height) width = snap16(height * OPENAI_MAX_RATIO);
+    else height = snap16(width * OPENAI_MAX_RATIO);
   }
+
+  const pixels = width * height;
+  if (pixels > OPENAI_MAX_PIXELS) {
+    const k = Math.sqrt(OPENAI_MAX_PIXELS / pixels);
+    width = snap16(width * k); height = snap16(height * k);
+  } else if (pixels < OPENAI_MIN_PIXELS) {
+    const k = Math.sqrt(OPENAI_MIN_PIXELS / pixels);
+    // Ceil onto the grid rather than round: rounding down here would land
+    // back under the floor, which is the one direction that is a hard reject.
+    width = Math.ceil((width * k) / OPENAI_STEP) * OPENAI_STEP;
+    height = Math.ceil((height * k) / OPENAI_STEP) * OPENAI_STEP;
+  }
+
+  return `${width}x${height}`;
 }

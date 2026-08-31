@@ -1158,6 +1158,237 @@ still one `<html>` each.
   iOS delivery. Without them iOS-ATT users are measured worse — and the Gulf is
   iOS-heavy, which is half the reason the CAPI path exists.
 
+### The image prompts, measured — 2026-08-31 (creator and campaign)
+
+**The lesson of this round is the round itself.** A design was written from
+reading code, its central premise was tested for 20 credits, and the premise was
+false. Everything below follows from measuring first.
+
+`creator` is the first studio in the product, costs 1–4 credits, and is where
+every customer starts. **It had never been looked at.** The live harness listed
+it under `COVERED_ELSEWHERE` as *"runs on every sweep as the fixture generator"* —
+true, and exactly the problem: that records that it EXECUTES and was read as
+meaning it is VERIFIED. It now has four cases of its own
+(`scripts/live/studio-cases.ts`), and the exemption is gone.
+
+Artifacts for everything below: `.superpowers/live-runs/2026-08-31T09-35-51-970Z/`.
+
+#### Three premises, refuted by their own experiment
+
+`creator_ar_raw` and `creator_en_brief` requested the **same picture two ways**
+and differed in nothing else.
+
+| Claimed from reading code | Measured |
+|---|---|
+| Raw colloquial Arabic is a weak instruction to an image model; an Arabic→English expansion layer is the biggest win available | **Refuted.** `عايز صورة لساندوتش شاورما تجيب جوع لمطعمي في دبي` produced an ad-grade frame that resolved BOTH things the layer was meant to add — a recognisable Dubai skyline from `في دبي`, and hand-held appetite framing from `تجيب جوع`. The hand-written English brief, carrying lens, aperture, lighting and palette, came back **more generic** and lost the city entirely |
+| `style` is a bare slug and tells the model nothing — the `plan.ts` "20+ years in the other industry" defect class | **Refuted.** `bold` returned a coherent dark, high-contrast neon night scene against the same subject `photographic` shot in warm daylight. `plan.ts`'s failure was SEMANTIC — a slug spliced into a sentence that then asserted something false. A stylistic adjective an image model already grounds is not the same thing |
+| Every image outside `edit` is square | **Half wrong**, and the wrong half is worse. `campaign` is square; `creator`'s canvas is **non-deterministic** |
+
+**The expansion layer and the style tables were cut on that evidence.** Building
+them would have spent a model call per generation to flatten the best signal in
+the prompt. **Do not propose an expansion layer again without first re-running
+`creator_ar_raw` against `creator_en_brief`.**
+
+#### What the run confirmed, and what was then fixed
+
+**1. `creator` had no text containment, and it fails loudly.**
+`creator_ar_signage` asked for a Dubai shopfront whose sign reads شاورما الشام.
+The requested text rendered **perfectly** — correctly joined, RTL, clean neon.
+The model then invented garbled pseudo-Arabic and fake Latin across *every other
+surface in the frame*: the menu board, and an entire street of background shop
+signs (`BAWJIN`, `SHAAM`, nonsense phone numbers). `creator`'s whole defence was
+one line: `NO extra text, logos, or watermarks unless specified`.
+
+**The wording that fixes it was proved on `creator` and never given to it.**
+`edit.ts:602-631` records the form that held on production 2026-08-25 and says in
+its own words that it came from *"a GENERATE prompt, where the frame starts
+empty"* — that is `creator`. It was adapted for `edit`, hardened there over three
+more production runs, and the studio it was proved on kept the one weak line.
+`lib/ai/prompts/image-text-rule.ts` is now one copy for both text-to-image
+studios, carrying all three ingredients `edit.ts` names: an override claim, a
+count plus a named surface, and an enumeration of where invented text lands.
+
+**2. `creator`'s output canvas was non-deterministic.** Four requests, identical
+`resolution: '2K'`, identical model and account:
+
+```
+creator_ar_raw       2752x1536   1.79
+creator_en_brief     2752x1536   1.79
+creator_ar_bold      1696x2528   0.67   <- portrait
+creator_ar_signage   2848x1504   1.89
+```
+
+Three shapes across four requests. `gemini.ts:200` sends `aspectRatio` only when
+a caller supplies one, and no text-to-image caller ever did — so the model chose.
+Google's docs say the default is 1:1 for a request with no reference image, so
+**the observed spread is undocumented behaviour and must not be built on.**
+`campaign` failed the other way: 1024×1024 squares for `platform: 'instagram'`.
+`lib/ai/prompts/platform-framing.ts` now decides the canvas, passing the ratio as
+a parameter **and** stating it in prose — the parameter sets the frame, the prose
+stops the model composing a centred landscape subject inside a vertical crop.
+
+**3. A separate, older, confirmed defect the canvas work uncovered: `flux` has
+never delivered the resolution the paid plans sell.** Read from the
+`dereferenced_openapi_schema` Replicate embeds in the model's own page:
+`width` and `height` are *"Only used when aspect_ratio=custom"*, and
+`aspect_ratio` defaults to `"1:1"`. **This adapter never sent `aspect_ratio`.**
+So the entire `sizeMap` was inert and 1080p, 2K and 4K all produced the same
+default square. Same class as photoshoot's hardcoded `'1080p'`. Also: `4K` mapped
+to 2048 against a declared maximum of 1440.
+
+Two cautions recorded with it. `multipleOf` appears **zero** times in that 192 kB
+schema — the multiple-of-32 rule is description-only and an off-grid value is
+silently **rounded**, not rejected, so a wrong width changes the delivered aspect
+ratio with no error. And the claim that 2048 *already 422s in production* was
+**refuted** on verification: it traced to a GitHub SDK issue rather than provider
+docs, and Replicate's changelog says payload validation "only applies to
+top-level properties". It is capped either way.
+
+**4. The `gpt` size suspicion was refuted.** `gpt-image-2` has no size enum; it
+accepts any `WIDTHxHEIGHT` meeting four documented constraints (edges multiples
+of 16, max edge ≤ 3840, ratio ≤ 3:1, pixels in [655 360, 8 294 400]), and
+`1536x1536` and `2048x2048` meet all four. Nothing was failing. One real caution
+survives: 2048×2048 sits in the band OpenAI explicitly calls **experimental**.
+
+#### Three defects this round introduced in its own fixes, all caught before shipping
+
+Every previous round did this and this one is no exception. **Two of the three
+were in the fix for the very defect this round exists to close**, and one of them
+was a blocker.
+
+**(a) BLOCKER — the containment rule was emitted on the reference-image path,
+where it means the opposite.** `creator` sent `containedTextRule()`
+unconditionally. With a photograph attached the prompt read:
+
+```
+MUST      - Preserve its shape, proportions, colours, materials and any printed text exactly
+TEXT RULE — this overrides everything else in this prompt:
+          - If the SUBJECT names no words, the image contains NO text anywhere at all.
+          - … Every other surface is COMPLETELY BLANK — … packaging, labels, …
+```
+
+A customer uploading their own labelled product and asking only for a new setting
+was licensed to have the label wiped — or got a declined no-op at HTTP 200 with
+credits charged. `image-text-rule.ts`'s **own header already said why**: the
+blank line is correct for a frame that starts empty and means "erase the
+customer's photograph" when one is attached, which is why `edit` needed
+"add nothing" instead. The rule was written and the path it does not fit was
+missed. Now `preserveTextRule()`, selected on `hasReferenceImage` — on the
+default path **and** the admin-override path.
+
+**(b) The flux fix reproduced the defect it was fixing.** `fluxSize()` preferred
+flux's own ratio enum whenever it carried the request, on the reasoning that the
+provider's supported path avoids the rounding trap. Measured:
+
+```
+fluxSize('1080p','4:5') -> {"aspect_ratio":"4:5"}
+fluxSize('2K',   '4:5') -> {"aspect_ratio":"4:5"}
+fluxSize('4K',   '4:5') -> {"aspect_ratio":"4:5"}
+```
+
+Byte-identical across all three tiers — `width`/`height` are the model's only
+resolution channel and are read only under `custom`, so the enum path threw the
+tier away. Every ratio the product can send is an enum member, so the `custom`
+branch was dead on every reachable path: a 4-credit 4K request served at
+1080p-class size, at 4× the price, with nothing in the response to say so. **And
+the file's own header claimed the opposite was now true.** Now `custom` always,
+dimensions always, snapped onto the 32px grid.
+
+**`test:image-canvas` was pinning that defect in place** — it asserted "flux uses
+its own enum rather than custom". A gate can enforce a bug. It now asserts the
+quantity that matters: *2K must ask for a larger frame than 1080p*, plus that the
+requested ratio survives the grid snapping.
+
+**(c) A comment claimed a protection the code did not have.** `types/studios.ts`'s
+`CreatorInput` gained a note saying it guards the retry path — while having **zero
+importers**: `creator/page.tsx` declared its own local copy, missing `platform`,
+and that was the type actually governing `lastInput`. The page now imports the
+shared one.
+
+All three were found by **adversarial review of this round's own diff**, which is
+the fourth consecutive round where that step caught more than the gates did.
+
+#### And one found by reading the assembled prompt out loud
+
+Before that review, and worth separating because the method was different. The first version of
+`containedTextRule()` stated containment as a **fixed list of nouns** —
+"Every other surface in the frame is COMPLETELY BLANK: menu boards, signage,
+shopfronts, …". Printing the assembled prompt for the measured signage request
+showed it immediately:
+
+```
+SUBJECT: … عليها لافتة مضيئة مكتوب عليها شاورما الشام        (a lit SIGN)
+- place them ONCE on the single surface it names               -> the sign
+- Every other surface is COMPLETELY BLANK: … signage, shopfronts …
+```
+
+**The customer's target surface was in the blank list.** The model was told to
+print on the sign and to leave signage blank, in the same block — byte-for-byte
+the contradiction `edit.ts:679-700` records turning `product_label` into a paid
+**NO-OP at HTTP 200**. `edit.ts`'s own conclusion applies verbatim: *"A fixed list
+cannot know what the preset aimed at, which is precisely how it came to name
+it."* The rule now leads with an **exclusion of its own target** and the nouns
+follow as examples of the complement. `noTextRule` keeps the absolute list,
+correctly — there is no target there to collide with.
+
+It was found by **printing the prompt and reading it**, not by any gate. Four
+`test:prompts` checks now pin it, proved by reintroducing the contradiction.
+
+#### One gate was narrowed, deliberately
+
+`sanitize-before-reserve` fired on the campaign image builder, and it was
+shape-correct and substance-wrong: campaign's image prompt is **structurally**
+after the reservation — `post.scenario` does not exist until the text model has
+answered — and the route already handles a blocked scenario by dropping that one
+image and refunding its share.
+
+The rule's own `why` had anticipated this and handled it by being stated on
+builders rather than on bare `sanitizePrompt`; moving that prompt into a builder,
+so `prompt-builder-sanitized` could finally see it, brought it back. The rule is
+now narrowed to builders that can actually **throw** — i.e. that call
+`sanitizePrompt`. Every case it was written for still fires; proved by
+reintroducing a `buildBrandContextBlock()` call after `reserveCredits()`.
+
+`buildCampaignImagePrompt` therefore takes **pre-filtered** `safe*` arguments and
+does not filter again. That is not laziness: a second `sanitizePrompt` inside the
+builder would throw **outside** the route's per-image try/catch, turning one
+blocked scenario out of nine into a failed 12-credit campaign.
+
+#### New gate
+
+`npm run test:image-canvas` — **172 checks**, in `prebuild`. Every ratio the
+product offers is one all three providers can serve; every adapter's size
+function returns a value inside that provider's published limits; and the
+adapter's **request body** is checked at source, because the flux defect lived
+there and no amount of testing a helper would have found it.
+
+**One hole in it was found during authoring and is recorded in the file**: the
+"flux sends no inert dimensions" check sat in an `else` arm, so forcing every
+request down the `custom` path — the shape of the original defect — made it
+unreachable and the gate passed. It is now stated as a biconditional on every
+case. *A rule that only runs on the arm you did not break is not a rule.*
+
+#### Still open, deliberately
+
+- **`creator` has no field naming the text to render**, so its containment rule
+  is the weaker **relation** form ("if the SUBJECT above names specific
+  words…"). `edit` can state the concrete version because it has
+  `editDescription`. The upgrade is an optional `imageText` field, and it is
+  deliberately not built on speculation — re-running `creator_ar_signage` costs
+  2 credits and decides it.
+- **One ratio per platform**, so Instagram feed and Instagram story share an id.
+  Splitting them changes campaign's public enum.
+- **`general` defaults to 1:1**, which is a behaviour change: two of the four
+  baseline frames were 1.79 landscape. Deliberate — an unrepeatable canvas is
+  not worth preserving in a tool sold for producing sets of posts.
+- **Nothing here improves campaign's `scenario` text**, which is what actually
+  decides those nine images. It is model-authored by `campaign.ts` and was not
+  examined.
+- **No gate asserts an image contains no invented text.** `looksLikeNoOp`'s own
+  history is why: CLAUDE.md already records the pixel-diff metric calling a
+  working text edit (3.19%) worse than one that did nothing (2.67%), and warns
+  *"Do not build a gate on that number."* It stays an eye pass.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -1431,12 +1662,13 @@ npm run test:plan-switch        # 15 checks over the mid-period plan-switch cred
 npm run test:generation-terminal #  11 checks: a row is only closed once credits are settled
 npm run test:voiceover-budget   # 508 checks: the char budget is the exact inverse of the price
 npm run test:image-host         #  18 checks: the SSRF allowlist is a HOST rule, not a suffix
+npm run test:image-canvas       # 172 checks: every offered ratio is one all three providers serve, and a paid tier reaches the request
 npm run test:reference-image    #  12 checks: an inline reference image is bounded
 npm run test:retrievable-output #  21 checks: a retrievable output can never be multi-megabyte
 npm run test:settle             #  12 checks: a charge only drops from a refund that landed
 npm run test:provider-retry     #  20 checks: transient vs permanent provider failures
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
-npm run test:prompts            # 111 golden-string checks over the prompt builders
+npm run test:prompts            # 414 golden-string checks over the prompt builders
 npm run test:analytics          #  46 checks: the client may never report a server-witnessed event — GA4 AND Meta — plus cookie parsers, Meta hashing, and the five load-bearing CSP hosts
 npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
 npm run test:website-url        #  48 checks: the URL normaliser and BOTH storage layers agree
@@ -1451,7 +1683,7 @@ npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDI
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**1250 checks across 18 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
+**Roughly 2,100 checks across 19 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.

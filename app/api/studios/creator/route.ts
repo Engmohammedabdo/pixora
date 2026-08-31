@@ -8,6 +8,8 @@ import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
 import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
+import { PLATFORM_IDS, aspectRatioFor, buildFramingBlock } from '@/lib/ai/prompts/platform-framing';
+import { buildImageTextRule } from '@/lib/ai/prompts/image-text-rule';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getStudioCost } from '@/lib/credits/costs';
@@ -28,6 +30,19 @@ const InputSchema = z.object({
   // `style` reaches the image model on BOTH branches and had no ceiling at all.
   // 100 is the cap the admin-override branch already truncates it to.
   style: z.string().max(100).default('photographic'),
+  // The output canvas, chosen by the customer rather than by the model.
+  //
+  // Measured 2026-08-31: four requests at this same `resolution` came back as
+  // three different aspect ratios (1.79, 1.79, 0.67, 1.89), because gemini picks
+  // the shape from prompt content when no `aspectRatio` is sent and no
+  // text-to-image caller had ever sent one. A tool sold for producing sets of
+  // posts cannot have a canvas that does not reproduce between two identical
+  // requests.
+  //
+  // Optional with a `general` default, so every existing client keeps working.
+  // The enum is built from the framing table rather than restated, so a platform
+  // added there cannot be silently unreachable here.
+  platform: z.enum(PLATFORM_IDS).default('general'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
   // `z.string().url()` accepted blob: and http: — neither readable server-side —
@@ -38,15 +53,27 @@ const InputSchema = z.object({
 });
 
 /**
- * The brief's labels, in the order buildCreatorPrompt emits them, keyed by the
- * token the admin prompt editor advertises for each one.
+ * The brief's labels, keyed by the token the admin prompt editor advertises for
+ * each one, and matching the headings buildCreatorPrompt emits.
+ *
+ * Kept in step with that builder by hand — this list claims to mirror it, and a
+ * claim like that going stale is how the `app/layout.tsx` comment came to
+ * assert the opposite of what the code did. Updated 2026-08-31 when creator
+ * moved from a bullet list to headed blocks:
+ *   - `resolution` REMOVED. No image model reads pixel dimensions from prose;
+ *     it is an API parameter, and /api/admin/prompts no longer offers the chip.
+ *   - `platform` ADDED. It is a real field now rather than the fixed string
+ *     'General' the old builder invented.
+ *   - Labels follow the new headings (SUBJECT / BRAND / STYLE), so an override
+ *     that omits a token still reads as one prompt rather than two stapled
+ *     together.
  */
 const OVERRIDE_BRIEF_LABELS: ReadonlyArray<readonly [token: string, label: string]> = [
-  ['user_prompt', 'Subject'],
+  ['user_prompt', 'SUBJECT'],
   ['brand_name', 'Brand'],
-  ['brand_colors', 'Brand Colors'],
-  ['selected_style', 'Visual Style'],
-  ['resolution', 'Resolution'],
+  ['brand_colors', 'Brand Colours'],
+  ['selected_style', 'STYLE'],
+  ['platform', 'Platform'],
 ];
 
 /**
@@ -207,22 +234,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               )
             : '',
           selected_style: sanitizePrompt(input.style, 100),
-          resolution: input.resolution,
-          // Nothing in this studio's UI sets a mood or a platform, so the
-          // builder's own defaults are the honest values to give an override
-          // that asks for them.
-          mood: 'Professional',
-          platform: 'General',
+          // `resolution` and `mood` are no longer offered: neither reached the
+          // model usefully, and /api/admin/prompts no longer advertises them as
+          // chips. `platform` is now a real field rather than the fixed string
+          // 'General' the builder used to invent.
+          platform: input.platform,
         // Mirrors campaign's override branch: appended after the composed
         // brief, same placement buildCreatorPrompt itself uses (after the
         // subject/brand lines, before the style/technical directives it
         // appends on the default path — this override has none of those).
         }) + buildBrandContextBlock(brandContext)
+          // An override REPLACES the built prompt, so without this the one
+          // defect this round measured — a street of invented shop signs —
+          // stays open on the admin path. The containment rule is not part of
+          // the brief an admin is editing; it is the rule the studio holds
+          // regardless of who wrote the brief, which is why it is appended
+          // rather than offered as a token.
+          + buildFramingBlock(input.platform)
+          // Same hasReferenceImage branch as the default path. An override that
+          // says nothing about text still must not order the customer's own
+          // packaging blanked — see buildCreatorPrompt's note and
+          // preserveTextRule().
+          + buildImageTextRule(input.referenceImageUrl ? 'preserve' : 'contained', safeUserPrompt)
       : buildCreatorPrompt({
           userPrompt: safeUserPrompt,
           style: input.style,
-          resolution: input.resolution,
           brandKit,
+          platform: input.platform,
           hasReferenceImage: Boolean(input.referenceImageUrl),
         });
 
@@ -337,6 +375,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           model: input.model,
           resolution: input.resolution,
           referenceImageUrl: input.referenceImageUrl,
+          // Safe to send as of 2026-08-31: gpt and flux forward this now, in
+          // that order, which is the precondition router.ts:31 states. Before
+          // that it would have been silently dropped on two of the three models
+          // this studio lets the customer pick.
+          aspectRatio: aspectRatioFor(input.platform),
         }).catch(() => null)
       );
 
@@ -455,6 +498,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: input.model,
         resolution: input.resolution,
         referenceImageUrl: input.referenceImageUrl,
+        aspectRatio: aspectRatioFor(input.platform),
       });
 
       const finalUrl = await uploadImage(result.url || '', 0);

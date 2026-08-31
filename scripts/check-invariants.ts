@@ -1337,6 +1337,40 @@ const promptBuilderSanitized: Invariant = {
 // Invariant: sanitize-before-reserve
 // ---------------------------------------------------------------------------
 
+/** `buildFooPrompt(` / `buildBrandContextBlock(` -> `buildFooPrompt`. */
+function nameOf(callText: string): string {
+  return callText.replace(/\s*\($/, '').trim();
+}
+
+/**
+ * Whether a prompt builder can throw, i.e. whether the file that DEFINES it
+ * calls `sanitizePrompt`.
+ *
+ * File-level rather than function-level on purpose: a builder file that filters
+ * anywhere is a file whose builders are expected to filter, and treating one of
+ * them as non-throwing because the call sits in a sibling function would be a
+ * loophole. The conservative direction is "assume it throws", which is also
+ * what an unresolvable name gets.
+ *
+ * Comments are stripped for the same reason the callers are: these files record
+ * their own history by quoting code, and `campaign-image.ts`'s header quotes the
+ * very `sanitizePrompt(...)` call it exists to explain NOT making.
+ */
+const builderThrowsCache = new Map<string, boolean>();
+function builderThrows(builderName: string): boolean {
+  const cached = builderThrowsCache.get(builderName);
+  if (cached !== undefined) return cached;
+  let verdict = true; // unresolvable name -> assume the hazard
+  for (const file of listFiles(['lib/ai/prompts'], ['.ts'], false)) {
+    const src = stripComments(readFileSync(file, 'utf8'));
+    if (!new RegExp(`export\\s+function\\s+${builderName}\\b`).test(src)) continue;
+    verdict = /\bsanitizePrompt\s*\(/.test(src);
+    break;
+  }
+  builderThrowsCache.set(builderName, verdict);
+  return verdict;
+}
+
 const sanitizeBeforeReserve: Invariant = {
   id: 'sanitize-before-reserve',
   title: 'A studio route finishes building its prompt before it reserves credits',
@@ -1381,6 +1415,26 @@ const sanitizeBeforeReserve: Invariant = {
       let m: RegExpExecArray | null;
       while ((m = re.exec(content))) {
         if (m.index <= reserveIdx) continue;
+        // The hazard is a builder that THROWS — `sanitizePrompt` is the only
+        // thing in a builder that does. A builder taking pre-filtered `safe*`
+        // arguments cannot discover a blocked term, so it cannot strand
+        // credits, and the money this rule protects is not at risk.
+        //
+        // This is a narrowing of the rule, not an exception to it. Every case
+        // the rule was written for still fires: `buildPlanPrompt`,
+        // `buildAnalysisPrompt` and `buildBrandContextBlock` all call
+        // `sanitizePrompt`, so the d76aeb9 regression would still be caught.
+        //
+        // It exists because campaign's IMAGE prompt is structurally after the
+        // reservation and always will be — `post.scenario` does not exist until
+        // the text model has answered, which is necessarily after the credits
+        // are held. This rule's own `why` already anticipated that case and
+        // handled it by being stated on builders rather than on bare
+        // `sanitizePrompt`; moving that prompt into a builder on 2026-08-31 —
+        // so `prompt-builder-sanitized` could finally see it — brought it back.
+        // The choice was to narrow this rule or to leave the one image prompt
+        // whose input is LLM-authored outside the filter gate. Narrowed.
+        if (!builderThrows(nameOf(m[0]))) continue;
         violations.push({
           file: rel,
           line: lineAt(content, m.index),
