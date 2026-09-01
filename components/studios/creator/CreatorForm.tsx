@@ -29,6 +29,11 @@ interface CreatorFormProps {
     platform: PlatformId;
     variations: 1 | 4;
     brandKitId?: string;
+    /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+     *  `brandKitId` means "I did not choose" and the server answers that with
+     *  the project's kit or the account default — see
+     *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+    useBrandKit?: boolean;
     referenceImageUrl?: string;
     projectId?: string;
   }) => void;
@@ -85,7 +90,12 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   // rather than whatever the model felt like.
   const [platform, setPlatform] = useState<PlatformId>('general');
   const [variations, setVariations] = useState<1 | 4>(1);
-  const [useBrandKit, setUseBrandKit] = useState(false);
+  // ON by default, in BOTH studios. It was `useState(false)` in each, with a
+  // four-line effect in creator only that flipped it on once the customer's kits
+  // arrived — so the identical-looking chip meant opt-IN in campaign and opt-OUT
+  // in creator, and a 12-credit campaign came back generic by default. The state
+  // now says the same thing in both files, with no effect to keep in sync.
+  const [useBrandKit, setUseBrandKit] = useState(true);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -104,11 +114,10 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
 
   const { brandKits, defaultKit } = useBrandKits();
 
-  useEffect(() => {
-    if (brandKits.length > 0 && !useBrandKit) {
-      setUseBrandKit(true);
-    }
-  }, [brandKits]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The auto-enable effect that used to sit here is gone: the initial state
+  // now says what it did, in both studios, and an effect that silently
+  // re-enables a control the customer just turned off is worse than the
+  // default it was compensating for.
 
   // A project's own brand kit wins over the account default: the whole point of
   // client workspaces is that switching client switches the identity with it, so
@@ -137,6 +146,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       platform,
       variations,
       brandKitId: selectedKit?.id,
+      useBrandKit,
       referenceImageUrl: referenceImage || undefined,
       projectId: projectId ?? undefined,
     });

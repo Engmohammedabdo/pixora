@@ -48,12 +48,26 @@ import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/p
  * after the reservation is the defect that regressed twice in this repo already
  * (`sanitize-before-reserve`'s own header records it).
  *
- * It filters MORE than the previous per-route code did: `brand_voice` met the
- * filter only in creator and campaign, and the colour columns only in creator
- * and edit. Now every studio filters every column it could ever read. That is a
- * deliberate widening — a blocked term in a brand kit should fail the same way
- * in all seven studios, before any money moves, naming the term — rather than
- * failing in the two that happened to read that column.
+ * WHAT IT FILTERS, AND WHY IT IS NOT MORE THAN BEFORE. The four business-fact
+ * columns always meet the filter, because `buildBrandContextBlock` already ran
+ * in all seven routes — that is the status quo, moved. The three colour columns,
+ * `brand_voice` and the standalone `name` are filtered ONLY when the caller asks
+ * for them via `need`.
+ *
+ * The first version of this module filtered all of them unconditionally, and
+ * that was wrong. `sanitizePrompt` THROWS rather than stripping, and its
+ * blocklist contains ordinary marketing words — `kill`, `gun`, `weapon`. A
+ * customer whose `brand_voice` reads "killer offers, no fluff" can today still
+ * use plan, analysis, storyboard, photoshoot and edit, because none of those
+ * five reads that column. Filtering it for all of them would have turned five
+ * working studios into a 400 naming a term that appears nowhere in the form the
+ * customer just filled in — a widening of a customer-facing failure, sold as
+ * consistency. `need` makes the throw surface exactly the read surface.
+ *
+ * It does close one real hole: `lib/ai/prompts/photoshoot.ts` interpolated
+ * `primary_color`/`secondary_color` with no filter and no cap — the only
+ * unfiltered brand-kit read in any builder. photoshoot passes `need: ['colors']`
+ * and gets capped values.
  */
 
 /** The columns any prompt path reads. Measured: no `lib/ai/**` file touches
@@ -128,6 +142,20 @@ const NO_IDENTITY: WorkingIdentity = {
 };
 
 export interface ResolveWorkingIdentityOptions {
+  /**
+   * The customer said "not this time". Checked BEFORE step 1 and terminal:
+   * no query, no fallback, `source: 'none'`.
+   *
+   * "No explicit id" and "no identity, deliberately" are different requests and
+   * the three-step ladder cannot tell them apart. creator and campaign both
+   * render an Apply-Brand-Kit toggle whose OFF state simply omits `brandKitId`;
+   * with only the ladder, turning it off resolved the project's kit or the
+   * account default instead — silently overriding the one control the customer
+   * has for saying no. Caught by adversarial review of this very conversion,
+   * which is the fourth consecutive round in this repo where that step found
+   * more than the gates did.
+   */
+  optedOut?: boolean;
   /** Step 1. The kit the customer is looking at, straight off the request. */
   brandKitId?: string;
   /** Step 2. MUST be the value returned by `resolveProjectId()`, never the raw
@@ -138,7 +166,22 @@ export interface ResolveWorkingIdentityOptions {
    *  and two `- Industry:` lines. `plan/route.ts` and `analysis/route.ts` record
    *  what that produced at 5 and 3 credits a run. */
   omit?: readonly BusinessField[];
+  /**
+   * The extra columns THIS studio's prompt actually reads. Each one is filtered
+   * and capped only when asked for, and `sanitizePrompt` throws, so this is the
+   * throw surface as well as the read surface — keeping the two identical is the
+   * whole point. Ask for nothing and nothing beyond the four business facts is
+   * filtered, which is what plan and analysis need.
+   *
+   * Today: storyboard ['name'] · photoshoot ['colors'] · edit ['colors'] ·
+   * creator and campaign ['name','colors','voice'] · plan and analysis none.
+   * Each list was read off the builder that consumes it, not guessed.
+   */
+  need?: readonly WorkingIdentityExtra[];
 }
+
+/** The brand-kit columns beyond the four business facts. */
+export type WorkingIdentityExtra = 'name' | 'colors' | 'voice';
 
 /**
  * Resolve the Working Identity for one Generation.
@@ -156,9 +199,11 @@ export async function resolveWorkingIdentity(
   userId: string,
   opts: ResolveWorkingIdentityOptions = {},
 ): Promise<WorkingIdentity> {
+  // Before step 1, and before any query: an explicit refusal is an answer.
+  if (opts.optedOut) return NO_IDENTITY;
   const kit = await findKit(supabase, userId, opts);
   if (!kit.row) return { ...NO_IDENTITY, source: kit.source };
-  return describe(kit.row, kit.source, opts.omit);
+  return describe(kit.row, kit.source, opts.omit, opts.need);
 }
 
 async function findKit(
@@ -234,7 +279,9 @@ function describe(
   row: WorkingIdentityKit,
   source: IdentitySource,
   omit: readonly BusinessField[] = [],
+  need: readonly WorkingIdentityExtra[] = [],
 ): WorkingIdentity {
+  const wanted = new Set<WorkingIdentityExtra>(need);
   const drop = new Set<BusinessField>(omit);
   const pick = (field: BusinessField, value: string | null): string | null =>
     drop.has(field) ? null : value;
@@ -252,11 +299,16 @@ function describe(
   // the reservation, at every call site, without seven routes each remembering to.
   const block = buildBrandContextBlock(context);
 
-  const safeColors = {
-    primary: sanitizePrompt(String(row.primary_color ?? ''), 40),
-    secondary: sanitizePrompt(String(row.secondary_color ?? ''), 40),
-    accent: sanitizePrompt(String(row.accent_color ?? ''), 40),
-  };
+  // Each of these runs `sanitizePrompt`, which THROWS. Computing one the caller
+  // will not read turns a working generation into a 400 over a column that
+  // studio's prompt never sees — see the header. Gated on `need`, not on truthiness.
+  const safeColors = wanted.has('colors')
+    ? {
+        primary: sanitizePrompt(String(row.primary_color ?? ''), 40),
+        secondary: sanitizePrompt(String(row.secondary_color ?? ''), 40),
+        accent: sanitizePrompt(String(row.accent_color ?? ''), 40),
+      }
+    : null;
 
   return {
     kit: row,
@@ -267,9 +319,11 @@ function describe(
     // NOT gated on `omit`: a studio that suppresses the `- Business:` line in the
     // context block may still label the image itself with the brand name, and
     // `creator` does exactly that. `omit` is about the CLIENT CONTEXT block.
-    safeName: row.name ? sanitizePrompt(String(row.name), 100) : null,
+    safeName: wanted.has('name') && row.name ? sanitizePrompt(String(row.name), 100) : null,
     safeColors,
-    safeColorLine: `Primary ${safeColors.primary}, Secondary ${safeColors.secondary}, Accent ${safeColors.accent}`,
-    safeVoice: row.brand_voice ? sanitizePrompt(String(row.brand_voice), 500) : null,
+    safeColorLine: safeColors
+      ? `Primary ${safeColors.primary}, Secondary ${safeColors.secondary}, Accent ${safeColors.accent}`
+      : null,
+    safeVoice: wanted.has('voice') && row.brand_voice ? sanitizePrompt(String(row.brand_voice), 500) : null,
   };
 }

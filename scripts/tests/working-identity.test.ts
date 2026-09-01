@@ -252,6 +252,7 @@ async function main(): Promise<void> {
     const id = await resolveWorkingIdentity(client, USER, {
       brandKitId: 'kit-1',
       omit: ['name', 'industry', 'targetAudience'],
+      need: ['name'],
     });
     check('omit: name dropped from context', id.context?.name, null);
     check('omit: industry dropped', id.context?.industry, null);
@@ -291,7 +292,7 @@ async function main(): Promise<void> {
         'kit-1': kit({ industry: null, description: null, target_audience: null, city: null }),
       },
     });
-    const id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+    const id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1', need: ['name'] });
     check('name-only kit: a kit DID resolve', id.source, 'explicit');
     check('name-only kit: but it contributed nothing', id.contributed, false);
     check('name-only kit: empty block', id.block, '');
@@ -323,7 +324,10 @@ async function main(): Promise<void> {
         }),
       },
     });
-    const id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+    const id = await resolveWorkingIdentity(client, USER, {
+      brandKitId: 'kit-1',
+      need: ['name', 'colors', 'voice'],
+    });
     check('name capped at 100', id.safeName?.length, 100);
     check('brand_voice capped at 500', id.safeVoice?.length, 500);
     check('primary_color capped at 40', id.safeColors?.primary.length, 40);
@@ -340,7 +344,7 @@ async function main(): Promise<void> {
 
   {
     const { client } = fakeSupabase({ brand_kits: { 'kit-1': kit({ brand_voice: null }) } });
-    const id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+    const id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1', need: ['voice'] });
     check('absent brand_voice is null, not an empty string', id.safeVoice, null);
   }
 
@@ -373,11 +377,82 @@ async function main(): Promise<void> {
     });
     let thrown: unknown = null;
     try {
-      await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+      await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1', need: ['voice'] });
     } catch (e) {
       thrown = e;
     }
-    checkTrue('a blocked brand_voice throws in EVERY studio now', thrown instanceof PromptBlockedError);
+    checkTrue('a blocked brand_voice throws when the studio READS it', thrown instanceof PromptBlockedError);
+  }
+
+  // ...and does NOT throw when it does not. This pair is the whole of the `need`
+  // option, and the first version of this module got it wrong: it filtered every
+  // column for every studio. `sanitizePrompt` THROWS rather than stripping, and
+  // its blocklist holds ordinary marketing words — `kill`, `gun`, `weapon`. So a
+  // customer whose brand_voice reads "killer offers, no fluff" would have lost
+  // plan, analysis, storyboard, photoshoot and edit — five studios that never
+  // read that column — to a 400 naming a term absent from the form they just
+  // filled in. Four independent reviewers flagged it; they were right.
+  {
+    const { client } = fakeSupabase({
+      brand_kits: { 'kit-1': kit({ brand_voice: 'aggressive, like a weapon' }) },
+    });
+    let thrown: unknown = null;
+    let id = null;
+    try {
+      id = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+    } catch (e) {
+      thrown = e;
+    }
+    check('a blocked brand_voice does NOT throw when the studio never reads it', thrown, null);
+    check('...and the studio still gets its business context', id?.contributed, true);
+    check('...with no voice, because it did not ask for one', id?.safeVoice, null);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 8. The opt-out. "No explicit id" and "no identity, deliberately" are
+  //    different requests, and the ladder alone cannot tell them apart —
+  //    creator's Apply-Brand-Kit toggle simply omits brandKitId when OFF, so
+  //    without this the ladder answered the customer's "no" with the account
+  //    default. Found by adversarial review of the route conversion, not by any
+  //    gate: every gate was green and the module's own 54 checks passed.
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    const { client, queries } = fakeSupabase({
+      projects: { 'proj-1': { brand_kit_id: 'kit-2' } },
+      brand_kits: { 'kit-1': kit(), 'kit-2': kit({ id: 'kit-2' }) },
+      brand_kits_list: [kit({ id: 'kit-9' })],
+    });
+    const id = await resolveWorkingIdentity(client, USER, {
+      optedOut: true,
+      brandKitId: 'kit-1',
+      projectId: 'proj-1',
+    });
+    check('opted out: source is none', id.source, 'none');
+    check('opted out: no kit', id.kit, null);
+    check('opted out: no block', id.block, '');
+    check('opted out: contributed is false', id.contributed, false);
+    // The assertion that matters. It outranks an explicit id, the project and the
+    // account default, and it costs no round trip at all.
+    check('opted out: ZERO queries — it outranks even an explicit id', queries.length, 0);
+  }
+
+  {
+    const { client } = fakeSupabase({ brand_kits: { 'kit-1': kit() } });
+    const id = await resolveWorkingIdentity(client, USER, { optedOut: false, brandKitId: 'kit-1' });
+    check('optedOut: false is not opting out', id.source, 'explicit');
+  }
+
+  // The same rule for colours, which is where it also CLOSES a hole:
+  // lib/ai/prompts/photoshoot.ts interpolated primary_color/secondary_color with
+  // no filter and no cap — the only unfiltered brand-kit read in any builder.
+  {
+    const { client } = fakeSupabase({ brand_kits: { 'kit-1': kit() } });
+    const off = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1' });
+    check('colours are not computed unless asked for', off.safeColors, null);
+    check('...and neither is the composed line', off.safeColorLine, null);
+    const on = await resolveWorkingIdentity(client, USER, { brandKitId: 'kit-1', need: ['colors'] });
+    check('asked for, they arrive capped', on.safeColors?.primary, '#3B82F6');
+    check('...and the line is composed', on.safeColorLine, 'Primary #3B82F6, Secondary #8B5CF6, Accent #F59E0B');
   }
 
 }

@@ -553,6 +553,16 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
 
   if (brandKit) {
     prompt += `\n\nBRAND`;
+    // Filtered and capped at 40 — the same length lib/ai/prompts/edit.ts uses for
+    // the identical columns. Until 2026-09-01 these two were interpolated RAW,
+    // the only unfiltered brand-kit read in any builder: every colour column is
+    // customer-writable to an arbitrary string straight over PostgREST (044
+    // bounds the length, not what it can say to a paid image model). The
+    // `prompt-builder-sanitized` invariant structurally cannot see them —
+    // `brandKit` is typed `BrandKit | null`, and that rule collects only
+    // interface fields whose type text contains `string`.
+    const safePrimary = sanitizePrompt(String(brandKit.primary_color ?? ''), 40);
+    const safeSecondary = sanitizePrompt(String(brandKit.secondary_color ?? ''), 40);
     // A preset DEFINES the scene; the brand kit tints what sits in it. Asking for
     // colour in the "set dressing" contradicted white_studio outright — that preset
     // specifies "Pure white seamless backdrop, no visible horizon line, NO PROPS" —
@@ -560,8 +570,15 @@ export function buildPhotoshootPrompt(input: PhotoshootPromptInput): string {
     // shoot could come back with a coloured backdrop nobody asked for. On a
     // controlled-neutral background the brand can only reach the light.
     prompt += environment === 'white_studio'
-      ? `\nKeep the backdrop pure white as specified above. ${brandKit.primary_color} and ${brandKit.secondary_color} may appear ONLY as a subtle tint in the rim or edge light — never in the backdrop, never as props, and never on the product itself.`
-      : `\nLet ${brandKit.primary_color} and ${brandKit.secondary_color} appear as accents in the set dressing and ambient light only — never recolour the product itself.`;
+      // Filtered and capped at 40, the same length edit.ts uses. These two were
+      // the ONLY unfiltered brand-kit reads in any builder: every colour column
+      // is customer-writable to an arbitrary string over PostgREST (044 bounds
+      // the length, not the content of the prompt), and this string goes to a
+      // paid image model. `prompt-builder-sanitized` could not see them because
+      // `brandKit` is typed `BrandKit | null`, and that rule only reads interface
+      // fields typed `string`.
+      ? `\nKeep the backdrop pure white as specified above. ${safePrimary} and ${safeSecondary} may appear ONLY as a subtle tint in the rim or edge light — never in the backdrop, never as props, and never on the product itself.`
+      : `\nLet ${safePrimary} and ${safeSecondary} appear as accents in the set dressing and ambient light only — never recolour the product itself.`;
   }
   if (notes) {
     prompt += `\n\nCLIENT DIRECTION`;

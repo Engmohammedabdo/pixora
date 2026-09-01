@@ -24,6 +24,11 @@ interface CampaignFormProps {
     platform: string;
     occasion?: string;
     brandKitId?: string;
+    /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+     *  `brandKitId` means "I did not choose" and the server answers that with
+     *  the project's kit or the account default — see
+     *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+    useBrandKit?: boolean;
     generateImages: boolean;
     projectId?: string;
   }) => void;
@@ -59,7 +64,12 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const [dialect, setDialect] = useState<string>('saudi');
   const [platform, setPlatform] = useState<string>('instagram');
   const [occasion, setOccasion] = useState('');
-  const [useBrandKit, setUseBrandKit] = useState(false);
+  // ON by default, in BOTH studios. It was `useState(false)` in each, with a
+  // four-line effect in creator only that flipped it on once the customer's kits
+  // arrived — so the identical-looking chip meant opt-IN in campaign and opt-OUT
+  // in creator, and a 12-credit campaign came back generic by default. The state
+  // now says the same thing in both files, with no effect to keep in sync.
+  const [useBrandKit, setUseBrandKit] = useState(true);
   const [generateImages, setGenerateImages] = useState(true);
 
   const { brandKits, defaultKit } = useBrandKits();
@@ -85,6 +95,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       platform,
       occasion: occasion || undefined,
       brandKitId: projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined),
+      useBrandKit,
       generateImages,
       projectId: projectId ?? undefined,
     });

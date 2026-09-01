@@ -1361,9 +1361,12 @@ function builderThrows(builderName: string): boolean {
   const cached = builderThrowsCache.get(builderName);
   if (cached !== undefined) return cached;
   let verdict = true; // unresolvable name -> assume the hazard
-  for (const file of listFiles(['lib/ai/prompts'], ['.ts'], false)) {
+  // `lib/brand-kits` is scanned too, so `resolveWorkingIdentity` gets a DERIVED
+  // verdict rather than the unresolvable-name default. A rule satisfied only by
+  // its own fail-safe stops working the day the fail-safe is reconsidered.
+  for (const file of listFiles(['lib/ai/prompts', 'lib/brand-kits'], ['.ts'], false)) {
     const src = stripComments(readFileSync(file, 'utf8'));
-    if (!new RegExp(`export\\s+function\\s+${builderName}\\b`).test(src)) continue;
+    if (!new RegExp(`export\\s+(?:async\\s+)?function\\s+${builderName}\\b`).test(src)) continue;
     verdict = /\bsanitizePrompt\s*\(/.test(src);
     break;
   }
@@ -1411,7 +1414,13 @@ const sanitizeBeforeReserve: Invariant = {
       const reserveIdx = content.indexOf('reserveCredits(');
       if (reserveIdx === -1) continue;
 
-      const re = /\bbuild[A-Za-z0-9_]*Prompt\s*\(|\bbuildBrandContextBlock\s*\(/g;
+      // `resolveWorkingIdentity` is listed because it is now the ONLY place a
+      // brand kit's business columns meet sanitizePrompt: it calls
+      // buildBrandContextBlock internally, so the seven kit-reading routes no
+      // longer call that builder themselves, and without this the rule would
+      // have quietly stopped seeing the hazard it was written for — a rule that
+      // passes because nothing is left in its path to scan.
+      const re = /\bbuild[A-Za-z0-9_]*Prompt\s*\(|\bbuildBrandContextBlock\s*\(|\bresolveWorkingIdentity\s*\(/g;
       let m: RegExpExecArray | null;
       while ((m = re.exec(content))) {
         if (m.index <= reserveIdx) continue;
@@ -1446,6 +1455,120 @@ const sanitizeBeforeReserve: Invariant = {
   },
 };
 
+/**
+ * Task 8 of docs/superpowers/plans/2026-08-24-studio-business-integrity.md names
+ * the failure this rule exists to prevent, and names it as the step most likely
+ * to be skipped: five invariants scan app/api/studios route files BY PATH, so
+ * logic moved into lib/ leaves them green by having nothing left to read.
+ */
+const workingIdentityBeforeReserve: Invariant = {
+  id: 'working-identity-before-reserve',
+  title: 'A studio that accepts a brand kit resolves the Working Identity, once, before the money moves',
+  why:
+    'Measured 2026-09-01: "which brand kit is this generation for?" was answered at EIGHT ' +
+    'deciding sites with SIX different rules, seven of them in the browser. Only the edit ' +
+    'route resolved anything server-side, so any caller that was not that exact page ' +
+    'produced a paid prompt with no business identity in it — and scripts/live/ never sent ' +
+    'a brandKitId at all, which is why six of the seven kit-capable studios ran that way ' +
+    'for a month with every gate green. lib/brand-kits/working-identity.ts now states the ' +
+    'rule once; this is what keeps the routes pointed at it. Three things are checked and ' +
+    'each is a defect that actually existed: a route that accepts brandKitId and never ' +
+    'resolves it (plan and analysis ignored the project entirely, while both pages render ' +
+    'a ProjectSelector); a route that still runs its own brand_kits query (six used ' +
+    'select(*), pulling 17 columns to read as few as one); and a resolve that happens ' +
+    'after the credits are held (resolveWorkingIdentity runs sanitizePrompt, so it THROWS, ' +
+    'and a throw below the reservation is the ordering defect that has already regressed ' +
+    'twice here — see sanitize-before-reserve). Membership is derived from each route OWN ' +
+    'InputSchema, never from a list of filenames: app/layout.tsx once carried a hardcoded ' +
+    'list of filenames pretending to be a rule, and every document in this repo repeated ' +
+    'its claim for months. A scan that matches nothing is reported as a failure, the way ' +
+    'mock-from-schema does, because a rule that certified nothing must not read as a rule ' +
+    'that passed.',
+  async check(): Promise<Violation[]> {
+    const violations: Violation[] = [];
+    const files = listFiles(['app/api/studios'], ['.ts'], false).filter((f) =>
+      /route\.ts$/.test(f)
+    );
+
+    let members = 0;
+    for (const file of files) {
+      const rel = toRel(file);
+      // Comments stripped for the reason every rule here strips them: these
+      // routes document their own history by quoting the code they replaced,
+      // and the conversion comments name from('brand_kits') and
+      // resolveWorkingIdentity() in prose.
+      const content = stripComments(readFileSync(file, 'utf8'));
+
+      // Membership: the route's own schema says it takes a brand kit. voiceover
+      // and prompt-builder declare no such field and are correctly skipped.
+      if (!/brandKitId\s*:\s*z\./.test(content)) continue;
+      members++;
+
+      const resolveIdx = content.indexOf('resolveWorkingIdentity(');
+      if (resolveIdx === -1) {
+        violations.push({
+          file: rel,
+          line: 1,
+          text: 'accepts brandKitId but never calls resolveWorkingIdentity() — the identity is whatever the browser said, or nothing',
+        });
+        continue;
+      }
+
+      const rawIdx = content.indexOf("from('brand_kits')");
+      if (rawIdx !== -1) {
+        violations.push({
+          file: rel,
+          line: lineAt(content, rawIdx),
+          text: lineTextAt(content, rawIdx) + '  <- a second answer to a question lib/brand-kits/working-identity.ts already answers',
+        });
+      }
+
+      // Both orderings matter and they are different failures. Below
+      // reserveCredits(): a blocked brand-kit column is discovered with the
+      // credits already held. Below the insert: an orphan `processing` row the
+      // reconciler has to clean up 45 minutes later.
+      //
+      // Matched as REGEXES, not as literals, and that cost a review round. The
+      // first version searched for the literal `from('generations').insert`.
+      // THREE of the seven routes write it across two lines (campaign:245-246,
+      // creator:328-329, photoshoot:151-152), and stripComments() blanks
+      // comments without joining lines — so indexOf returned -1 and this whole
+      // arm was SILENTLY SKIPPED for exactly the three most complex routes.
+      // A rule that only runs on the arm you did not break is not a rule; the
+      // same hole was found and recorded in test:image-canvas on 2026-08-31.
+      const orderings: readonly (readonly [RegExp, string, string])[] = [
+        [/\breserveCredits\s*\(/, 'reserveCredits(', 'the credits are already held when the filter throws'],
+        [
+          /\.from\(\s*['"]generations['"]\s*\)\s*\.\s*insert\s*\(/,
+          "from('generations').insert(",
+          'an orphan processing row is already written when the filter throws',
+        ],
+      ];
+      for (const [needle, label, consequence] of orderings) {
+        const match = needle.exec(content);
+        const idx = match ? match.index : -1;
+        if (idx !== -1 && resolveIdx > idx) {
+          violations.push({
+            file: rel,
+            line: lineAt(content, resolveIdx),
+            text: 'resolveWorkingIdentity() runs AFTER ' + label + ' on line ' + lineAt(content, idx) + ' — ' + consequence,
+          });
+        }
+      }
+    }
+
+    if (members === 0) {
+      violations.push({
+        file: 'app/api/studios',
+        line: 1,
+        text: 'this rule matched no routes at all — it certified nothing, which is not the same as passing',
+      });
+    }
+
+    return violations;
+  },
+};
+
 const INVARIANTS: Invariant[] = [
   msgParity,
   msgNoEmpty,
@@ -1464,6 +1587,7 @@ const INVARIANTS: Invariant[] = [
   promptInputBounded,
   promptBuilderSanitized,
   sanitizeBeforeReserve,
+  workingIdentityBeforeReserve,
 ];
 
 function parseArgList(flag: string): Set<string> | null {

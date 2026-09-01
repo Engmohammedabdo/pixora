@@ -12,9 +12,9 @@ import {
   editPresetRequiresBrandColors,
 } from '@/lib/ai/prompts/edit';
 import { snapWhiteFieldOnDataUrl } from '@/lib/image/white-field';
-import { buildBrandContextBlock } from '@/lib/ai/prompts/brand-context';
 import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import type { BrandKit } from '@/lib/supabase/types';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
@@ -63,7 +63,7 @@ import {
 const InputSchema = z.object({
   projectId: z.string().uuid().optional(),
   /** Explicit kit wins over the project's kit and over the account default.
-   *  See the three-step resolution below. */
+   *  The rule is stated once, in lib/brand-kits/working-identity.ts. */
   brandKitId: z.string().uuid().optional(),
   imageUrl: readableImageUrl,
   editDescription: z.string().min(5).max(500).optional(),
@@ -128,106 +128,70 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // ── The brand kit, resolved in three steps ────────────────────────────
+    // ── The Working Identity ──────────────────────────────────────────────
     //
-    // This studio knew NOTHING about the customer until now (review finding
-    // F10): it resolved `projectId` and used it only as a label on the
-    // generations row. `buildEditPrompt`'s `brandKit` parameter existed and was
-    // documented dead. It is the studio a paying subscriber uses on their own
-    // product photographs, which makes it the last place "I should not have to
-    // tell it who I am again" is acceptable.
+    // See CONTEXT.md for the concept and lib/brand-kits/working-identity.ts for
+    // the rule. This studio knew NOTHING about the customer until 2026-08-27
+    // (review finding F10): it resolved `projectId` and used it only as a label
+    // on the generations row, and `buildEditPrompt`'s `brandKit` parameter
+    // existed and was documented dead. It is the studio a paying subscriber uses
+    // on their own product photographs, which makes it the last place "I should
+    // not have to tell it who I am again" is acceptable.
     //
-    //   1. an explicit `brandKitId` — the form knows which kit the customer is
-    //      looking at, and that beats any inference;
-    //   2. the selected project's kit — switching client switches identity, and
-    //      that is what client workspaces are sold for;
-    //   3. the account's default kit.
+    // The three-step ladder that used to be written out here — explicit id, then
+    // the selected project's kit, then the account default — is THE code the
+    // module was extracted from, and it is now stated once for all seven
+    // studios. Step 3 is finding F12: a customer who finishes onboarding and
+    // never creates a project has exactly one kit and no project, so a
+    // project-only lookup gives them nothing, on the precise journey the
+    // brand-context work was built for.
     //
-    // Step 3 is finding F12: a customer who finishes onboarding and never
-    // creates a project has exactly one kit and no project, so a project-only
-    // lookup gives them nothing — on the precise journey the brand-context work
-    // was built for.
+    // CORRECTION, 2026-09-01, kept because it is load-bearing history. The
+    // deleted comment claimed step 3 was "fixed the same way in photoshoot and
+    // storyboard", and CLAUDE.md repeated the claim. It was false: `ff239bf` is
+    // a two-file CLIENT diff (storyboard/page.tsx, PhotoshootForm.tsx), and
+    // neither of those ROUTES contained `is_default`, `from('projects')` or
+    // `brand_kit_id` at all. The ladder existed in exactly ONE route — this one.
+    // Every other studio's "fallback" lived in the browser, so any caller that
+    // was not that page got no identity; `scripts/live/` never sends
+    // `brandKitId`, which is why nobody noticed for a month. That asymmetry is
+    // what this module removes, and the correction is recorded here so nobody
+    // re-derives the false version from a doc.
     //
-    // CORRECTION, 2026-09-01. This comment used to say step 3 was "fixed the
-    // same way in photoshoot and storyboard". It was not, and CLAUDE.md repeated
-    // the claim. `ff239bf` is a two-file CLIENT diff (storyboard/page.tsx,
-    // PhotoshootForm.tsx). Both of those ROUTES are still `if (input.brandKitId)`
-    // and nothing else (photoshoot:88-98, storyboard:80-100); neither file
-    // contains `is_default`, `from('projects')` or `brand_kit_id`. This ladder
-    // exists in exactly ONE route — this one.
+    // SECOND CORRECTION, 2026-09-01, and it now belongs with the module rather
+    // than with this route: `is_default` has ZERO true rows on the live
+    // database, and nothing in the product sets it on create (BrandKitForm
+    // submits 13 columns without it; the 002:29 trigger only ever CLEARS other
+    // rows), so step 3 has always resolved by `created_at DESC` — the NEWEST kit
+    // — never by "default". The related ordering trap (`is_default` is NULLABLE,
+    // Postgres orders a boolean DESC as NULLS FIRST, and supabase-js emits no
+    // nulls directive when `nullsFirst` is undefined, so a NULL row outranked a
+    // genuinely `true` one while the client's `find(kit => kit.is_default)`
+    // skipped the NULL) is now stated and fixed inside the module —
+    // lib/brand-kits/working-identity.ts, step 3, which passes
+    // `nullsFirst: false` for exactly this reason.
     //
-    // Two things follow, and both were measured rather than reasoned about:
-    //   - Every other studio's "fallback" lives in the browser, so any caller
-    //     that is not that page gets no identity. `scripts/live/` never sends
-    //     `brandKitId`, which is why nobody noticed.
-    //   - `is_default`, which the step-3 query below orders on, has ZERO true
-    //     rows on the live database, and nothing in the product sets it on
-    //     create (the 002:29 trigger only ever CLEARS it). So step 3 has always
-    //     resolved by `created_at DESC` — the NEWEST kit — never by "default".
+    // Called HERE — above the generations insert and above the reservation —
+    // because `sanitizePrompt` runs inside it and throws PromptBlockedError,
+    // which must reach the OUTER catch with no credits moved and no orphan row.
+    // The `working-identity-before-reserve` invariant fails the build otherwise.
     //
-    // A `brandKitId` that is not the caller's simply resolves to null, the same
-    // as photoshoot and every other studio: it is not a distinct failure the
-    // customer can act on, and it is not worth an error code.
-    let brandKit: BrandKit | null = null;
-    if (input.brandKitId) {
-      const { data } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandKit = data;
-    } else {
-      let projectKitId: string | null = null;
-      if (projectId) {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('brand_kit_id')
-          .eq('id', projectId)
-          .eq('user_id', user.id)
-          .single();
-        projectKitId = project?.brand_kit_id ?? null;
-      }
-      if (projectKitId) {
-        const { data } = await supabase
-          .from('brand_kits')
-          .select('*')
-          .eq('id', projectKitId)
-          .eq('user_id', user.id)
-          .single();
-        brandKit = data;
-      }
-      if (!brandKit) {
-        // `is_default` first, then the newest.
-        //
-        // CORRECTION, 2026-09-01. This comment claimed to be "the SAME order the
-        // client already resolves in (`hooks/useBrandKit.ts:98`)". It is not,
-        // and the divergence is exactly the failure the comment says it exists
-        // to prevent — one identity in the form, another in the prompt.
-        //
-        // `is_default` is NULLABLE (002_brand_kits.sql:14). Postgres orders a
-        // boolean DESC as NULLS FIRST, and supabase-js emits no nulls directive
-        // when `nullsFirst` is undefined (postgrest-js
-        // PostgrestTransformBuilder.ts:339-341). So a row with `is_default` NULL
-        // ranks ABOVE the row that is genuinely `true` here — while
-        // `useBrandKit.ts:98`'s `find(kit => kit.is_default)` skips the NULL and
-        // lands on the true one. Same customer, same data, two answers.
-        //
-        // And on the live database it has never mattered, for a worse reason:
-        // ZERO rows carry `is_default = true`. Nothing in the product sets it on
-        // create (BrandKitForm submits 13 columns without it; the 002:29 trigger
-        // only ever CLEARS other rows). So both sides have always fallen through
-        // to `created_at DESC` — the NEWEST kit. "The default kit" has never
-        // once meant `is_default` in production.
-        const { data } = await supabase
-          .from('brand_kits')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1);
-        brandKit = data?.[0] ?? null;
-      }
+    // No `omit`: this studio's form collects none of the five business facts, so
+    // the kit is the only source for all of them.
+    const identity = await resolveWorkingIdentity(supabase, user.id, {
+      brandKitId: input.brandKitId,
+      projectId,
+    });
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately
+      // does not fall through. Logged rather than returned — the customer did
+      // not type this id and cannot act on it, and this route's own deleted
+      // comment already said so: "it is not a distinct failure the customer can
+      // act on, and it is not worth an error code". Logged, though, because
+      // before this round no console output anywhere under app/api/studios
+      // mentioned a brand kit — which is how six studios ran with no identity
+      // for a month with every gate green.
+      console.warn(`[working-identity][edit] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
     }
 
     // Filtered and built HERE — above the insert and above the reservation.
@@ -240,32 +204,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // same shape storyboard, plan and analysis use.
     //
     // The brand kit's business columns are filtered by the SAME rule, and that
-    // is why the block is built here rather than inside buildEditPrompt:
+    // is why the block is passed in rather than built inside buildEditPrompt:
     // buildBrandContextBlock() is where `industry`/`description`/
     // `target_audience`/`city` meet sanitizePrompt, and those columns are
-    // customer-writable straight over PostgREST. Built once and passed in — the
-    // `sanitize-before-reserve` invariant fails the build on either call landing
-    // after reserveCredits().
+    // customer-writable straight over PostgREST. It now runs inside
+    // resolveWorkingIdentity() above — one call, one result, used — so the
+    // ordering guarantee is the module's rather than this route's, and it holds
+    // in all seven studios instead of the two that happened to build the block.
+    // The `sanitize-before-reserve` invariant still fails the build on a builder
+    // landing after reserveCredits().
     const safeDescription = input.editDescription ? sanitizePrompt(input.editDescription) : undefined;
-    const brandContextBlock = brandKit
-      ? buildBrandContextBlock({
-          name: brandKit.name ?? null,
-          industry: brandKit.industry ?? null,
-          description: brandKit.description ?? null,
-          targetAudience: brandKit.target_audience ?? null,
-          city: brandKit.city ?? null,
-        })
-      : '';
+    const brandContextBlock = identity.block;
 
     // `brand_color_match` is the one preset whose direction is a colour it does
     // not itself carry. With no kit AND no free text there is nothing to match,
     // and the honest answer is a 400 naming the missing input — not a credit
     // spent on the model's guess at what "the brand colour" might be. The UI
     // should not offer this preset without a kit; the route does not assume it.
+    //
+    // This survives the move to the Working Identity, deliberately, and ADR-0001
+    // says so in as many words: it is a BUILDER PRECONDITION, not the identity
+    // rule. `identity.kit === null` is the same condition the deleted
+    // `!brandKit` tested — a resolved kit or nothing — so a stale id that
+    // resolves to `source: 'none'` still lands here rather than composing a
+    // recipe with no palette in it.
     if (
       input.editPreset &&
       editPresetRequiresBrandColors(input.editPreset) &&
-      !brandKit &&
+      !identity.kit &&
       !safeDescription
     ) {
       return NextResponse.json(
@@ -291,7 +257,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       editType: input.editType,
       editDescription: safeDescription,
       editPreset: input.editPreset,
-      brandKit,
+      // The palette, and the cap on it, are unchanged: `buildEditPrompt` reads
+      // exactly three columns off this row — `primary_color`,
+      // `secondary_color`, `accent_color` — and wraps each in
+      // `sanitizePrompt(…, 40)` at lib/ai/prompts/edit.ts:740-746 before any
+      // preset recipe can interpolate it. That is where the 40-char cap this
+      // route relies on lives, and it still runs.
+      //
+      // The cast is a downcast, not a fabrication — the same one
+      // app/api/studios/photoshoot/route.ts makes into `buildPhotoshootPrompt`
+      // in this same round: `identity.kit` is this same `brand_kits` row
+      // narrowed to WORKING_IDENTITY_COLUMNS, all three colour columns are in
+      // that set, and `BrandKit` is assignable to `WorkingIdentityKit`, which is
+      // why TypeScript accepts the assertion with no `as unknown` in the middle.
+      //
+      // What the module adds on top: `resolveWorkingIdentity` ran sanitizePrompt
+      // over all three colour columns ABOVE the reservation, so a blocked term in
+      // one now throws before any money moves. `identity.safeColors` is the same
+      // three values already filtered and capped; feeding them here instead of
+      // the row means narrowing `EditPromptInput.brandKit` (lib/ai/prompts/edit.ts:31)
+      // to the palette the builder actually reads — a change to that file AND to
+      // the six `buildEditPrompt({ … brandKit })` call sites in
+      // scripts/tests/prompts.test.ts, one of which is the gate proving a blocked
+      // brand colour is refused. It belongs in its own change. Until it happens,
+      // `identity.safeColors` has no consumer here, and that is the one loose
+      // end this conversion leaves.
+      brandKit: identity.kit as BrandKit | null,
       brandContextBlock,
     });
 
@@ -301,13 +292,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // of the three-step resolution is that the request usually names none, so
       // recording the request would record null for every run that actually used
       // a kit — and this column is the only record of which identity produced a
-      // given image.
+      // given image. This route already did it; six others recorded what the
+      // browser SENT, which is why `input.brandKitId` meant two different things
+      // depending on which studio wrote the row.
       input: {
         imageUrl: inputImageRef(input.imageUrl),
         editDescription: input.editDescription,
         editType: input.editType,
         editPreset: input.editPreset,
-        brandKitId: brandKit?.id ?? null,
+        brandKitId: identity.kit?.id ?? null,
         promptVersion: EDIT_PROMPT_VERSION,
       },
       credits_used: CREDIT_COST,
