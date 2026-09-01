@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { Upload, X, Camera, Sparkles, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useCredits } from '@/hooks/useCredits';
 import { useBrandKits } from '@/hooks/useBrandKit';
@@ -62,6 +63,14 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const tCredits = useTranslations('credits');
 
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
+  // The kit the customer EXPLICITLY chose, and nothing else. `undefined` is the
+  // correct default and it is the point: an absent `brandKitId` means "I did not
+  // choose", which the server answers with the project's kit and then the
+  // account default (lib/brand-kits/working-identity.ts). Deriving one here made
+  // that second step structurally unreachable — a page that always sends the
+  // account default can never let the ProjectSelector change the identity, no
+  // matter what the server does.
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
   const [productImage, setProductImage] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<string>('white_studio');
   // Once the customer picks an environment themselves, their choice stands —
@@ -87,22 +96,33 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   const { balance, status: creditsStatus } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
 
-  // The SAME kit whose id gets submitted as `brandKitId` below — the two must
-  // never disagree, or the environment would be defaulted off data that never
-  // reaches the route.
+  // ── A kit read for ONE purpose: seeding the environment preset ─────────────
   //
-  // A project's own kit WINS: the whole point of client workspaces is that
-  // switching client switches the identity with it. But with no project
-  // selected this used to resolve to nothing at all, while creator and
-  // campaign both fall back to the account default. Consequence, measured
-  // rather than argued: a customer who completes the new onboarding and
-  // creates no project got NO brand context in this studio — and the
-  // restaurant -> `food` default below is keyed on the same value, so P4.2's
-  // photoshoot deliverable was unreachable on the exact journey this branch
-  // was built for.
+  // This is NOT the kit the generation runs under any more. The server decides
+  // that (lib/brand-kits/working-identity.ts) and the form submits only
+  // `chosenKitId`. What is left here is a form default: the restaurant -> `food`
+  // preset needs an `industry` to read, and the form has no server answer to
+  // read one from before the request exists.
+  //
+  // It mirrors the SHAPE of the server ladder — explicit, then the project's
+  // kit, then the account default — so the preset agrees with the identity the
+  // WorkingIdentityBar names. It is deliberately not the same rule and does not
+  // pretend to be:
+  //   · `chosenKitId` can only ever be an id the customer picked out of
+  //     `brandKits` below, so ADR-0001's stale-foreign-id case is unreachable
+  //     from here and this ladder is never asked the question it would get wrong;
+  //   · a disagreement costs a wrong DEFAULT chip, which the customer can click
+  //     away in one tap and which `environmentTouched` then locks. It cannot
+  //     put a wrong identity on a paid generation — nothing here is submitted.
+  //
+  // The account-default fallback is load-bearing and was measured: with no
+  // project selected this once resolved to nothing at all, so a customer who
+  // completed onboarding and created no project never saw P4.2's `food` preset
+  // on the exact journey it was built for.
   const { brandKits, defaultKit } = useBrandKits();
+  const chosenKit = chosenKitId ? brandKits.find((k) => k.id === chosenKitId) : undefined;
   const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
-  const selectedKit = projectKit ?? defaultKit;
+  const environmentKit = chosenKit ?? projectKit ?? defaultKit;
 
   // Only move the default while the customer is still on it. A restaurant's
   // brand kit gets its own preset (commit bd0337d) instead of the generic
@@ -110,8 +130,8 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   // 'white_studio'.
   useEffect(() => {
     if (environmentTouched) return;
-    setEnvironment(selectedKit?.industry === 'restaurant' ? 'food' : 'white_studio');
-  }, [selectedKit?.industry, environmentTouched]);
+    setEnvironment(environmentKit?.industry === 'restaurant' ? 'food' : 'white_studio');
+  }, [environmentKit?.industry, environmentTouched]);
 
   const releasePreview = (): void => {
     if (previewRef.current) {
@@ -186,10 +206,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       shots,
       notes: notes || undefined,
       projectId: projectId ?? undefined,
-      // The project's kit when there is one, the account default otherwise —
-      // exactly what `selectedKit` above resolved, so the environment default
-      // and the kit that actually reaches the route can never disagree.
-      brandKitId: selectedKit?.id,
+      // Only what the customer explicitly chose. `undefined` is not a missing
+      // value — it is the request "you decide", which the route answers with the
+      // project's kit and then the account default.
+      brandKitId: chosenKitId,
     });
   };
 
@@ -304,6 +324,18 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
         />
         <p className="text-xs text-end text-[var(--color-text-muted)]">{notes.length}/500</p>
       </div>
+
+      {/* Whose business this shoot is for, named BEFORE Generate — the credit is
+          reserved the moment it is pressed, so saying it afterwards is saying it
+          after the customer paid. It is handed exactly the values submitted
+          above, so the label and the generation cannot describe different
+          requests. */}
+      <WorkingIdentityBar
+              studio="photoshoot"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        onChange={setChosenKitId}
+      />
 
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">

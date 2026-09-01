@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
-import { useBrandKits } from '@/hooks/useBrandKit';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
@@ -25,6 +24,7 @@ import { generateStoryboardPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -81,14 +81,18 @@ export default function StoryboardPage(): React.ReactElement {
   // placeholder like {term} rendered as literal text.
   const tStudio = useTranslations('studio');
   const tSb = useTranslations('storyboard');
-  const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
-  // A project's own brand kit WINS, and the account default is the fallback —
-  // the shape creator and campaign already use. This route sent
-  // `projectBrandKitId ?? undefined`, so a customer who completed the new
-  // onboarding and created no project got no brand context here at all: the
-  // one journey this branch exists to serve.
-  const { defaultKit } = useBrandKits();
-  const brandKitId = projectBrandKitId ?? defaultKit?.id;
+  const { projectId, onProjectChange } = useProjectSelection();
+  // Only what the customer EXPLICITLY chose. `undefined` is the default and it is
+  // the point: an absent `brandKitId` means "I did not choose", which the server
+  // answers with the project's kit and then the account default
+  // (lib/brand-kits/working-identity.ts). This page used to send
+  // `projectBrandKitId ?? defaultKit?.id`, and `projectBrandKitId` is a RAW
+  // UNVALIDATED id out of localStorage (hooks/useProjectSelection.ts:30) — which
+  // ADR-0001 resolves to NO identity rather than falling through, so a stale
+  // snapshot silently stripped the business context from a 14-credit run and the
+  // project step could never be reached. Sending nothing is strictly safer: the
+  // server verifies ownership either way.
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
   const [concept, setConcept] = useState('');
   const [duration, setDuration] = useState<Duration>('30');
   const [style, setStyle] = useState('cinematic');
@@ -114,7 +118,7 @@ export default function StoryboardPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/storyboard', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId }),
+        body: JSON.stringify({ concept, duration, style, platform, locale, projectId: projectId ?? undefined, brandKitId: chosenKitId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -122,7 +126,7 @@ export default function StoryboardPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, brandKitId]);
+  }, [isValid, concept, duration, style, platform, locale, setBalance, tStudio, projectId, chosenKitId]);
 
   const styleLabels: Record<string, string> = { cinematic: tSb('styles.cinematic'), ugc: tSb('styles.ugc'), animation: tSb('styles.animation'), documentary: tSb('styles.documentary') };
   const platformLabels: Record<string, string> = { instagram_reel: tSb('platforms.instagram_reel'), tiktok: tSb('platforms.tiktok'), youtube: tSb('platforms.youtube'), tv: tSb('platforms.tv') };
@@ -147,6 +151,17 @@ export default function StoryboardPage(): React.ReactElement {
         <Label>{tSb('platform')}</Label>
         <div className="grid grid-cols-2 gap-2">{PLATFORMS.map((p) => (<button key={p} type="button" onClick={() => setPlatform(p)} aria-pressed={platform === p} className={cn('rounded-lg border px-3 py-2 text-xs transition-colors', platform === p ? selectedChipClasses : unselectedChipClasses)}>{platformLabels[p]}</button>))}</div>
       </div>
+      {/* Above Generate, never after it: the credit is reserved the moment that
+          button is pressed, so naming the identity afterwards names it to
+          someone who has already paid. The values passed are exactly the ones
+          the POST above carries, so the label and the generation cannot
+          disagree. */}
+      <WorkingIdentityBar
+              studio="storyboard"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        onChange={setChosenKitId}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.storyboard} />
         <div className="flex items-center gap-2">

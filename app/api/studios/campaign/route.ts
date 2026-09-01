@@ -16,7 +16,7 @@ import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
-import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // All three, because campaign is the one studio that prints all three:
       // '- Brand:', '- Brand Voice:' and '- Brand Colors:' on the override branch,
       // and passes the same three into buildCampaignPrompt.
-      need: ['name', 'colors', 'voice'],
+      ...STUDIO_IDENTITY_POLICY.campaign,
     });
     if (input.brandKitId && identity.source === 'none') {
       // ADR-0001: a stale or foreign id resolves to nothing and deliberately

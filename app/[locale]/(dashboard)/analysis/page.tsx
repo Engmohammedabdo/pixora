@@ -27,6 +27,7 @@ import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
 import { INDUSTRIES, isIndustry } from '@/lib/industries';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 
 /**
  * A stored `generations.input` value, as a string.
@@ -75,6 +76,24 @@ export default function AnalysisPage(): React.ReactElement {
   // why three copies of it existed and how they had already drifted.
   const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
+  // The kit the customer EXPLICITLY chose, and nothing else. `undefined` is the
+  // correct default and it is the point: an absent `brandKitId` means "I did not
+  // choose", which the server answers with the project's kit and then the account
+  // default (lib/brand-kits/working-identity.ts). This page used to send
+  // `defaultKit?.id` unconditionally, so step 1 always won and step 2 was
+  // STRUCTURALLY UNREACHABLE — selecting a client in the ProjectSelector below
+  // could never change the identity, no matter what the server did.
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
+  // The kit the SERVER resolved, reported back by WorkingIdentityBar.
+  //
+  // This page's prefill decides what the deliverable is ABOUT — business name,
+  // industry and target market are form fields that reach the prompt directly,
+  // while the resolved kit contributes only the facts the form does not collect.
+  // Prefilling from `defaultKit` while the identity resolved to a project's kit
+  // therefore produced a paid deliverable written about one client under a bar
+  // naming another — caught by adversarial review, and the reason the prefill
+  // below keys on this rather than on `defaultKit?.id`.
+  const [resolvedKitId, setResolvedKitId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   const [description, setDescription] = useState('');
@@ -99,7 +118,8 @@ export default function AnalysisPage(): React.ReactElement {
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
-  const { defaultKit } = useBrandKits();
+  const { brandKits, defaultKit } = useBrandKits();
+  const identityKit = brandKits.find((k) => k.id === resolvedKitId) ?? null;
   // Prefill from the caller's default brand kit — ONCE, and only into BLANKS.
   //
   // Two separate things make that true, and an earlier version of this comment
@@ -110,8 +130,9 @@ export default function AnalysisPage(): React.ReactElement {
   // prevents STALE CLOSURES. It does not prevent the effect RE-RUNNING — see
   // the dependency array below for what does.
   useEffect(() => {
-    if (!defaultKit) return;
-    if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
+    const kit = identityKit ?? defaultKit;
+    if (!kit) return;
+    if (kit.name) setBusinessName((prev) => prev || kit.name);
     // Only a slug the chip UI below can actually render as selected.
     // `brand_kits.industry` is deliberately NOT constrained to this list
     // (migration 045: "that list is allowed to grow, and a database that
@@ -120,25 +141,26 @@ export default function AnalysisPage(): React.ReactElement {
     // any 1-40 char string. Prefilling with one the chips do not recognise
     // would still pass `isValid`'s length check and reach the route as free
     // text on Generate — the exact shape item 4 exists to keep off the wire.
-    const kitIndustry = defaultKit.industry;
+    const kitIndustry = kit.industry;
     if (kitIndustry && isIndustry(kitIndustry)) {
       setIndustry((prev) => prev || kitIndustry);
     }
-    const kitDescription = defaultKit.description;
+    const kitDescription = kit.description;
     if (kitDescription) setDescription((prev) => prev || kitDescription);
-    const kitTargetAudience = defaultKit.target_audience;
+    const kitTargetAudience = kit.target_audience;
     if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
     // `defaultKit?.id`, NOT `defaultKit`. `useBrandKits` is a React Query
     // hook: `staleTime` is 5 minutes and `refetchOnWindowFocus` defaults to
     // true, so tabbing away and back refetches and hands back a NEW OBJECT for
     // the same row. Depending on object identity re-ran this effect and
-    // `prev || defaultKit.name` refilled a field the customer had deliberately
+    // `prev || kit.name` refilled a field the customer had deliberately
     // cleared. The comment above claimed the functional updaters made a
     // "touched" flag unnecessary — they prevent STALE CLOSURES, not refills;
-    // only not re-running does that. `handleGenerate` in this same file
-    // already depends on `defaultKit?.id` for the same reason.
+    // only not re-running does that. Note this is FORM PREFILL, not identity:
+    // the kit a generation runs under is resolved by the server now, and the
+    // only kit id this page sends is one the customer picked.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultKit?.id]);
+  }, [identityKit?.id, defaultKit?.id]);
 
   const handleGenerate = useCallback(async (): Promise<void> => {
     if (!isValid) return;
@@ -146,7 +168,7 @@ export default function AnalysisPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/analysis', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
+        body: JSON.stringify({ businessName, industry, description, competitors: competitors.filter(Boolean), targetMarket, painPoints, locale, projectId: projectId ?? undefined, brandKitId: chosenKitId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -154,7 +176,7 @@ export default function AnalysisPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, locale, setBalance, tStudio, projectId, defaultKit?.id]);
+  }, [isValid, businessName, industry, description, competitors, targetMarket, painPoints, locale, setBalance, tStudio, projectId, chosenKitId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -179,6 +201,13 @@ export default function AnalysisPage(): React.ReactElement {
       <div className="space-y-2"><Label htmlFor="analysis-competitor-1">{tAn('competitors')}</Label>{competitors.map((c, i) => (<Input key={i} id={`analysis-competitor-${i + 1}`} value={c} onChange={(e) => { const n = [...competitors]; n[i] = e.target.value; setCompetitors(n); }} onKeyDown={handleSubmitKeyDown} placeholder={tAn('competitorPlaceholder', { number: i + 1 })} className="mb-1" />))}</div>
       <div className="space-y-2"><Label htmlFor="analysis-target-market">{tAn('targetMarket')}</Label><Input id="analysis-target-market" value={targetMarket} onChange={(e) => setTargetMarket(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tAn('targetMarketPlaceholder')} /></div>
       <div className="space-y-2"><Label htmlFor="analysis-pain-points">{tAn('painPoints')}</Label><Input id="analysis-pain-points" value={painPoints} onChange={(e) => setPainPoints(e.target.value)} onKeyDown={handleSubmitKeyDown} placeholder={tAn('painPointsPlaceholder')} /></div>
+      {/* Above Generate, never after it: the credit is reserved the moment that
+          button is pressed, so naming the identity afterwards names it to someone
+          who has already paid. It is handed exactly what this page is about to
+          POST, so the label and the generation cannot disagree. */}
+      <WorkingIdentityBar
+              studio="analysis" projectId={projectId} brandKitId={chosenKitId} onChange={setChosenKitId}
+              onResolved={setResolvedKitId} />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.analysis} />
         <div className="flex items-center gap-2">

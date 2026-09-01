@@ -13,6 +13,7 @@ import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useCredits } from '@/hooks/useCredits';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
@@ -96,6 +97,18 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   // in creator, and a 12-credit campaign came back generic by default. The state
   // now says the same thing in both files, with no effect to keep in sync.
   const [useBrandKit, setUseBrandKit] = useState(true);
+  /**
+   * ONLY what the customer explicitly picked, in WorkingIdentityBar. `undefined`
+   * is the default and it is the point: an absent `brandKitId` means "I did not
+   * choose", which the server answers with the project's kit and then the account
+   * default (lib/brand-kits/working-identity.ts:30-41). This form used to send
+   * `projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined)` — the server's
+   * own ladder restated in the browser, and a rule stated twice drifts. The same
+   * derivation in analysis/page.tsx made the project step STRUCTURALLY
+   * unreachable: a kit id arrived on every request, so step 1 always answered and
+   * picking a client in the ProjectSelector could never change the identity.
+   */
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -112,18 +125,17 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const previewRef = useRef<string | null>(null);
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
 
-  const { brandKits, defaultKit } = useBrandKits();
+  const { brandKits } = useBrandKits();
 
   // The auto-enable effect that used to sit here is gone: the initial state
   // now says what it did, in both studios, and an effect that silently
   // re-enables a control the customer just turned off is worse than the
   // default it was compensating for.
 
-  // A project's own brand kit wins over the account default: the whole point of
-  // client workspaces is that switching client switches the identity with it, so
-  // one client's colours can never leak into another's campaign.
+  // Read for ONE thing now: whether to offer the Apply-Brand-Kit toggle, since a
+  // project that dictates its own kit is not a choice that toggle can override.
+  // It no longer decides which kit is sent — the server does.
   const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
-  const selectedKit = projectKit ?? (useBrandKit ? defaultKit : undefined);
 
   const creditCost = CREDIT_COSTS.image[resolution] * variations;
   // The reference image is optional, but neither an upload still in flight nor
@@ -145,7 +157,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
       style,
       platform,
       variations,
-      brandKitId: selectedKit?.id,
+      brandKitId: chosenKitId,
       useBrandKit,
       referenceImageUrl: referenceImage || undefined,
       projectId: projectId ?? undefined,
@@ -402,12 +414,25 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
           )}
         >
           <Palette className="h-4 w-4" />
+          {/* The kit's NAME used to sit here, and it is gone: naming the identity
+              is WorkingIdentityBar's job now, and this line could only ever name
+              the account default — it was hidden the moment a project dictated a
+              different kit, i.e. exactly when the two would have disagreed. */}
           <span className="flex-1 text-start">{t('useBrandKit')}</span>
-          {useBrandKit && defaultKit && (
-            <span className="text-xs text-[var(--color-text-muted)]">{defaultKit.name}</span>
-          )}
         </button>
       )}
+
+      {/* Whose business this image is for, said BEFORE Generate — the credits are
+          reserved the moment it is pressed, so saying it afterwards is saying it
+          after they paid. Fed the exact values handleSubmit is about to POST, so
+          the label and the generation cannot disagree. */}
+      <WorkingIdentityBar
+              studio="creator"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        useBrandKit={useBrandKit}
+        onChange={setChosenKitId}
+      />
 
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">

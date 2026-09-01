@@ -13,7 +13,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
-import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Colours and brand_voice are not in StoryboardPromptInput at all, so asking
       // for them would filter — and therefore be able to THROW on — columns this
       // prompt never sees.
-      need: ['name'],
+      ...STUDIO_IDENTITY_POLICY.storyboard,
     });
     if (input.brandKitId && identity.source === 'none') {
       // ADR-0001: a stale or foreign id resolves to nothing and deliberately does

@@ -184,6 +184,45 @@ export interface ResolveWorkingIdentityOptions {
 export type WorkingIdentityExtra = 'name' | 'colors' | 'voice';
 
 /**
+ * What each studio omits and what each studio needs, stated ONCE.
+ *
+ * Every one of these lists was read off the builder or the form that consumes
+ * it. They live here rather than at each call site because there are now TWO
+ * kinds of caller — the studio routes, which build a prompt, and
+ * `/api/brand-kits/working-identity`, which tells the customer what the prompt
+ * WOULD say — and the moment those two use different lists the label and the
+ * generation disagree.
+ *
+ * That is not hypothetical. It was caught by adversarial review of the first
+ * version, where the GET route passed neither list:
+ *   - `blocked` could not fire for `brand_voice` (campaign's most likely
+ *     offender) or `name`, because the GET did not ask for them — so the bar
+ *     showed a clean identity for a request Generate then refused with a 400
+ *     naming a term absent from the form.
+ *   - `contributed` was computed over all four business facts while plan omits
+ *     three of them and analysis omits four — so the "your result will be
+ *     generic" line was suppressed in exactly the case those routes document as
+ *     the common one.
+ *
+ * A studio absent from this table gets neither list, which is correct for
+ * `voiceover` and `prompt-builder`: they take no brand kit at all.
+ */
+export const STUDIO_IDENTITY_POLICY: Readonly<
+  Record<string, { readonly omit?: readonly BusinessField[]; readonly need?: readonly WorkingIdentityExtra[] }>
+> = {
+  // The form collects businessName, industry and targetMarket; the kit
+  // contributes only what the form does not.
+  plan: { omit: ['name', 'industry', 'targetAudience'] },
+  // Analysis collects a description too.
+  analysis: { omit: ['name', 'industry', 'targetAudience', 'description'] },
+  storyboard: { need: ['name'] },
+  creator: { need: ['name', 'colors'] },
+  campaign: { need: ['name', 'colors', 'voice'] },
+  photoshoot: {},
+  edit: {},
+};
+
+/**
  * Resolve the Working Identity for one Generation.
  *
  * Query cost: ONE query when `brandKitId` is supplied — which is what every

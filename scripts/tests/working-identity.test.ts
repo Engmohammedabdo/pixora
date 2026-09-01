@@ -25,6 +25,7 @@
  */
 import { PromptBlockedError } from '../../lib/ai/prompts/safety';
 import {
+  STUDIO_IDENTITY_POLICY,
   WORKING_IDENTITY_COLUMNS,
   resolveWorkingIdentity,
   type WorkingIdentityKit,
@@ -440,6 +441,69 @@ async function main(): Promise<void> {
     const { client } = fakeSupabase({ brand_kits: { 'kit-1': kit() } });
     const id = await resolveWorkingIdentity(client, USER, { optedOut: false, brandKitId: 'kit-1' });
     check('optedOut: false is not opting out', id.source, 'explicit');
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 9. The per-studio policy table.
+  //
+  //    It exists because there are now TWO kinds of caller — the studio routes,
+  //    which build a prompt, and /api/brand-kits/working-identity, which tells
+  //    the customer what that prompt WOULD say. The first version of the GET
+  //    passed neither list, so `blocked` could not fire for the columns campaign
+  //    and storyboard actually filter, and `contributed` was computed over four
+  //    business facts while plan omits three and analysis four: the bar showed a
+  //    clean, personalised identity for a request Generate then refused.
+  //
+  //    Membership is asserted EXACTLY, not as a minimum. Adding a studio that
+  //    takes no brand kit would give it a policy it must not have; dropping one
+  //    silently returns that studio's label to the un-omitted, un-needed answer.
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    check(
+      'the policy names exactly the seven kit-capable studios',
+      Object.keys(STUDIO_IDENTITY_POLICY).sort(),
+      ['analysis', 'campaign', 'creator', 'edit', 'photoshoot', 'plan', 'storyboard'],
+    );
+    check('voiceover has no policy — it takes no brand kit', STUDIO_IDENTITY_POLICY.voiceover, undefined);
+    check('prompt-builder has none either', STUDIO_IDENTITY_POLICY['prompt-builder'], undefined);
+
+    // plan collects businessName, industry and targetMarket; analysis collects a
+    // description too. Each list is the fields THAT form already asks for.
+    check('plan omits the three its form collects', STUDIO_IDENTITY_POLICY.plan.omit, [
+      'name', 'industry', 'targetAudience',
+    ]);
+    check('analysis omits four', STUDIO_IDENTITY_POLICY.analysis.omit, [
+      'name', 'industry', 'targetAudience', 'description',
+    ]);
+    check('campaign needs all three extras', STUDIO_IDENTITY_POLICY.campaign.need, ['name', 'colors', 'voice']);
+    check('storyboard needs only the name', STUDIO_IDENTITY_POLICY.storyboard.need, ['name']);
+    check('photoshoot needs no extra', STUDIO_IDENTITY_POLICY.photoshoot.need, undefined);
+  }
+
+  // Applied through the table, the answers differ per studio — which is the whole
+  // reason the label has to name its studio.
+  {
+    const { client } = fakeSupabase({
+      brand_kits: { 'kit-1': kit({ description: null, city: null }) },
+    });
+    const asPlan = await resolveWorkingIdentity(client, USER, {
+      brandKitId: 'kit-1',
+      ...STUDIO_IDENTITY_POLICY.plan,
+    });
+    // industry and targetAudience survive on the row but are omitted for plan,
+    // and description/city are null — so the block is empty and the customer
+    // must be told the result will be generic.
+    check('plan: a kit with only industry contributes NOTHING', asPlan.contributed, false);
+
+    const { client: c2 } = fakeSupabase({
+      brand_kits: { 'kit-1': kit({ description: null, city: null }) },
+    });
+    const asStoryboard = await resolveWorkingIdentity(c2, USER, {
+      brandKitId: 'kit-1',
+      ...STUDIO_IDENTITY_POLICY.storyboard,
+    });
+    check('storyboard: the same kit DOES contribute', asStoryboard.contributed, true);
+    check('storyboard: and gets the name it asked for', asStoryboard.safeName, 'Shawarma Al Sham');
   }
 
   // The same rule for colours, which is where it also CLOSES a hole:

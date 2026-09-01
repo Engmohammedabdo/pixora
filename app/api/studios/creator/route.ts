@@ -20,7 +20,7 @@ import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
 import type { BrandKit } from '@/lib/supabase/types';
 import { resolveProjectId } from '@/lib/projects/verify';
-import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             brandKitId: input.brandKitId,
             // buildCreatorPrompt reads the row and filters as it goes; these two
             // are what the ROUTE itself prints on the admin-override composer.
-            need: ['name', 'colors'],
+            ...STUDIO_IDENTITY_POLICY.creator,
           })
         : projectIdPromise.then((verified) =>
             // `false` means the project is not the caller's and the 404 below is
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             resolveWorkingIdentity(supabase, user.id, {
               optedOut: input.useBrandKit === false,
               projectId: verified === false ? null : verified,
-              need: ['name', 'colors'],
+              ...STUDIO_IDENTITY_POLICY.creator,
             })
           ),
     ]);

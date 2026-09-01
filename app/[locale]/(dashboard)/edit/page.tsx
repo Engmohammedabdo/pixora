@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { Link } from '@/i18n/routing';
 import { Sparkles, Upload, X, Download, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useBrandKits } from '@/hooks/useBrandKit';
 import {
@@ -122,14 +123,35 @@ function EditPageContent(): React.ReactElement {
   const fileRef = useRef<HTMLInputElement>(null);
   const setBalance = useCreditsStore((s) => s.setBalance);
 
-  // The SAME kit whose id gets submitted below — resolved exactly the way
-  // PhotoshootForm resolves it (project's kit, then the account default), which
-  // is byte-for-byte the order the route's own three-step lookup uses. Two
-  // resolutions of one question that disagree is how the UI comes to gate
-  // `brand_color_match` on a kit the route would not have used.
+  // ONLY what the customer explicitly chose. `undefined` is the correct default
+  // and it is the point: an absent `brandKitId` is "I did not choose", which the
+  // server answers with the project's kit and then the account default
+  // (lib/brand-kits/working-identity.ts). The page used to send `selectedKit?.id`
+  // unconditionally, which made the project step structurally unreachable —
+  // picking a client in the ProjectSelector could never change the identity,
+  // because step 1 always had an answer.
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
+
   const { brandKits, defaultKit } = useBrandKits();
-  const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
-  const selectedKit = projectKit ?? defaultKit;
+
+  // ── A LOCAL MIRROR, FOR THE `brand_color_match` GATE AND NOTHING ELSE ──────
+  //
+  // `editPresetRequiresBrandColors` presets are refused by the route with
+  // `400 validation_error, path: ['brandKitId']` when no kit resolved and no free
+  // text stands in for one, and that refusal arrives after a round trip the
+  // customer did not need to make. So the page still has to answer "will a kit be
+  // in force?" — but it answers it for the WARNING only. It never reaches the
+  // request body, which now carries `chosenKitId` and nothing more.
+  //
+  // The bar above renders the server's own answer to this same question; it
+  // renders it, it does not hand it back, so this stays a mirror. It is the
+  // server's ladder, including ADR-0001: an explicit id that is not one of the
+  // caller's own kits resolves to NO identity and does not fall through, because
+  // substituting the nearest kit is how one client's look leaks into another's.
+  const gateKit =
+    chosenKitId !== undefined
+      ? brandKits.find((k) => k.id === chosenKitId)
+      : (projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined) ?? defaultKit;
 
   // A preset only counts while it belongs to the CURRENT edit type. Stated
   // through the shared rule, not by comparing the table here: the route refuses
@@ -163,7 +185,7 @@ function EditPageContent(): React.ReactElement {
   // the customer can act on it and the route's answer arrives after a round
   // trip they did not need to make.
   const brandColorsMissing =
-    !!activePreset && editPresetRequiresBrandColors(activePreset) && !selectedKit && !descriptionUsable;
+    !!activePreset && editPresetRequiresBrandColors(activePreset) && !gateKit && !descriptionUsable;
 
   // Not just "an image was picked": an image the SERVER accepted. While an
   // upload is in flight `originalImage` is still null, so Generate stays down
@@ -203,10 +225,11 @@ function EditPageContent(): React.ReactElement {
           editDescription: descriptionUsable ? editDescription : undefined,
           editType,
           editPreset: activePreset ?? undefined,
-          // The kit the FORM gated `brand_color_match` on. The route would
-          // resolve the same one on its own, but then the gate and the prompt
-          // would be answering the same question separately — see PhotoshootForm.
-          brandKitId: selectedKit?.id,
+          // Only an explicit choice. Absent means "I did not choose", and the
+          // route resolves project-then-default itself — the same answer the bar
+          // above is showing, from the same module, so the label and the
+          // generation cannot disagree.
+          brandKitId: chosenKitId,
           projectId: projectId ?? undefined,
         }),
       });
@@ -215,7 +238,7 @@ function EditPageContent(): React.ReactElement {
       setResultImage(data.data.imageUrl);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, originalImage, editDescription, descriptionUsable, editType, activePreset, selectedKit?.id, setBalance, tStudio, projectId]);
+  }, [isValid, originalImage, editDescription, descriptionUsable, editType, activePreset, chosenKitId, setBalance, tStudio, projectId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -418,6 +441,16 @@ function EditPageContent(): React.ReactElement {
           and it is the same sentence either way, so it does not change
           character the moment the customer touches something. */}
       {requirementHint && <p className="text-xs text-[var(--color-text-muted)]">{requirementHint}</p>}
+      {/* Whose business this edit is for, named BEFORE Generate — the credit is
+          reserved the moment it is pressed, so saying it afterwards is saying it
+          after they paid. It is handed exactly the values the POST above sends,
+          so the label and the generation are answers to the same question. */}
+      <WorkingIdentityBar
+              studio="edit"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        onChange={setChosenKitId}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
         <div className="flex items-center gap-2">

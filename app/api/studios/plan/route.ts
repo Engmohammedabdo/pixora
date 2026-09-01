@@ -13,7 +13,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
-import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const identity = await resolveWorkingIdentity(supabase, user.id, {
       brandKitId: input.brandKitId,
       projectId,
-      omit: ['name', 'industry', 'targetAudience'],
+      ...STUDIO_IDENTITY_POLICY.plan,
     });
     if (input.brandKitId && identity.source === 'none') {
       // ADR-0001: a stale or foreign id resolves to nothing and deliberately
