@@ -143,10 +143,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     //      that is what client workspaces are sold for;
     //   3. the account's default kit.
     //
-    // Step 3 is finding F12, fixed the same way in photoshoot and storyboard: a
-    // customer who finishes onboarding and never creates a project has exactly
-    // one kit and no project, so a project-only lookup gives them nothing — on
-    // the precise journey the brand-context work was built for.
+    // Step 3 is finding F12: a customer who finishes onboarding and never
+    // creates a project has exactly one kit and no project, so a project-only
+    // lookup gives them nothing — on the precise journey the brand-context work
+    // was built for.
+    //
+    // CORRECTION, 2026-09-01. This comment used to say step 3 was "fixed the
+    // same way in photoshoot and storyboard". It was not, and CLAUDE.md repeated
+    // the claim. `ff239bf` is a two-file CLIENT diff (storyboard/page.tsx,
+    // PhotoshootForm.tsx). Both of those ROUTES are still `if (input.brandKitId)`
+    // and nothing else (photoshoot:88-98, storyboard:80-100); neither file
+    // contains `is_default`, `from('projects')` or `brand_kit_id`. This ladder
+    // exists in exactly ONE route — this one.
+    //
+    // Two things follow, and both were measured rather than reasoned about:
+    //   - Every other studio's "fallback" lives in the browser, so any caller
+    //     that is not that page gets no identity. `scripts/live/` never sends
+    //     `brandKitId`, which is why nobody noticed.
+    //   - `is_default`, which the step-3 query below orders on, has ZERO true
+    //     rows on the live database, and nothing in the product sets it on
+    //     create (the 002:29 trigger only ever CLEARS it). So step 3 has always
+    //     resolved by `created_at DESC` — the NEWEST kit — never by "default".
     //
     // A `brandKitId` that is not the caller's simply resolves to null, the same
     // as photoshoot and every other studio: it is not a distinct failure the
@@ -181,12 +198,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         brandKit = data;
       }
       if (!brandKit) {
-        // `is_default` first, then the newest — the SAME order the client
-        // already resolves in (`hooks/useBrandKit.ts:98`:
-        // `brandKits.find(is_default) || brandKits[0]`, over a list ordered
-        // created_at DESC). Two resolutions of one question that disagree is
-        // how a customer gets one identity in the form and another in the
-        // prompt.
+        // `is_default` first, then the newest.
+        //
+        // CORRECTION, 2026-09-01. This comment claimed to be "the SAME order the
+        // client already resolves in (`hooks/useBrandKit.ts:98`)". It is not,
+        // and the divergence is exactly the failure the comment says it exists
+        // to prevent — one identity in the form, another in the prompt.
+        //
+        // `is_default` is NULLABLE (002_brand_kits.sql:14). Postgres orders a
+        // boolean DESC as NULLS FIRST, and supabase-js emits no nulls directive
+        // when `nullsFirst` is undefined (postgrest-js
+        // PostgrestTransformBuilder.ts:339-341). So a row with `is_default` NULL
+        // ranks ABOVE the row that is genuinely `true` here — while
+        // `useBrandKit.ts:98`'s `find(kit => kit.is_default)` skips the NULL and
+        // lands on the true one. Same customer, same data, two answers.
+        //
+        // And on the live database it has never mattered, for a worse reason:
+        // ZERO rows carry `is_default = true`. Nothing in the product sets it on
+        // create (BrandKitForm submits 13 columns without it; the 002:29 trigger
+        // only ever CLEARS other rows). So both sides have always fallen through
+        // to `created_at DESC` — the NEWEST kit. "The default kit" has never
+        // once meant `is_default` in production.
         const { data } = await supabase
           .from('brand_kits')
           .select('*')
