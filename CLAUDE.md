@@ -1437,6 +1437,264 @@ both. One sample each way; not changed unilaterally.
   working text edit (3.19%) worse than one that did nothing (2.67%), and warns
   *"Do not build a gate on that number."* It stays an eye pass.
 
+### The Working Identity — 2026-09-01 (which brand kit a generation is for)
+
+A design review of the codebase produced five deepening candidates; this was the
+one taken, because it was the only one whose shallowness was producing **wrong
+output today** rather than extra lines. Seven parallel readers established the
+facts and an independent skeptic attacked each set — **15 claims were corrected
+or refuted**, several of them mine.
+
+**The question is "which Brand Kit is this Generation for?" and it was answered
+at EIGHT deciding sites with SIX different rules, seven of them in the browser:**
+
+```
+plan / analysis          the account default; the project is IGNORED
+storyboard               a RAW UNVALIDATED id out of localStorage
+campaign                 project ?? (toggle ? default), toggle OFF by default
+creator                  project ?? (toggle ? default), toggle ON by default
+photoshoot / edit page   project ?? default
+edit ROUTE               explicit -> project -> is_default DESC, created_at DESC
+```
+
+Only `edit` resolved anything server-side. Every other studio believed an id the
+browser computed, so any caller that was not that exact page — a restored past
+run, an automation, and `scripts/live/`, which **never sent one at all** —
+produced a paid prompt with no business identity and nothing reporting the
+absence.
+
+#### Two things measured that no one had looked at
+
+**1. `is_default` had never once meant "default".** On the live database: **2
+brand_kits rows, ZERO with `is_default = true`.** Nothing in the product set it
+on create — the form submits thirteen columns and that is not one, the POST route
+inserts `{ user_id, ...input }` with no promotion, and the `002:29` trigger only
+ever CLEARS the flag on other rows. So both resolvers fell through to their
+tiebreaker, and the tiebreaker is `created_at DESC`.
+
+**"The default kit" has therefore always meant "the NEWEST kit."** Create a
+second kit for a one-off client and every studio silently moves the identity of
+all your work onto it. The paid plans sell 3 and 10 kits.
+
+The column being nullable made the two resolvers disagree in a way a comment in
+`edit/route.ts` explicitly claimed was impossible: Postgres orders a boolean DESC
+as NULLS FIRST and supabase-js emits no nulls directive when `nullsFirst` is
+undefined (postgrest-js `PostgrestTransformBuilder.ts:339-341`), so the server
+ranked a NULL row **above** a genuinely `true` one while `useBrandKit.ts:98`'s
+`find()` skipped it. Same customer, same rows, two identities.
+
+**2. A documented fix was client-only, and three places said otherwise.**
+`CLAUDE.md` said photoshoot and storyboard had gained a default-kit fallback, and
+`edit/route.ts`'s own comment said step 3 was "fixed the same way in photoshoot
+and storyboard". `ff239bf` is a **two-file CLIENT diff**. Both routes were still
+`if (input.brandKitId)` and nothing else; neither file contained `is_default`,
+`from('projects')` or `brand_kit_id`. All three claims are corrected in place.
+
+#### What was built
+
+| What | State | Proof |
+|------|-------|-------|
+| `resolveWorkingIdentity()` — the rule stated once | ✅ built | `lib/brand-kits/working-identity.ts`, 78 checks |
+| Migration 046: `is_default` NOT NULL, one per owner, first kit promoted on INSERT | ✅ **applied + re-probed live** | 11 of 11 as `authenticated`; `2 rows, 2 default` where it was `0` |
+| All seven kit-reading routes resolve server-side | ✅ built | zero `from('brand_kits')` left under `app/api/studios` |
+| `GET /api/brand-kits/working-identity` | ✅ built + **live** | returns 401 unauthenticated on production; the sweep reads a real name from it |
+| `<WorkingIdentityBar/>` in all seven studios | ✅ built | the first surface in the product that names the kit a generation will use |
+| The client stops deriving a default | ✅ built | every surface sends only an explicit pick |
+| `CONTEXT.md` + two ADRs | ✅ built | the repo had no glossary and no ADR directory |
+
+**The promotion is in the TRIGGER, not the route**, and that is the repo's own
+rule applied: `brand_kits` RLS is a single `FOR ALL USING (auth.uid() = user_id)`
+policy and migration 044 left `authenticated` holding INSERT, so a customer can
+create a kit straight over PostgREST and never meet the route's Zod schema.
+
+**Migration 046 found something at rehearsal that was not expected.** A multi-row
+`UPDATE ... SET is_default = true` is refused by Postgres with **27000**
+(`triggered_data_change_violation`) — the BEFORE trigger's nested UPDATE touches a
+row the outer statement is about to update — not by the unique index. Recorded in
+the file rather than hidden, and verified to have no product caller: the only
+write is `updateBrandKit(kit.id, {is_default: true})`, one row by id.
+
+#### The one rule a future reader will want to "fix" — see ADR-0001
+
+An explicit `brandKitId` that is **not the caller's** resolves to no identity and
+deliberately does **not** fall through to the project or the account default. The
+id is stale because the customer was working on a different client a moment ago;
+substituting the nearest kit is exactly "one client's look leaks into another's
+shoot". `source: 'none'` reports it, the route logs it, and the customer is not
+shown an error they cannot act on. The test asserts **one query only** on that
+path — a version returning `source: 'none'` while still consulting the project
+would pass every other check and reintroduce the leak.
+
+#### Seven defects were introduced by this work and caught before shipping —
+#### four of them in code written earlier in the same round
+
+Every previous round in this file records the same pattern. This is the fourth
+consecutive round where **adversarial review of the round's own diff found more
+than every gate combined**.
+
+- **The Apply-Brand-Kit opt-out was silently overridden.** Turning the toggle off
+  omits `brandKitId`, and the ladder answers an absent id with the project's kit
+  or the account default — so the one control a customer has for saying "not this
+  time" resolved a kit anyway. "I did not choose" and "not this time" are
+  different requests; the second now has its own word (`optedOut`), checked before
+  step 1, asserted at **zero queries**.
+- **The module filtered every brand-kit column for every studio**, and its header
+  called that a deliberate widening. Four independent reviewers said it was wrong
+  and they were right: `sanitizePrompt` THROWS rather than stripping, and its
+  blocklist holds ordinary marketing words — `kill`, `gun`, `weapon`. A customer
+  whose `brand_voice` reads "killer offers" would have lost plan, analysis,
+  storyboard, photoshoot and edit — five studios that never read that column — to
+  a 400 naming a term absent from the form they had just filled in. `need` makes
+  the throw surface exactly the read surface. It does close one real hole:
+  `lib/ai/prompts/photoshoot.ts` interpolated `primary_color`/`secondary_color`
+  with **no filter and no cap**, the only unfiltered brand-kit read in any builder.
+- **The new invariant's insert-ordering arm was INERT.** It searched for the
+  literal `from('generations').insert`; campaign, creator and photoshoot write it
+  across two lines, so `indexOf` returned -1 and the check was silently skipped
+  for exactly the three most complex routes. Measured: **3 of 7**. *A rule that
+  only runs on the arm you did not break is not a rule.*
+- **The identity bar asked with a DIFFERENT RULE than the studios use.** The GET
+  passed neither `omit` nor `need`, so `blocked` could not fire for `brand_voice`
+  (campaign's most likely offender) and `contributed` was computed over four
+  business facts while plan omits three and analysis four. The label said one
+  thing and Generate did another — the "a rule stated twice drifts" failure,
+  reintroduced in the one place the customer can SEE it.
+  `STUDIO_IDENTITY_POLICY` now states each studio's lists once and both callers
+  spread it; the test asserts **exact** membership.
+- **The picker was terminal.** One click pinned an explicit id, step 1 is terminal
+  by design, and nothing ever cleared it — so the control meant to fix the
+  derivation reinstated the same outcome for the session. There is now an
+  "Automatic (follow the project)" row, and switching project clears a pick.
+- **plan and analysis prefill what the deliverable is ABOUT** — business name,
+  industry, target market — from `defaultKit`, while the resolved kit contributes
+  only what the form does not collect. The bar could name client B over a 5- or
+  3-credit deliverable written about client A. The bar now reports the resolved
+  kit upward (`onResolved`) and both pages prefill from that.
+- **The bar rendered nothing when its request failed** — indistinguishable from
+  never having been wired, next to a button that spends 2 to 14 credits.
+
+#### New gate
+
+`check-invariants` is **18 rules**. `working-identity-before-reserve` asserts that
+every route whose own `InputSchema` names `brandKitId` calls the resolver, keeps
+no `brand_kits` query of its own, and calls it above **both** `reserveCredits(`
+and the `generations` insert. Membership comes from each route's schema, never a
+filename list — `app/layout.tsx` once carried a hardcoded list of filenames
+pretending to be a rule and every document here repeated its claim for months —
+and **a scan matching nothing FAILS**, the way `mock-from-schema` does. Proved by
+reintroducing both violations.
+
+`npm run test:working-identity` — 78 checks, in `prebuild`.
+
+#### Verified live on production, 2026-09-01 — 13 credits after the deploy
+
+Gates cannot show that an identity reached a paid deliverable, and the whole
+point of this round is that nobody had looked. Run artifacts:
+`.superpowers/live-runs/2026-09-01T03-43-10-125Z/`. 4 of 4 cases passed their
+measured checks; planned 13 credits, spent 13.
+
+**The deploy was confirmed before anything was claimed about it**, and not from
+Coolify's status field (this app still has no healthcheck): the new
+`/api/brand-kits/working-identity` route answers **401** on production rather
+than 404, so the route exists in the running build.
+
+**The harness is the exact caller this round was built for, and it now gets an
+identity.** `scripts/live/` sends **no `brandKitId` at all** — it never has, and
+before this round that meant every one of its generations ran with no business
+context. The sweep's first line now reads:
+
+```
+identity      شاورما الشام  (via account)
+```
+
+`via account` is the point: nothing was sent, the server resolved it, and
+`account` is a step that only became reachable — and only became meaningful —
+after migration 046 gave `is_default` a true row.
+
+**It reaches the deliverable, and the proof is one word.** The plan case posts
+`businessName`, `industry`, `goals`, `targetMarket` and `budget`; plan's policy
+omits three of the five business facts, so the kit can only contribute
+`description` and `city`. The kit's description names **الكرامة (Karama)** and
+nothing in the request body does. The delivered 5-credit plan:
+
+> "Run geo-targeted ads within a **5km radius of Karama** focusing on
+> high-quality food photography…"
+
+Two occurrences, both load-bearing. A caller that used to get nothing now gets
+the customer's actual neighbourhood into their media plan.
+
+**`analysis_ar` proves nothing about identity and should not be quoted as if it
+does.** Its policy omits four of the five facts, leaving only `city` — and the
+case body already says دبي twice. There is no discriminator in that run. It
+passed 10 of 10 measured checks, which means the studio still works; it does not
+mean the kit contributed.
+
+**Images, by eye.** `photoshoot_luxury` moved the customer's product onto marble
+in a dark luxury set, unwatermarked (Pro), with no invented text anywhere.
+`creator_ar_raw` returned an ad-grade shawarma frame whose **wrapper carries
+شاورما الشام** — correctly joined, right to left, in the brand's own red — and
+whose background shop is blurred with **no legible invented text**, so the
+2026-08-31 containment work is holding against the failure it was written for.
+
+#### The one finding this run produced, recorded rather than fixed
+
+Printing the assembled `creator` prompt and reading it — the method that found
+the best defect of the previous round — shows the product asking for the
+opposite of itself:
+
+```
+BRAND
+- Name: شاورما الشام
+CLIENT CONTEXT
+- Business: شاورما الشام
+TEXT RULE — this overrides everything else in this prompt:
+- If the SUBJECT names no words, the image contains NO text anywhere at all.
+```
+
+The SUBJECT (`عايز صورة لساندوتش شاورما…`) names no words to render. So the
+TEXT RULE, which claims to override everything else, demands a frame with **no
+text at all** — while the same prompt hands the model the brand name **twice**,
+in two separate blocks.
+
+The model resolved it well: the name went on the packaging and nowhere else. But
+**the model chose that, the product did not**, and this file already records what
+the same shape produced in `edit`: facing a contradictory instruction,
+`product_label` **declined entirely** and returned a paid no-op at HTTP 200. A
+good outcome from an unsatisfiable prompt is not a guarantee, it is a coin that
+landed the right way.
+
+Two things to decide together, and neither should be changed without re-running
+`creator_ar_raw` (2 credits), because both change what a paid image looks like:
+
+- **Is a customer's own brand name on their own product "invented text"?** If it
+  is not — and for a shawarma shop it plainly is not — then `containedTextRule()`
+  needs a third case: the brand name may appear once, on the product or its
+  packaging, even when the SUBJECT names no words.
+- **`- Business:` in CLIENT CONTEXT duplicates `- Name:` in BRAND** for creator
+  and campaign. `brand-context.ts:74-81` keeps that line deliberately, because
+  photoshoot and edit have no other line carrying the business name — its own
+  comment says so. For the two studios that DO have one, the name arrives twice.
+
+#### Still open, deliberately
+
+- **`voiceover` and `prompt-builder` take no brand kit**, and were left that way.
+  `brand_voice` is arguably the most relevant column for a voiceover rewrite, but
+  that rewrite's length is metered and priced (the 1.8x/1.37x defects), so adding
+  to it changes a billed deliverable and needs its own measurement.
+- **`generations.brand_kit_id` is still JSONB, not a column.** All seven routes now
+  write the RESOLVED id into `generations.input`, which needed no migration and
+  makes the ledger answerable immediately. A real FK'd column is the right end
+  state and is a separate migration that must prove itself as `authenticated`.
+- **Old `generations` rows still carry what the browser SENT.** Nothing was
+  backfilled and nothing should be: the old value is what actually happened.
+- **`photoshoot`'s form still picks its default `environment` from a kit it reads
+  itself**, while the submitted id can now be undefined. Consistent today; worth a
+  look if either side moves.
+- **The `edit` and `photoshoot` builders still take the whole row** rather than the
+  filtered palette. Narrowing `EditPromptInput.brandKit` touches six call sites in
+  `prompts.test.ts`, one of which is the gate proving a blocked colour is refused.
+  Its own change.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -1602,7 +1860,8 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **46 files** in `supabase/migrations/`, latest `045_brand_kits_business_context.sql`.
+- **47 files** in `supabase/migrations/`, latest `046_brand_kit_default_is_the_rule.sql`
+  (applied 2026-09-01, re-probed independently as `authenticated`: 11 of 11).
   `public.schema_migrations` records 24 of them (022 → 045, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
   it predates the ledger, not that it was skipped. Verified against the live
@@ -1703,7 +1962,7 @@ npx tsc --noEmit # TypeScript check
 **Build gates** (`prebuild`, so a regression fails the build rather than shipping):
 
 ```bash
-npm run check:invariants        # 17 rules; --update-baseline is for no-arabic-literals ONLY
+npm run check:invariants        # 18 rules; --update-baseline is for no-arabic-literals ONLY
 npm run test:safety             # 82 checks over the prompt filter and the builders
 npm run test:uploads            # 37 checks over the brand-kit logo validator
 npm run test:plan-switch        # 15 checks over the mid-period plan-switch credit rule
@@ -1722,6 +1981,7 @@ npm run test:root-document      #  62 checks: exactly ONE <html> per route, with
 npm run test:website-url        #  48 checks: the URL normaliser and BOTH storage layers agree
 npm run test:brand-extract      # 135 checks: the extract route, its codes and its bounds
 npm run test:brand-context      #  32 checks: business facts reach the prompt, sanitised
+npm run test:working-identity   #  78 checks: which brand kit a generation is for — and that a stale id does NOT fall through
 npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDIO own Zod schema
 ```
 
@@ -1731,7 +1991,7 @@ npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDI
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**Roughly 2,100 checks across 19 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
+**Roughly 2,180 checks across 20 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.
