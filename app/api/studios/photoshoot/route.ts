@@ -8,12 +8,13 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
-import { buildBrandContextBlock } from '@/lib/ai/prompts/brand-context';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
+import type { BrandKit } from '@/lib/supabase/types';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -85,39 +86,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const creditCost = SHOT_COSTS[input.shots] || 8;
 
-    // Fetch brand kit
-    let brandKit = null;
-    if (input.brandKitId) {
-      const { data } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandKit = data;
+    // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
+    //
+    // This route used to answer "which brand kit is this shoot for?" with
+    // `input.brandKitId` and nothing else: no project step, no account default.
+    // The page happened to compute `project ?? default` in the browser and send
+    // the result, so the studio looked right from the studio — but every OTHER
+    // caller (a restored past run, an automation, scripts/live/, which never
+    // sent one at all) paid 2/4/8 credits for a product shoot with no business
+    // identity in the prompt and nothing reporting the absence. Resolution now
+    // happens server-side, once, by the rule all seven studios share:
+    // explicit -> the Project's kit -> the account default.
+    //
+    // Called HERE — above the generations insert and above the reservation —
+    // because `sanitizePrompt` runs inside the module and throws
+    // PromptBlockedError, which must reach the OUTER catch with no credits moved
+    // and no orphan row. That was already this route's rule for the block below
+    // and for `safeNotes`; the module extends it to the three colour columns and
+    // to `brand_voice`, which this studio never filtered at all.
+    //
+    // `projectId` is the value resolveProjectId() returned above — never
+    // `input.projectId`, which has not been proved to belong to the caller. The
+    // `false` case already returned 404 above, so what is passed here is
+    // `string | null`.
+    //
+    // No `omit`. plan and analysis suppress the fields their own forms collect;
+    // this studio's form collects none of the five business facts, so the kit is
+    // the only source of every one of them and there is nothing to contradict.
+    const identity = await resolveWorkingIdentity(supabase, user.id, {
+      brandKitId: input.brandKitId,
+      projectId,
+    });
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately
+      // does not fall through to the project or the default — substituting the
+      // nearest kit is exactly "one client's look leaks into another's shoot".
+      // Logged rather than returned: the customer did not type this id and
+      // cannot act on it. Logged at all because before this line no console
+      // output anywhere under app/api/studios mentioned a brand kit, which is
+      // how six studios ran with no identity for a month.
+      console.warn(`[working-identity][photoshoot] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
     }
 
-    // Both free-text channels into this studio's prompt are filtered HERE —
-    // before the insert and before the reservation below — so a blocked term
-    // costs nothing at all: PromptBlockedError thrown here reaches the OUTER
-    // catch with no row written and no credits moved, the same shape storyboard
-    // uses.
+    // Both free-text channels into this studio's prompt are filtered above the
+    // insert and above the reservation below — so a blocked term costs nothing
+    // at all: PromptBlockedError thrown up there reaches the OUTER catch with no
+    // row written and no credits moved, the same shape storyboard uses.
     //
-    // The brand-kit block is BUILT here and passed into every shot below. It
-    // used to be built here and thrown away, purely to force the filter to run
-    // early while buildPhotoshootPrompt rebuilt an identical block per shot —
-    // which held only while both call sites passed the identical five fields,
-    // with nothing checking that they did, and a discarded result is invisible
-    // to any gate.
-    const brandContextBlock = brandKit
-      ? buildBrandContextBlock({
-          name: brandKit.name ?? null,
-          industry: brandKit.industry ?? null,
-          description: brandKit.description ?? null,
-          targetAudience: brandKit.target_audience ?? null,
-          city: brandKit.city ?? null,
-        })
-      : '';
+    // The CLIENT CONTEXT block is BUILT once, by the module, and passed into
+    // every shot below. It used to be built here and thrown away, purely to
+    // force the filter to run early while buildPhotoshootPrompt rebuilt an
+    // identical block per shot — which held only while both call sites passed
+    // the identical five fields, with nothing checking that they did, and a
+    // discarded result is invisible to any gate. One call, one result, used.
+    const brandContextBlock = identity.block;
 
     // The customer's own free text, and the field most likely to trip the
     // filter. It was sanitized inside the post-reservation try block until now —
@@ -133,7 +155,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         model: 'gemini',
         // Never the raw payload: `...input` would spill a multi-megabyte inline
         // product photo into this JSONB column. See inputImageRef().
-        input: { ...input, productImageUrl: inputImageRef(input.productImageUrl), resolution: shotResolution, promptVersion: PHOTOSHOOT_PROMPT_VERSION },
+        //
+        // `brandKitId` overrides what the browser sent, deliberately and after
+        // the spread: this column has to record the kit the shoot RAN under, not
+        // the one that was requested. Those differ whenever the id was stale
+        // (ADR-0001 -> null) or absent and the project or account default
+        // answered instead — the two cases the resolver exists for.
+        input: { ...input, brandKitId: identity.kit?.id ?? null, productImageUrl: inputImageRef(input.productImageUrl), resolution: shotResolution, promptVersion: PHOTOSHOOT_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })
@@ -163,7 +191,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           shotIndex: i,
           totalShots: input.shots,
           notes: safeNotes,
-          brandKit,
+          // The BRAND paragraph reads exactly two columns off this row —
+          // `primary_color` and `secondary_color` (lib/ai/prompts/photoshoot.ts:563-564)
+          // — and interpolates them RAW. It is the only unfiltered BrandKit read
+          // left in any builder: creator.ts:65-69 and edit.ts:742-744 both wrap
+          // theirs in sanitizePrompt, and campaign and storyboard take flattened
+          // strings rather than a row at all. This change does not close that —
+          // widening the builder's parameter to the two fields it actually reads
+          // is the real fix and is a change to another file.
+          //
+          // What it DOES close: `resolveWorkingIdentity` ran sanitizePrompt over
+          // all three colour columns above the reservation, so a blocked term in
+          // one now throws before any money moves instead of reaching the model.
+          // What remains open is the 40-char cap, and the reason that is small
+          // rather than nothing is migration 044:57-63, whose CHECK constrains
+          // every colour column to `^#[0-9A-Fa-f]{6}$` — seven characters. The
+          // bound is real; it just is not stated where the value is read.
+          //
+          // The cast is a downcast, not a fabrication: `identity.kit` is this
+          // same row narrowed to WORKING_IDENTITY_COLUMNS, and both columns the
+          // builder reads are in that set. `BrandKit` is assignable to
+          // `WorkingIdentityKit`, which is why no `as unknown` is needed —
+          // TypeScript accepts the assertion only because the two describe the
+          // same table. Widening the builder's parameter to what it actually
+          // reads is the real fix and belongs in its own change.
+          brandKit: identity.kit as BrandKit | null,
           brandContextBlock,
           // Varies lighting, grade and shot order between runs. The generation id
           // is per-run but fixed within it, so the six shots stay one coherent set

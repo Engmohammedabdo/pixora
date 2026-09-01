@@ -26,6 +26,7 @@ import { generatePlanPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { RecentWork } from '@/components/shared/RecentWork';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { INDUSTRIES, isIndustry } from '@/lib/industries';
 
 /**
@@ -83,6 +84,28 @@ export default function PlanPage(): React.ReactElement {
   // which screen the customer was looking at.
   const tIndustries = useTranslations('industries');
   const { projectId, onProjectChange } = useProjectSelection();
+  // The kit the customer EXPLICITLY chose, and nothing else. `undefined` is the
+  // correct default and it is the point: an absent `brandKitId` is "I did not
+  // choose", which the server answers with the project's kit and then the
+  // account default (lib/brand-kits/working-identity.ts:214-257).
+  //
+  // This page used to send `brandKitId: defaultKit?.id` unconditionally, which
+  // made step 2 of that ladder STRUCTURALLY UNREACHABLE: selecting a client in
+  // the ProjectSelector directly above could never change the identity, because
+  // an explicit id always won and the account default was always explicit. The
+  // route's own comment records paying 5 credits for that
+  // (app/api/studios/plan/route.ts:105-117).
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
+  // The kit the SERVER resolved, reported back by WorkingIdentityBar.
+  //
+  // This page's prefill decides what the deliverable is ABOUT — business name,
+  // industry and target market are form fields that reach the prompt directly,
+  // while the resolved kit contributes only the facts the form does not collect.
+  // Prefilling from `defaultKit` while the identity resolved to a project's kit
+  // therefore produced a paid deliverable written about one client under a bar
+  // naming another — caught by adversarial review, and the reason the prefill
+  // below keys on this rather than on `defaultKit?.id`.
+  const [resolvedKitId, setResolvedKitId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [industry, setIndustry] = useState('');
   // Revealed by the أخرى chip. `INDUSTRY_NAMES.other` is '', so before this
@@ -113,7 +136,8 @@ export default function PlanPage(): React.ReactElement {
   const planId = profile?.plan_id ?? 'free';
   const upgradeVariant = getGatedUpgradeVariant(error, creditsStatus);
 
-  const { defaultKit } = useBrandKits();
+  const { brandKits, defaultKit } = useBrandKits();
+  const identityKit = brandKits.find((k) => k.id === resolvedKitId) ?? null;
   // Prefill from the caller's default brand kit — ONCE, and only into BLANKS.
   //
   // Two separate things make that true, and an earlier version of this comment
@@ -124,8 +148,9 @@ export default function PlanPage(): React.ReactElement {
   // STALE CLOSURES. It does not prevent the effect RE-RUNNING — see the
   // dependency array below for what does.
   useEffect(() => {
-    if (!defaultKit) return;
-    if (defaultKit.name) setBusinessName((prev) => prev || defaultKit.name);
+    const kit = identityKit ?? defaultKit;
+    if (!kit) return;
+    if (kit.name) setBusinessName((prev) => prev || kit.name);
     // Only a slug the chip UI below can actually render as selected.
     // `brand_kits.industry` is deliberately NOT constrained to this list
     // (migration 045: "that list is allowed to grow, and a database that
@@ -134,23 +159,28 @@ export default function PlanPage(): React.ReactElement {
     // any 1-40 char string. Prefilling with one the chips do not recognise
     // would still pass `isValid`'s length check and reach the route as free
     // text on Generate — the exact shape item 4 exists to keep off the wire.
-    const kitIndustry = defaultKit.industry;
+    const kitIndustry = kit.industry;
     if (kitIndustry && isIndustry(kitIndustry)) {
       setIndustry((prev) => prev || kitIndustry);
     }
-    const kitTargetAudience = defaultKit.target_audience;
+    const kitTargetAudience = kit.target_audience;
     if (kitTargetAudience) setTargetMarket((prev) => prev || kitTargetAudience);
     // `defaultKit?.id`, NOT `defaultKit`. `useBrandKits` is a React Query
     // hook: `staleTime` is 5 minutes and `refetchOnWindowFocus` defaults to
     // true, so tabbing away and back refetches and hands back a NEW OBJECT for
     // the same row. Depending on object identity re-ran this effect and
-    // `prev || defaultKit.name` refilled a field the customer had deliberately
+    // `prev || kit.name` refilled a field the customer had deliberately
     // cleared. The comment above claimed the functional updaters made a
     // "touched" flag unnecessary — they prevent STALE CLOSURES, not refills;
-    // only not re-running does that. `handleGenerate` in this same file
-    // already depends on `defaultKit?.id` for the same reason.
+    // only not re-running does that. (`handleGenerate` used to carry the same
+    // dependency for the same reason; it no longer reads `defaultKit` at all —
+    // the kit is the server's decision now, see `chosenKitId` above.)
+    //
+    // This effect is PREFILL ONLY: it fills three form fields the customer can
+    // then edit. It must never set `chosenKitId` — writing the account default
+    // into the explicit slot is precisely the derivation this page just removed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultKit?.id]);
+  }, [identityKit?.id, defaultKit?.id]);
 
   const toggleGoal = (g: string): void => setGoals((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
   // Must match app/api/studios/plan/route.ts's InputSchema exactly. It requires
@@ -170,7 +200,7 @@ export default function PlanPage(): React.ReactElement {
     try {
       const res = await fetch('/api/studios/plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, industry, industryOther: industryOther.trim() || undefined, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: defaultKit?.id }),
+        body: JSON.stringify({ businessName, industry, industryOther: industryOther.trim() || undefined, goals, targetMarket, budget, duration, locale, projectId: projectId ?? undefined, brandKitId: chosenKitId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(toStudioError(data.error, tStudio, typeof data.required === 'number' ? data.required : undefined, typeof data.term === 'string' ? data.term : undefined)); return; }
@@ -178,7 +208,7 @@ export default function PlanPage(): React.ReactElement {
       setRuns((n) => n + 1);
       if (data.data.newBalance !== undefined) setBalance(data.data.newBalance);
     } catch { setError(toStudioError('network', tStudio)); } finally { setIsLoading(false); }
-  }, [isValid, businessName, industry, industryOther, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, defaultKit?.id]);
+  }, [isValid, businessName, industry, industryOther, goals, targetMarket, budget, duration, locale, setBalance, tStudio, projectId, chosenKitId]);
 
   const handleSubmitKeyDown = (e: React.KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleGenerate();
@@ -228,6 +258,32 @@ export default function PlanPage(): React.ReactElement {
           </button>
         ))}</div>
       </div>
+      {/*
+        Immediately above Generate, because the credit is reserved the moment it
+        is pressed — a notice after that is a notice after the customer paid.
+        It is handed the exact values `handleGenerate` is about to POST, so the
+        label and the generation cannot disagree.
+
+        The "your result will be generic" line is doing real work on this page,
+        and it is worth knowing it UNDERSTATES the case here. This route passes
+        `omit: ['name','industry','targetAudience']` (plan/route.ts:130) because
+        the form above collects all three, so the only kit columns that reach a
+        plan prompt are `description` and `city`. The bar asks
+        /api/brand-kits/working-identity, which passes no `omit` (route.ts:47-54)
+        and therefore computes `contributed` over all four business facts
+        (brand-context.ts:83). So a kit carrying only `industry` reports
+        `contributed: true` here while contributing nothing to the plan. Not
+        fixable from this file — `omit` is per-studio and the GET route takes no
+        such parameter — and it fails in the safe direction: the notice appears
+        for strictly fewer customers than it should, never for more.
+      */}
+      <WorkingIdentityBar
+              studio="plan"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        onChange={setChosenKitId}
+              onResolved={setResolvedKitId}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.plan} />
         <div className="flex items-center gap-2">

@@ -8,12 +8,12 @@ import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-wr
 import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { STORYBOARD_PROMPT_VERSION, buildStoryboardPrompt } from '@/lib/ai/prompts/storyboard';
-import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -71,33 +71,63 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // which returns 400 + `term` with no credits moved and no orphan row.
     const safeConcept = sanitizePrompt(input.concept, 2000);
 
-    let brandKitName: string | undefined;
-    // Also carries the migration-045 business columns so buildStoryboardPrompt's
-    // CLIENT CONTEXT block has something to say. sanitizePrompt runs INSIDE that
-    // block, not here — this route only reshapes the row, same as campaign does
-    // for its own brandContext.
-    let brandContext: BrandContextPromptInput | null = null;
-    if (input.brandKitId) {
-      const { data: brandKit } = await supabase
-        .from('brand_kits')
-        .select('name, industry, description, target_audience, city')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      // `brand_kits` has no column-level GRANT lockdown (022 covered `profiles` only;
-      // 042 constrains logo_url alone), so a customer can PATCH `name` to any string
-      // over PostgREST and app/api/brand-kits/route.ts's max(100) never runs.
-      brandKitName = brandKit?.name ? sanitizePrompt(String(brandKit.name), 100) : undefined;
-      brandContext = brandKit
-        ? {
-            name: brandKit.name ?? null,
-            industry: brandKit.industry ?? null,
-            description: brandKit.description ?? null,
-            targetAudience: brandKit.target_audience ?? null,
-            city: brandKit.city ?? null,
-          }
-        : null;
+    // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
+    //
+    // This route used to read `input.brandKitId` and nothing else, and it was the
+    // only studio that fetched five named columns rather than `select('*')` — a
+    // difference that hid the real gap, which was not WHICH columns it read but
+    // WHERE the id came from. The page computes it in the browser as
+    // `projectBrandKitId ?? defaultKit?.id` (storyboard/page.tsx:91) and
+    // `projectBrandKitId` is read straight out of localStorage
+    // (hooks/useProjectSelection.ts:28) — never validated as a kit, and never
+    // re-derived from the Project server-side. So any caller that was not that
+    // exact page — a restored past run, an automation, scripts/live/, which sends
+    // no kit id at all — spent 14 credits, the highest price in the product, on a
+    // storyboard with no business identity in it and nothing reporting the
+    // absence. The module resolves explicit -> project -> account default, once,
+    // for all seven studios. The page-driven path is unchanged; every other
+    // caller now gets the project ladder it never had.
+    //
+    // No `omit`. plan and analysis suppress `name`/`industry`/`targetAudience`
+    // because their forms prefill those three FROM the kit and then post them
+    // back, so the kit's copy would arrive twice and the prompt would carry two
+    // `- Industry:` lines. Storyboard's form collects `concept`, `duration`,
+    // `style` and `platform` — not one business fact — so nothing here is a
+    // duplicate and every field the kit has is new information.
+    //
+    // Called HERE — above the generations insert and above the reservation —
+    // because `sanitizePrompt` runs inside it (over the four business columns,
+    // via buildBrandContextBlock) and throws PromptBlockedError, which must reach
+    // the OUTER catch with no credits moved and no orphan row. That is the same
+    // guarantee `safeConcept` states above, and this route has already had that
+    // ordering wrong once: commit c12e928 hoisted the prompt build here for
+    // exactly this reason. At 14 credits it is the most expensive place in the
+    // product to reintroduce it.
+    const identity = await resolveWorkingIdentity(supabase, user.id, {
+      brandKitId: input.brandKitId,
+      projectId,
+      // The only extra this studio reads: buildStoryboardPrompt takes a brandName.
+      // Colours and brand_voice are not in StoryboardPromptInput at all, so asking
+      // for them would filter — and therefore be able to THROW on — columns this
+      // prompt never sees.
+      ...STUDIO_IDENTITY_POLICY.storyboard,
+    });
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately does
+      // not fall through. Logged rather than returned — the customer did not type
+      // this id and cannot act on it — and this route is the likeliest producer of
+      // one, because the id its page sends is a localStorage snapshot of whichever
+      // client the customer had selected last.
+      console.warn(`[working-identity][storyboard] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
     }
+    // Already sanitized and capped at 100 by the module — the same cap this route
+    // applied by hand. Migration 044 now bounds `brand_kits.name` to 100 chars by
+    // CHECK (044:46-48), so the cap is no longer the load-bearing half; the filter
+    // is, because the column's CONTENT is still customer-writable over PostgREST.
+    // `?? undefined` and not `?? null`: StoryboardPromptInput.brandName is
+    // `string | undefined` (lib/ai/prompts/storyboard.ts:10).
+    const brandKitName = identity.safeName ?? undefined;
+    const brandContext = identity.context;
 
     // Built HERE — before the insert and before the reservation — because
     // buildBrandContextBlock (called inside buildStoryboardPrompt) is what
@@ -111,7 +141,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const prompt = buildStoryboardPrompt({ ...input, concept: safeConcept, duration: parseInt(input.duration, 10), brandName: brandKitName, brandContext, locale: input.locale ?? routing.defaultLocale });
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, concept: safeConcept, brandKitName, promptVersion: STORYBOARD_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
+      // `brandKitId` is written AFTER the `...input` spread so it overrides what
+      // the browser sent: the row must record the kit that was actually IN FORCE,
+      // not the one requested. Before this, a stale id that resolved to nothing
+      // (ADR-0001) was filed as though it had been used, and an id the browser
+      // never sent — the project's kit, or the account default — was filed as
+      // absent. Both make `input.brandKitId` mean something different depending on
+      // which studio wrote the row, which is what any later read of it has to
+      // trust.
+      user_id: user.id, project_id: projectId, studio: 'storyboard', model: 'gemini', input: { ...input, brandKitId: identity.kit?.id ?? null, concept: safeConcept, brandKitName, promptVersion: STORYBOARD_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while

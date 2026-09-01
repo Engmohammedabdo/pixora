@@ -138,6 +138,41 @@ async function readAccount(cookie: string): Promise<{ balance: number | null; pl
   }
 }
 
+/**
+ * Which Brand Kit this sweep will actually run under, asked of the product.
+ *
+ * This sweep has NEVER sent a brandKitId — grep confirmed it, and that is how six
+ * of the seven kit-capable studios ran for a month with no business identity in
+ * their prompts while every gate stayed green. Sending one is not the fix: under
+ * the rule this round established, an ABSENT id is the honest request ("I did not
+ * choose") and the server resolves project -> account default. So the sweep sends
+ * nothing and asks the same endpoint the studio UI asks, which means it exercises
+ * the real resolution path rather than a simulation of it.
+ */
+async function readWorkingIdentity(
+  cookie: string
+): Promise<{ name: string | null; source: string; contributed: boolean; blocked: boolean; term?: string } | null> {
+  try {
+    const res = await fetch(`${BASE}/api/brand-kits/working-identity`, {
+      headers: { Cookie: cookie },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { name?: string | null; source?: string; contributed?: boolean; blocked?: boolean; term?: string } };
+    const d = json.data;
+    if (!d) return null;
+    return {
+      name: d.name ?? null,
+      source: d.source ?? 'none',
+      contributed: d.contributed === true,
+      blocked: d.blocked === true,
+      term: d.term,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** One labelled contact sheet, because judging fourteen images one at a time is
  *  how a subtle difference between two of them gets missed. */
 async function sheet(dir: string, out: string, items: [string, string][]): Promise<void> {
@@ -183,6 +218,7 @@ async function main(): Promise<void> {
   // would price the paid sweep with free-plan arithmetic.
   const session = await mintSession(ROOT, EMAIL);
   const account = await readAccount(session.cookie);
+  const identity = await readWorkingIdentity(session.cookie);
   const ALL_STUDIO_CASES = buildStudioCases(account.plan);
 
   const studioGaps = uncoveredStudios(ALL_STUDIO_CASES);
@@ -190,6 +226,17 @@ async function main(): Promise<void> {
     console.error(`REFUSING TO RUN: studios with no case — ${studioGaps.join(', ')}`);
     console.error('Every directory under app/api/studios needs a case in scripts/live/studio-cases.ts,');
     console.error('or an entry in COVERED_ELSEWHERE there saying where it IS covered and why.');
+    process.exit(1);
+  }
+
+  // A sweep that runs with no identity reproduces the exact failure this round
+  // exists to end: a paid generation with no business context and nothing saying
+  // so. Refusing is the same shape as the uncovered-studio refusal below — the
+  // harness declines rather than reporting a green run that certified less than
+  // the reader will assume it did.
+  if (identity !== null && identity.blocked) {
+    console.error(`REFUSING TO RUN: the account's brand kit contains a refused term (${identity.term ?? '?'}).`);
+    console.error('Every studio would return 400 prompt_blocked. Fix the kit at /brand-kit first.');
     process.exit(1);
   }
 
@@ -212,6 +259,16 @@ async function main(): Promise<void> {
   console.log(`target        ${BASE}`);
   console.log(`account       ${EMAIL}`);
   console.log(`plan          ${account.plan}${account.plan === 'free' ? '' : '  <- PAID: watermark absence, provider and resolution promises are in force'}`);
+  console.log(
+    `identity      ` +
+      (identity === null
+        ? 'UNREADABLE  <- /api/brand-kits/working-identity did not answer'
+        : identity.blocked
+          ? `BLOCKED     <- the brand kit contains a refused term (${identity.term ?? '?'}); every studio will 400`
+          : identity.name === null
+            ? 'none        <- this account has no brand kit; every prompt runs with no business context'
+            : `${identity.name}  (via ${identity.source})${identity.contributed ? '' : '  <- resolves, but contributes NOTHING to the prompt'}`)
+  );
   console.log('');
   console.log(`fixtures      ${String(fixtures.length).padStart(2)} images   ${String(fixtureCost).padStart(3)} credits   ${fixtures.join(', ') || '—'}`);
   console.log(`edit cases    ${String(cases.length).padStart(2)} cases    ${String(editCost).padStart(3)} credits   ${EDITS_ON ? '(--edits off to skip)' : '(SKIPPED via --edits off)'}`);

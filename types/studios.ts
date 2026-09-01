@@ -34,6 +34,11 @@ export interface CreatorInput {
   platform: string;
   variations: 1 | 4;
   brandKitId?: string;
+  /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+   *  `brandKitId` means "I did not choose" and the server answers that with
+   *  the project's kit or the account default — see
+   *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+  useBrandKit?: boolean;
   referenceImageUrl?: string;
   projectId?: string;
 }
@@ -52,6 +57,11 @@ export interface CampaignInput {
   platform: 'instagram' | 'tiktok' | 'linkedin' | 'twitter';
   occasion?: string;
   brandKitId?: string;
+  /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+   *  `brandKitId` means "I did not choose" and the server answers that with
+   *  the project's kit or the account default — see
+   *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+  useBrandKit?: boolean;
 }
 
 export interface GenerationResult {

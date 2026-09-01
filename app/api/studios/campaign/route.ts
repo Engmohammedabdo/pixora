@@ -8,7 +8,6 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { buildCampaignImagePrompt } from '@/lib/ai/prompts/campaign-image';
 import { aspectRatioFor } from '@/lib/ai/prompts/platform-framing';
-import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
 import { getStudioCost } from '@/lib/credits/costs';
@@ -17,6 +16,7 @@ import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase
 import { checkRateLimit } from '@/lib/rate-limit';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -31,6 +31,15 @@ const InputSchema = z.object({
   platform: z.enum(['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook']),
   occasion: z.string().max(200).optional(),
   brandKitId: z.string().uuid().optional(),
+  /**
+   * The customer's Apply-Brand-Kit toggle, OFF. Sent explicitly rather than
+   * inferred from an absent `brandKitId`, because those are different requests:
+   * the ladder in lib/brand-kits/working-identity.ts answers an absent id with
+   * the project's kit or the account default, which is the correct answer for
+   * "I did not choose" and the wrong one for "not this time". Optional and
+   * defaulting to ON, so an older client keeps working.
+   */
+  useBrandKit: z.boolean().optional(),
   generateImages: z.boolean().default(false),
 });
 
@@ -118,39 +127,50 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const textCost = Math.max(1, fullCost - EXPECTED_POSTS * perImageCost);
     const creditCost = input.generateImages ? fullCost : textCost;
 
-    // Fetch brand kit
-    let brandName: string | undefined;
-    let brandVoice: string | undefined;
-    let brandColors: string | undefined;
-    // The migration-045 business columns, reshaped for buildBrandContextBlock.
-    // Built once here and reused on both prompt-building paths below (the
-    // caption prompt and the per-post image prompt) — missing the second is
-    // the drift shape this repo keeps paying for.
-    let brandContext: BrandContextPromptInput | null = null;
-    if (input.brandKitId) {
-      const { data: kit } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandName = kit?.name;
-      // buildCampaignPrompt has declared brandVoice and brandColors since it was
-      // written and this caller never passed them, so a customer who attached a
-      // brand kit got a NAME and nothing else. creator/route.ts already selects '*'.
-      brandVoice = kit?.brand_voice ?? undefined;
-      brandColors = kit
-        ? `Primary ${kit.primary_color}, Secondary ${kit.secondary_color}, Accent ${kit.accent_color}`
-        : undefined;
-      brandContext = kit
-        ? {
-            name: kit.name ?? null,
-            industry: kit.industry ?? null,
-            description: kit.description ?? null,
-            targetAudience: kit.target_audience ?? null,
-            city: kit.city ?? null,
-          }
-        : null;
+    // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
+    //
+    // This route used to read `input.brandKitId` and nothing else, so the
+    // Project reached `project_id` on the row and never reached the prompt —
+    // the browser decided the identity. `CampaignForm.tsx:87` sends
+    // `projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined)` and
+    // `CampaignForm.tsx:62` starts that toggle at `false`, so a customer in no
+    // Project paid 12 credits for nine posts carrying NO business identity
+    // unless they found and pressed a chip. Every non-page caller — a restored
+    // run, `scripts/live/` — sent nothing and got the same. The module resolves
+    // explicit -> project -> account default, once, for all seven studios.
+    //
+    // Nothing is omitted. `omit` exists for the two studios whose own form asks
+    // the customer for the same business facts (plan and analysis prefill Business
+    // Name / Industry / Target Market FROM the kit and then send `brandKitId`
+    // regardless of what was edited afterwards, so the kit would contribute a
+    // second, staler identity). Campaign's `targetAudience` field is the audience
+    // for THIS campaign, not the business's own — a Ramadan campaign aimed at
+    // families is a different sentence from "who this business serves" — so both
+    // belong in the prompt and the previous code passed both too.
+    //
+    // Called HERE — above the insert and above the reservation — because
+    // `sanitizePrompt` runs inside it and throws PromptBlockedError, which must
+    // reach the OUTER catch with no credits moved and no orphan row. It also
+    // widens what is filtered: the override branch below interpolated the kit's
+    // `name` with no filter and no cap at all — the one site in the studio that
+    // had neither — while the colour columns met the filter only as one already
+    // concatenated string.
+    const identity = await resolveWorkingIdentity(supabase, user.id, {
+      optedOut: input.useBrandKit === false,
+      brandKitId: input.brandKitId,
+      projectId,
+      // All three, because campaign is the one studio that prints all three:
+      // '- Brand:', '- Brand Voice:' and '- Brand Colors:' on the override branch,
+      // and passes the same three into buildCampaignPrompt.
+      ...STUDIO_IDENTITY_POLICY.campaign,
+    });
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately
+      // does not fall through. Logged rather than returned — the customer did
+      // not type this id and cannot act on it — but logged, because before this
+      // line no console output anywhere under app/api/studios mentioned a brand
+      // kit, which is how six studios ran with no identity for a month.
+      console.warn(`[working-identity][campaign] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
     }
 
     // The safety filter runs HERE, on the customer's own text, before anything
@@ -191,24 +211,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       prompt += `\n- Dialect: ${dialectInfo.name}`;
       prompt += `\n- Platform: ${input.platform}`;
       if (safeOccasion) prompt += `\n- Occasion/Season: ${safeOccasion}`;
-      if (brandName) prompt += `\n- Brand: ${brandName}`;
+      // `identity.safeName`, not the raw column. This line read `${brandName}`
+      // straight off the SELECT: no filter and no cap, the only brand channel in
+      // the studio with neither, on the branch an admin setting switches on.
+      if (identity.safeName) prompt += `\n- Brand: ${identity.safeName}`;
       // The override composer restates the builder's own labels by hand, so a field
       // added to buildCampaignPrompt and not added here is silently dropped whenever
       // an admin sets an override — which is the exact defect the DIALECTS comment
       // above records from the last time it happened.
-      if (brandVoice) prompt += `\n- Brand Voice: ${sanitizePrompt(brandVoice, 500)}`;
-      if (brandColors) prompt += `\n- Brand Colors: ${sanitizePrompt(brandColors, 200)}`;
+      if (identity.safeVoice) prompt += `\n- Brand Voice: ${identity.safeVoice}`;
+      if (identity.safeColorLine) prompt += `\n- Brand Colors: ${identity.safeColorLine}`;
       // Mirrors buildCampaignPrompt's own placement: after the brief/brand lines
       // above, before the technical directive (the dialect guideline) below.
       //
-      // A call to buildBrandContextBlock made at the ROUTE level rather than
-      // inside a lib/ai/prompts/*.ts builder, so `prompt-builder-sanitized`
-      // (which scans lib/ai/prompts only) does not see it. What DOES see it is
-      // `sanitize-before-reserve`: it is a buildBrandContextBlock call in a
-      // studio route, and it is above the reservation, which is the property
-      // that matters. Safe on its own terms too — brandContext is filtered
-      // inside buildBrandContextBlock, the same as every other call site.
-      prompt += buildBrandContextBlock(brandContext);
+      // `identity.block` is the string `buildBrandContextBlock(identity.context)`
+      // returns, built inside the module above the reservation rather than by a
+      // second call here. That matters for more than tidiness: the call this
+      // replaces was a `buildBrandContextBlock(` in a studio route, which is what
+      // `sanitize-before-reserve` watches for, and it was correct only because it
+      // sat above `reserveCredits`. The filter now runs where it cannot be moved
+      // by an edit to this branch. `''` when the kit has nothing to say, which is
+      // every kit created before migration 045.
+      prompt += identity.block;
       prompt += `\n\nDialect Guideline for ${dialectInfo.name}: ${dialectInfo.guideline}`;
     } else {
       prompt = buildCampaignPrompt({
@@ -217,27 +241,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         dialect: input.dialect,
         platform: input.platform,
         occasion: safeOccasion,
-        brandName,
-        brandVoice,
-        brandColors,
-        brandContext,
+        // Already filtered and capped by resolveWorkingIdentity above.
+        // buildCampaignPrompt filters them again at the same caps — sanitizePrompt
+        // is trim+slice on the way out, so a second pass over an already-passing
+        // string returns it unchanged. Passing the safe values rather than the raw
+        // columns means both branches of this `if` now send byte-identical brand
+        // text; before, the override branch sent `name` unfiltered and uncapped.
+        brandName: identity.safeName ?? undefined,
+        brandVoice: identity.safeVoice ?? undefined,
+        brandColors: identity.safeColorLine ?? undefined,
+        brandContext: identity.context,
       });
     }
-
-    // The two pieces the image half of this route needs, built HERE rather than
-    // in the middle of the image loop below — above the insert and above the
-    // reservation, like everything else that runs the filter.
-    //
-    // Both were computed after the reservation until now. They were safe by
-    // coincidence: whichever prompt branch above ran had already filtered the
-    // same values, so a blocked term threw before the money moved. "Safe because
-    // something earlier happened to do it" is the shape this branch keeps paying
-    // for — a future edit that stops building the caption prompt from
-    // brandContext would have moved the first filter run to a point 12 credits
-    // too late, silently. Computed once here, nine identical sanitizePrompt
-    // calls are also avoided.
-    const safeBrandColorsLine = brandColors ? sanitizePrompt(brandColors, 200) : '';
-    const campaignBrandContextBlock = buildBrandContextBlock(brandContext);
 
     // Create generation record
     const { data: generation, error: genError } = await supabase
@@ -246,7 +261,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         user_id: user.id, project_id: projectId,
         studio: 'campaign',
         model: 'gemini',
-        input: { ...input, fullPrompt: prompt, promptVersion: CAMPAIGN_PROMPT_VERSION },
+        // `brandKitId` AFTER the spread, so the row records the kit that was
+        // RESOLVED rather than the one the browser sent. They differ on the two
+        // paths that matter: a request with no id at all that inherited the
+        // Project's kit or the account default, and a stale id that resolved to
+        // nothing (ADR-0001). Until now six routes stored the browser's value, so
+        // `input.brandKitId` meant a different thing depending on the studio.
+        input: { ...input, brandKitId: identity.kit?.id ?? null, fullPrompt: prompt, promptVersion: CAMPAIGN_PROMPT_VERSION },
         credits_used: creditCost,
         status: 'processing',
       })
@@ -407,8 +428,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // turn one blocked scenario into a failed 12-credit campaign.
           safeScenario,
           platform: input.platform,
-          safeBrandColors: safeBrandColorsLine,
-          brandContextBlock: campaignBrandContextBlock,
+          // Both filtered inside resolveWorkingIdentity, ABOVE the reservation —
+          // which is the whole point of taking them from `identity` here. This
+          // loop runs nine times after the money has moved, and it is the one
+          // place in the studio where filtering late is unavoidable (`scenario`
+          // does not exist until the text model has answered). Anything that CAN
+          // be filtered early must be, or a blocked brand-kit colour would be
+          // discovered 12 credits too late. Two consts used to hold these; they
+          // existed only to run the filter once, and the module does that now.
+          safeBrandColors: identity.safeColorLine ?? '',
+          brandContextBlock: identity.block,
         });
 
         try {

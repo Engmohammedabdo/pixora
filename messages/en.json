@@ -299,7 +299,19 @@
     },
     "continueWithoutImage": "Continue without a reference image",
     "copyFailed": "Couldn't copy. Please select and copy the text manually.",
-    "creditsReturned": "We returned {credits} credits to you."
+    "creditsReturned": "We returned {credits} credits to you.",
+    "identity": {
+      "workingOn": "Working on:",
+      "change": "Change",
+      "genericResult": "Your business details are incomplete, so this result will be generic.",
+      "completeProfile": "Complete your details",
+      "noIdentity": "No business identity attached — this result will be generic.",
+      "blocked": "Your brand kit contains a term we cannot send ({term}), so no studio can use it.",
+      "fixBrandKit": "Edit your brand kit",
+      "automatic": "Automatic (follow the project)",
+      "unknown": "We could not check which identity this will use.",
+      "projectGone": "The selected project no longer exists — this generation will fail. Pick another."
+    }
   },
   "creator": {
     "title": "Image Creator",

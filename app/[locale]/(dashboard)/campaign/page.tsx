@@ -17,6 +17,11 @@ interface CampaignInput {
   platform: string;
   occasion?: string;
   brandKitId?: string;
+  /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+   *  `brandKitId` means "I did not choose" and the server answers that with
+   *  the project's kit or the account default — see
+   *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+  useBrandKit?: boolean;
   generateImages: boolean;
   projectId?: string;
 }

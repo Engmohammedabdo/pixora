@@ -7,7 +7,6 @@ import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
 import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { CREATOR_PROMPT_VERSION, buildCreatorPrompt } from '@/lib/ai/prompts/creator';
-import { buildBrandContextBlock, type BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { PLATFORM_IDS, aspectRatioFor, buildFramingBlock } from '@/lib/ai/prompts/platform-framing';
 import { buildImageTextRule } from '@/lib/ai/prompts/image-text-rule';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
@@ -19,7 +18,9 @@ import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { getPromptVersion } from '@/lib/ai/prompts/versions';
 import type { AIModel } from '@/types/studios';
+import type { BrandKit } from '@/lib/supabase/types';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -45,6 +46,15 @@ const InputSchema = z.object({
   platform: z.enum(PLATFORM_IDS).default('general'),
   variations: z.union([z.literal(1), z.literal(4)]).default(1),
   brandKitId: z.string().uuid().optional(),
+  /**
+   * The customer's Apply-Brand-Kit toggle, OFF. Sent explicitly rather than
+   * inferred from an absent `brandKitId`, because those are different requests:
+   * the ladder in lib/brand-kits/working-identity.ts answers an absent id with
+   * the project's kit or the account default, which is the correct answer for
+   * "I did not choose" and the wrong one for "not this time". Optional and
+   * defaulting to ON, so an older client keeps working.
+   */
+  useBrandKit: z.boolean().optional(),
   // `z.string().url()` accepted blob: and http: — neither readable server-side —
   // and an unbounded data: payload. edit and photoshoot were fixed for this; creator
   // was the one image studio that never got it, and it also wrote the raw payload
@@ -140,18 +150,71 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const body = await request.json();
     const input = InputSchema.parse(body);
 
-    // Three INDEPENDENT reads that used to run strictly one after another, in front
-    // of the first model call: the plan (for the resolution cap), the project id
-    // (ownership), and the brand kit. None of them needs another's answer, so they
-    // are one round trip's latency instead of three. The auth check and the rate
-    // limit deliberately stay above this — they GATE the work rather than race it.
-    const [profileResult, projectId, brandKitResult] = await Promise.all([
+    // Three reads in front of the first model call: the plan (for the resolution
+    // cap), the project id (ownership), and the Working Identity. The auth check
+    // and the rate limit deliberately stay above this — they GATE the work rather
+    // than race it.
+    //
+    // This group used to say "three INDEPENDENT reads", and that was true only
+    // because the kit read here was `input.brandKitId` and nothing else — the
+    // project was never consulted, so a customer who selected a client in the
+    // ProjectSelector this page renders could pay up to 4 credits and receive an
+    // image made for a different client's business. Resolving the identity
+    // properly makes it depend on the VERIFIED project id, so the promise is held
+    // rather than awaited and the two dependent reads chain inside the same group.
+    // The profile read still runs alongside them, which is the parallelism that
+    // was worth keeping.
+    const projectIdPromise = resolveProjectId(supabase, user.id, input.projectId);
+
+    // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts,
+    // which resolves explicit -> project -> account default once, for all seven
+    // studios, instead of six routes each believing an id the browser computed.
+    //
+    // The branch is a latency choice and nothing more, and it is exact rather than
+    // approximate: step 1 is TERMINAL either way (ADR-0001 — an explicit id that
+    // does not resolve returns no identity and deliberately does not fall
+    // through), so when `brandKitId` is present the module never reads
+    // `projectId` at all and there is nothing to wait for. That is the hot path —
+    // every studio page sends an id — and it stays exactly one query, running
+    // beside the profile read, the same shape this group had before.
+    //
+    // No `omit`: unlike plan and analysis, creator's form collects none of the
+    // five business facts, so the kit is the only source for all of them.
+    //
+    // Called HERE — above the generations insert and above the reservation —
+    // because `sanitizePrompt` runs inside it and throws PromptBlockedError, which
+    // must reach the OUTER catch with no credits moved and no orphan row.
+    const [profileResult, projectId, identity] = await Promise.all([
       supabase.from('profiles').select('plan_id').eq('id', user.id).single(),
-      resolveProjectId(supabase, user.id, input.projectId),
+      projectIdPromise,
       input.brandKitId
-        ? supabase.from('brand_kits').select('*').eq('id', input.brandKitId).eq('user_id', user.id).single()
-        : Promise.resolve({ data: null }),
+        ? resolveWorkingIdentity(supabase, user.id, {
+            optedOut: input.useBrandKit === false,
+            brandKitId: input.brandKitId,
+            // buildCreatorPrompt reads the row and filters as it goes; these two
+            // are what the ROUTE itself prints on the admin-override composer.
+            ...STUDIO_IDENTITY_POLICY.creator,
+          })
+        : projectIdPromise.then((verified) =>
+            // `false` means the project is not the caller's and the 404 below is
+            // already decided; resolving against no project keeps this branch
+            // total rather than filing the request under an unverified id.
+            resolveWorkingIdentity(supabase, user.id, {
+              optedOut: input.useBrandKit === false,
+              projectId: verified === false ? null : verified,
+              ...STUDIO_IDENTITY_POLICY.creator,
+            })
+          ),
     ]);
+
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately does
+      // not fall through. Logged rather than returned — the customer did not type
+      // this id and cannot act on it — but logged, because before this line no
+      // console output anywhere under app/api/studios mentioned a brand kit, which
+      // is how six studios ran with no identity for a month.
+      console.warn(`[working-identity][creator] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
+    }
 
     // Enforce resolution limit based on the customer's plan
     const profile = profileResult.data;
@@ -174,8 +237,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    const brandKit = brandKitResult.data;
-
     // The safety filter runs HERE, on the customer's own text, before anything
     // branches on the admin override. buildCreatorPrompt() is the only caller of
     // sanitizePrompt on this path, so while the override REPLACED the built
@@ -188,24 +249,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // truncate identically.
     const safeUserPrompt = sanitizePrompt(input.prompt, 1000);
 
-    // The migration-045 business columns, reshaped for buildBrandContextBlock.
-    // Built once here and used on BOTH prompt-building paths below — mirrors
-    // campaign's brandContext (app/api/studios/campaign/route.ts), built once
-    // and reused rather than re-derived per branch. buildCreatorPrompt() already
-    // emits this block on the default path (lib/ai/prompts/creator.ts); the
-    // admin-override composer below bypassed buildCreatorPrompt entirely and so
-    // never emitted it at all, silently dropping the customer's business facts
-    // for every generation an admin override touches (review finding F6).
-    const brandContext: BrandContextPromptInput | null = brandKit
-      ? {
-          name: brandKit.name ?? null,
-          industry: brandKit.industry ?? null,
-          description: brandKit.description ?? null,
-          targetAudience: brandKit.target_audience ?? null,
-          city: brandKit.city ?? null,
-        }
-      : null;
-
     // Build prompt (check for admin override first)
     const promptOverride = await getEffectivePrompt('creator');
 
@@ -216,23 +259,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // See composeOverridePrompt() for why the brief is substituted first and
     // only then appended.
     //
-    // The values are built INSIDE this branch, not above it: sanitizePrompt
-    // throws, and running it on fields the default path never uses would let an
-    // unrelated brand-kit string block a generation that has no override at all.
-    // The brand kit's own columns are filtered here because they are
-    // customer-writable and would otherwise reach the model without ever
-    // meeting the filter — the same shape of hole the override itself once
-    // punched in it.
+    // The brand kit's own columns are filtered because they are customer-writable
+    // and would otherwise reach the model without ever meeting the filter — the
+    // same shape of hole the override itself once punched in it. They are no
+    // longer filtered INSIDE this branch, though, and that is a deliberate
+    // widening rather than an oversight: resolveWorkingIdentity() filters every
+    // column any prompt path reads, for every request, above the reservation. The
+    // old placement bought one thing — a brand-kit string could not block a
+    // generation with no override — and cost the thing that matters more, which is
+    // that a blocked term failed in two studios and not the other five. It now
+    // fails the same way everywhere, before any money moves, naming the term.
+    //
+    // `safeName` is capped at 100, not the 200 this line used to use. That 200 was
+    // the outlier: five of the six sites deciding this already used 100, and
+    // buildCreatorPrompt (lib/ai/prompts/creator.ts:64) re-capped it to 100 one
+    // call later anyway, so the default path never saw a name longer than that.
+    // `safeColorLine` is composed from three parts capped at 40 each rather than
+    // by filtering one concatenated string at 200, so the components and the line
+    // can never disagree.
     const fullPrompt = promptOverride
       ? composeOverridePrompt(promptOverride, {
           user_prompt: safeUserPrompt,
-          brand_name: brandKit?.name ? sanitizePrompt(String(brandKit.name), 200) : '',
-          brand_colors: brandKit
-            ? sanitizePrompt(
-                `Primary ${brandKit.primary_color}, Secondary ${brandKit.secondary_color}, Accent ${brandKit.accent_color}`,
-                200
-              )
-            : '',
+          brand_name: identity.safeName ?? '',
+          brand_colors: identity.safeColorLine ?? '',
           selected_style: sanitizePrompt(input.style, 100),
           // `resolution` and `mood` are no longer offered: neither reached the
           // model usefully, and /api/admin/prompts no longer advertises them as
@@ -243,7 +292,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // brief, same placement buildCreatorPrompt itself uses (after the
         // subject/brand lines, before the style/technical directives it
         // appends on the default path — this override has none of those).
-        }) + buildBrandContextBlock(brandContext)
+        // `identity.block` rather than a second buildBrandContextBlock() call on
+        // the same input: the module already built it, from the same five fields,
+        // with the same function. Two call sites computing one string is how the
+        // two halves of a rule drift apart one edit at a time.
+        }) + identity.block
           // An override REPLACES the built prompt, so without this the one
           // defect this round measured — a street of invented shop signs —
           // stays open on the admin path. The containment rule is not part of
@@ -259,7 +312,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       : buildCreatorPrompt({
           userPrompt: safeUserPrompt,
           style: input.style,
-          brandKit,
+          // ── WHY THIS ASSERTION, AND WHAT WOULD REMOVE IT ─────────────────
+          // `buildCreatorPrompt` declares `brandKit?: BrandKit | null`, i.e. the
+          // whole 17-column row, while `resolveWorkingIdentity` returns the 11 it
+          // narrowed to (WORKING_IDENTITY_COLUMNS). The six it drops — `user_id`,
+          // `logo_url`, `font_primary`, `font_secondary`, `website_url`,
+          // `created_at` — are read by NOTHING under lib/ai/, which is the reason
+          // the module narrows in the first place; before it, `select('*')`
+          // carried all six into the prompt path of six routes and none of them
+          // ever looked at one.
+          //
+          // Checked field by field against the builder rather than assumed:
+          // lib/ai/prompts/creator.ts reads `name` (:64), `primary_color`,
+          // `secondary_color`, `accent_color` (:67), `brand_voice` (:71),
+          // and `industry`/`description`/`target_audience`/`city` (:103-106),
+          // plus the bare truthiness at :84. All nine are present on
+          // WorkingIdentityKit at the same types. So the assertion widens the
+          // TYPE and removes nothing the callee touches.
+          //
+          // It is still an assertion, and the fix is one line in the builder:
+          // declare `brandKit` as the narrowed shape (or as the structural subset
+          // it actually reads) and this cast goes away. Not done here because
+          // that file is shared and this change is a substitution, not a
+          // redesign.
+          brandKit: identity.kit as BrandKit | null,
           platform: input.platform,
           hasReferenceImage: Boolean(input.referenceImageUrl),
         });
@@ -279,6 +355,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // edit and photoshoot already did this.
         input: {
           ...input,
+          // AFTER the spread, so it overrides what the browser sent. `...input`
+          // recorded the REQUESTED id, which is a different fact from the one
+          // that ran: a stale id records a kit that contributed nothing
+          // (ADR-0001), and a request with no id at all recorded nothing while
+          // the project's or the account's kit was in force. A restore reads
+          // this column back into the form, so the two must be the same fact.
+          brandKitId: identity.kit?.id ?? null,
           fullPrompt,
           promptVersion: CREATOR_PROMPT_VERSION,
           ...(input.referenceImageUrl ? { referenceImageUrl: inputImageRef(input.referenceImageUrl) } : {}),

@@ -8,12 +8,12 @@ import { failGeneration, finalizeGeneration } from '@/lib/supabase/generation-wr
 import { reserveCredits, refundCredits, refundMockRun } from '@/lib/credits/deduct';
 import { generateText } from '@/lib/ai/router';
 import { ANALYSIS_PROMPT_VERSION, buildAnalysisPrompt } from '@/lib/ai/prompts/analysis';
-import type { BrandContextPromptInput } from '@/lib/ai/prompts/brand-context';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCachedFeatureFlags, getStudioConfig, isStudioEnabled } from '@/lib/admin/settings';
 import { PromptBlockedError, sanitizePrompt } from '@/lib/ai/prompts/safety';
 import { resolveProjectId } from '@/lib/projects/verify';
+import { STUDIO_IDENTITY_POLICY, resolveWorkingIdentity } from '@/lib/brand-kits/working-identity';
 import { refundAwareErrorCode } from '@/lib/studio-errors';
 
 const InputSchema = z.object({
@@ -97,39 +97,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // Fetch the caller's brand kit — the migration-045 business columns,
-    // reshaped for buildBrandContextBlock. Scoped to the caller, the same
-    // pattern as creator/route.ts. plan and analysis were deliberately left out
-    // of P4.1 because they receive no brand kit at all; this closes that gap.
+    // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
     //
-    // Only `city` survives, and that is the point. analysis asks the customer
-    // for the business name, the industry, the DESCRIPTION and the target
-    // market in its own form — and the page prefills all four from the default
-    // kit and then sends `brandKitId` regardless of what the customer edited
-    // afterwards. Left in, a customer who retyped the name and picked a
-    // different industry got a 3-credit prompt carrying two business identities
-    // and two `- Industry:` lines. The form is the fresher source for anything
-    // the form asks for, so the kit contributes only what the form does NOT:
-    // `city`. buildBrandContextBlock returns '' when there is nothing left to
-    // say, which is the common case for a kit with no city.
-    let brandContext: BrandContextPromptInput | null = null;
-    if (input.brandKitId) {
-      const { data: kit } = await supabase
-        .from('brand_kits')
-        .select('*')
-        .eq('id', input.brandKitId)
-        .eq('user_id', user.id)
-        .single();
-      brandContext = kit
-        ? {
-            name: null,
-            industry: null,
-            description: null,
-            targetAudience: null,
-            city: kit.city ?? null,
-          }
-        : null;
+    // This route used to read `input.brandKitId` and nothing else, so the
+    // project was ignored entirely: a customer could select a client in the
+    // ProjectSelector this page renders (analysis/page.tsx:165, which sends
+    // `projectId` at :149), pay 3 credits, and receive a competitor analysis
+    // written for a different client's business. The module resolves
+    // explicit -> project -> account default, once, for all seven studios.
+    //
+    // FOUR fields are OMITTED here — one more than plan — and the extra one is
+    // `description`, because analysis has a `description` field in its own
+    // InputSchema (`z.string().min(10).max(2000)`, above) and plan has none.
+    // The rule is not a fixed list: null whatever THIS studio's own form
+    // already collects. analysis asks the customer for the business name, the
+    // industry, the DESCRIPTION and the target market — and the page prefills
+    // all four from the default kit and then sends `brandKitId` regardless of
+    // what the customer edited afterwards. Left in, a customer who retyped the
+    // name and picked a different industry got a 3-credit prompt carrying two
+    // business identities and two `- Industry:` lines. The form is the fresher
+    // source for anything the form asks for, so the kit contributes only what
+    // the form does NOT: `city` (no studio form has one). `contributed` is
+    // therefore false for any kit with no city, which is the common shape.
+    //
+    // Called HERE — above the insert and above the reservation — because
+    // `sanitizePrompt` runs inside it and throws PromptBlockedError, which must
+    // reach the OUTER catch with no credits moved and no orphan row. The
+    // `working-identity-before-reserve` invariant fails the build otherwise.
+    const identity = await resolveWorkingIdentity(supabase, user.id, {
+      brandKitId: input.brandKitId,
+      projectId,
+      ...STUDIO_IDENTITY_POLICY.analysis,
+    });
+    if (input.brandKitId && identity.source === 'none') {
+      // ADR-0001: a stale or foreign id resolves to nothing and deliberately
+      // does not fall through. Logged rather than returned — the customer did
+      // not type this id and cannot act on it — but logged, because before this
+      // line no console output anywhere under app/api/studios mentioned a brand
+      // kit, which is how six studios ran with no identity for a month.
+      console.warn(`[working-identity][analysis] brandKitId ${input.brandKitId} did not resolve for user ${user.id}`);
     }
+    const brandContext = identity.context;
 
     // Built HERE — above the generations insert and above the reservation —
     // because buildBrandContextBlock (called inside buildAnalysisPrompt) is what
@@ -150,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const creditCost = CREDIT_COSTS.analysis;
 
     const { data: generation, error: genInsertError } = await supabase.from('generations').insert({
-      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input, promptVersion: ANALYSIS_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
+      user_id: user.id, project_id: projectId, studio: 'analysis', model: 'gemini', input: { ...input, brandKitId: identity.kit?.id ?? null, promptVersion: ANALYSIS_PROMPT_VERSION }, credits_used: creditCost, status: 'processing',
     }).select().single();
 
     // Fail loudly — otherwise credits are reserved and the model is called while

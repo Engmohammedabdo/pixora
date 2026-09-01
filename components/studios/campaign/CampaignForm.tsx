@@ -13,6 +13,7 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { Link } from '@/i18n/routing';
 import { Sparkles, Palette } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
+import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { useProjectSelection } from '@/hooks/useProjectSelection';
 import { useCredits } from '@/hooks/useCredits';
 
@@ -24,6 +25,11 @@ interface CampaignFormProps {
     platform: string;
     occasion?: string;
     brandKitId?: string;
+    /** The Apply-Brand-Kit toggle. Sent explicitly, because an absent
+     *  `brandKitId` means "I did not choose" and the server answers that with
+     *  the project's kit or the account default — see
+     *  lib/brand-kits/working-identity.ts. "Not this time" needs its own word. */
+    useBrandKit?: boolean;
     generateImages: boolean;
     projectId?: string;
   }) => void;
@@ -59,12 +65,30 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const [dialect, setDialect] = useState<string>('saudi');
   const [platform, setPlatform] = useState<string>('instagram');
   const [occasion, setOccasion] = useState('');
-  const [useBrandKit, setUseBrandKit] = useState(false);
+  // ON by default, in BOTH studios. It was `useState(false)` in each, with a
+  // four-line effect in creator only that flipped it on once the customer's kits
+  // arrived — so the identical-looking chip meant opt-IN in campaign and opt-OUT
+  // in creator, and a 12-credit campaign came back generic by default. The state
+  // now says the same thing in both files, with no effect to keep in sync.
+  const [useBrandKit, setUseBrandKit] = useState(true);
   const [generateImages, setGenerateImages] = useState(true);
+  /**
+   * ONLY what the customer explicitly picked, in WorkingIdentityBar. `undefined`
+   * is the default and it is the point: an absent `brandKitId` means "I did not
+   * choose", which the server answers with the project's kit and then the account
+   * default (lib/brand-kits/working-identity.ts:30-41). This form used to send
+   * `projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined)` — the server's
+   * own ladder restated in the browser, and a rule stated twice drifts. The same
+   * derivation in analysis/page.tsx made the project step STRUCTURALLY
+   * unreachable: a kit id arrived on every request, so step 1 always answered and
+   * picking a client in the ProjectSelector could never change the identity.
+   */
+  const [chosenKitId, setChosenKitId] = useState<string | undefined>(undefined);
 
-  const { brandKits, defaultKit } = useBrandKits();
-  // A project's own brand kit wins over the account default, so switching client
-  // switches the visual identity with it.
+  const { brandKits } = useBrandKits();
+  // Read for ONE thing now: whether to offer the Apply-Brand-Kit toggle, since a
+  // project that dictates its own kit is not a choice that toggle can override.
+  // It no longer decides which kit is sent — the server does.
   const projectKit = projectBrandKitId ? brandKits.find((k) => k.id === projectBrandKitId) : undefined;
 
   const isValid = productDescription.length >= 10 && targetAudience.length >= 5;
@@ -84,7 +108,8 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       dialect,
       platform,
       occasion: occasion || undefined,
-      brandKitId: projectKit?.id ?? (useBrandKit ? defaultKit?.id : undefined),
+      brandKitId: chosenKitId,
+      useBrandKit,
       generateImages,
       projectId: projectId ?? undefined,
     });
@@ -200,6 +225,18 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
         />
         <span className="text-sm">{t('generateAllImages')}</span>
       </label>
+
+      {/* Whose business this campaign is for, said BEFORE Generate — the credits
+          are reserved the moment it is pressed, so saying it afterwards is saying
+          it after they paid. Fed the exact values handleSubmit is about to POST,
+          so the label and the generation cannot disagree. */}
+      <WorkingIdentityBar
+              studio="campaign"
+        projectId={projectId}
+        brandKitId={chosenKitId}
+        useBrandKit={useBrandKit}
+        onChange={setChosenKitId}
+      />
 
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
