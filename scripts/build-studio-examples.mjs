@@ -45,7 +45,20 @@ const ASSETS = [
   { out: 'creator-instagram-portrait', sourceRun: '2026-08-31T15-21-03-866Z', file: 'creator-creator_ig_portrait.png',
     alt: { ar: 'نفس الطلب بقماش إنستجرام الطولي 4:5، مؤطّر للمنصة مش مقصوص',
            en: 'The same request on Instagram’s 4:5 portrait canvas — framed for the platform, not cropped to it' } },
-  { out: 'creator-signage-wide', sourceRun: '2026-08-31T09-35-51-970Z', file: 'creator-creator_ar_signage.png',
+  // The SAME request as the run that produced the containment defect, re-run
+  // AFTER the fix. 2026-08-31T09-35-51-970Z is the BASELINE artifact set: its
+  // `creator-creator_ar_signage.png` renders شاورما الشام perfectly on the sign
+  // and then invents legible garbage on the menu board and on an entire street
+  // of background shopfronts (`BAWJIN`, `SHAAM`, fake phone numbers) — that run
+  // is the EVIDENCE OF THE DEFECT, quoted as such at
+  // lib/ai/prompts/image-text-rule.ts:26. The creator page's own FAQ answer
+  // states that a rule stops Pyra inventing text elsewhere in the frame, so
+  // shipping the baseline frame under it disproved the page in pixels.
+  // 15-21-03-866Z is the post-fix run of the same prompt (report.md:49 —
+  // passed 5/5, paid plan): the sign is still perfect and the flanking
+  // shopfronts are blurred with no legible invented text. It is 2048x2048, so
+  // the id no longer says "wide".
+  { out: 'creator-signage-square', sourceRun: '2026-08-31T15-21-03-866Z', file: 'creator-creator_ar_signage.png',
     alt: { ar: 'واجهة محل بلافتة مضيئة مكتوب عليها اسم المطعم بالعربي',
            en: 'A shopfront with a lit sign carrying the restaurant name in Arabic' } },
   { out: 'creator-skyline-wide', sourceRun: '2026-08-31T15-24-43-567Z', file: 'creator-creator_ar_wide.png',

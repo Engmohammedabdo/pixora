@@ -54,7 +54,7 @@ export interface StudioEntry {
 export const STUDIO_CATALOGUE: Record<StudioSlug, StudioEntry> = {
   creator: {
     slug: 'creator', costKey: 'image', costShape: 'imageRange', icon: 'Image',
-    examples: ['creator-shawarma-square', 'creator-instagram-portrait', 'creator-signage-wide', 'creator-skyline-wide'],
+    examples: ['creator-shawarma-square', 'creator-instagram-portrait', 'creator-signage-square', 'creator-skyline-wide'],
     related: ['photoshoot', 'edit'],
   },
   photoshoot: {

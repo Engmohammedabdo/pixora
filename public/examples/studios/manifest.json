@@ -26,12 +26,12 @@
     }
   },
   {
-    "id": "creator-signage-wide",
-    "file": "/examples/studios/creator-signage-wide.webp",
+    "id": "creator-signage-square",
+    "file": "/examples/studios/creator-signage-square.webp",
     "width": 1600,
-    "height": 845,
-    "bytes": 197764,
-    "sourceRun": "2026-08-31T09-35-51-970Z",
+    "height": 1600,
+    "bytes": 230766,
+    "sourceRun": "2026-08-31T15-21-03-866Z",
     "sourceFile": "creator-creator_ar_signage.png",
     "alt": {
       "ar": "واجهة محل بلافتة مضيئة مكتوب عليها اسم المطعم بالعربي",
