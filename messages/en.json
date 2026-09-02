@@ -1394,7 +1394,12 @@
       "sampleBrief": "What you typed",
       "samplePrompts": "What Pyra sent back",
       "sampleStyle": "Style",
-      "sampleTip": "Tip"
+      "sampleTip": "Tip",
+      "audioNote": "This clip came out of the studio itself, on production. The script we sent is below it — Pyra rewrote it in the dialect before speaking it, so what you hear carries the same meaning in the dialect's own words.",
+      "transcriptLabel": "The script we sent",
+      "audioMeta": "{dialect} dialect · {tier}",
+      "audioTierPremium": "Pyra Voice Pro",
+      "audioTierStandard": "Pyra Voice"
     },
     "creator": {
       "name": "Image Creator",
@@ -1444,6 +1449,22 @@
       "q3": "Can I put Arabic text on the product?",
       "a3": "Yes. You type the exact words, and Pyra sets them on the product or its packaging, correctly joined and right to left, without inventing any other text elsewhere in the frame. This was run against production: the text landed on the wrapper itself, following its folds in the same printed ink, with the existing print untouched."
     },
+    "campaign": {
+      "name": "Campaign Planner",
+      "tagline": "Describe your product in two lines — get nine posts with captions, hashtags and a posting time",
+      "definition": "PyraSuite's Campaign Planner takes your product description, your audience, the dialect and the platform, and returns nine posts in a deliberate order — awareness, then engagement, then conversion — each with a caption in your dialect, a hook line, ten hashtags and a suggested posting day and time with its reason, and, if you ask for them, one image per post.",
+      "metaTitle": "Campaign Planner — nine posts with Arabic captions, hashtags and a schedule",
+      "metaDescription": "Describe your product and get nine ready posts: a caption in your dialect, ten hashtags, a suggested posting time, and an image for every post. See real output and the price before you sign up.",
+      "step1": "Write what you sell and who it is for, plus the occasion or season if there is one.",
+      "step2": "Pick the dialect — Saudi, Emirati, Egyptian, Gulf or Formal Arabic — and the platform: Instagram, TikTok, LinkedIn, Twitter or Facebook.",
+      "step3": "Decide whether to generate images, then copy the captions one at a time or all at once. And if you close the page, your recent campaigns are waiting for you in the same studio.",
+      "q1": "How many posts come back?",
+      "a1": "Nine, in a deliberate order: the first three introduce the product, the next three are engagement and social proof, and the last three convert with an offer and a call to action. Those nine are what the campaign is priced for, and if fewer arrive the charge is settled against what actually reached you — and you keep the posts that did.",
+      "q2": "Are the images compulsory?",
+      "a2": "No, and it changes the price rather than the shape. There is a \"Generate All Images\" box — clear it and you get the nine posts as text only, and you pay for the text half alone, because the image share is never reserved from your balance. If you do ask for images and one of them does not arrive, its share comes back to you and you keep the rest — a campaign is not lost over one picture.",
+      "q3": "Are the captions really in my dialect?",
+      "a3": "Yes. The dialect you pick reaches the instruction itself and sets the writer's persona, the language of the caption and the language of the hook line — it is not a translation applied afterwards. And if you have a Brand Kit, Pyra takes the brand's name, voice and colours from it, along with your business description and city, and builds all nine on those."
+    },
     "plan": {
       "name": "Marketing Plan",
       "tagline": "A 30, 60 or 90-day plan for your business, with a budget and a content calendar",
@@ -1491,6 +1512,22 @@
       "a2": "The dialogue and voice-over come back in the language you are working in. The visual description stays in English on purpose, because it is written to be handed to an image model or to a videographer. The sample above has Arabic dialogue and English camera angles, and that is what the real output looks like.",
       "q3": "Can I turn it straight into a video?",
       "a3": "No. A storyboard is a working document — scenes, angles and dialogue — not a video. Video generation is not in the product today and we do not sell it. What you can do is shoot the scenes or hand them to an editor, and take the dialogue into the Voiceover studio."
+    },
+    "voiceover": {
+      "name": "Voiceover",
+      "tagline": "Write the script, pick the dialect, hear it before you download it",
+      "definition": "PyraSuite's Voiceover studio turns written Arabic into a voiceover you download as an MP3: you pick the dialect from five — Saudi, Emirati, Egyptian, Gulf or Formal Arabic — along with the voice and the speed, Pyra rewrites your script in the dialect you picked before speaking it, and the charge is settled at the end against the audio actually delivered rather than the estimate quoted before it ran.",
+      "metaTitle": "Voiceover — Arabic voice in Gulf, Saudi or Egyptian dialect",
+      "metaDescription": "Hear a real sample: Arabic in the Gulf dialect, spoken by the product itself. Pick the dialect, the voice and the speed, then download the MP3. See the price before you sign up.",
+      "step1": "Paste your Arabic script.",
+      "step2": "Pick the dialect, the voice and the speed. Tone — professional, friendly, energetic or calm — unlocks on the higher plans.",
+      "step3": "Listen to it, download the MP3, and put it on your video or your ad.",
+      "q1": "Is there a Gulf dialect?",
+      "a1": "Yes — the clip above is Gulf, and it came out of this studio. There are five dialects: Saudi, Emirati, Egyptian, Gulf and Formal Arabic. And Pyra does not read your script back as typed: it rewrites it in the dialect you picked first, then speaks it. The free plan is Formal Arabic only, Starter adds Saudi, and the higher plans open all five.",
+      "q2": "Does it sound human or robotic?",
+      "a2": "Listen to the clip above and judge for yourself — that is the most honest answer we can give. What we can state exactly: Pyra has two voice paths, the higher plans run on the Pyra Voice Pro path, and this clip was generated on it. And if the voice you picked on that path cannot speak, Pyra does not substitute one that reads Arabic in a foreign accent — it stops the run and returns your credits in full.",
+      "q3": "What does a minute cost?",
+      "a3": "You are charged by duration, and the cost is stated above: fixed units of seconds, with the unit and its price depending on your plan. Once the audio is delivered the charge is settled against what was actually spoken — so if it comes out shorter than the estimate, the difference goes back to your balance without you asking for it. And the longest voiceover allowed grows with the plan: half a minute on the free plan, up to ten minutes on the highest."
     },
     "prompt-builder": {
       "name": "Prompt Assistant",

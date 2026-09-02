@@ -19,6 +19,11 @@ import {
   hasDeliverableSample,
   type DeliverableLabels,
 } from '@/components/studios/public/DeliverableSample';
+import {
+  AudioSample,
+  isSampleDialect,
+  VOICEOVER_SAMPLE,
+} from '@/components/studios/public/AudioSample';
 import { StudioSteps } from '@/components/studios/public/StudioSteps';
 import { StudioFaq } from '@/components/studios/public/StudioFaq';
 import { StudioCta } from '@/components/studios/public/StudioCta';
@@ -166,6 +171,50 @@ export default async function StudioPage({
     tip: s('sampleTip'),
   };
 
+  // The voiceover sample. Every value below is read from
+  // public/examples/studios/voiceover-gulf-sample.json — the file the real run
+  // wrote — and nothing about that run is typed into copy.
+  //
+  // The dialect LABEL comes from the studio's own `voiceover.dialects`
+  // translations rather than from a second copy in this namespace, so the name
+  // the public page gives the dialect is the name the studio gives it. An id
+  // the product does not sell resolves to an empty label rather than to a
+  // missing-message key rendered on a public page; the sample's is `gulf`.
+  const audio =
+    entry.slug === 'voiceover'
+      ? await (async () => {
+          const vo = await getTranslations({ locale, namespace: 'voiceover' });
+          const dialect = isSampleDialect(VOICEOVER_SAMPLE.dialect)
+            ? vo(`dialects.${VOICEOVER_SAMPLE.dialect}`)
+            : '';
+          // Which path actually served this file, from the run's own record —
+          // never assumed from the plan. tts-router falls back to the standard
+          // path whenever the premium one is unconfigured or fails, so a label
+          // hardcoded to the premium one would eventually describe audio that
+          // was not produced that way.
+          //
+          // The two labels are the studio's own badges — `voiceover.pyraVoice`
+          // and `voiceover.pyraVoicePro`, minus the emoji — rather than a
+          // quality claim written for this page. What the product calls the
+          // path is what the public page may call it.
+          const tier =
+            VOICEOVER_SAMPLE.provider === 'elevenlabs'
+              ? s('audioTierPremium')
+              : s('audioTierStandard');
+          return {
+            src: VOICEOVER_SAMPLE.file,
+            // `scriptAsWritten`, and the label under it says "the script we
+            // sent" for the same reason: the route returns no rewritten text,
+            // so the file's `scriptAsSpoken` is the submitted script too — while
+            // its own reported duration proves a longer rewrite was what the
+            // narrator actually read. AudioSample.tsx carries the arithmetic.
+            transcript: VOICEOVER_SAMPLE.scriptAsWritten,
+            meta: s('audioMeta', { dialect, tier }),
+            provenance: `${VOICEOVER_SAMPLE.generatedOn.replace(/^https?:\/\//, '')} · ${VOICEOVER_SAMPLE.generatedAt.slice(0, 10)}`,
+          };
+        })()
+      : null;
+
   const related: { slug: string; name: string; tagline: string }[] = [];
   for (const r of entry.related) {
     const rt = await getTranslations({ locale, namespace: `studios.${r}` });
@@ -186,7 +235,17 @@ export default async function StudioPage({
           costLabel={s('costLabel')}
           costValue={cost}
         />
-        {hasDeliverableSample(studioSlug) ? (
+        {audio ? (
+          <AudioSample
+            title={s('sampleTitle')}
+            note={s('audioNote')}
+            src={audio.src}
+            transcript={audio.transcript}
+            transcriptLabel={s('transcriptLabel')}
+            meta={audio.meta}
+            provenance={audio.provenance}
+          />
+        ) : hasDeliverableSample(studioSlug) ? (
           <DeliverableSample
             title={s('sampleTitle')}
             note={s('sampleNote')}
