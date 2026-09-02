@@ -39,5 +39,21 @@ check('AI group allows /', aiGroup?.allow === '/');
 check('AI group carries the same disallows as *', JSON.stringify(aiGroup?.disallow) === JSON.stringify(star?.disallow));
 check('sitemap declared', typeof out.sitemap === 'string' && out.sitemap.endsWith('/sitemap.xml'));
 
+const llms = join(ROOT, 'public', 'llms.txt');
+check('public/llms.txt exists', existsSync(llms));
+if (existsSync(llms)) {
+  const body = require('node:fs').readFileSync(llms, 'utf8');
+  check('llms.txt names the product and its definition', /^# PyraSuite/m.test(body) && /AI marketing/.test(body));
+  check('llms.txt has the Arabic definition too', /منصة تسويق بالذكاء الاصطناعي/.test(body));
+  check('llms.txt links pricing', /\/pricing/.test(body));
+  check('llms.txt names no model vendor', !/gemini|openai|flux|elevenlabs/i.test(body));
+}
+const sec = join(ROOT, 'public', '.well-known', 'security.txt');
+check('security.txt exists', existsSync(sec));
+if (existsSync(sec)) {
+  const body = require('node:fs').readFileSync(sec, 'utf8');
+  check('security.txt has Contact and Expires', /^Contact: /m.test(body) && /^Expires: /m.test(body));
+}
+
 if (failures) { console.log(`\n[robots] ${failures} of ${checks} checks FAILED`); process.exit(1); }
 console.log(`[robots] ${checks} checks passed`);
