@@ -24,7 +24,7 @@
  * vet these. The run's plan is the signal.
  */
 import sharp from 'sharp';
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const RUNS = '.superpowers/live-runs';
@@ -90,6 +90,76 @@ const ASSETS = [
     alt: { ar: 'صورة أخرى من نفس الحملة', en: 'Another image from the same campaign' } },
 ];
 
+/**
+ * ── THE FOUR TEXT DELIVERABLES ─────────────────────────────────────────────
+ * plan, analysis, storyboard and prompt-builder produce TEXT, so their public
+ * pages render the actual deliverable as HTML rather than a screenshot of one:
+ * it is indexable, and it is literally what the customer receives.
+ *
+ * Same evidence rule as the images above — every one of these is the JSON a
+ * real run got back from the live product, and each source run's report.md
+ * records `mock=false` and a passing verdict for that case:
+ *   2026-09-01T03-43-10-125Z  plan_en 9/9, analysis_ar 10/10
+ *   2026-08-27T13-07-38-852Z  storyboard_ar 11/11, prompt_builder 10/10
+ *
+ * `lang` is the language the run ASKED for, and it exists because there is no
+ * Arabic plan artifact in any run — every `plan_*.json` on disk is `plan_en`.
+ * The page compares it against the locale being read and says so rather than
+ * letting an Arabic-first product appear to answer in English. `mixed` is
+ * prompt-builder, whose deliverable is bilingual BY DESIGN: English prompts
+ * with Arabic tips (lib/ai/prompts/prompt-builder.ts:44).
+ *
+ * `input` is the customer's rough sentence — the whole argument of the
+ * prompt-builder page is the distance between it and what came back, and it is
+ * NOT in the response JSON. It is the request body of that case, and its source
+ * of truth is scripts/live/studio-cases.ts:573. Only prompt-builder needs it:
+ * the other three take a form, not a sentence.
+ */
+const DELIVERABLES = [
+  { out: 'plan', sourceRun: '2026-09-01T03-43-10-125Z', file: 'plan_en.json', lang: 'en' },
+  { out: 'analysis', sourceRun: '2026-09-01T03-43-10-125Z', file: 'analysis_ar.json', lang: 'ar' },
+  { out: 'storyboard', sourceRun: '2026-08-27T13-07-38-852Z', file: 'storyboard_ar.json', lang: 'ar' },
+  {
+    out: 'prompt-builder',
+    sourceRun: '2026-08-27T13-07-38-852Z',
+    file: 'prompt_builder.json',
+    lang: 'mixed',
+    input: 'صور احترافية لعبوة عسل زجاجية لمتجر إلكتروني',
+  },
+];
+
+/**
+ * Writes public/examples/studios/deliverable-<out>.json and returns how many
+ * sources were missing. `generatedOn` is READ from the run's own report.json
+ * rather than typed here — the target a run was pointed at is a fact of that
+ * run, and a second copy of it is a second thing to keep true.
+ */
+function buildDeliverables() {
+  let missing = 0;
+  for (const d of DELIVERABLES) {
+    const src = join(RUNS, d.sourceRun, d.file);
+    const reportPath = join(RUNS, d.sourceRun, 'report.json');
+    if (!existsSync(src) || !existsSync(reportPath)) {
+      console.log(`MISSING  deliverable-${d.out}  <- ${existsSync(src) ? reportPath : src}`);
+      missing++;
+      continue;
+    }
+    const data = JSON.parse(readFileSync(src, 'utf8'));
+    const generatedOn = JSON.parse(readFileSync(reportPath, 'utf8')).base;
+    if (!generatedOn) {
+      console.log(`MISSING  deliverable-${d.out}  <- report.json has no "base"`);
+      missing++;
+      continue;
+    }
+    const out = { sourceRun: d.sourceRun, generatedOn, lang: d.lang, ...(d.input ? { input: d.input } : {}), data };
+    const dest = join(OUT, `deliverable-${d.out}.json`);
+    writeFileSync(dest, `${JSON.stringify(out, null, 2)}\n`, 'utf8');
+    const n = Array.isArray(data) ? data.length : Object.keys(data).length;
+    console.log(`${String(n).padStart(4)} keys  ${String(Math.round(JSON.stringify(out).length / 1024)).padStart(4)} KB  deliverable-${d.out}  <- ${d.sourceRun}/${d.file}`);
+  }
+  return missing;
+}
+
 async function main() {
   mkdirSync(OUT, { recursive: true });
   const manifest = [];
@@ -134,6 +204,10 @@ async function main() {
   writeFileSync(join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   const total = manifest.reduce((s, m) => s + m.bytes, 0);
   console.log(`\n${manifest.length} assets, ${(total / 1024 / 1024).toFixed(2)} MB total, manifest written`);
+
+  console.log('');
+  missing += buildDeliverables();
+
   if (missing) {
     console.log(`${missing} source file(s) missing — fix the paths above before relying on this`);
     process.exit(1);

@@ -14,6 +14,11 @@ import { PLANS } from '@/lib/stripe/plans';
 import { StudioHero } from '@/components/studios/public/StudioHero';
 import { StudioExamples } from '@/components/studios/public/StudioExamples';
 import { BeforeAfter } from '@/components/studios/public/BeforeAfter';
+import {
+  DeliverableSample,
+  hasDeliverableSample,
+  type DeliverableLabels,
+} from '@/components/studios/public/DeliverableSample';
 import { StudioSteps } from '@/components/studios/public/StudioSteps';
 import { StudioFaq } from '@/components/studios/public/StudioFaq';
 import { StudioCta } from '@/components/studios/public/StudioCta';
@@ -126,6 +131,41 @@ export default async function StudioPage({
   const examples = getExamples(entry.examples);
   const pair = entry.slug === 'edit' && examples.length === 2 ? examples : null;
 
+  // plan, analysis, storyboard and prompt-builder produce TEXT, so their page
+  // renders the real deliverable as HTML instead of a picture of one. Bound to
+  // a local const rather than read off `entry` at the call site so the type
+  // guard narrows the value that is actually passed down.
+  const studioSlug: StudioSlug = entry.slug;
+
+  // Every label the sample renderer prints, resolved here: the component takes
+  // plain props and holds no translation hook, the same rule the other six
+  // section components follow. Built unconditionally — it is 21 lookups against
+  // an already-loaded namespace, and branching on it would put the question
+  // "which studio is this?" in two places.
+  const sampleLabels: DeliverableLabels = {
+    objectives: s('sampleObjectives'),
+    goal: s('sampleGoal'),
+    kpi: s('sampleKpi'),
+    target: s('sampleTarget'),
+    channels: s('sampleChannels'),
+    calendar: s('sampleCalendar'),
+    week: s('sampleWeek'),
+    swot: s('sampleSwot'),
+    strengths: s('sampleStrengths'),
+    weaknesses: s('sampleWeaknesses'),
+    opportunities: s('sampleOpportunities'),
+    threats: s('sampleThreats'),
+    kpis: s('sampleKpis'),
+    timeframe: s('sampleTimeframe'),
+    scenes: s('sampleScenes'),
+    scene: s('sampleScene'),
+    camera: s('sampleCamera'),
+    brief: s('sampleBrief'),
+    prompts: s('samplePrompts'),
+    style: s('sampleStyle'),
+    tip: s('sampleTip'),
+  };
+
   const related: { slug: string; name: string; tagline: string }[] = [];
   for (const r of entry.related) {
     const rt = await getTranslations({ locale, namespace: `studios.${r}` });
@@ -146,7 +186,16 @@ export default async function StudioPage({
           costLabel={s('costLabel')}
           costValue={cost}
         />
-        {pair ? (
+        {hasDeliverableSample(studioSlug) ? (
+          <DeliverableSample
+            title={s('sampleTitle')}
+            note={s('sampleNote')}
+            langNote={s('sampleLangNote')}
+            locale={loc}
+            slug={studioSlug}
+            labels={sampleLabels}
+          />
+        ) : pair ? (
           <BeforeAfter
             title={s('examplesTitle')}
             note={s('examplesNote')}

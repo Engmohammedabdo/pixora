@@ -1,0 +1,97 @@
+{
+  "sourceRun": "2026-08-27T13-07-38-852Z",
+  "generatedOn": "https://pyrasuite.pyramedia.cloud",
+  "lang": "ar",
+  "data": [
+    {
+      "scene_number": 1,
+      "visual_description": "Aerial drone shot of the Dubai skyline at sunset with the Burj Khalifa in the background, warm golden hour lighting.",
+      "dialogue": "في دبي، الوقت هو كل شيء.",
+      "camera_angle": "Aerial",
+      "camera_movement": "Pan Right",
+      "duration_seconds": 3,
+      "mood": "Inspirational",
+      "music_note": "Upbeat modern Arabic fusion, fast tempo"
+    },
+    {
+      "scene_number": 2,
+      "visual_description": "Extreme close-up of a sharp knife slicing through perfectly roasted, juicy chicken shawarma meat on a vertical spit.",
+      "dialogue": "والطعم؟ لا يقاوم.",
+      "camera_angle": "Extreme Close-Up",
+      "camera_movement": "Static",
+      "duration_seconds": 3,
+      "mood": "Energetic",
+      "music_note": "Sizzling sound effects layered with rhythmic beat"
+    },
+    {
+      "scene_number": 3,
+      "visual_description": "A chef's hands quickly spreading garlic sauce on fresh, warm pita bread with precision.",
+      "dialogue": "سرنا في خلطتنا الطازجة.",
+      "camera_angle": "Close-Up",
+      "camera_movement": "Zoom In",
+      "duration_seconds": 3,
+      "mood": "Energetic",
+      "music_note": "Rhythmic percussion intensifies"
+    },
+    {
+      "scene_number": 4,
+      "visual_description": "A delivery rider in a branded uniform putting on a helmet, looking confident, with a motorcycle parked in a busy Dubai street.",
+      "dialogue": "فريقنا جاهز دائماً.",
+      "camera_angle": "Medium Shot",
+      "camera_movement": "Handheld",
+      "duration_seconds": 3,
+      "mood": "Energetic",
+      "music_note": "Fast-paced electronic beat"
+    },
+    {
+      "scene_number": 5,
+      "visual_description": "The delivery bike weaving through modern city traffic, motion blur of city lights in the background.",
+      "dialogue": "نوصلك الشاورما وهي لسا سخنة.",
+      "camera_angle": "Wide Shot",
+      "camera_movement": "Pan Left",
+      "duration_seconds": 4,
+      "mood": "Energetic",
+      "music_note": "High energy synth bass"
+    },
+    {
+      "scene_number": 6,
+      "visual_description": "A customer opening the door of a luxury apartment, receiving the branded paper bag with a smile.",
+      "dialogue": "أسرع مما تتخيل.",
+      "camera_angle": "Medium Shot",
+      "camera_movement": "Dolly",
+      "duration_seconds": 3,
+      "mood": "Inspirational",
+      "music_note": "Music swells with positive energy"
+    },
+    {
+      "scene_number": 7,
+      "visual_description": "Close-up of the customer taking a big, satisfying bite of the shawarma wrap, eyes closed in enjoyment.",
+      "dialogue": "طعم يرجعك لأصل الشاورما.",
+      "camera_angle": "Close-Up",
+      "camera_movement": "Static",
+      "duration_seconds": 4,
+      "mood": "Inspirational",
+      "music_note": "Music softens to focus on the crunch sound"
+    },
+    {
+      "scene_number": 8,
+      "visual_description": "Top-down view of the full meal spread on a table with fries and pickles, vibrant colors.",
+      "dialogue": "اطلب الآن واستمتع.",
+      "camera_angle": "Wide Shot",
+      "camera_movement": "Zoom Out",
+      "duration_seconds": 4,
+      "mood": "Energetic",
+      "music_note": "Upbeat rhythm returns"
+    },
+    {
+      "scene_number": 9,
+      "visual_description": "Logo of the restaurant appears on a clean white background with the delivery app icon and phone number.",
+      "dialogue": "شاورما دبي.. الطعم اللي يوصلك بسرعة.",
+      "camera_angle": "Medium Shot",
+      "camera_movement": "Static",
+      "duration_seconds": 3,
+      "mood": "Inspirational",
+      "music_note": "Final musical stinger"
+    }
+  ]
+}

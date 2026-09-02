@@ -1,0 +1,23 @@
+{
+  "sourceRun": "2026-08-27T13-07-38-852Z",
+  "generatedOn": "https://pyrasuite.pyramedia.cloud",
+  "lang": "mixed",
+  "input": "صور احترافية لعبوة عسل زجاجية لمتجر إلكتروني",
+  "data": [
+    {
+      "prompt": "A single glass jar of golden honey centered on a matte white pedestal, shot with a 85mm macro lens, soft top-down studio lighting creating subtle highlights on the glass, clean minimalist background, high-key aesthetic, sharp focus on the honey texture.",
+      "style": "Minimalist Studio",
+      "tip": "استخدم هذا الخيار إذا كنت ترغب في إبراز تفاصيل قوام العسل بشكل نقي وواضح."
+    },
+    {
+      "prompt": "A glass honey jar placed on a dark grey slate surface, side-lit by a single softbox to emphasize the transparency of the glass and the amber glow of the honey, shot on a 50mm lens at f/2.8, shallow depth of field, moody and sophisticated atmosphere.",
+      "style": "Modern Luxury",
+      "tip": "اختر هذا الخيار لإعطاء طابع فخم وعصري لمنتجك في المتجر الإلكتروني."
+    },
+    {
+      "prompt": "A glass honey jar resting on a light oak wooden surface, natural morning light coming from the side, soft shadows, shot with a 35mm lens, wide framing to include negative space for branding, bright and airy composition, clean and organic feel.",
+      "style": "Organic Minimal",
+      "tip": "هذا الخيار مثالي إذا كنت تريد إظهار العسل كمنتج طبيعي وعضوي في بيئة هادئة."
+    }
+  ]
+}
