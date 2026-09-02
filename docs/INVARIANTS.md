@@ -543,3 +543,52 @@ Use `color-mix(in srgb, var(--token) N%, transparent)` instead, which is what
 the rest of the repo does. Verified against the BUILT stylesheet, not
 assumed: the `text-[var(--color-error)]` rule compiles and the `/30` and
 `/10` variants produce no rule at all.
+
+---
+
+## working-identity-before-reserve
+
+**Rule:** every studio route whose own `InputSchema` declares `brandKitId`
+must call `resolveWorkingIdentity()`, must keep no `from('brand_kits')` query
+of its own, and must call it **above both** `reserveCredits(` and the
+`generations` insert. Membership is derived from each route's own schema,
+never from a list of filenames, and a scan that matches **no** route at all is
+reported as a FAILURE — certifying nothing is not the same as passing.
+
+**Why:** measured 2026-09-01 — "which brand kit is this generation for?" was
+answered at EIGHT deciding sites with SIX different rules, seven of them in
+the browser. Only `edit` resolved anything server-side, so any caller that was
+not that exact page — a restored past run, an automation, or `scripts/live/`,
+which never sent a `brandKitId` at all — produced a paid prompt with no
+business identity in it and nothing reporting the absence. Six of the seven
+kit-capable studios ran that way for a month with every gate green.
+`lib/brand-kits/working-identity.ts` now states the rule once; this invariant
+is what keeps the routes pointed at it.
+
+Each of the three things it checks is a defect that actually existed:
+
+- **Accepts `brandKitId` and never resolves it.** `plan` and `analysis`
+  ignored the project entirely, while both pages render a `ProjectSelector`.
+- **Still runs its own `brand_kits` query.** Six routes used `select('*')`,
+  pulling 17 columns to read as few as one — and the two resolvers disagreed:
+  Postgres orders a boolean `DESC` as NULLS FIRST, while `useBrandKit.ts`'s
+  `find()` skipped a NULL row, so the same customer with the same rows got two
+  different identities.
+- **Resolves after the money moves.** `resolveWorkingIdentity()` runs
+  `sanitizePrompt`, so it THROWS. A throw below `reserveCredits(` strands the
+  credits; a throw below the `generations` insert leaves an orphan
+  `processing` row for the 45-minute reconciler. This is the ordering defect
+  that has already regressed twice here — see `sanitize-before-reserve`.
+
+**Two details cost a review round each.** Membership comes from the schema
+because `app/layout.tsx` once carried a hardcoded list of filenames pretending
+to be a rule, and every document in this repo repeated its claim for months.
+And the insert-ordering arm was INERT in its first version: it searched for
+the literal `from('generations').insert`, which `campaign`, `creator` and
+`photoshoot` each write across two lines — so `indexOf` returned `-1` and the
+whole arm was silently skipped for exactly the three most complex routes
+(3 of 7, measured). Both orderings are matched as regexes now. *A rule that
+only runs on the arm you did not break is not a rule.*
+
+**Proved** by reintroducing both violations and watching the build name the
+line.
