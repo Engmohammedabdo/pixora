@@ -165,7 +165,7 @@ for (const slug of STUDIO_SLUGS) {
   const n = STUDIO_CATALOGUE[slug].examples.length;
   const wantsImages = IMAGE_STUDIOS.includes(slug);
   check(
-    ,
+    `${slug}: ${wantsImages ? 'has at least one example image' : 'has no example ids — its sample is rendered by the page'}`,
     wantsImages ? n > 0 : n === 0,
     String(n),
   );

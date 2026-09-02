@@ -107,7 +107,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const d = json.data;
+  // Narrowed to a local const so `audioUrl` stays a string past the guard
+  // above: TypeScript does not carry a `json.data?.audioUrl` check through a
+  // later `json.data` alias, and the download below takes it directly.
+  const d: { audioUrl: string; duration?: number; provider?: string; creditsUsed?: number; mock?: boolean; enhancedScript?: string } = {
+    ...json.data,
+    audioUrl: json.data.audioUrl,
+  };
   if (d.mock) {
     console.log('FAILED  the response is a MOCK — no real provider served it, nothing worth saving');
     process.exit(1);
