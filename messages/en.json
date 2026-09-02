@@ -1506,7 +1506,7 @@
       "q2": "Why does the brief come back in English?",
       "a2": "Because that is what image models understand best. You write in plain Arabic and the result comes back in English so you can paste it into any image tool — but the tip beside each brief comes back in Arabic, so you can choose without reading English.",
       "q3": "Are the three genuinely different?",
-      "a3": "They should be, and the instruction says in as many words that the three must differ in approach rather than being rephrasings — because three rephrasings of one idea give you one option, not three. There is also a check that no two come back identical. Look at the sample above: one minimalist studio, one modern luxury, one natural daylight."
+      "a3": "They should be, and the instruction says in as many words that the three must differ in approach rather than being rephrasings — because three rephrasings of one idea give you one option, not three. Look at the sample above: one minimalist studio, one modern luxury, one natural daylight."
     }
   }
 }
