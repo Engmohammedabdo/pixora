@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'placehold.co' },
     ],
   },
+  async redirects() {
+    return [
+      // Signup is OPEN (gate-status: inviteOnly:false). The waitlist page still
+      // said "بنجهّز الإطلاق" and promised 100 credits while the FAQ promised 25
+      // with "no invites, no waiting" — three indexed surfaces, three stories.
+      { source: '/:locale(ar|en)/waitlist', destination: '/:locale/signup', permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

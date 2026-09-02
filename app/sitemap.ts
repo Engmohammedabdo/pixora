@@ -1,31 +1,40 @@
 import type { MetadataRoute } from 'next';
 
+/**
+ * Only pages worth an organic landing. Auth forms are noindex (see
+ * app/[locale]/(auth)/layout.tsx) and are not listed; /waitlist 301s to /signup
+ * now that signup is open (next.config.ts redirects()).
+ *
+ * /signup is deliberately absent even though signup is now OPEN, and that is a
+ * correction to the plan this file was written from: a92eac0 made every page
+ * under (auth) `robots: { index: false }`, so listing /signup here would submit a
+ * noindex URL to Google — a Search Console error, and crawl spent on a page that
+ * cannot rank. The visitor still reaches it from the landing page and /pricing.
+ * scripts/tests/sitemap.test.ts checks both halves of that rule together.
+ *
+ * `lastModified` is a hand-kept date per page, NOT `new Date()`: stamping every
+ * URL with the build time told crawlers the privacy policy changed on every
+ * deploy — a freshness signal that was always a lie.
+ */
+const LOCALES = ['ar', 'en'] as const;
+
+const PAGES: { path: string; updated: string; changeFrequency: 'weekly' | 'monthly' | 'yearly'; priority: number }[] = [
+  { path: '', updated: '2026-09-02', changeFrequency: 'weekly', priority: 1 },
+  { path: '/pricing', updated: '2026-08-29', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/contact', updated: '2026-08-23', changeFrequency: 'yearly', priority: 0.5 },
+  { path: '/privacy', updated: '2026-08-29', changeFrequency: 'yearly', priority: 0.3 },
+  { path: '/terms', updated: '2026-08-29', changeFrequency: 'yearly', priority: 0.3 },
+];
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
-
-  return [
-    { url: `${baseUrl}/ar`, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
-    { url: `${baseUrl}/en`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
-    // Public, unauthenticated route (middleware.ts publicPaths includes '/pricing') —
-    // the per-action credit cost table that is the product's stated differentiator.
-    { url: `${baseUrl}/ar/pricing`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${baseUrl}/en/pricing`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
-    // /signup is deliberately NOT listed while the product is invite-only. Asking
-    // Google to index a page that answers "you need an invite" wastes the crawl and
-    // sends every organic visitor to a dead end. The waitlist is the door now.
-    { url: `${baseUrl}/ar/waitlist`, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${baseUrl}/en/waitlist`, changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${baseUrl}/ar/login`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${baseUrl}/en/login`, changeFrequency: 'monthly', priority: 0.5 },
-    // /privacy and /terms live under app/[locale]/(landing)/ (moved out of the
-    // dashboard route group — benchmark gap 15/38): middleware.ts publicPaths
-    // whitelists both and isPublicPath() strips the locale prefix before
-    // matching, so an unauthenticated request reaches the page with no
-    // redirect. They now render with the public NavBar/Footer chrome, not the
-    // authenticated dashboard sidebar/topbar.
-    { url: `${baseUrl}/ar/privacy`, changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${baseUrl}/en/privacy`, changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${baseUrl}/ar/terms`, changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${baseUrl}/en/terms`, changeFrequency: 'yearly', priority: 0.3 },
-  ];
+  return LOCALES.flatMap((locale) =>
+    PAGES.map((p) => ({
+      url: `${baseUrl}/${locale}${p.path}`,
+      lastModified: new Date(p.updated),
+      changeFrequency: p.changeFrequency,
+      // English is the secondary locale: one step below Arabic on every page.
+      priority: locale === 'ar' ? p.priority : Math.max(0.1, p.priority - 0.1),
+    })),
+  );
 }
