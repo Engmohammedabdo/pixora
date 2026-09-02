@@ -13,6 +13,7 @@ import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { PLANS } from '@/lib/stripe/plans';
 import { StudioHero } from '@/components/studios/public/StudioHero';
 import { StudioExamples } from '@/components/studios/public/StudioExamples';
+import { BeforeAfter } from '@/components/studios/public/BeforeAfter';
 import { StudioSteps } from '@/components/studios/public/StudioSteps';
 import { StudioFaq } from '@/components/studios/public/StudioFaq';
 import { StudioCta } from '@/components/studios/public/StudioCta';
@@ -114,6 +115,17 @@ export default async function StudioPage({
     s('perDuration'),
   );
 
+  // The edit studio's page IS the pair — the same product, from the photo a
+  // customer has to the one a marketplace accepts. Two tiles side by side in
+  // the ordinary grid say nothing; the ordering and the arrow are the argument.
+  //
+  // Falls back to the grid when the manifest does not carry exactly the two,
+  // rather than rendering nothing: StudioExamples returns null on an empty
+  // list, so a stricter guard here would make the ONE studio whose whole page
+  // is its images lose them silently.
+  const examples = getExamples(entry.examples);
+  const pair = entry.slug === 'edit' && examples.length === 2 ? examples : null;
+
   const related: { slug: string; name: string; tagline: string }[] = [];
   for (const r of entry.related) {
     const rt = await getTranslations({ locale, namespace: `studios.${r}` });
@@ -134,12 +146,24 @@ export default async function StudioPage({
           costLabel={s('costLabel')}
           costValue={cost}
         />
-        <StudioExamples
-          title={s('examplesTitle')}
-          note={s('examplesNote')}
-          locale={loc}
-          examples={getExamples(entry.examples)}
-        />
+        {pair ? (
+          <BeforeAfter
+            title={s('examplesTitle')}
+            note={s('examplesNote')}
+            beforeLabel={s('beforeLabel')}
+            afterLabel={s('afterLabel')}
+            locale={loc}
+            before={pair[0]}
+            after={pair[1]}
+          />
+        ) : (
+          <StudioExamples
+            title={s('examplesTitle')}
+            note={s('examplesNote')}
+            locale={loc}
+            examples={examples}
+          />
+        )}
         <StudioSteps title={s('howItWorks')} steps={[t('step1'), t('step2'), t('step3')]} />
         <StudioFaq title={s('faqTitle')} items={faq} />
         <StudioCta
