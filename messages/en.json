@@ -1335,5 +1335,15 @@
     "errorGeneric": "Something went wrong. Try again — if it keeps failing, email us directly.",
     "errorTooShort": "Give us a little more detail (at least 10 characters).",
     "errorRateLimited": "That is a lot of messages very quickly. Wait a minute and try again."
+  },
+  "seo": {
+    "privacy": {
+      "title": "Privacy Policy",
+      "description": "What PyraSuite collects, why, who can see it, and how to delete it."
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "description": "PyraSuite terms: credits, refunds, acceptable use, and account termination."
+    }
   }
 }

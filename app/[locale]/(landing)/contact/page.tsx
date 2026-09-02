@@ -4,6 +4,7 @@ import { LifeBuoy, CreditCard, Bug, UserCog } from 'lucide-react';
 import { ContactForm } from '@/components/landing/ContactForm';
 import { Footer } from '@/components/landing/Footer';
 import { routing } from '@/i18n/routing';
+import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
 
 export function generateStaticParams(): { locale: string }[] {
   return routing.locales.map((locale) => ({ locale }));
@@ -19,7 +20,8 @@ export async function generateMetadata({
   return {
     title: t('title'),
     description: t('subtitle'),
-    openGraph: { title: t('title'), description: t('subtitle') },
+    alternates: publicAlternates(locale, '/contact'),
+    openGraph: publicOpenGraph(locale, { title: t('title'), description: t('subtitle'), path: '/contact' }),
   };
 }
 

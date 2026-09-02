@@ -1,10 +1,27 @@
-import { setRequestLocale } from 'next-intl/server';
+import type { Metadata } from 'next';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
 import { Shield } from 'lucide-react';
 import { getLegalDoc } from '@/lib/legal/policy';
+import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  // These two pages carry hardcoded Arabic and read NO translations (their own
+  // headers say so), so the metadata gets its own small namespace.
+  const t = await getTranslations({ locale, namespace: 'seo.privacy' });
+  const title = t('title');
+  const description = t('description');
+  return {
+    title,
+    description,
+    alternates: publicAlternates(locale, '/privacy'),
+    openGraph: publicOpenGraph(locale, { title, description, path: '/privacy' }),
+  };
+}
 
 // Legal copy changes rarely and never per-visitor — see the landing page's
 // `revalidate` note for why marketing-tier routes are cacheable. A day-long

@@ -1,6 +1,14 @@
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
+
+// Login, signup and password pages are not landing pages. They inherited the
+// site-wide title AND a canonical pointing at the landing page, so Google was
+// asked to index six near-identical forms and told they were all "/ar".
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 /**
  * Auth pages are per-visitor by nature — they read `useSearchParams()` (invite
