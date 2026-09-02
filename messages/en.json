@@ -1346,5 +1346,45 @@
       "title": "Terms of Service",
       "description": "PyraSuite terms: credits, refunds, acceptable use, and account termination."
     }
+  },
+  "studios": {
+    "shared": {
+      "indexTitle": "The nine studios",
+      "indexSubtitle": "Each studio does one thing well. One subscription opens all of them.",
+      "indexMetaTitle": "The nine PyraSuite studios — AI marketing built for Arabic",
+      "indexMetaDescription": "Nine studios: product photography, campaigns, marketing plans, competitor analysis, Arabic voiceover in your dialect, and image editing. See real output and the price of every action before you sign up.",
+      "howItWorks": "How it works",
+      "examplesTitle": "Real output from this studio",
+      "examplesNote": "Every image here is actual product output, generated on a paid account. Nothing on this page came from another tool.",
+      "faqTitle": "Common questions",
+      "costLabel": "Cost",
+      "creditUnit": "credits",
+      "freeLabel": "Free",
+      "perImage": "per image, by resolution",
+      "perShoot": "per shoot, by number of frames",
+      "perDuration": "per 15 seconds",
+      "ctaTitle": "Try it now",
+      "ctaBody": "Sign up with your email and start straight away — {credits} free credits, no card.",
+      "ctaButton": "Start free",
+      "seePricing": "See all prices",
+      "relatedTitle": "Other studios you might want",
+      "backToStudios": "All studios"
+    },
+    "creator": {
+      "name": "Image Creator",
+      "tagline": "Type your idea in Arabic, get an ad-grade image",
+      "definition": "PyraSuite's Image Creator turns one Arabic sentence into a publish-ready ad image: it takes your business and city from your Brand Kit, frames the picture for the platform you are posting to, and renders Arabic on the image correctly joined and right to left.",
+      "metaTitle": "Image Creator — AI ad images that get Arabic right",
+      "metaDescription": "Type a sentence in Arabic and get a publish-ready ad image. Correct Arabic text on the image, sized for Instagram and TikTok. See real output and the price before you sign up.",
+      "step1": "Write what you have in mind, in Arabic — \"a shawarma wrap that makes people hungry, for my restaurant in Dubai\".",
+      "step2": "Pick the platform and the style. Pyra takes your business and city from your Brand Kit; you do not type them again.",
+      "step3": "Download it, or take it further in the Image Editing studio.",
+      "q1": "Does it render Arabic correctly on the image?",
+      "a1": "Yes. Letters come out joined, in their correct contextual forms, right to left, with no diacritics you did not ask for. This was the hardest thing in the product, and there is an explicit rule stopping Pyra inventing text anywhere else in the frame.",
+      "q2": "Do I need to write a professional prompt?",
+      "a2": "No. We ran both against the same request: a short colloquial Arabic sentence produced a better image than a carefully written English brief naming lens, aperture and lighting. Write the way you speak.",
+      "q3": "Is the image the right size for the platform?",
+      "a3": "Yes. You pick the platform and the canvas follows it — square, Instagram's 4:5 portrait, or wide. The picture is composed for that frame from the start rather than cropped into it afterwards."
+    }
   }
 }
