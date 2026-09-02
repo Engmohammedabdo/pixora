@@ -1,7 +1,0 @@
-User-Agent: *
-Allow: /
-Disallow: /api/
-Disallow: /dashboard/
-Disallow: /onboarding/
-
-Sitemap: https://pyrasuite.pyramedia.cloud/sitemap.xml
