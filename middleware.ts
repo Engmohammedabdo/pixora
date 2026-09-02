@@ -324,7 +324,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // Redirect non-logged-in users to login — for PROTECTED pages only. "Not
   // public" used to mean "protected", so /about, /faq and every mistyped URL
   // 307'd to the login form: a soft-404 on the whole site. An unknown path now
-  // falls through to app/[locale]/not-found.tsx.
+  // falls through to app/not-found.tsx (the ROOT one — there is no [...rest]
+  // catch-all under [locale], so an unmatched URL never enters that segment and
+  // app/[locale]/not-found.tsx is not what renders).
   if (!user && isProtectedPath(stripLocale(pathname))) {
     const locale = localeOf(pathname) ?? routing.defaultLocale;
     return NextResponse.redirect(new URL(`/${locale}/login`, request.url));

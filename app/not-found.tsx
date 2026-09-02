@@ -15,14 +15,24 @@ import './globals.css';
  * this page, and dropping it fails silently with a 200.
  *
  * Reachable in production for any path the middleware matcher excludes that also
- * matches no route — `matcher: ['/((?!_next|.*\\..*).*)']` at middleware.ts:333
+ * matches no route — `matcher: ['/((?!_next|.*\\..*).*)']` at middleware.ts:339
  * skips anything containing a dot, i.e. exactly the /wp-login.php and /.env
  * scanner traffic every public host receives — and as the boundary Next falls
- * back to when a layout ABOVE [locale] calls notFound(). Test it with a dotted
- * path such as /foo/bar.txt. Do NOT test it with an unknown localized path: this
- * repo has no [...rest] catch-all, so unknown localized routes never reach a
- * not-found at all, and the middleware redirects unauthenticated non-public
- * paths to /login (307) before routing.
+ * back to when a layout ABOVE [locale] calls notFound(). Test that arm with a
+ * dotted path such as /foo/bar.txt.
+ *
+ * It is ALSO what every unknown LOCALIZED URL renders, and since c9c785c
+ * ("unknown URLs 404 instead of redirecting to login") that is this page's
+ * primary traffic. This repo has no [...rest] catch-all under app/[locale], so
+ * an unmatched URL never enters that segment: app/[locale]/not-found.tsx is NOT
+ * what renders, and editing it to change the site's 404 changes nothing.
+ * Measured on a production build (`npx next start`): /ar/nonexistent-xyz,
+ * /en/nonexistent-xyz, /ar/blog/x and /foo/bar.txt all serve THIS file — the
+ * "Page not found —" / "Go Home" copy below, under <html lang="ar" dir="rtl">,
+ * and zero occurrences of the locale file's "Page Not Found" / "Go to
+ * Dashboard". Before c9c785c the middleware 307'd unauthenticated non-public
+ * paths to /login before routing, which is the only reason localized unknowns
+ * did not arrive here; that redirect is now limited to isProtectedPath().
  *
  * lang/dir stay ar/rtl. The copy is Arabic-first with an English line under it,
  * and ar/rtl is what this page has always actually served — it is the one place
