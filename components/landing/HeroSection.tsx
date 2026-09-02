@@ -104,7 +104,7 @@ export function HeroSection(): React.ReactElement {
             >
               {t('hero.titleLine1')}
               <br />
-              <span className="inline-block min-w-[16ch] bg-gradient-to-l from-primary-500 to-accent-500 bg-clip-text text-transparent">
+              <span className="inline-block min-w-[16ch] bg-gradient-to-l from-primary-500 to-accent-500 bg-clip-text text-transparent after:content-['|'] after:text-[var(--color-brand)] after:animate-pulse after:ms-1">
                 <AnimatePresence mode="wait">
                   <motion.span
                     key={wordIndex}
@@ -118,8 +118,11 @@ export function HeroSection(): React.ReactElement {
                   </motion.span>
                 </AnimatePresence>
               </span>
-              <span className="text-primary-500 animate-pulse">|</span>
             </motion.h1>
+
+            <p className="text-base sm:text-lg text-[var(--color-text-secondary)] max-w-2xl mb-6 mx-auto lg:mx-0 leading-relaxed">
+              {t('hero.definition')}
+            </p>
 
             <motion.p
               variants={slideInTextSide}

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "postbuild": "npm run test:built-document",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:image-canvas && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:working-identity && npm run test:mock-from-schema && npm run test:edit-effect && npm run test:white-field && npm run test:robots && npm run test:alternates && npm run test:schema && npm run test:sitemap",
+    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:image-canvas && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:working-identity && npm run test:mock-from-schema && npm run test:edit-effect && npm run test:white-field && npm run test:robots && npm run test:alternates && npm run test:schema && npm run test:sitemap && npm run test:landing-copy",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -44,7 +44,8 @@
     "test:robots": "npx tsx scripts/tests/robots.test.ts",
     "test:alternates": "npx tsx scripts/tests/alternates.test.ts",
     "test:schema": "npx tsx scripts/tests/schema.test.ts",
-    "test:sitemap": "npx tsx scripts/tests/sitemap.test.ts"
+    "test:sitemap": "npx tsx scripts/tests/sitemap.test.ts",
+    "test:landing-copy": "npx tsx scripts/tests/landing-copy.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
