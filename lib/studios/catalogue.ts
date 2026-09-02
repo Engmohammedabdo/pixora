@@ -34,13 +34,16 @@ export interface StudioEntry {
   costKey: StudioCostKey;
   /** How the cost is expressed: a flat price, a per-resolution range, or a rate. */
   costShape: 'flat' | 'imageRange' | 'shotRange' | 'perDuration' | 'free';
-  /** Ids in public/examples/studios/manifest.json. Empty ONLY for a studio whose
-   *  deliverable is text, which the page renders instead. */
+  /** Ids in public/examples/studios/manifest.json.
+   *
+   *  Empty ONLY for the five studios whose deliverable is not an image. Those
+   *  pages read their sample from a file NAMED BY THE PAGE, not from an entry
+   *  here — voiceover from public/examples/studios/voiceover-gulf-sample.json,
+   *  and the four text studios from the deliverable JSON Task 4 writes. There
+   *  was a `sample?: string` field here for that and it had ZERO readers: five
+   *  values naming no file on disk, under a comment asserting a copy step the
+   *  build script does not perform. It is deleted rather than left plumbed. */
   examples: readonly string[];
-  /** A real deliverable to render, for the text studios. Path under
-   *  .superpowers/live-runs is NOT used at runtime — the JSON is copied into
-   *  public/examples/studios/ by the same build script. */
-  sample?: string;
   /** lucide-react icon name, matching what StudiosShowcase already uses. */
   icon: string;
   /** Two studios a visitor on this page would plausibly want next. Internal
@@ -71,27 +74,27 @@ export const STUDIO_CATALOGUE: Record<StudioSlug, StudioEntry> = {
   },
   plan: {
     slug: 'plan', costKey: 'plan', costShape: 'flat', icon: 'Map',
-    examples: [], sample: 'plan',
+    examples: [],
     related: ['analysis', 'campaign'],
   },
   analysis: {
     slug: 'analysis', costKey: 'analysis', costShape: 'flat', icon: 'BarChart3',
-    examples: [], sample: 'analysis',
+    examples: [],
     related: ['plan', 'campaign'],
   },
   storyboard: {
     slug: 'storyboard', costKey: 'storyboard', costShape: 'flat', icon: 'Film',
-    examples: [], sample: 'storyboard',
+    examples: [],
     related: ['campaign', 'voiceover'],
   },
   voiceover: {
     slug: 'voiceover', costKey: 'voiceover', costShape: 'perDuration', icon: 'Mic',
-    examples: [], sample: 'voiceover',
+    examples: [],
     related: ['storyboard', 'campaign'],
   },
   'prompt-builder': {
     slug: 'prompt-builder', costKey: 'prompt', costShape: 'free', icon: 'Lightbulb',
-    examples: [], sample: 'prompt-builder',
+    examples: [],
     related: ['creator', 'photoshoot'],
   },
 };

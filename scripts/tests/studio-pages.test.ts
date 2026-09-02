@@ -61,12 +61,51 @@ for (const slug of STUDIO_SLUGS) {
 // Every price the customer reads must come from lib/credits/costs.ts. A number
 // in a translation is how the published figure and the charge drift apart —
 // the exact reason the admin per-studio price knob was deleted.
+//
+// The FIRST version of this detector was `/\d+\s*(كريدت|credits?)\b/i`, and it
+// could never fire on Arabic — the locale this product is for. Two independent
+// causes, both measured rather than reasoned about:
+//   (a) JS `\b` is ASCII-only. After the non-ASCII `ت` it demands a FOLLOWING
+//       ASCII word character, so a space, a full stop or end-of-string all kill
+//       the match — i.e. every real sentence. `"تكلفة 5 كريدت."` -> false.
+//   (b) `\d` never matches Arabic-Indic digits, so `"٣ كريدت"` -> false.
+// It is therefore unit-anchored (a negative lookahead for any letter or digit)
+// rather than `\b`-anchored, and its digit class carries both Arabic-Indic
+// ranges. `كريدت` is the spelling messages/ar.json actually uses — 18 bare
+// occurrences plus `6 كريدت/شهر` — and it was the one that failed.
+const CREDIT_NUMBER = /[\d٠-٩۰-۹]+\s*(?:الكريدت|كريديت|كريدت|credits?)(?![\p{L}\p{N}])/iu;
+
+// The detector proves itself before it is trusted. A gate that passes on broken
+// copy is worse than no gate, and this one shipped dead on the half of the
+// product that matters — so a future edit that re-kills the Arabic arm fails
+// HERE instead of going quiet.
+const MUST_MATCH = [
+  'حملة كاملة 9 بوستات = 12 كريدت من رصيدك.',
+  'تكلفة 5 كريدت.',
+  '٣ كريدت',
+  '12 credits',
+  '12 credit',
+  '5 كريديت',
+];
+const MUST_NOT_MATCH = [
+  'بكريدت واحد',
+  'رصيد الكريدت',
+  'a full campaign in one run',
+  '9 بوستات جاهزة',
+];
+for (const s of MUST_MATCH) {
+  check(`the credit detector CATCHES ${JSON.stringify(s)}`, CREDIT_NUMBER.test(s));
+}
+for (const s of MUST_NOT_MATCH) {
+  check(`the credit detector PASSES ${JSON.stringify(s)}`, !CREDIT_NUMBER.test(s));
+}
+
 for (const slug of STUDIO_SLUGS) {
   for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
     const ns = (msgs as Record<string, Record<string, Record<string, string>>>).studios?.[slug];
     if (!ns) continue;
     const joined = Object.values(ns).join(' ');
-    check(`${locale}: studios.${slug} copy states no credit number`, !/\d+\s*(كريدت|credits?)\b/i.test(joined), (joined.match(/\d+\s*(كريدت|credits?)/i) ?? [''])[0]);
+    check(`${locale}: studios.${slug} copy states no credit number`, !CREDIT_NUMBER.test(joined), (joined.match(CREDIT_NUMBER) ?? [''])[0]);
   }
 }
 
