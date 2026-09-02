@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
 import { routing } from '@/i18n/routing';
+import { isProtectedPath } from '@/lib/routing/protected';
 import { jwtVerify } from 'jose';
 
 const intlMiddleware = createIntlMiddleware(routing);
@@ -320,8 +321,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Redirect non-logged-in users to login (protected pages only)
-  if (!user) {
+  // Redirect non-logged-in users to login — for PROTECTED pages only. "Not
+  // public" used to mean "protected", so /about, /faq and every mistyped URL
+  // 307'd to the login form: a soft-404 on the whole site. An unknown path now
+  // falls through to app/[locale]/not-found.tsx.
+  if (!user && isProtectedPath(stripLocale(pathname))) {
     const locale = localeOf(pathname) ?? routing.defaultLocale;
     return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
   }
