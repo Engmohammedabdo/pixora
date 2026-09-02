@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "gates": "npx tsx scripts/tests/run-all.ts",
     "db:query": "npx tsx scripts/db-query.ts",
     "db:backfill-images": "npx tsx scripts/backfill-data-uris.ts",
     "check:invariants": "npx tsx scripts/check-invariants.ts",
