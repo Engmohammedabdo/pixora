@@ -36,7 +36,16 @@ export async function GET(): Promise<NextResponse> {
     // Both must hold. A disabled flag with the trigger still installed is open; an
     // enabled flag with no trigger is a gate that is not actually there, and the
     // signup page should not claim otherwise.
-    return NextResponse.json({ inviteOnly: status.installed === true && status.enabled === true });
+    //
+    // Cached briefly on the SUCCESS branch only. This is a service-role query
+    // run on every landing visit, and the answer changes about once a launch.
+    // The two failure branches above stay uncached on purpose: they fail CLOSED,
+    // so caching one would keep the wall up for a further 30 s after the gate
+    // became readable again.
+    return NextResponse.json(
+      { inviteOnly: status.installed === true && status.enabled === true },
+      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } },
+    );
   } catch (error) {
     console.error('[gate-status] failed, reporting invite-only:', error);
     return NextResponse.json({ inviteOnly: true });

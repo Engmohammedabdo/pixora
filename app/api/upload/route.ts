@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { consumeAttempt } from '@/lib/throttle';
 import { randomUUID } from 'crypto';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -12,6 +13,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!user || authError) {
       return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+
+    // Throttled BEFORE the body is read. This route accepted an unbounded
+    // multipart body from any signed-in customer with no rate limit at all —
+    // a disk-fill vector on the one box that also hosts Postgres — and signup
+    // is open. Fails CLOSED, like every other throttle in this repo.
+    if (!(await consumeAttempt(`upload:${user.id}`, 20, 60))) {
+      return NextResponse.json({ success: false, error: 'rate_limited' }, { status: 429 });
     }
 
     const formData = await request.formData();
