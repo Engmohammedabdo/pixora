@@ -151,7 +151,26 @@ for (const slug of STUDIO_SLUGS) {
     check(`${slug}: example "${id}" has alt text in both locales`, Boolean(ex.alt?.ar?.trim()) && Boolean(ex.alt?.en?.trim()));
   }
 }
-check('at least one example per studio, and the loop actually ran', exampleCount >= STUDIO_SLUGS.length, String(exampleCount));
+// Which studios show IMAGES, stated exactly. Deriving this from
+// `examples.length` would make the assertion a tautology.
+//
+// CORRECTED 2026-09-03. This was one line asserting a SUM —
+// `exampleCount >= STUDIO_SLUGS.length`, i.e. 12 >= 9 — under a label that
+// promised "per studio". Four studios carry all twelve examples and five carry
+// none, so the sum had four units of slack. Measured: emptying `edit`'s
+// examples removed six checks and left the failure count identical, and `edit`
+// is the studio whose entire page IS its two images.
+const IMAGE_STUDIOS: readonly string[] = ['creator', 'photoshoot', 'edit', 'campaign'];
+for (const slug of STUDIO_SLUGS) {
+  const n = STUDIO_CATALOGUE[slug].examples.length;
+  const wantsImages = IMAGE_STUDIOS.includes(slug);
+  check(
+    ,
+    wantsImages ? n > 0 : n === 0,
+    String(n),
+  );
+}
+check('the example loop actually ran', exampleCount >= 12, String(exampleCount));
 
 // ── 5. The cost each page shows comes from the product's own table ─────────
 for (const slug of STUDIO_SLUGS) {

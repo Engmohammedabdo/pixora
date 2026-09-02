@@ -123,7 +123,28 @@ for (const slug of STUDIO_SLUGS) {
     check(`${slug}: example "${id}" has alt text in both locales`, Boolean(ex.alt?.ar?.trim()) && Boolean(ex.alt?.en?.trim()));
   }
 }
-check('at least one example per studio, and the loop actually ran', exampleCount >= STUDIO_SLUGS.length, String(exampleCount));
+// Which studios show IMAGES, stated exactly. Deriving this from
+// `examples.length` would make the assertion a tautology — every list would
+// satisfy a rule built from itself.
+//
+// The check this replaces was labelled "at least one example per studio" and
+// asserted a SUM: `exampleCount >= STUDIO_SLUGS.length`, i.e. 12 >= 9. Four
+// studios carry all twelve examples and five carry none, so the sum had four
+// units of slack. Measured: emptying `edit`'s examples removed six checks and
+// left the failure count identical — and `edit` is the studio whose entire page
+// IS its two images. A gate whose label promises "per studio" while its
+// arithmetic asks "in total" is worse than no gate, because it is read as cover.
+const IMAGE_STUDIOS: readonly string[] = ['creator', 'photoshoot', 'edit', 'campaign'];
+for (const slug of STUDIO_SLUGS) {
+  const n = STUDIO_CATALOGUE[slug].examples.length;
+  const wantsImages = IMAGE_STUDIOS.includes(slug);
+  check(
+    `${slug}: ${wantsImages ? 'has at least one example image' : 'has no example ids — its sample is rendered by the page'}`,
+    wantsImages ? n > 0 : n === 0,
+    String(n),
+  );
+}
+check('the example loop actually ran', exampleCount >= 12, String(exampleCount));
 
 // ── 5. The cost each page shows comes from the product's own table ─────────
 for (const slug of STUDIO_SLUGS) {
