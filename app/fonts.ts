@@ -59,6 +59,8 @@ const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   display: 'swap',
+  // Latin body face; unused on /ar, the default locale. Loaded on demand.
+  preload: false,
   variable: '--font-inter',
 });
 
