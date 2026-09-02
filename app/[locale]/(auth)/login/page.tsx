@@ -104,12 +104,17 @@ export default function LoginPage(): React.ReactElement {
             className="mb-4 rounded-md border border-[var(--color-error)] bg-[var(--color-surface-2)] p-3"
           >
             <p className="text-sm text-[var(--color-error)]">{redirectMessage}</p>
+            {/* /contact, not /waitlist: next.config.ts redirects /:locale/waitlist
+                to /:locale/signup permanently, and /signup with the gate on is the
+                invite wall — so this link would bounce the visitor into a wall whose
+                own exit is this same link. /contact is public and stores what they
+                write, which is what this step was for. */}
             {errorCode === 'invite_required' && (
               <Link
-                href="/waitlist"
+                href="/contact"
                 className="mt-2 inline-block text-sm text-[var(--color-link)] hover:underline"
               >
-                {t('joinWaitlist')}
+                {t('requestInvite')}
               </Link>
             )}
             {/* The generic wording above carries no next step of its own, so the

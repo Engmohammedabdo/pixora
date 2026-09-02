@@ -15,8 +15,12 @@
  * "Submitted URL marked 'noindex'" and the crawl is spent on a page that can
  * never rank. So the two are checked TOGETHER here: whichever way a future
  * change moves signup, both halves have to move at once.
+ *
+ * The same rule applies to the redirect: /waitlist 308s to /signup, so no UI
+ * surface may still link there. Missed once already — the invite wall's only
+ * exit pointed at /waitlist, i.e. back at the wall.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripComments } from '../lib/strip-comments';
 import sitemap from '../../app/sitemap';
@@ -53,7 +57,39 @@ check(
   !/new Date\(\)/.test(stripComments(readFileSync(join(ROOT, 'app/sitemap.ts'), 'utf8'))),
 );
 const cfg = stripComments(readFileSync(join(ROOT, 'next.config.ts'), 'utf8'));
-check('waitlist redirects permanently to signup', /waitlist[\s\S]{0,200}signup[\s\S]{0,120}permanent:\s*true/.test(cfg));
+const redirectsWaitlist = /waitlist[\s\S]{0,200}signup[\s\S]{0,120}permanent:\s*true/.test(cfg);
+check('waitlist redirects permanently to signup', redirectsWaitlist);
+
+// The redirect and the UI have to move TOGETHER, and this is the half that was
+// missed: /waitlist now 308s to /signup, and /signup with the gate on IS the
+// invite wall — whose only forward action was a link to /waitlist. That is a
+// closed loop with no way to leave an address, and it is not unreachable code:
+// app/api/public/gate-status/route.ts fails CLOSED by design, so one unreadable
+// gate read turns the wall on. A 308 is cached by the browser, so the loop would
+// outlive any later revert of next.config.ts for everyone who hit it once.
+//
+// Comment-stripped, per this repo's own rule: several files discuss /waitlist in
+// prose, and a raw scan would fail the correct tree.
+const LINK_TO_WAITLIST = /(?:href\s*=\s*\{?\s*|(?:push|replace|redirect)\s*\(\s*)['"`]\/waitlist\b/;
+function tsFilesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) return e.name === 'node_modules' ? [] : tsFilesUnder(p);
+    return /\.tsx?$/.test(e.name) ? [p] : [];
+  });
+}
+const uiSources = [...tsFilesUnder(join(ROOT, 'app')), ...tsFilesUnder(join(ROOT, 'components'))];
+const linkingToWaitlist = uiSources
+  .filter((f) => LINK_TO_WAITLIST.test(stripComments(readFileSync(f, 'utf8'))))
+  .map((f) => f.slice(ROOT.length + 1));
+check(
+  'no UI surface links to /waitlist while /waitlist redirects away',
+  // `uiSources.length` is part of the rule: a walk that finds no files would
+  // otherwise certify a tree it never read.
+  uiSources.length > 0 && (!redirectsWaitlist || linkingToWaitlist.length === 0),
+  `${uiSources.length} files scanned; linking: ${linkingToWaitlist.join(' ') || 'none'}`,
+);
+
 for (const f of ['ar', 'en']) {
   const m = JSON.parse(readFileSync(join(ROOT, `messages/${f}.json`), 'utf8'));
   const body: string = m.referrals?.gatedBody ?? '';

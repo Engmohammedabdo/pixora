@@ -172,6 +172,13 @@ export default function SignupPage(): React.ReactElement {
   // name, an email and a password and then hand back a 500 from Postgres — so send
   // them somewhere that actually does something with their interest instead. A wall
   // that collects an email beats a wall.
+  //
+  // That somewhere is /contact, and it must not be /waitlist: next.config.ts now
+  // redirects /:locale/waitlist to /:locale/signup permanently, so the only exit
+  // from this wall would land straight back on this wall. A 308 is cached by the
+  // browser, so the loop would outlive any later revert of the redirect. /contact
+  // is public, stores the message in support_messages and is read at /admin/support
+  // — it still collects a stranger's address, which is the whole point of the exit.
   if (inviteOnly === true && !inviteToken) {
     return (
       <Card>
@@ -182,8 +189,8 @@ export default function SignupPage(): React.ReactElement {
           <CardDescription>{t('inviteOnlyBody')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Link href="/waitlist" className="block">
-            <Button className="w-full">{t('joinWaitlist')}</Button>
+          <Link href="/contact" className="block">
+            <Button className="w-full">{t('requestInvite')}</Button>
           </Link>
           <p className="text-center text-sm text-[var(--color-text-secondary)]">
             {t('alreadyHaveAccount')}{' '}
