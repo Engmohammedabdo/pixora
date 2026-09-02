@@ -2,16 +2,20 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 import { OG_CONTENT } from '@/lib/seo/og-content';
+import { OG_IMAGE } from '@/lib/seo/alternates';
 
 // Force Node.js (not edge) — we read local font files from disk below.
 export const runtime = 'nodejs';
 
-export const size = { width: 1200, height: 630 };
+// Declared once in lib/seo/alternates.ts, where every inner page's openGraph
+// advertises this image: the dimensions a page claims and the pixels this file
+// serves come from the same constant.
+export const size = OG_IMAGE.size;
 export const contentType = 'image/png';
 // `alt` is a static export in the file-based convention (it cannot branch on
 // `params` the way the default-exported image function can), so it stays a
 // single, English, locale-agnostic string.
-export const alt = 'PyraSuite — AI Marketing Platform';
+export const alt = OG_IMAGE.alt;
 
 const BRAND_GRADIENT = 'linear-gradient(135deg, #4F46E5 0%, #6366F1 55%, #06B6D4 100%)';
 const FONT_DIR = join(process.cwd(), 'public', 'fonts', 'og');

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { setRequestLocale } from 'next-intl/server';
 import { NavBar } from '@/components/landing/NavBar';
 import { HeroSection } from '@/components/landing/HeroSection';
@@ -16,6 +17,25 @@ import { Footer } from '@/components/landing/Footer';
 import { LandingMotionConfig } from '@/components/landing/LandingMotionConfig';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { buildStructuredData } from '@/lib/seo/schema';
+import { publicAlternates } from '@/lib/seo/alternates';
+
+/**
+ * ONLY `alternates`. The layout's site-wide canonical was deleted on 2026-09-02
+ * so that inner pages stop claiming to be duplicates of this one — and that
+ * deletion left THIS page, the URL a launch announcement points at, with no
+ * canonical and no hreflang at all (measured on the built ar.html/en.html).
+ * Title, description, openGraph and the file-based og:image are deliberately
+ * NOT returned here: Next merges `openGraph` shallowly, so a page-level object
+ * would replace the [locale] segment's — image included. Inheriting is the point.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return { alternates: publicAlternates(locale, '') };
+}
 
 // Public, logged-out-and-logged-in-identical marketing page (verified: NavBar
 // and every section here are 'use client' components with no auth/session

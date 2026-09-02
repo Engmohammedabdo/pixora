@@ -1680,7 +1680,7 @@ Run only after `git push origin main` and a manual Coolify deploy. Every line be
 S=https://pyrasuite.pyramedia.cloud
 curl -s $S/robots.txt | grep -c Disallow            # expect 38 (19 × 2 groups)
 curl -s $S/robots.txt | grep -c GPTBot              # expect 1
-for p in /ar/contact /ar/privacy /ar/terms /ar/pricing; do curl -s $S$p | grep -o '<link rel="canonical" href="[^"]*"'; done   # each page-exact
+for p in /ar /ar/contact /ar/privacy /ar/terms /ar/pricing; do curl -s $S$p | grep -o '<link rel="canonical" href="[^"]*"'; done   # each page-exact (INCLUDING /ar — it shipped with none once)
 curl -sI $S/ar | grep -ci '^link:'                  # expect 0 (no HTTP hreflang channel)
 curl -s $S/ar | grep -c '{credits}'                 # expect 0
 curl -s $S/ar | grep -c 'حسابك بياخد'               # expect ≥1 (FAQ answer in HTML)

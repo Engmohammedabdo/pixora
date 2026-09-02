@@ -45,6 +45,27 @@ export function publicAlternates(
 /** OG locale tags. ar_AE, not ar_SA: the company and its first customers are in the UAE. */
 const OG_LOCALE: Record<Locale, string> = { ar: 'ar_AE', en: 'en_US' };
 
+/**
+ * The site's one OpenGraph image, rendered by app/[locale]/opengraph-image.tsx
+ * and served at /{locale}/opengraph-image. That file imports `size` and `alt`
+ * from HERE so the dimensions a page advertises and the pixels it serves cannot
+ * drift apart.
+ *
+ * Why a page has to name it at all: Next merges `openGraph` shallowly. A
+ * page-level `openGraph` object REPLACES the [locale] segment's wholesale,
+ * file-based images included — measured 2026-09-02 on a production build, where
+ * every inner page that emitted its own openGraph shipped with NO og:image (and
+ * therefore no twitter:image, which Next derives from it) while the landing
+ * page, which inherits the segment's, had one. A helper that omits `images`
+ * cannot deliver the "real OpenGraph on inner pages" it exists for.
+ */
+export const OG_IMAGE = {
+  size: { width: 1200, height: 630 },
+  // `alt` is a static export in the file-based convention (it cannot branch on
+  // the locale the way the image function can), so one English string.
+  alt: 'PyraSuite — AI Marketing Platform',
+} as const;
+
 export function publicOpenGraph(
   locale: string,
   o: { title: string; description: string; path: string },
@@ -59,5 +80,13 @@ export function publicOpenGraph(
     url: `${APP_URL}/${l}${normalise(o.path)}`,
     locale: OG_LOCALE[l],
     alternateLocale: [OG_LOCALE[other]],
+    images: [
+      {
+        url: `${APP_URL}/${l}/opengraph-image`,
+        width: OG_IMAGE.size.width,
+        height: OG_IMAGE.size.height,
+        alt: OG_IMAGE.alt,
+      },
+    ],
   };
 }
