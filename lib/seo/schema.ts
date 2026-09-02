@@ -9,6 +9,7 @@
  */
 import { PLANS } from '@/lib/stripe/plans';
 import { OG_CONTENT, type OgLocale } from '@/lib/seo/og-content';
+import { AREA_SERVED, ORGANIZATION_ALTERNATE_NAMES, SOCIAL_PROFILES } from '@/lib/seo/profiles';
 import arMessages from '@/messages/ar.json';
 import enMessages from '@/messages/en.json';
 
@@ -38,19 +39,38 @@ interface SchemaOrgOrganization {
   '@type': 'Organization';
   '@id': string;
   name: string;
+  alternateName: string[];
   url: string;
   logo: string;
   description: string;
+  sameAs: string[];
+  areaServed: string[];
+  contactPoint: { '@type': 'ContactPoint'; contactType: 'customer support'; url: string; availableLanguage: string[] };
+}
+
+interface SchemaOrgWebSite {
+  '@type': 'WebSite';
+  '@id': string;
+  url: string;
+  name: string;
+  inLanguage: string[];
+  publisher: { '@id': string };
 }
 
 interface SchemaOrgSoftwareApplication {
   '@type': 'SoftwareApplication';
   '@id': string;
   name: string;
+  alternateName: string[];
   description: string;
-  applicationCategory: string;
-  operatingSystem: string;
+  applicationCategory: 'BusinessApplication';
+  applicationSubCategory: 'MarketingApplication';
+  operatingSystem: 'Web';
   url: string;
+  inLanguage: string[];
+  isAccessibleForFree: true;
+  featureList: string[];
+  publisher: { '@id': string };
   offers: SchemaOrgOffer[];
 }
 
@@ -69,17 +89,46 @@ interface SchemaOrgFaqPage {
   mainEntity: SchemaOrgQuestion[];
 }
 
+// The nine studios as the product names them: landing.studios.s1Name..s9Name,
+// the same strings the landing page renders, so the schema cannot list a
+// studio the page does not.
+const STUDIO_FEATURES: Record<'ar' | 'en', string[]> = {
+  ar: Array.from({ length: 9 }, (_, i) => (arMessages.landing.studios as Record<string, string>)[`s${i + 1}Name`]),
+  en: Array.from({ length: 9 }, (_, i) => (enMessages.landing.studios as Record<string, string>)[`s${i + 1}Name`]),
+};
+
 export function buildOrganizationSchema(locale: string): SchemaOrgOrganization {
   const og = OG_CONTENT[toOgLocale(locale)];
   return {
     '@type': 'Organization',
     '@id': `${APP_URL}/#organization`,
     name: 'PyraSuite',
-    url: `${APP_URL}/${locale}`,
-    // Reuses the already-generated OG image route rather than a fabricated
-    // logo file — there is no /public logo asset to point at honestly.
-    logo: `${APP_URL}/${locale}/opengraph-image`,
+    alternateName: [...ORGANIZATION_ALTERNATE_NAMES],
+    // ONE url under ONE @id. It was `/{locale}`, so the same entity claimed two
+    // different homepages depending on which page an engine fetched.
+    url: APP_URL,
+    // A real square icon, not the 1200x630 OpenGraph image.
+    logo: `${APP_URL}/icon-512.png`,
     description: og.description,
+    sameAs: [...SOCIAL_PROFILES],
+    areaServed: [...AREA_SERVED],
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      url: `${APP_URL}/${locale}/contact`,
+      availableLanguage: ['ar', 'en'],
+    },
+  };
+}
+
+export function buildWebSiteSchema(locale: string): SchemaOrgWebSite {
+  return {
+    '@type': 'WebSite',
+    '@id': `${APP_URL}/#website`,
+    url: `${APP_URL}/${locale}`,
+    name: 'PyraSuite',
+    inLanguage: ['ar', 'en'],
+    publisher: { '@id': `${APP_URL}/#organization` },
   };
 }
 
@@ -89,11 +138,19 @@ export function buildSoftwareApplicationSchema(locale: string): SchemaOrgSoftwar
   return {
     '@type': 'SoftwareApplication',
     '@id': `${APP_URL}/#software`,
-    name: og.title,
+    // The bare product name. The tagline lived here and became the entity's
+    // name in every engine that read it.
+    name: 'PyraSuite',
+    alternateName: [...ORGANIZATION_ALTERNATE_NAMES],
     description: og.description,
     applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'MarketingApplication',
     operatingSystem: 'Web',
     url: `${APP_URL}/${locale}`,
+    inLanguage: ['ar', 'en'],
+    isAccessibleForFree: true,
+    featureList: STUDIO_FEATURES[isAr ? 'ar' : 'en'],
+    publisher: { '@id': `${APP_URL}/#organization` },
     // Prices are read live from PLANS — this can never drift from what
     // Stripe actually charges (see lib/stripe/plans.ts).
     offers: Object.values(PLANS).map((plan) => ({
@@ -121,7 +178,9 @@ export function buildFaqSchema(locale: string): SchemaOrgFaqPage {
       name: faq[`q${n}`],
       acceptedAnswer: {
         '@type': 'Answer' as const,
-        text: faq[`a${n}`],
+        // The same params the FaqSection passes. Reading the raw message shipped
+        // the literal "{credits}" to every engine that read the schema.
+        text: faq[`a${n}`].replaceAll('{credits}', String(PLANS.free.credits)),
       },
     };
   });
@@ -135,12 +194,13 @@ export function buildFaqSchema(locale: string): SchemaOrgFaqPage {
 
 export function buildStructuredData(locale: string): {
   '@context': 'https://schema.org';
-  '@graph': [SchemaOrgOrganization, SchemaOrgSoftwareApplication, SchemaOrgFaqPage];
+  '@graph': [SchemaOrgOrganization, SchemaOrgWebSite, SchemaOrgSoftwareApplication, SchemaOrgFaqPage];
 } {
   return {
     '@context': 'https://schema.org',
     '@graph': [
       buildOrganizationSchema(locale),
+      buildWebSiteSchema(locale),
       buildSoftwareApplicationSchema(locale),
       buildFaqSchema(locale),
     ],
