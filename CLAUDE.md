@@ -1781,14 +1781,50 @@ scheme's own colon closes the span before the host is reached (measured against 
 `app/not-found.tsx` each carried a comment naming a file the code never reaches — the
 fourth instance of that class this file logs.
 
-#### Still open, deliberately
+#### Verified live on production, 2026-09-02 — every FAIL the audit measured, re-measured
 
-- **Nothing in this round has been verified against production.** Every measurement above
-  is from the repo or from a production BUILD (`next build` + `next start`). `git push`
-  does not deploy this app; Task 12 of
-  `docs/superpowers/plans/2026-09-02-seo-geo-quick-wins.md` is a twelve-line re-measurement
-  loop to be run **after** the founder triggers the Coolify deploy. Anything that does not
-  flip there is a defect in that plan, not in production.
+Merged at `e60b2ca`, deployed manually (Coolify's GitHub webhook still does not fire, and
+its MCP server was unreachable this session — the founder pressed Redeploy). **The new build
+was confirmed before anything was claimed about it**, and not from Coolify's status field:
+`/llms.txt` answers **200** where it 404'd, a file that exists only in this round's code.
+
+Every row below was `FAIL` or `Warning` in the 2026-09-01 audit
+(https://claude.ai/code/artifact/45ba39d5-f41b-4113-b925-470b6a01751f):
+
+| Measured on production | Was | Now |
+|---|---|---|
+| `robots.txt` `Disallow` rules | 3 (none matching a localized path) | **38** (19 × two groups) |
+| `robots.txt` names GPTBot | 0 | **1** — ten AI crawlers named, allowing them is now on record |
+| `canonical` on /ar, /en, /ar/contact, /ar/privacy, /ar/terms, /ar/pricing | all `/ar` | **each page-exact** |
+| HTTP `Link` hreflang header | 1 (x-default `/`, a 307) | **0** — the HTML is the only channel |
+| HTML hreflang per page | root-only, conflicting | **3 page-exact links** (ar, en, x-default) |
+| `{credits}` in visible HTML / in JSON-LD | 11 total | **0 / 0** — the answer now reads `حسابك بياخد 25 كريدت` |
+| FAQ answer text in the server HTML | 0 | **present** |
+| `/ar/nonexistent-xyz` | 307 → login | **404** |
+| `/ar/blog/x` | 307 → login | **404**, no hop |
+| `/faq`, `/about` | 307 → login | **404** after the locale hop (`/about` → `/ar/about` → 404) |
+| `/ar/waitlist` | 200, indexed at priority 0.9 | **308 → /ar/signup** |
+| `sitemap.xml` | 12 URLs incl. /login and /waitlist | **10**, neither present |
+| `/llms.txt` | 404 | **200** |
+| `X-Powered-By` | `Next.js` | **absent** |
+| `sameAs` in the JSON-LD | absent | **present** (empty array until profiles are supplied) |
+| Definition sentence on /ar | none | **present**; `الإمارات` 0 → **2** in visible text |
+
+**Two results need their exact reading recorded, because a rounder number would be false.**
+
+- **`{credits}` is 9 on the live `/ar`, not 0** — and all nine sit inside the RSC payload
+  (`<script>`), which is the untranslated next-intl catalogue the browser resolves. Measured:
+  **0 in visible HTML, 0 in the JSON-LD**, which are the two that mattered. Do not write
+  "11 → 0" anywhere; write what this paragraph says.
+- **`/about` returns 307, not 404** — to `/ar/about`, which is a real 404. That first hop is
+  next-intl's locale-prefix redirect and predates this round; the plan's expected `404` was
+  written without accounting for it. `/ar/blog/x` 404s with no hop at all.
+
+**No regression, checked rather than assumed:** `/ar/creator` and `/ar/dashboard` still
+307 to `/ar/login` — the middleware change narrowed what counts as protected, it did not
+open anything.
+
+#### Still open, deliberately
 - **`sameAs` is empty** until the founder fills `lib/seo/profiles.ts` with profiles actually
   owned. Empty is the correct state; invented is not.
 - **The container healthcheck is still not enabled** (see the corrected bullet above), and
