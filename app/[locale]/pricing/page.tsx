@@ -10,8 +10,7 @@ import { TopupGrid } from '@/components/pricing/TopupGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { buildStructuredData } from '@/lib/seo/schema';
 import { Badge } from '@/components/ui/badge';
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
+import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
 
 export async function generateMetadata({
   params,
@@ -25,18 +24,8 @@ export async function generateMetadata({
   return {
     title: t('title'),
     description: t('description'),
-    alternates: {
-      canonical: `${APP_URL}/${locale}/pricing`,
-      languages: {
-        ar: `${APP_URL}/ar/pricing`,
-        en: `${APP_URL}/en/pricing`,
-      },
-    },
-    openGraph: {
-      title: t('title'),
-      description: t('description'),
-      url: `${APP_URL}/${locale}/pricing`,
-    },
+    alternates: publicAlternates(locale, '/pricing'),
+    openGraph: publicOpenGraph(locale, { title: t('title'), description: t('description'), path: '/pricing' }),
   };
 }
 

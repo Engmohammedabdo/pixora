@@ -1,0 +1,23 @@
+name: gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run gates
+        env:
+          # Public values only. The gates read files; none needs a secret.
+          NEXT_PUBLIC_APP_URL: https://pyrasuite.pyramedia.cloud
+          NEXT_PUBLIC_SUPABASE_URL: https://pixoradb.pyramedia.cloud

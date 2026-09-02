@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { getSignedAssetUrl } from '@/lib/supabase/signed-url';
+import { ownedStoragePath } from '@/lib/storage/export-source';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -63,15 +64,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams): Pr
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // Clean up storage file (best-effort, non-blocking)
+    // Clean up the storage object (best-effort). The path is resolved by the
+    // SAME rule the export route uses — origin, public-object marker, the
+    // caller's own user-id folder — never parsed by hand from `assets.url`,
+    // which is a customer-writable column.
     if (asset?.url) {
-      try {
-        const path = new URL(asset.url).pathname.split('/storage/v1/object/public/')[1];
-        if (path) {
-          const [bucket, ...fileParts] = path.split('/');
-          await supabase.storage.from(bucket).remove([fileParts.join('/')]);
-        }
-      } catch { /* Storage cleanup is best-effort */ }
+      const path = ownedStoragePath(asset.url, user.id);
+      if (path) {
+        try {
+          await supabase.storage.from('assets').remove([path]);
+        } catch { /* Storage cleanup is best-effort */ }
+      }
     }
 
     return NextResponse.json({ success: true });

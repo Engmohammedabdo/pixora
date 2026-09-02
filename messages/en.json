@@ -64,10 +64,10 @@
     "checkEmailBody": "We sent a confirmation link to {email}. Open it to activate your account.",
     "backToLogin": "Back to sign in",
     "inviteOnlyTitle": "Invite only for now",
-    "inviteOnlyBody": "PyraSuite is in closed beta. Join the waitlist and we will send you an invite as soon as we open up.",
-    "joinWaitlist": "Join the waitlist",
+    "inviteOnlyBody": "PyraSuite is in closed beta. Send us a message and we will email you an invite as soon as we open up.",
+    "requestInvite": "Request an invite",
     "alreadyHaveAccount": "Already have an account?",
-    "inviteRequired": "You need an invite to create an account. Join the waitlist and we will reach out.",
+    "inviteRequired": "You need an invite to create an account. Send us a message and we will reach out.",
     "inviteInvalid": "That invite is not valid, or it has already been used. Let us know if this is a mistake.",
     "alreadyRegistered": "That email is already registered. Try signing in instead.",
     "resetLinkSentHint": "If an account exists for that address, the link is on its way. Check spam too.",
@@ -811,12 +811,13 @@
     },
     "hero": {
       "badge": "Powered by the Pyra AI engine",
-      "titleLine1": "Say it in Arabic...",
+      "titleLine1": "AI marketing for the Gulf —",
       "word1": "An image that sells",
       "word2": "A campaign that ignites",
       "word3": "A full marketing plan",
       "word4": "Agency-grade analysis",
       "word5": "A voice that's yours",
+      "definition": "PyraSuite is an AI marketing studio for restaurants, shops and clinics in the UAE and the Gulf: type your idea, and Pyra turns it into product photos, posts, a marketing plan and a voiceover — nine studios, one subscription, Arabic-native output.",
       "subtitle1": "Type your idea — Pyra turns it into a complete marketing campaign. ",
       "subtitle2": "Product photos, posts with captions, plans, analytics, and voiceover.",
       "subtitleStrong": "In Arabic, from day one.",
@@ -1018,8 +1019,8 @@
     "faq": {
       "title": "Frequently Asked Questions",
       "subtitle": "Everything you need to know before you start",
-      "q1": "What is Pyra AI?",
-      "a1": "Pyra AI is the intelligence engine that powers all nine studios in PyraSuite. It understands your request in Arabic and turns it into professional results — images, campaigns, plans, analyses, and voiceovers.",
+      "q1": "What is PyraSuite?",
+      "a1": "PyraSuite is an AI marketing studio for restaurants, shops and clinics in the UAE and the Gulf. Type your idea in Arabic and Pyra — the platform's engine — turns it into product photos, posts with captions, a marketing plan, a competitor analysis and a voiceover in your dialect. Nine studios, one subscription, a transparent credit system.",
       "q2": "How does the credit system work?",
       "a2": "Every action has a clear cost you see before you click. One image = 1 credit, a full 9-post campaign = 12. No surprises — and if a generation fails, the credits return to your account automatically.",
       "q3": "How do I try the platform?",
@@ -1262,7 +1263,7 @@
     "creditsPerInvite": "Credits per invite",
     "shareMessage": "Try PyraSuite — turn any idea into a complete marketing campaign.\nSign up with my link and we both get {credits} free credits:\n{link}",
     "gatedTitle": "Referrals open at public launch",
-    "gatedBody": "Signup is invite-only right now, so a link you share today cannot complete registration. At public launch your link appears here, with {credits} credits for every friend who signs up."
+    "gatedBody": "The referral programme is being set up. When it opens, your link will be here with {credits} credits for every friend who signs up."
   },
   "widgets": {
     "completeProfile": "Complete your profile",
@@ -1335,5 +1336,15 @@
     "errorGeneric": "Something went wrong. Try again — if it keeps failing, email us directly.",
     "errorTooShort": "Give us a little more detail (at least 10 characters).",
     "errorRateLimited": "That is a lot of messages very quickly. Wait a minute and try again."
+  },
+  "seo": {
+    "privacy": {
+      "title": "Privacy Policy",
+      "description": "What PyraSuite collects, why, who can see it, and how to delete it."
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "description": "PyraSuite terms: credits, refunds, acceptable use, and account termination."
+    }
   }
 }

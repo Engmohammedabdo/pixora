@@ -1,6 +1,7 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
+import { SOCIAL_PROFILES } from '@/lib/seo/profiles';
 
 const STUDIO_LINKS = [
   { key: 'studio1', href: '/#studios' },
@@ -106,6 +107,25 @@ export function Footer(): React.ReactElement {
             {t('footer.copyright')}
           </p>
           <div className="flex items-center gap-4">
+            {/* The same list Organization.sameAs is built from, so the visible
+                links and the entity graph can never name different profiles.
+                Empty today — lib/seo/profiles.ts says why. */}
+            {SOCIAL_PROFILES.length > 0 && (
+              <ul className="flex items-center gap-4">
+                {SOCIAL_PROFILES.map((url) => (
+                  <li key={url}>
+                    <a
+                      href={url}
+                      rel="me noopener"
+                      target="_blank"
+                      className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                    >
+                      {new URL(url).hostname.replace(/^www\./, '')}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="text-sm text-[var(--color-text-muted)]">
               {t('footer.poweredBy')}
             </p>

@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { PLANS } from '@/lib/stripe/plans';
 import { ChevronDown } from 'lucide-react';
@@ -10,11 +8,6 @@ const FAQ_KEYS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 export function FaqSection(): React.ReactElement {
   const t = useTranslations('landing');
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-
-  const toggle = (index: number) => {
-    setOpenIndex((prev) => (prev === index ? null : index));
-  };
 
   return (
     <section id="faq" className="scroll-mt-20 py-20 px-6">
@@ -27,52 +20,22 @@ export function FaqSection(): React.ReactElement {
         </p>
 
         <div className="space-y-3">
-          {FAQ_KEYS.map((num, index) => {
-            const isOpen = openIndex === index;
+          {FAQ_KEYS.map((num) => {
             return (
-              <div
+              <details
                 key={num}
-                className="rounded-xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] overflow-hidden"
+                className="group rounded-xl border border-[color-mix(in_srgb,var(--color-border)_50%,transparent)] overflow-hidden"
               >
-                <button
-                  onClick={() => toggle(index)}
-                  className="w-full flex items-center justify-between p-5 text-start hover:bg-[color-mix(in_srgb,var(--color-surface-2)_50%,transparent)] transition-colors"
-                >
-                  <span className="font-medium text-[var(--color-text-primary)]">
-                    {t(`faq.q${num}`)}
-                  </span>
-                  <motion.div
-                    animate={{ rotate: isOpen ? 180 : 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="shrink-0 ms-4"
-                  >
-                    <ChevronDown className="h-5 w-5 text-[var(--color-text-muted)]" />
-                  </motion.div>
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-5 pb-5 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                        {/* `credits` is passed to EVERY answer, not just the one
-                            that uses it. next-intl ignores a param an answer does
-                            not reference, and the alternative — special-casing one
-                            index — is a rule about a number that would break the
-                            moment the questions are reordered. The value comes
-                            from PLANS.free so the answer cannot promise a balance
-                            the account does not receive. */}
-                        {t(`faq.a${num}`, { credits: PLANS.free.credits })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                <summary className="list-none cursor-pointer w-full flex items-center justify-between p-5 text-start hover:bg-[color-mix(in_srgb,var(--color-surface-2)_50%,transparent)] transition-colors">
+                  <span className="font-medium text-[var(--color-text-primary)]">{t(`faq.q${num}`)}</span>
+                  <ChevronDown className="h-5 w-5 shrink-0 ms-4 text-[var(--color-text-muted)] transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="px-5 pb-5 text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                  {/* `credits` is passed to EVERY answer; next-intl ignores a param an
+                      answer does not reference. PLANS.free is the one source. */}
+                  {t(`faq.a${num}`, { credits: PLANS.free.credits })}
+                </div>
+              </details>
             );
           })}
         </div>

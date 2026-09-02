@@ -8,13 +8,35 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // `X-Powered-By: Next.js` on every response names the framework and its
+  // major version to anyone scanning, and buys nothing back.
+  poweredByHeader: false,
   images: {
+    // /_next/image answered `max-age=60`, so an optimised image was re-fetched
+    // and re-encoded roughly every minute. The optimiser keys its cache on the
+    // SOURCE URL, so a long TTL only goes stale if a source URL is reused for
+    // different bytes — and none is: every upload lands at
+    // `${user.id}/${randomUUID()}.${ext}` (app/api/upload/route.ts:62), so a
+    // replaced logo is a new URL, and a signed URL is unique per request
+    // anyway. Replacing an object at a path in place is the one thing this
+    // would hide; nothing in the product does it.
+    minimumCacheTTL: 31536000,
+    // Next 15 defaults to webp alone. avif is tried first and falls back.
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: 'pixoradb.pyramedia.cloud' },
       { protocol: 'https', hostname: 'oaidalleapiprodscus.blob.core.windows.net' },
       { protocol: 'https', hostname: 'replicate.delivery' },
       { protocol: 'https', hostname: 'placehold.co' },
     ],
+  },
+  async redirects() {
+    return [
+      // Signup is OPEN (gate-status: inviteOnly:false). The waitlist page still
+      // said "بنجهّز الإطلاق" and promised 100 credits while the FAQ promised 25
+      // with "no invites, no waiting" — three indexed surfaces, three stories.
+      { source: '/:locale(ar|en)/waitlist', destination: '/:locale/signup', permanent: true },
+    ];
   },
   async headers() {
     return [
@@ -82,10 +104,25 @@ const nextConfig: NextConfig = {
               // the img/XHR fallbacks never fired. All hosts are Meta-operated,
               // not multi-tenant — nobody can register a subdomain under
               // either. test:analytics asserts all five.
-              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://connect.facebook.net`,
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud https://placehold.co https://www.googletagmanager.com https://*.google-analytics.com https://www.facebook.com",
+              //
+              // Three hosts were removed 2026-09-02 because nothing here has
+              // ever loaded from them, and an allowlist entry that serves
+              // nothing is only ever an origin an injection can reach for:
+              //   - the Vercel preview toolbar (this app deploys to Coolify as
+              //     a standalone server; zero references in the repo),
+              //   - the Google Fonts CSS and file origins. app/fonts.ts uses
+              //     next/font/google, which fetches the faces AT BUILD TIME and
+              //     serves them from our own origin, so there is no runtime
+              //     request to either host. If a raw <link> to Google Fonts is
+              //     ever added, style-src/font-src must come back with it.
+              // placehold.co is DEV-ONLY: it is the mock image host in
+              // lib/ai/{gemini,openai,replicate}.ts, reached only when a
+              // provider key is absent. remotePatterns keeps it in both modes
+              // so next/image can still optimise a mock locally.
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://js.stripe.com https://www.googletagmanager.com https://connect.facebook.net`,
+              "style-src 'self' 'unsafe-inline'",
+              "font-src 'self'",
+              `img-src 'self' data: blob: https://oaidalleapiprodscus.blob.core.windows.net https://replicate.delivery https://*.pyramedia.cloud${isDev ? ' https://placehold.co' : ''} https://www.googletagmanager.com https://*.google-analytics.com https://www.facebook.com`,
               "media-src 'self' blob: https://*.pyramedia.cloud",
               "connect-src 'self' https://api.stripe.com https://api.openai.com https://generativelanguage.googleapis.com https://api.replicate.com https://api.elevenlabs.io https://*.pyramedia.cloud https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net",
               "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://www.facebook.com",

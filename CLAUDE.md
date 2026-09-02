@@ -72,7 +72,7 @@
 | Projects (client workspaces) | ✅ built | wired into all 9 studios + asset filter |
 | Stripe money path | ✅ hardened | see "Money path" below |
 | Pre-launch waitlist | ✅ built | `/[locale]/waitlist`, migration 030 applied |
-| Invite-only gate | ✅ built + **live** | `invite_gate_status()` on the live DB returns `installed: true, enabled: true`; refusal is a BEFORE INSERT trigger on `auth.users` (035/036) |
+| Invite-only gate | ✅ built · **OFF on production** | Signup is OPEN. `GET /api/public/gate-status` returns `{"inviteOnly":false}` — measured by the 2026-09-01 audit, re-measured 2026-09-02. That route reports only the conjunction `installed && enabled`, so which half is false is not readable from it. The refusal itself is a BEFORE INSERT trigger on `auth.users` (035/036) and the machinery is intact — an earlier version of this row claimed the gate was live |
 | Invite issue + email | ✅ built | `/admin/invites` → `issue_invite` RPC, then `sendInviteEmail()`; per-address delivery status is reported, never assumed |
 | Text-studio retrieval | ✅ built | `/api/generations` + `/api/generations/[id]`, surfaced by `components/shared/RecentWork.tsx` in plan/analysis/storyboard |
 | Admin dashboard | ✅ built | real funnel/MRR/churn/retention queries |
@@ -351,9 +351,13 @@ an unauthenticated `?error=` parameter, i.e. a free social-engineering primitive
 - The `not-reply@pyramedia.info` mailbox password is weak, and port 587 is internet-facing.
 - Coolify's GitHub webhook does not fire: every deployment is `is_webhook: false`, so a
   `git push` does **not** deploy. Trigger the deploy explicitly.
-- The app has **no healthcheck** (`health_check_enabled: false`), which is why Coolify
-  reports `running:unknown` rather than `running:healthy`. Note `/` returns 307, so a
-  healthcheck on `/` would fail — point it at `/ar`.
+- **`/api/health` exists and does a real dependency check** — corrected 2026-09-02; this
+  bullet used to say the app had no healthcheck at all. `app/api/health/route.ts` probes
+  DB reachability, required config, the Stripe key shape and the invite-gate trigger, and
+  returns a coarse status only. It answered **200** on production 2026-09-02.
+  What is still missing is the **container** healthcheck in Coolify
+  (`health_check_enabled: false`), which is why it reports `running:unknown` rather than
+  `running:healthy`. Point it at `/api/health` — **not** `/`, which returns 307.
 
 ### Nine-studio hardening — 2026-08-24
 
@@ -897,11 +901,15 @@ onboarding signups end to end in a browser.
 
 #### Still open, deliberately
 
-- **The extraction SUCCESS arm has never run.** The n8n workflow is inactive and its header
-  secret is shared with another workflow. Until `N8N_BRAND_DNA_WEBHOOK_URL` +
-  `N8N_BRAND_DNA_SECRET` are set, `/api/brand-kits/extract` returns **503** and the UI tells the
-  customer to fill the form in themselves — which works, and is the arm every real customer
-  hits today.
+- ~~**The extraction SUCCESS arm has never run.**~~ **Corrected 2026-09-02 — it has.** The
+  first live end-to-end run is recorded at `app/api/brand-kits/extract/route.ts:39-45`:
+  2026-08-28, `pyramedia.info`, a JS-heavy site through `playwright:adaptive`, **123 s**, a
+  real draft returned. That measurement is why `UPSTREAM_TIMEOUT_MS` is 150 s and not the
+  90 s ceiling this file described — the 90 s would have aborted a request the upstream then
+  completed and threw away. Not re-measured here: whether the workflow is active today and
+  whether its header secret is still shared with another workflow. With
+  `N8N_BRAND_DNA_WEBHOOK_URL` / `N8N_BRAND_DNA_SECRET` unset the route returns **503** and
+  the manual form carries onboarding, which is the arm this file has always described.
 - **`edit`'s brand-context wiring is dead** and is **older than this branch**:
   `EditPromptInput.brandKit` pre-dates `8bd96c6`, so the `Brand Colors` line was already dead.
   `edit/route.ts`'s `InputSchema` has no `brandKitId` and never fetches a kit. Zero runtime
@@ -1695,6 +1703,104 @@ Two things to decide together, and neither should be changed without re-running
   `prompts.test.ts`, one of which is the gate proving a blocked colour is refused.
   Its own change.
 
+### SEO + GEO quick wins — 2026-09-02
+
+An SEO/GEO audit of the public surface (2026-09-01) produced a twelve-task plan
+(`docs/superpowers/plans/2026-09-02-seo-geo-quick-wins.md`). Eleven are done here — nine
+code fixes, one CI task and this record; the twelfth is a production re-measurement that
+can only run after the deploy. Every fix carries a gate, because this whole class was
+invisible to the gates that already existed: `tsc`, `lint`, 18 invariants, 22 test files
+and a clean production build were green the entire time production was serving a
+robots.txt the code did not write and telling Google that six public pages were
+duplicates of the landing page.
+
+**The defect with the largest blast radius shipped the day it was written.**
+`public/robots.txt` (140 bytes, 3 rules) shadowed `app/robots.ts` (19 rules) — Next
+serves a `public/` file over a metadata route of the same name — so `/admin/` was
+crawlable, and none of the three rules that DID ship matched a real localized path
+(`/dashboard/` against `/ar/dashboard/`).
+
+| Defect | State |
+|---|---|
+| `public/robots.txt` shadowed `app/robots.ts`: 19 rules never shipped and `/admin/` was crawlable | ✅ fixed — the static file is deleted, and `test:robots` fails the build if it returns. AI crawlers are now named (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot …) so **allowing** them is a decision on record rather than an omission |
+| Six public pages carried `canonical=/ar` from the root layout's site-wide default — each telling Google it duplicates the landing page — while the HTTP `Link` header advertised `x-default=/`, a 307 | ✅ fixed — `lib/seo/alternates.ts` is the ONE source for canonical, hreflang and OpenGraph; `alternateLinks: false` closes the second channel; auth pages are `noindex` |
+| The FAQ answer stating the free allowance shipped the literal `{credits}` — 11 times in the live `/ar` — and `FaqSection` rendered answers only when open, so a non-JS fetch (every answer engine) saw none | ✅ fixed — the schema builder translates, and the answers are in the HTML |
+| The entity was unfindable: `SoftwareApplication` was named after the tagline, `Organization` had no `alternateName`, no locale-independent `url`, no logo, no `areaServed` and no `contactPoint`, and there was no `WebSite` node | ✅ fixed. `sameAs` is deliberately **empty** — no owned profile URL exists in this repo and an invented one is worse than none. `lib/seo/profiles.ts` is where the founder fills it |
+| The sitemap sent organic visitors to `/waitlist` at priority 0.9, omitted `/contact`, listed `/login`, and stamped every URL with the build time — while `gate-status` returns `inviteOnly:false` and signup is open | ✅ fixed — 12 URLs, hand-kept `lastModified`, `/waitlist` 308s to `/signup`. `/signup` is deliberately NOT listed: it is `noindex` under the auth layout, and the gate checks both halves together |
+| The Arabic landing had `الذكاء الاصطناعي` once (in the title), `الإمارات` never, and no sentence saying what the product IS; the H1 carried the typewriter cursor as TEXT | ✅ fixed — one definition paragraph per locale, the cursor as CSS `content`. Measured in the shipped bytes: `الإمارات` 0 → 6 on `/ar`, `UAE` 0 → 6 on `/en` |
+| No `llms.txt`, no `security.txt` | ✅ built — both in `public/`, served unauthenticated |
+| `POST /api/upload` read an unbounded multipart body from any signed-in customer with **no rate limit at all** — a disk-fill vector on the one box that also hosts Postgres, with signup open | ✅ fixed — `consumeAttempt()` runs between the auth check and `request.formData()`, 20 per 60 min, per user, failing CLOSED both ways |
+| Asset DELETE parsed the storage path by hand out of `assets.url` — a customer-writable column — then called `.remove()` on whatever bucket the first segment happened to name | ✅ fixed — `ownedStoragePath()`, the same rule the export path already used |
+| `vercel.live` and both Google Fonts hosts sat in the CSP and were never once loaded from; `X-Powered-By` was served; optimised images cached 60 s; Inter preloaded nine files on `/ar`, the default locale, which never uses it | ✅ fixed |
+| **Every unknown URL 307'd to the login form** — `/about`, `/faq`, every typo — because "not public" meant "protected". A soft-404 across the whole site | ✅ fixed — `lib/routing/protected.ts`, derived from the `(dashboard)` directory listing, never a filename list |
+
+#### Nine new gates, and a runner
+
+`prebuild` grew from 23 links to **32: `check:invariants` (18 rules) plus 31 test files carrying
+2,050 checks** — measured 2026-09-02 by `npm run gates`, 32/32 in 72 s. The figure this
+file carried before ("roughly 2,180 checks across 20 prebuild test files") was stale in
+both halves and is corrected in the Commands section.
+
+- **`test:robots`** (26) — one robots.txt ships, and it is the one the code writes.
+- **`test:alternates`** (37) — every public page canonical to itself, exactly one hreflang channel, auth pages noindex.
+- **`test:schema`** (39) — no placeholder reaches the JSON-LD, the entity nodes are present, and `sameAs` holds only URLs that exist.
+- **`test:sitemap`** (16) — the sitemap matches an open signup, and no file under `app/` or `components/` links to the redirected `/waitlist`.
+- **`test:landing-copy`** (13) — the definition sentence and the head terms are in the SOURCE, not only inside an animated component.
+- **`test:api-hygiene`** (6) — the upload throttle runs BEFORE the body is read; asset DELETE resolves paths by the shared rule; gate-status caches its success branch only.
+- **`test:config-hygiene`** (8) — no dead CSP host, no `X-Powered-By`, images cached a year, Inter not preloaded.
+- **`test:protected-prefixes`** (13) — `PROTECTED_PREFIXES` agrees with the `(dashboard)` directory listing.
+- **`test:invariants-doc`** (18 rules) — every rule in `check-invariants.ts` has a `## <id>` section in `docs/INVARIANTS.md`. That doc had already gone stale at **11 of 17** once, was fixed by hand, and was stale again at **17 of 18** when this gate was written. It also fails if the scan finds fewer than 10 ids, so a scan that matched nothing cannot certify an empty result.
+- **`npm run gates`** — runs the whole chain and reports **every** failing gate, not the first. It READS the chain out of `package.json`, so the runner and the build can never list different gates, and it carries no count in a comment. `.github/workflows/gates.yml` runs the same thing on every push.
+
+#### Three defects were introduced by this round's own fixes and caught before shipping —
+#### and all three were errors in the PLAN, not in the code written from it
+
+- **The landing page lost its canonical.** Deleting the root layout's site-wide canonical
+  was right for the six inner pages claiming to be duplicates of it — and it left `/ar`
+  and `/en`, the URLs a launch announcement points at, with **no canonical and no hreflang
+  at all**. The plan never named `app/[locale]/page.tsx`, and its own re-measure loop
+  curled `/ar/contact`, `/ar/privacy`, `/ar/terms` and `/ar/pricing` — never `/ar`.
+- **`og:image` regressed on two pages.** Next merges `openGraph` **shallowly**: a
+  page-level object replaces the segment's wholesale, file-based images included. `privacy`
+  and `terms` had no metadata export before this round and inherited the og:image; giving
+  them a `publicOpenGraph()` that omitted `images` took it away. Measured on a production
+  build: og:image NONE on all five inner pages. The helper now advertises the locale's own
+  `opengraph-image` route, with dimensions from the same `OG_IMAGE` constant that route
+  exports as its `size`, so the size a page claims and the pixels it serves cannot disagree.
+- **The `/waitlist` → `/signup` redirect closed the invite wall's only exit.** The wall's
+  single forward action was `<Link href="/waitlist">`, so it became 308 → `/signup` → the
+  same wall: no way to leave an address, and a 308 is browser-cached, so it outlives a
+  revert. Not dead code — `gate-status` fails CLOSED by design, so one unreadable read
+  turns the wall on for everyone. Both surfaces now point at `/contact`.
+
+Two smaller corrections of the same shape are recorded in the commits. The plan's
+`config-hygiene` regex for the dev-only mock host was **unsatisfiable for every host it
+guards**: it bounded the span with `[^:]*`, and each host is written `https://`, so the
+scheme's own colon closes the span before the host is reached (measured against the real
+`next.config.ts`: `[^:]*` → false, `[^}]*` → true). And `middleware.ts` and
+`app/not-found.tsx` each carried a comment naming a file the code never reaches — the
+fourth instance of that class this file logs.
+
+#### Still open, deliberately
+
+- **Nothing in this round has been verified against production.** Every measurement above
+  is from the repo or from a production BUILD (`next build` + `next start`). `git push`
+  does not deploy this app; Task 12 of
+  `docs/superpowers/plans/2026-09-02-seo-geo-quick-wins.md` is a twelve-line re-measurement
+  loop to be run **after** the founder triggers the Coolify deploy. Anything that does not
+  flip there is a defect in that plan, not in production.
+- **`sameAs` is empty** until the founder fills `lib/seo/profiles.ts` with profiles actually
+  owned. Empty is the correct state; invented is not.
+- **The container healthcheck is still not enabled** (see the corrected bullet above), and
+  **`ADMIN_PASSWORD` is still weak and unrotated**.
+- **No public `/studios/[slug]`, `/use-cases/[slug]` or `/compare/[slug]` pages.** The audit
+  rated these the largest SEO lever, and they are explicitly out of scope here: multi-day,
+  and they need real curated output images.
+- **`درهم` appears 0 times on the Arabic pricing page.** Whether to show AED alongside USD
+  is a product decision, not a code one.
+- **No CDN with edge TLS.** The TLS handshake is 0.3–0.5 s from the Gulf on every
+  connection, because the box is in Kuala Lumpur.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -1967,7 +2073,7 @@ npm run test:safety             # 82 checks over the prompt filter and the build
 npm run test:uploads            # 37 checks over the brand-kit logo validator
 npm run test:plan-switch        # 15 checks over the mid-period plan-switch credit rule
 npm run test:generation-terminal #  11 checks: a row is only closed once credits are settled
-npm run test:voiceover-budget   # 508 checks: the char budget is the exact inverse of the price
+npm run test:voiceover-budget   # 546 checks: the char budget is the exact inverse of the price
 npm run test:image-host         #  18 checks: the SSRF allowlist is a HOST rule, not a suffix
 npm run test:image-canvas       # 172 checks: every offered ratio is one all three providers serve, and a paid tier reaches the request
 npm run test:reference-image    #  12 checks: an inline reference image is bounded
@@ -1983,6 +2089,26 @@ npm run test:brand-extract      # 135 checks: the extract route, its codes and i
 npm run test:brand-context      #  32 checks: business facts reach the prompt, sanitised
 npm run test:working-identity   #  78 checks: which brand kit a generation is for — and that a stale id does NOT fall through
 npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDIO own Zod schema
+npm run test:edit-effect        #  24 checks: an edit preset never asks for what its own rules forbid
+npm run test:white-field        #   6 checks: the marketplace white background is actually white
+npm run test:robots             #  26 checks: ONE robots.txt ships — the one app/robots.ts writes
+npm run test:alternates         #  37 checks: every public page canonical to itself, one hreflang channel
+npm run test:schema             #  39 checks: no placeholder in the JSON-LD; sameAs holds only URLs that exist
+npm run test:sitemap            #  16 checks: the sitemap matches an open signup, and nothing links to /waitlist
+npm run test:landing-copy       #  13 checks: the definition sentence is in the SOURCE, not only in an animation
+npm run test:api-hygiene        #   6 checks: the upload throttle runs BEFORE the body is read
+npm run test:config-hygiene     #   8 checks: no dead CSP host, no X-Powered-By, no needless font preload
+npm run test:protected-prefixes #  13 checks: PROTECTED_PREFIXES agrees with the (dashboard) directory
+npm run test:invariants-doc     #  every rule in check-invariants.ts has a section in docs/INVARIANTS.md
+```
+
+**One runner runs the whole chain and reports EVERY failure, not the first** — which is
+what a human and a CI log want, while `prebuild` stays one `&&` chain because a build
+must stop at the first failing gate. It reads the chain out of `package.json`, so the
+two can never list different gates:
+
+```bash
+npm run gates                   # 32/32 in ~72 s; .github/workflows/gates.yml runs it on every push
 ```
 
 **One gate runs AFTER the build**, because before it there is nothing to read:
@@ -1991,7 +2117,10 @@ npm run test:mock-from-schema   #  55 checks: the dev mock parses with the STUDI
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**Roughly 2,180 checks across 20 prebuild test files, plus one postbuild gate.** Several exist because the defect they guard was
+**2,050 checks across 31 prebuild test files, plus `check:invariants` (18 rules) and one
+postbuild gate** — counted 2026-09-02 from a green `npm run gates`. The figure here
+before that ("roughly 2,180 checks across 20 prebuild test files") was stale in both
+halves. Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
 catches a price computed from a different string than the one the customer hears.

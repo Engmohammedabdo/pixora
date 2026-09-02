@@ -48,21 +48,9 @@ export async function generateMetadata({
       default: og.title,
       template: '%s | PyraSuite',
     },
-    // Search engines had no signal at all for which URL is canonical or which
-    // locale variant to serve — this is the site-wide default (locale root),
-    // built from the locale segment alone since layout.tsx only receives
-    // `params`, not the full pathname. Route-specific pages that define their
-    // own `generateMetadata` (e.g. /pricing) override this with a page-exact
-    // canonical; everything else inherits this locale-root default rather
-    // than emitting no canonical tag at all.
-    alternates: {
-      canonical: `${APP_URL}/${locale}`,
-      languages: {
-        ar: `${APP_URL}/ar`,
-        en: `${APP_URL}/en`,
-        'x-default': `${APP_URL}/ar`,
-      },
-    },
+    // No site-wide canonical here. The locale-root default that stood in this
+    // block told Google six public pages were duplicates of the landing page;
+    // every public page now derives its own from lib/seo/alternates.ts.
     description: isAr
       // Was "نماذج AI متعددة" ("multiple AI models") — broke the Pyra persona rule in
       // CLAUDE.md (never name models to the user) on the very first sentence Google
@@ -78,7 +66,9 @@ export async function generateMetadata({
       siteName: 'PyraSuite',
       title: og.title,
       description: og.description,
-      locale: isAr ? 'ar_SA' : 'en_US',
+      url: `${APP_URL}/${locale}`,
+      locale: isAr ? 'ar_AE' : 'en_US',
+      alternateLocale: [isAr ? 'en_US' : 'ar_AE'],
     },
     twitter: {
       card: 'summary_large_image',
