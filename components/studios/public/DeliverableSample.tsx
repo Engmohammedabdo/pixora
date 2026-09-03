@@ -100,12 +100,23 @@ export function hasDeliverableSample(slug: string): slug is TextDeliverableSlug 
  *     past prompt-builder run. The studio's dashboard page imports no
  *     `RecentWork` either.
  *
- * The extent is stated here rather than inferred from the renderers because a
- * renderer can shorten in two different ways — a `.slice()`, or by reading only
- * some of the file's sections, which is what `AnalysisSample` does — and a
- * scan that understood only the first would have certified analysis as `full`.
- * scripts/tests/studio-pages.test.ts checks each value against the shipped
- * sample file instead, so a table that stops matching the page FAILS the build.
+ * The extent is STATED here rather than inferred at runtime because a renderer
+ * can shorten in two different ways — a `.slice()`, or by reading only some of
+ * the file's sections, which is what `AnalysisSample` does — and a reader that
+ * understood only the first would certify analysis as `full`.
+ *
+ * scripts/tests/studio-pages.test.ts §14 checks each value against BOTH halves
+ * of what the page actually renders, because either half alone leaves the note
+ * false with every gate green:
+ *   - against the shipped sample FILE, so a file that shrinks until the
+ *     renderer's slice drops nothing FAILS the build;
+ *   - against the RENDERER's own comment-stripped source, in both shortening
+ *     forms above, so deleting `calendar.slice(0, 2)` from `PlanSample` or
+ *     `.slice(0, 3)` from `StoryboardSample`, or adding the dropped sections
+ *     back to `AnalysisSample`, FAILS the build too.
+ * An earlier version of this paragraph claimed the first arm alone was that
+ * protection. It was not: the file arm moves when the FILE moves and never when
+ * the renderer moves, which is the whole failure this table exists to prevent.
  */
 export const SAMPLE_EXTENT: Record<TextDeliverableSlug, 'excerpt' | 'full'> = {
   plan: 'excerpt',

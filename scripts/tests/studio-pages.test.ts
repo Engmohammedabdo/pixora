@@ -627,6 +627,76 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
   }
 }
 
+// The English arm above is EXACT and, on Arabic, VACUOUS: `SHOT_NAMES` holds 42
+// English identifiers, and an Arabic translation can never contain one -- so
+// all 42 `ar: no translation carries the shot name "X"` checks are true for a
+// reason that has nothing to do with Arabic copy. Measured: restoring the
+// sentence that actually shipped on 2026-09-02 --
+// «كل لقطة بكاميرا وتكوين وتنسيق مختلفين — أمامية، ثلاثة أرباع، من فوق، ماكرو على
+// التفاصيل، جانبية، ومرفوعة» -- to `ar.studios.photoshoot.definition` left the
+// whole file GREEN. That is the discipline this very file states at :79 applied
+// to one locale and skipped for the locale the product is built for, and the
+// third member of the family CLAUDE.md already logs (the Arabic-dead credit
+// detector, the SEO round's unsatisfiable `[^:]*` host pattern).
+//
+// Arabic angle names cannot be derived from ENVIRONMENT_PRESETS -- the presets
+// are English and nothing translates them -- so the vocabulary is written out
+// here, and, exactly like sections 3 and 6, it PROVES ITSELF on a corpus before
+// it is trusted. The rule is on the ENUMERATION rather than on any single term,
+// because «من فوق» and «جانبية» are ordinary Arabic that honest copy may use;
+// three or more of them in one string is a shot list, which is the thing that
+// can never be true for more than one of the seven environments.
+const AR_SHOT_TERMS = ['أمامية', 'ثلاثة أرباع', 'من فوق', 'ماكرو', 'جانبية', 'مرفوعة'];
+const AR_ENUMERATION_MIN = 3;
+const arShotTermsIn = (text: string): string[] => AR_SHOT_TERMS.filter((t) => text.includes(t));
+const carriesArShotList = (text: string): boolean => arShotTermsIn(text).length >= AR_ENUMERATION_MIN;
+
+// The sentence that shipped, byte-for-byte from the 2026-09-03 audit's live
+// fetch. Every term is asserted to appear in it, so a typo in the list above
+// fails HERE rather than quietly shrinking the vocabulary the scan looks for.
+const SHIPPED_AR_SHOT_LIST = 'كل لقطة بكاميرا وتكوين وتنسيق مختلفين — أمامية، ثلاثة أرباع، من فوق، ماكرو على التفاصيل، جانبية، ومرفوعة';
+for (const term of AR_SHOT_TERMS) {
+  check(`the Arabic shot vocabulary term ${JSON.stringify(term)} is one that shipped`, SHIPPED_AR_SHOT_LIST.includes(term), term);
+}
+const AR_MUST_MATCH = [
+  // (a) the live 2026-09-02 definition, and the FAQ answer that repeated it.
+  SHIPPED_AR_SHOT_LIST,
+  'كل لقطة من الست ليها كاميرا وتكوين وتنسيق مكتوبين — أمامية، ثلاثة أرباع، من فوق، ماكرو على التفاصيل، جانبية، ومرفوعة.',
+  // A shortened re-paste is the same defect with fewer words, so the threshold
+  // has to catch three terms, not only all six.
+  'بتديك زوايا أمامية وجانبية ومن فوق',
+];
+const AR_MUST_NOT_MATCH = [
+  // (b) the copy that replaced it -- read from the shipped file, not retyped,
+  // so this arm tracks what is actually published.
+  ((ar as Record<string, Record<string, Record<string, string>>>).studios?.photoshoot?.definition ?? ''),
+  ((ar as Record<string, Record<string, Record<string, string>>>).studios?.photoshoot?.a1 ?? ''),
+  // …and the shape the corrected copy is allowed to take: counts, not angles.
+  'ست لقطات في سبع بيئات جاهزة، وكل بيئة ليها الست لقطات بتوعها هي.',
+  'صورة واحدة لمنتجك وترجعلك ست لقطات، كل واحدة بزاوية وإضاءة مكتوبين للبيئة اللي اخترتها.',
+];
+for (const s of AR_MUST_MATCH) {
+  check(`the Arabic shot-list detector CATCHES ${JSON.stringify(s.slice(0, 42))}`, carriesArShotList(s), `${arShotTermsIn(s).length} terms`);
+}
+for (const s of AR_MUST_NOT_MATCH) {
+  check(`the Arabic shot-list detector PASSES ${JSON.stringify(s.slice(0, 42))}`, s.length > 0 && !carriesArShotList(s), `${arShotTermsIn(s).join(' ')}`);
+}
+
+// The scan itself runs per STRING, never on a joined blob: three unrelated keys
+// each using one ordinary word would sum to an enumeration that nobody wrote.
+{
+  const studios = (ar as Record<string, Record<string, Record<string, string>>>).studios ?? {};
+  let arStrings = 0;
+  for (const [ns, entries] of Object.entries(studios)) {
+    for (const [key, value] of Object.entries(entries)) {
+      if (typeof value !== 'string') continue;
+      arStrings++;
+      check(`ar: studios.${ns}.${key} carries no shot-angle enumeration`, !carriesArShotList(value), arShotTermsIn(value).join(' '));
+    }
+  }
+  check('the Arabic shot-list scan actually read the copy', arStrings > 100, String(arStrings));
+}
+
 // The copy that replaced the list still says SEVEN environments, and that is
 // the one thing about the list it may state. Bound to the preset count, so an
 // eighth environment fails here instead of leaving both locales quietly wrong
@@ -713,6 +783,72 @@ const sampleComponentSrc = stripComments(readFileSync(join(ROOT, 'components/stu
 const promptBuilderRenderer = sampleComponentSrc.slice(sampleComponentSrc.indexOf('function PromptBuilderSample'), sampleComponentSrc.indexOf('const SAMPLES'));
 check('the prompt-builder renderer was located', promptBuilderRenderer.includes('PROMPT_BUILDER.data.map('), 'PromptBuilderSample not found in the comment-stripped source');
 check('the prompt-builder renderer shortens nothing', promptBuilderRenderer.length > 0 && !promptBuilderRenderer.includes('.slice('), 'a .slice() appeared in PromptBuilderSample while SAMPLE_EXTENT says it renders in full');
+
+// The file arm alone is not the protection SAMPLE_EXTENT's header claimed.
+// DROPS_SOMETHING is a hand-written mirror of each renderer evaluated against
+// the sample FILE, so it moves when the file moves and NEVER when the renderer
+// moves: deleting `.slice(0, 3)` from `StoryboardSample` renders all nine
+// scenes under a note that says «مختصر عشان الصفحة» / "Shortened for the page",
+// with every gate green. So the RENDERER is read too, in both the forms it can
+// shorten in -- the two forms the header names -- and the reader is proved on
+// fabricated sources before it is trusted, the rule sections 3, 6 and 12 state.
+//
+// Both arms are kept because each catches what the other cannot: the file arm
+// catches a sample file that shrinks until the renderer's slice drops nothing,
+// the renderer arm catches a renderer that stops dropping.
+/**
+ * Does this renderer truncate a list? `PlanSample` (`calendar.slice(0, 2)` of
+ * four weeks) and `StoryboardSample` (`.slice(0, 3)` of nine scenes) do.
+ */
+function rendererSlices(src: string): boolean {
+  return /\.slice\(\s*0\s*,\s*\d+\s*\)/.test(src);
+}
+/**
+ * Does this renderer never read some top-level section of the file at all?
+ * That is the OTHER way to shorten, and the only one `AnalysisSample` uses —
+ * a reader that understood only `.slice()` would certify analysis as `full`.
+ * Not applicable to a renderer whose file `data` is an array.
+ */
+function rendererDropsSections(src: string, file: unknown): boolean {
+  const data = (file as { data: unknown }).data;
+  if (Array.isArray(data)) return false;
+  const destructured = /const\s*\{([^}]*)\}\s*=\s*[A-Z_]+\.data;/.exec(src);
+  const read = destructured ? destructured[1].split(',').map((s) => s.trim()) : [];
+  return Object.keys(data as Record<string, unknown>).some((key) => !read.includes(key) && !src.includes(`.data.${key}`));
+}
+// Proved on fabricated sources before either is trusted, the rule sections 3, 6
+// and 12 state — a reader that returns `true` for everything would certify the
+// whole table and see nothing.
+check('the renderer reader SEES a truncating renderer', rendererSlices('STORYBOARD.data.slice(0, 3).map('));
+check('the renderer reader SEES an untruncated one', !rendererSlices('STORYBOARD.data.map('));
+check('the renderer reader SEES a section-dropping renderer', rendererDropsSections('const { swot, kpis } = ANALYSIS.data;', SAMPLE_FILES.analysis));
+check('the renderer reader SEES one that reads every section', !rendererDropsSections('const { swot, personas, competitors, roadmap, kpis } = ANALYSIS.data;', SAMPLE_FILES.analysis));
+check('the renderer reader claims no sections of an array file', !rendererDropsSections('PROMPT_BUILDER.data.map(', SAMPLE_FILES['prompt-builder']));
+
+// WHICH way each renderer shortens, pinned. `SAMPLE_EXTENT`'s header documents
+// each of these by name, so a renderer that stops doing what the header says it
+// does fails here rather than leaving the header describing a page that no
+// longer exists — the defect class this whole file is a gate against.
+const RENDERER_SHORTENING: Record<TextDeliverableSlug, { marker: string; slices: boolean; dropsSections: boolean }> = {
+  plan: { marker: 'function PlanSample', slices: true, dropsSections: true },
+  analysis: { marker: 'function AnalysisSample', slices: false, dropsSections: true },
+  storyboard: { marker: 'function StoryboardSample', slices: true, dropsSections: false },
+  'prompt-builder': { marker: 'function PromptBuilderSample', slices: false, dropsSections: false },
+};
+const RENDERER_ORDER: TextDeliverableSlug[] = ['plan', 'analysis', 'storyboard', 'prompt-builder'];
+RENDERER_ORDER.forEach((slug, index) => {
+  const { marker, slices, dropsSections } = RENDERER_SHORTENING[slug];
+  const start = sampleComponentSrc.indexOf(marker);
+  const endMarker = index + 1 < RENDERER_ORDER.length ? RENDERER_SHORTENING[RENDERER_ORDER[index + 1]].marker : 'const SAMPLES';
+  const end = sampleComponentSrc.indexOf(endMarker, start + 1);
+  const src = start >= 0 && end > start ? sampleComponentSrc.slice(start, end) : '';
+  check(`${slug}: its renderer was actually located`, src.length > 100, `${marker} -> ${src.length} chars`);
+  if (src.length === 0) return;
+  check(`${slug}: the renderer truncates exactly where SAMPLE_EXTENT's header says`, rendererSlices(src) === slices, `slices=${String(rendererSlices(src))} expected=${String(slices)}`);
+  check(`${slug}: the renderer drops sections exactly where SAMPLE_EXTENT's header says`, rendererDropsSections(src, SAMPLE_FILES[slug]) === dropsSections, `dropsSections=${String(rendererDropsSections(src, SAMPLE_FILES[slug]))} expected=${String(dropsSections)}`);
+  // …and the two roll up to the value the page reads.
+  check(`${slug}: SAMPLE_EXTENT agrees with what the RENDERER renders`, (SAMPLE_EXTENT[slug] === 'excerpt') === (slices || dropsSections), `${SAMPLE_EXTENT[slug]} vs shortens=${String(slices || dropsSections)}`);
+});
 
 let sampleNoteChecks = 0;
 for (const slug of TEXT_DELIVERABLE_SLUGS) {
