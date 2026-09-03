@@ -744,5 +744,147 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
 // the page, invisible to every check above.
 check('the studio page picks its sample note per studio', studioPageSrc.includes('sampleNoteKey(studioSlug)'), 'no sampleNoteKey(studioSlug) in the comment-stripped page source');
 
+// ── 11. The public surface does not speak two dialects ─────────────────────
+// The 2026-09-03 live audit measured the `studios` namespace against `landing`
+// and found the two using disjoint marker sets: ZERO of the Gulf markers
+// `landing` uses, and ten Egyptian-only ones `landing` never uses. The sharpest
+// instance was one click wide — the landing card for the prompt-builder read
+// "مو عارف توصف؟" and the page it links to opened "مش عارف توصف؟". Commit
+// 85b8606 closed it by hand and did NOT add this gate, on the reasoning that
+// this file was a moving target that day; the exact marker it removed then
+// passed all 33 gates untouched, which is the definition of a fix with nothing
+// holding it.
+//
+// THE RULE, in two directions, because one alone is satisfiable by the defect:
+//   (a) SUBSET — a dialect marker may appear in `studios` only if `landing`
+//       already uses it. This fires the moment أيوه / بيضا / تاني / كام /
+//       مفيش / حاجة comes back into a studio page.
+//   (b) NOT DISJOINT, PER BUCKET — the Gulf markers `landing` uses may not all
+//       be absent from `studios`, and neither may the Egyptian ones. (a) alone
+//       is silent on the audit's actual headline: a `studios` written entirely
+//       in the Egyptian half of `landing`'s vocabulary is a strict subset and
+//       still reads as a different product.
+//
+// Arabic only. Dialect is not a property `messages/en.json` has, and asserting
+// it there would be a check that cannot fail.
+//
+// THE VOCABULARY IS NOT "COLLOQUIAL WORDS" — it is words whose counterpart in
+// the other dialect is a different word (أيوه/إي, إزاي/كيف, عايز/تبي,
+// دلوقتي/الحين, كام/كم, حاجة/شي, تاني/ثاني, مفيش/مافيه). `عشان` is deliberately
+// NOT in it: its Gulf form is `عشان`, so it marks nothing. Measured over
+// messages/ar.json — 15 occurrences in 14 strings across nine namespaces: 7 in
+// `studios`, 8 in auth, brandKit, studio, edit, billing, waitlist,
+// paymentFailed and contact, and **0 in `landing`**. It is the app's own voice
+// everywhere, not a register a studio page imported — and 85b8606's message
+// listed it among the markers left alone "because `landing` uses them too",
+// which is the one thing `landing` does not do with it. Counting it here would
+// fail this rule on a namespace split that does not exist.
+const DIALECT_PREFIXES = ['', 'و', 'ف', 'ب', 'ل', 'وب'] as const;
+const DIALECT_SUFFIXES = ['', 'ه', 'ها', 'هم'] as const;
+const GULF_MARKERS = ['ليش', 'إيش', 'ايش', 'تبي', 'تبين', 'أبي', 'مو', 'الحين', 'شلون'] as const;
+const EGYPTIAN_MARKERS = ['أيوه', 'ايوه', 'إزاي', 'ازاي', 'دلوقتي', 'عايز', 'عايزة', 'حاجة', 'حاجات', 'كام', 'مفيش', 'بجد', 'تاني', 'بيضا', 'ده', 'دي', 'دول', 'لأ'] as const;
+
+// Matched on WHOLE TOKENS, never as substrings, and that is the whole design.
+// The audit's own count reported أبي×5 and وش×9 inside `أبيض` and `السوشال` —
+// a substring detector on Arabic reports the product's marketplace copy as a
+// dialect. Tokens are split on anything that is not a letter, then compared
+// against the marker with the clitics Arabic actually attaches (و/ف/ب/ل and the
+// object pronouns), which is what makes `تبيه` a hit and `بيضاء` not one.
+function isDialectToken(token: string, marker: string): boolean {
+  for (const prefix of DIALECT_PREFIXES) {
+    for (const suffix of DIALECT_SUFFIXES) {
+      if (token === prefix + marker + suffix) return true;
+    }
+  }
+  return false;
+}
+function dialectMarkersIn(texts: readonly string[]): Set<string> {
+  const found = new Set<string>();
+  for (const text of texts) {
+    for (const token of text.split(/[^\p{L}]+/u)) {
+      if (!token) continue;
+      for (const marker of [...GULF_MARKERS, ...EGYPTIAN_MARKERS]) {
+        if (isDialectToken(token, marker)) found.add(marker);
+      }
+    }
+  }
+  return found;
+}
+
+// The detector proves itself before it is trusted — the rule this file already
+// states for the credit detector, which shipped DEAD on Arabic for exactly the
+// reason a plausible-looking regex can.
+const DIALECT_MUST_MATCH: ReadonlyArray<readonly [string, string]> = [
+  ['أيوه، وده أهم شي في القائمة', 'أيوه'],
+  ['التوليد بكام؟', 'كام'],
+  ['خلفية بيضا من غير إكسسوار', 'بيضا'],
+  ['جرّب تاني بعد شوية', 'تاني'],
+  ['اكتب اللي تبيه بالظبط', 'تبي'],
+  ['ودي أهم حاجة', 'حاجة'],
+  ['مفيش رسوم مخفية', 'مفيش'],
+  ['مو عارف توصف؟', 'مو'],
+];
+const DIALECT_MUST_NOT_MATCH: ReadonlyArray<readonly [string, string]> = [
+  ['خلفية بيضاء متصلة من غير خط أفق', 'بيضا'],
+  ['بيئة استوديو أبيض', 'أبي'],
+  ['شارك على السوشال', 'وش'],
+  ['الموقع بتاعك', 'مو'],
+  ['الفيديو كامل', 'كام'],
+  ['بايرا موجودة', 'مو'],
+];
+for (const [text, marker] of DIALECT_MUST_MATCH) {
+  check(`the dialect detector CATCHES ${JSON.stringify(marker)} in ${JSON.stringify(text)}`, dialectMarkersIn([text]).has(marker));
+}
+for (const [text, marker] of DIALECT_MUST_NOT_MATCH) {
+  check(`the dialect detector PASSES ${JSON.stringify(text)} for ${JSON.stringify(marker)}`, !dialectMarkersIn([text]).has(marker));
+}
+
+function arabicStringsUnder(node: unknown, acc: string[] = []): string[] {
+  if (typeof node === 'string') { acc.push(node); return acc; }
+  if (node && typeof node === 'object') {
+    for (const value of Object.values(node as Record<string, unknown>)) arabicStringsUnder(value, acc);
+  }
+  return acc;
+}
+const arNamespaces = ar as unknown as Record<string, unknown>;
+const landingCopy = arabicStringsUnder(arNamespaces.landing);
+const studiosNamespaces = (arNamespaces.studios ?? {}) as Record<string, unknown>;
+const scannedDialectNs: string[] = [];
+const studiosCopy: string[] = [];
+for (const [ns, entries] of Object.entries(studiosNamespaces)) {
+  scannedDialectNs.push(ns);
+  arabicStringsUnder(entries, studiosCopy);
+}
+// A scan that matched nothing certifies nothing. Both sides are asserted to
+// have found real copy AND real markers before either comparison is believed.
+check('the dialect scan read the landing copy', landingCopy.length >= 50, `${landingCopy.length} strings`);
+check('the dialect scan read the studios copy', studiosCopy.length >= 50, `${studiosCopy.length} strings`);
+for (const ns of [...STUDIO_SLUGS, 'shared']) {
+  check(`the dialect scan opened studios.${ns}`, scannedDialectNs.includes(ns), scannedDialectNs.join(' '));
+}
+const landingMarkers = dialectMarkersIn(landingCopy);
+const studiosMarkers = dialectMarkersIn(studiosCopy);
+check('the dialect detector found markers in the landing copy', landingMarkers.size > 0);
+check('the dialect detector found markers in the studios copy', studiosMarkers.size > 0);
+
+// (a) SUBSET.
+for (const marker of studiosMarkers) {
+  check(
+    `the studio pages' ${marker} is a marker the landing page uses too`,
+    landingMarkers.has(marker),
+    `${marker} appears in studios and never in landing — landing uses [${[...landingMarkers].join(' ')}]`,
+  );
+}
+// (b) NOT DISJOINT, per bucket.
+for (const [bucket, vocabulary] of [['gulf', GULF_MARKERS], ['egyptian', EGYPTIAN_MARKERS]] as const) {
+  const shared = [...studiosMarkers].filter((m) => (vocabulary as readonly string[]).includes(m) && landingMarkers.has(m));
+  const inLanding = [...landingMarkers].filter((m) => (vocabulary as readonly string[]).includes(m));
+  check(
+    `the two namespaces are not disjoint in their ${bucket} markers`,
+    inLanding.length === 0 || shared.length > 0,
+    `landing uses [${inLanding.join(' ')}] and studios uses none of them`,
+  );
+}
+
 if (failures) { console.log(`\n[studio-pages] ${failures} of ${checks} checks FAILED`); process.exit(1); }
 console.log(`[studio-pages] ${checks} checks passed`);

@@ -10,6 +10,37 @@ fixed one, which is why the count is recorded rather than the survivors alone.
 
 Severity below is the SKEPTIC's corrected severity, not the finder's.
 
+## Where the copy for these findings actually landed — recorded 2026-09-03
+
+Commit `85b8606` is titled for two `[copy]` **nits** (nit 3, the changelog voice; nit 4, the
+dialect register) and its message states two things its own diff contradicts: *"No factual
+claim was touched — only markers"* and *"Both locales, identical key sets, no key added or
+removed."* Both are retracted here. It was a shared worktree and the copy of four other
+groups' in-flight fixes was swept into it. This note exists so that a reader of the findings
+below can find their own sentences.
+
+`85b8606` (`messages/ar.json`, `messages/en.json`) also carries the corrected copy for:
+
+| Finding | Keys it rewrote or added |
+|---|---|
+| defects **1** and **8** — photoshoot's per-environment shot list | `studios.photoshoot.definition`, `studios.photoshoot.a1` |
+| defects **2** and **7** — the voiceover rewrite's plan/dialect gate | `studios.voiceover.definition`, `studios.voiceover.a1` |
+| defect **3** — the edit page's before/after provenance | `studios.edit.beforeLabel`, plus the NEW key `studios.shared.pairProvenance` |
+| defect **4** — the prompt-builder sample note | the NEW key `studios.shared.sampleNoteFull` |
+| defect **6** — campaign's two-band price | the NEW key `studios.shared.perCampaign` |
+
+Three keys were added, in both locales — `perCampaign`, `pairProvenance`, `sampleNoteFull`.
+
+The consequence for anyone reading the history: those groups' own commits — `e3eaba3`
+(defects 1/8, 2/7 and 4) and `57f03f6` (defects 6 and 3) — ship their gates, their code and
+their reasoning **without the sentences they describe**. `git diff --name-only 85b8606 HEAD`
+lists 28 files and neither `messages/ar.json` nor `messages/en.json` is among them.
+
+Nothing was rewritten to tidy this: three commits are already downstream of `85b8606`, and
+rewriting published history is a worse trade than a correction that can be read. This is the
+same shape as `d3235c2`, and the same rule — a record that lies misdirects every later
+decision — applied to the repo's own history rather than to a page.
+
 ## defect (16)
 
 ### 1. [claims] /ar/studios/photoshoot (and /en/studios/photoshoot)
