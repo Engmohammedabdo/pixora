@@ -32,8 +32,14 @@ export interface StudioEntry {
   /** The key into lib/credits/costs.ts. The page reads the number from there;
    *  it is never written into a translation. */
   costKey: StudioCostKey;
-  /** How the cost is expressed: a flat price, a per-resolution range, or a rate. */
-  costShape: 'flat' | 'imageRange' | 'shotRange' | 'perDuration' | 'free';
+  /** How the cost is expressed: a flat price, a per-resolution range, a rate,
+   *  or — for campaign — the two bands its route actually charges.
+   *
+   *  A studio whose route can charge more than one price must NOT be `flat`.
+   *  campaign was, and published 12 while a text-only campaign costs 3;
+   *  scripts/tests/studio-pages.test.ts now fails on any shape whose rendered
+   *  badge omits either end of the studio's real price range. */
+  costShape: 'flat' | 'imageRange' | 'shotRange' | 'perDuration' | 'campaignBands' | 'free';
   /** Ids in public/examples/studios/manifest.json.
    *
    *  Empty ONLY for the five studios whose deliverable is not an image. Those
@@ -68,7 +74,7 @@ export const STUDIO_CATALOGUE: Record<StudioSlug, StudioEntry> = {
     related: ['photoshoot', 'creator'],
   },
   campaign: {
-    slug: 'campaign', costKey: 'campaign', costShape: 'flat', icon: 'LayoutGrid',
+    slug: 'campaign', costKey: 'campaign', costShape: 'campaignBands', icon: 'LayoutGrid',
     examples: ['campaign-post-1', 'campaign-post-2'],
     related: ['plan', 'creator'],
   },

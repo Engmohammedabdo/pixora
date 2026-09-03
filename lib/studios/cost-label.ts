@@ -34,6 +34,22 @@ import { getStudio, type StudioSlug } from '@/lib/studios/catalogue';
  * table that charges. The credit detector in scripts/tests/studio-pages.test.ts
  * could never have caught the old one: 15 is a SECONDS figure, not a credit
  * figure, so the gate that guards prices did not apply. It does now.
+ *
+ * ── AND WHY `campaignBands` EXISTS FOR THE SAME REASON ─────────────────────
+ * Campaign shipped as `flat`, i.e. one number: 12. It is the second studio
+ * whose route charges two prices — `app/api/studios/campaign/route.ts` reserves
+ * `input.generateImages ? full : text`, and the text band is 3 — and the same
+ * public page's own FAQ told the visitor the images are optional and that they
+ * "pay for the text half alone" while never naming that figure. So the only
+ * number on the page was the one that does not apply to the cheaper path the
+ * page itself advertises.
+ *
+ * Both bands come from `campaignCostBands()`, the module the ROUTE now imports
+ * too, and arrive as ICU values the same way voiceover's do — so neither figure
+ * is typed into a translation and neither can drift from the reservation.
+ * `studio-pages.test.ts` §5b fails any studio whose rendered badge omits either
+ * end of the price range its own code can charge, which is what would catch a
+ * revert of this line rather than a comment asking nobody to write one.
  */
 export interface StudioCostLabels {
   /** `studios.shared.creditUnit` — the word, never the number. */
@@ -44,6 +60,10 @@ export interface StudioCostLabels {
   /** `studios.shared.perDuration`, already composed by the caller from
    *  getVoiceoverConfig(): the WHOLE line, both bands. */
   perDuration: string;
+  /** `studios.shared.perCampaign`, already composed by the caller from
+   *  campaignCostBands(): the WHOLE line, both bands. Same shape and same
+   *  reason as `perDuration`. */
+  perCampaign: string;
 }
 
 export function studioCostLabel(slug: StudioSlug, labels: StudioCostLabels): string {
@@ -60,6 +80,12 @@ export function studioCostLabel(slug: StudioSlug, labels: StudioCostLabels): str
       // No `unit` and no leading figure: a single number in front of a two-band
       // price is what made the old badge read as one universal rate.
       return labels.perDuration;
+    case 'campaignBands':
+      // Same rule, same reason. The composed line names both prices and which
+      // path each one buys; a leading `${CREDIT_COSTS.campaign}` in front of it
+      // would put the expensive band back in the reading position that made the
+      // old badge look universal.
+      return labels.perCampaign;
     case 'flat':
     default:
       return `${CREDIT_COSTS[entry.costKey] as number} ${labels.unit}`;

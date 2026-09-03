@@ -76,9 +76,24 @@ const ASSETS = [
     alt: { ar: 'منتج العميل داخل طقم تصوير فخم على سطح رخام', en: "The customer's product in a luxury set on marble" } },
 
   // ── edit: the before/after pair, SAME product, same run ──────────────────
+  //
+  // The 'before' frame is `fixture-retail_scene.png`, and a fixture is
+  // GENERATED, not photographed: scripts/live/cases.ts defines `retail_scene`
+  // as a prompt string and scripts/live/run.ts posts it to
+  // /api/studios/creator, so the harness has an input to run the edit against.
+  // Its alt sentence said the jar was "photographed inside a café" and the page
+  // label said "the photo you have"; both were false statements about a
+  // text-to-image output, on the one page whose central claim is what survives
+  // an edit of a photo the customer already owns.
+  //
+  // The alt now DESCRIBES the frame and `studios.shared.pairProvenance` states
+  // on the page that both frames are product output from one run. Do not put
+  // "مصوّر"/"photographed" back, and do not describe any fixture-sourced frame
+  // as a customer's own upload. The pair a real phone photo would give is
+  // better evidence and is still unshot.
   { out: 'edit-before-cafe', sourceRun: '2026-08-27T21-07-40-884Z', file: 'fixture-retail_scene.png',
-    alt: { ar: 'قبل: برطمان دبس تمر مصوّر داخل كافيه، بخلفية مزحومة',
-           en: 'Before: a date-syrup jar photographed inside a café, against a busy background' } },
+    alt: { ar: 'قبل: برطمان دبس تمر على ترابيزة كافيه، بخلفية مزحومة',
+           en: 'Before: a date-syrup jar on a café table, against a busy background' } },
   { out: 'edit-after-marketplace', sourceRun: '2026-08-27T21-07-40-884Z', file: 'edit-marketplace_white.png',
     alt: { ar: 'بعد: نفس البرطمان على خلفية بيضا نقية جاهزة للماركت بليس، والملصق كما هو',
            en: 'After: the same jar on a pure white marketplace-ready background, its label untouched' } },

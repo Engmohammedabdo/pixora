@@ -8,9 +8,8 @@ import { generateText, generateImage } from '@/lib/ai/router';
 import { CAMPAIGN_PROMPT_VERSION, buildCampaignPrompt } from '@/lib/ai/prompts/campaign';
 import { buildCampaignImagePrompt } from '@/lib/ai/prompts/campaign-image';
 import { aspectRatioFor } from '@/lib/ai/prompts/platform-framing';
-import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
 import { getStudioConfig, isStudioEnabled, getEffectivePrompt, getCachedFeatureFlags } from '@/lib/admin/settings';
-import { getStudioCost } from '@/lib/credits/costs';
 import { persistGeneratedImage, formatFromUrl, WatermarkRequiredError } from '@/lib/storage/persist-image';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -112,19 +111,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'project_not_found' }, { status: 404 });
     }
 
-    // Use admin-configured cost or default, DECOMPOSED — see EXPECTED_POSTS
-    // above: the flat price is 9 images x the 1080p image price plus a remainder
-    // that buys the nine text posts. The form has always offered a "Generate All
-    // Images" checkbox, so reserving the flat price unconditionally charged the
-    // 12-credit campaign for the 3-credit half of it, and nothing downstream
-    // could return the difference — both the image recount and the partial
-    // refund are reached only when images were actually asked for, and with the
-    // box unchecked every image slot is null by construction.
-    const perImageCost = CREDIT_COSTS.image['1080p'];
-    const fullCost = getStudioCost('campaign');
-    // Clamped at 1, so an admin override set at or below the image half cannot
-    // make the text-only campaign reserve nothing and generate for free.
-    const textCost = Math.max(1, fullCost - EXPECTED_POSTS * perImageCost);
+    // The cost, DECOMPOSED — see EXPECTED_POSTS above: the flat price is 9
+    // images x the 1080p image price plus a remainder that buys the nine text
+    // posts. The form has always offered a "Generate All Images" checkbox, so
+    // reserving the flat price unconditionally charged the 12-credit campaign
+    // for the 3-credit half of it, and nothing downstream could return the
+    // difference — both the image recount and the partial refund are reached
+    // only when images were actually asked for, and with the box unchecked
+    // every image slot is null by construction.
+    //
+    // The three lines that computed this here now live in
+    // lib/credits/campaign-cost.ts, and the PUBLIC /studios/campaign page reads
+    // the same module. It was publishing one of these two bands — 12 — on a
+    // page whose own FAQ tells the visitor the images are optional. Two copies
+    // of the split is how a charged price and a published price drift apart.
+    //
+    // The clamp at 1 that used to sit here is in that module, stated as part of
+    // the rule rather than as a defensive extra: it is what the route charges.
+    const { full: fullCost, text: textCost, perImage: perImageCost } = campaignCostBands();
     const creditCost = input.generateImages ? fullCost : textCost;
 
     // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
