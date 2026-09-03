@@ -1881,10 +1881,23 @@ crawler and an answer engine can read. Measured on the production build:
 2.53 kB / 174 kB, against the landing page's 10.3 kB / 192 kB. Read that honestly: 102 kB
 of the total is the shared-by-all baseline and the rest is the layout chain, so the
 server-component rule kept these pages from *adding* to the bundle — it did not make them
-cheap. **The one client boundary in that chain is `NavBar.tsx:1`.** `Footer.tsx` carries
-no `'use client'` at all — it is a server component that renders exactly one client child,
-`LocaleSwitcher.tsx:1`. An earlier version of this paragraph named both as client
-components; if you go hunting for the Footer boundary to trim, there is none to find.
+cheap. **Where the client boundaries actually are, enumerated rather than asserted:**
+`NavBar.tsx:1` is the boundary these PAGES add — it is not in the layout chain at all, it
+is imported and rendered by the pages themselves (`studios/[slug]/page.tsx:4,214` and
+`studios/page.tsx:3,102`), and it pulls framer-motion. The layout chain carries its own,
+at `app/[locale]/layout.tsx:118-137`: `NextIntlClientProvider`, `DirectionProvider`
+(@radix-ui/react-direction), `ThemeProvider`, `QueryProvider`, `ToastProvider` and
+`PageViewTracker` — `head -1` on the last four is `'use client';`. `Footer.tsx` has no
+`'use client'` of its own, but it is not client-free either: it renders `LocaleSwitcher`
+(`LocaleSwitcher.tsx:1`) and, at `Footer.tsx:54,73,92`, next-intl `Link`s whose `BaseLink`
+is itself `"use client"` — about eleven per page.
+
+> Two earlier versions of this paragraph got this wrong in opposite directions: the first
+> named Footer as a client component, and the correction then over-swung to "the one
+> client boundary in that chain is NavBar" and "if you go hunting for the Footer boundary
+> to trim, there is none to find" — which told a reader to stop looking at the one file
+> that has two kinds of client child. **Do not write "the one client boundary" unless
+> something enumerates them.** `head -1` over the imported tree is that something.
 The plan asserted the landing page was "265 kB of gzipped JS"; this build reports 192 kB,
 so do not repeat the 265 figure.
 
@@ -1898,11 +1911,20 @@ x-default). Only voiceover carries an `<audio>`. One block is the design, not an
 
 > **That count is on script ELEMENTS, and it has to be.** All 20 built studio documents
 > match `<script[^>]*type="application/ld+json"…>` exactly **once** and the payload parses
-> — but `grep -o 'application/ld+json' | wc -l` reports **2** on every one of them. Byte
-> 5330 of `ar/studios/creator.html` is the real element; byte 37636 is
-> `\"type\":\"application/ld+json\"` inside the RSC flight payload (`self.__next_f`) — a
-> JSON *string*, not an element. An earlier version of this paragraph reported that 2 as
-> two blocks. Read it as a regression against the plan's own re-measurement
+> — but `grep -o 'application/ld+json' | wc -l` reports **2** on every one of them. In
+> `ar/studios/creator.html` the first occurrence is the real `<script>` element and the
+> second is `\"type\":\"application/ld+json\"` inside the RSC flight payload
+> (`self.__next_f`) — a JSON *string*, not an element. An earlier version of this
+> paragraph reported that 2 as two blocks.
+>
+> **And a later version located them with the wrong ruler**, in the very paragraph that
+> teaches this. It called them "byte 5330" and "byte 37636"; those are JS string offsets
+> (UTF-16 code units). The BYTE offsets are **5787** and **41259** — the file is
+> `Buffer.byteLength` 172579 against `string.length` 132592, and the Arabic content is the
+> whole of that gap. Anyone verifying with `dd`, `xxd` or `tail -c +5331` lands 457 bytes
+> short, inside the `<head>`, and concludes this note is wrong. Prefer the structural
+> statement, which reproduces on any locale: **occurrence 1 is the element, occurrence 2
+> is a JSON string inside `self.__next_f`.** Read it as a regression against the plan's own re-measurement
 > (`curl … | grep -c 'application/ld+json'  # expect 1`) and the plausible "fix" is to emit
 > a second block, i.e. a duplicate graph a crawler then has to reconcile.
 >
