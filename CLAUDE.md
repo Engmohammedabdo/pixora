@@ -2087,6 +2087,155 @@ files carrying 2,517 checks** — `npm run gates`, 33/33 in 48.8 s. `test:sitema
 - **No gate asserts an example image is what its `alt` text says.** Same limit this file
   already records for invented text in images: it stays an eye pass.
 
+### Bytes the pages do not need — 2026-09-03
+
+Three payload findings from the live audit of the nine public studio pages
+(`docs/superpowers/2026-09-03-live-studio-pages-audit.md`, defects 15 and 16, nit 5). Two
+are fixed here with a gate each. The third is **not a repo-side fix at all**, and is
+recorded with its measurement rather than half-applied — because the obvious one-line
+change makes the site *slower*.
+
+Every number below was re-measured for this round, against the live origin and against a
+production build, not carried over from the audit.
+
+#### `sizes` asked for 4.04x the pixels of the box it was describing
+
+`sizes` is the only input to which `srcset` candidate a browser downloads, and it must
+state the width the image will RENDER. Both public studio image components ended their
+`sizes` in a bare viewport fraction — `50vw` in `StudioExamples.tsx`, `45vw` in
+`BeforeAfter.tsx` — while the slot stops growing at the `max-w-5xl` (1024px) container. At
+a 1920 viewport that asks for 960px and 864px.
+
+**Measured in a real Chrome at 1920x1080, DPR 1, on the live pages**, not derived:
+`img.getBoundingClientRect().width` is **478** on `/ar/studios/creator` (all four figures)
+and **454** on `/ar/studios/edit` (both frames). The container arithmetic agrees exactly —
+`(1024 - 48 px-6 - 16 gap-4) / 2 = 480`, less the figure's 1px border each side = 478; and
+with the arrow column, `(1024 - 48 - 32 - 32) / 2 = 456`, less the border = 454. So a
+DPR-1 browser was taking the `w=1080` candidate for a 478px box.
+
+Re-measured against production with `Accept: image/avif,…`, `w=1080` against `w=640`:
+
+| page | served | correct | saved |
+|---|---|---|---|
+| creator (4 images) | 251,629 | 139,133 | **112,496** |
+| campaign (2) | 263,926 | 126,764 | **137,162** |
+| photoshoot (4) | 106,877 | 52,767 | **54,110** |
+| edit (2) | 60,213 | 32,934 | **27,279** |
+
+Per locale, so 331,047 B per locale and **662,094 B across the eight image-bearing pages**.
+The fix is the shape the landing page has had since it was written —
+`components/landing/InteractiveDemo.tsx:232` ends its `sizes` in `480px`. The `srcset` Next
+generates is unchanged, because it is derived from the *smallest* `vw` in the attribute and
+that is still `50`.
+
+**The gate is stated on the FALLBACK entry, not on "a px appears somewhere."**
+`npm run test:studio-pages` reads the comment-stripped source of both
+components and asserts the last comma-separated entry — the one with no media condition,
+i.e. the one every desktop viewport uses — matches `/^[0-9]+px$/`, and fails if the scan
+finds no `sizes` at all. Proved by reintroducing the defect twice: the original
+`(max-width: 640px) 100vw, 50vw` fails, and so does `(max-width: 640px) 480px, 50vw` — the
+shape a loose "contains px" rule would have blessed while the entry that actually decides
+the download stayed broken.
+
+#### 121,264 bytes of fonts preloaded on every document, half of it unusable there
+
+Every page on the origin — `/ar`, `/en`, `/admin`, all 20 studio pages — preloaded the same
+8 woff2 files. Confirmed by curl on `/ar/studios/plan` and `/en/studios/plan`:
+byte-identical tag sets, 121,264 B, **2.93x the gzipped HTML of the page carrying them**, on
+a deployment with no CDN. Meanwhile Inter — the face every English word on `/en` renders in
+— was the one family opted out, because `app/fonts.ts` had stated the rule on a single
+constructor NAME and the only font assertion in `scripts/` was a regex naming `Inter(`.
+Cairo and Tajawal were unasserted. Same shape as every other "a rule stated on one name is
+not a rule" entry in this file.
+
+**The fact the fix turns on, measured rather than assumed: `subsets` is the PRELOAD list,
+not the face list.** next/font/google self-hosts every subset Google publishes and emits an
+`@font-face` for each, scoped by `unicode-range`; `subsets` decides only which of them get a
+`<link rel="preload">`. Proof already in the bytes we ship: Cairo declares
+`['arabic','latin']` and the production stylesheet carries a **third** Cairo face for
+`latin-ext` (`5ec84f17416dda4d`, four weights, full unicode-range) that appears in no
+preload tag on any page. So removing a subset removes a download from the critical path. It
+does not remove a glyph from the page.
+
+Tajawal is applied by exactly one selector, `[lang='ar']` (`app/globals.css:86`). On `/en`
+its three latin faces can therefore never match a character — the only `lang="ar"` elements
+on an English page are the two locale-switcher anchors, whose text is Arabic. On `/ar` they
+carry digits and the stray Latin word inside Arabic body copy: real, but short runs at body
+size, sitting beside arabic faces that *are* preloaded. `subsets` is now `['arabic']`. Cairo
+keeps both — arabic is every `/ar` h1-h4, latin is the `.font-cairo` wordmark on `/ar` and
+every `/en` heading, i.e. display text above the fold in both locales.
+
+**Verified in a production build**, run into an isolated `distDir` so a concurrent build
+could not be mistaken for evidence. next/font marks a preloadable file with a `.p.` infix,
+and the built `static/media` says:
+
+```
+preloadable AFTER    01f0c602 33,644   350b8527 30,712    (Cairo latin, Cairo arabic)
+                     dd994fbf  8,916   63a79a6c  8,868   1ebb550c 9,040
+                                                         (Tajawal arabic 400/500/700)
+                     TOTAL 91,180
+no longer preloaded  e97026df 10,228   f15f45d1  9,868   ce401bab 9,988
+                                                         (Tajawal latin 400/500/700)
+                     DROPPED 30,084          121,264 -> 91,180
+```
+
+and the emitted stylesheet still references `e97026df054cf2a3-s.woff2` — the face is intact,
+only its `.p.` marker is gone, which is the second half of the claim proved rather than
+asserted. **What it costs, said plainly:** on `/ar` a digit or a Latin word inside a
+paragraph now paints in the fallback first and swaps. There is no layout shift by
+construction (`Tajawal Fallback` is `size-adjust: 94.66%` with ascent/descent/line-gap
+overridden), and it is the identical trade this file already accepted for Inter, which is a
+whole locale's body text rather than its numerals.
+
+**The gate now derives its membership from the file.** `test:config-hygiene` (19 checks, was
+8) parses the `next/font/google` import, asserts that the set of imported families equals the
+set with a written expectation, and asserts each call preloads *exactly* the subsets stated —
+so a new family, or a re-widened `subsets`, FAILS instead of going unseen. Proved on both
+arms: re-adding `'latin'` to Tajawal fails, and adding a fourth family fails twice. One trap
+worth recording because it cost a round: a `RegExp` built inside a template literal loses
+every backslash the pattern needs, so the first version of this block reported all three
+families "unreadable" while `app/fonts.ts` was fine. It slices on `indexOf` now.
+
+#### Brotli is never served to a browser — NOT fixed here, and the one-line fix is worse
+
+Reproduced against the live origin, `/ar/studios/creator`:
+
+```
+gzip, deflate, br, zstd  -> gzip     40,297     (Chrome's real header)
+gzip, deflate, br        -> gzip     40,297
+br, gzip                 -> gzip     40,297
+zstd, br, gzip           -> gzip     40,297
+br                       -> br       35,743
+br, zstd                 -> zstd     41,999     <- the proxy prefers zstd, and its zstd is
+zstd                     -> zstd     41,999        BIGGER here than br AND than gzip
+deflate                  -> deflate  40,285     <- Traefik v3 has no deflate: this is the app
+identity                 -> none    175,135
+```
+
+and on a JS chunk, `br;q=1.0, gzip;q=0.1` returns **gzip** 45,821 against br 41,438.
+
+**The cause is in the app; the fix is not.** Next's built-in `compress` defaults to true and
+does gzip/deflate only (`next.config.ts` has no `compress` key); the proxy will not re-encode
+an already-encoded body, so brotli surfaces only when the client offers neither gzip nor
+deflate — which no browser does. q-values are honoured; br simply is not in the encoder that
+answers, so gzip is the best available. The audit's proposed "fix negotiation at the proxy"
+would therefore change nothing.
+
+**And the obvious repo-side fix regresses on its own**, which is why nothing was changed
+here: with `compress: false` the proxy's order takes over, and this origin prefers **zstd**
+over br while its zstd is larger than br (HTML 41,999 vs 35,743) and larger than gzip
+(41,999 vs 40,297). Chrome sends zstd. That one-line change would make pages *bigger*.
+
+The fix is two-part and one half is not in this repo: set `compress: false` in
+`next.config.ts` **and** reorder the Traefik `compress` middleware's `encodings` so `br`
+precedes `zstd`. **Where that setting lives:** the Coolify proxy (Traefik) configuration for
+this application — no file in this repository. Do not do either half alone. Worth about
+20 kB of a ~304 kB cold load; the HTML alone is 40,297 -> 35,743 (11.3%).
+
+A gate for it cannot be a `prebuild` link — at build time there is no production to fetch.
+It belongs beside `test:rate-limit` and `test:logo-parity`, which this file already records
+as live-only and deliberately not prebuild.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -2383,10 +2532,10 @@ npm run test:schema             #  39 checks: no placeholder in the JSON-LD; sam
 npm run test:sitemap            #  24 checks: the sitemap matches an open signup, and nothing links to /waitlist
 npm run test:landing-copy       #  13 checks: the definition sentence is in the SOURCE, not only in an animation
 npm run test:api-hygiene        #   6 checks: the upload throttle runs BEFORE the body is read
-npm run test:config-hygiene     #   8 checks: no dead CSP host, no X-Powered-By, no needless font preload
+npm run test:config-hygiene     #  19 checks: no dead CSP host, no X-Powered-By, and an EXPLICIT preload decision for every next/font family — not for one named Inter
 npm run test:protected-prefixes #  13 checks: PROTECTED_PREFIXES agrees with the (dashboard) directory
 npm run test:invariants-doc     #  every rule in check-invariants.ts has a section in docs/INVARIANTS.md
-npm run test:studio-pages       # 457 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
+npm run test:studio-pages       # 726 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
 ```
 
 **One runner runs the whole chain and reports EVERY failure, not the first** — which is
@@ -2404,10 +2553,11 @@ npm run gates                   # 33/33 in ~49 s; .github/workflows/gates.yml ru
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**2,517 checks across 32 prebuild test files, plus `check:invariants` (18 rules) and one
-postbuild gate** — counted 2026-09-02 from a green `npm run gates` (33/33 in 48.8 s). It
-was 2,050 across 31 earlier the same day; `test:studio-pages` (457) is new, `test:sitemap`
-grew 16 → 24 and `test:root-document` 62 → 64. The figure before both
+**2,847 checks across 32 prebuild test files, plus `check:invariants` (18 rules) and one
+postbuild gate** — counted 2026-09-03 from a green `npm run gates` (33/33). It was 2,517
+across the same 32 files on 2026-09-02, and 2,050 across 31 the day before that. This
+number moves with every round; count it from `npm run gates` rather than quoting it. The
+figure before those
 ("roughly 2,180 checks across 20 prebuild test files") was stale in both
 halves. Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while

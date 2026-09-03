@@ -48,8 +48,58 @@ const cairo = Cairo({
   variable: '--font-cairo',
 });
 
+/**
+ * ── `subsets` IS THE PRELOAD LIST, NOT THE FACE LIST ───────────────────────
+ * This is the single fact the rest of this block turns on, and it is measured
+ * rather than reasoned about. next/font/google self-hosts EVERY subset Google
+ * publishes for the family and emits an `@font-face` for each, scoped by
+ * `unicode-range`; `subsets` decides only which of them get a
+ * `<link rel="preload">`. Proof in the bytes we already ship: Cairo is declared
+ * `['arabic','latin']` below, and the production stylesheet
+ * (/_next/static/css/6d0373892779de0b.css) carries a THIRD Cairo face for
+ * `latin-ext` — 5ec84f17416dda4d, full unicode-range, four weights — which
+ * appears in no preload tag on any page. So removing a subset here removes a
+ * download from the critical path. It does not remove a glyph from the page.
+ *
+ * WHAT WAS WRONG. Every document on the origin preloaded 8 woff2 files,
+ * 121,264 bytes, byte-identically on /ar, /en and /admin — measured by curl on
+ * /ar/studios/plan and /en/studios/plan, which return the same 8 tags. That is
+ * 2.93x the gzipped HTML of the page carrying it, on a deployment with no CDN.
+ * Meanwhile Inter, the face every English word on /en renders in, was the ONE
+ * family opted out. The rule had been stated on a single family NAME.
+ *
+ * THE RULE NOW, stated once for all three: preload the faces the DEFAULT
+ * locale renders as its dominant text, and let everything else arrive from the
+ * stylesheet behind next/font's metric-matched fallback.
+ *
+ *   Cairo   arabic + latin, preloaded. Arabic is every /ar h1–h4
+ *           (globals.css:89-94); latin is the `.font-cairo` wordmark on /ar and
+ *           every /en heading. Display text, above the fold, in both locales.
+ *   Tajawal arabic ONLY. Tajawal is applied by exactly one selector,
+ *           `[lang='ar']` (globals.css:86) — so on /en its three latin faces
+ *           (e97026df 10,228 + f15f45d1 9,868 + ce401bab 9,988 = 30,084 B)
+ *           could never match a character: the only lang="ar" elements on an
+ *           English page are the two locale-switcher anchors, and their text is
+ *           العربية. On /ar they render digits and the stray Latin word inside
+ *           Arabic body copy — real, but short runs at body size, and the
+ *           arabic faces they sit beside ARE preloaded.
+ *   Inter   not preloaded, unchanged.
+ *
+ * WHAT THIS COSTS, said plainly rather than buried: on /ar a digit or a Latin
+ * word inside a paragraph now paints in the fallback first and swaps. There is
+ * no layout shift by construction — the generated `Tajawal Fallback` face is
+ * `size-adjust: 94.66%` with ascent/descent/line-gap overridden — and it is the
+ * identical trade this file already accepted for Inter three lines down, which
+ * is a whole locale's body text rather than its numerals. Measured saving:
+ * 121,264 -> 91,180 bytes of preload on every page of the site, first visit
+ * (fonts are `max-age=31536000, immutable`).
+ *
+ * `npm run test:config-hygiene` now asserts an explicit `subsets`/`preload`
+ * decision for EVERY next/font/google call in this file, because the gate that
+ * existed named `Inter(` and structurally could not see the other two.
+ */
 const tajawal = Tajawal({
-  subsets: ['arabic', 'latin'],
+  subsets: ['arabic'],
   weight: ['400', '500', '700'],
   display: 'swap',
   variable: '--font-tajawal',
