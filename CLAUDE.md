@@ -1879,22 +1879,40 @@ path. All the page components are **server** components — their whole job is H
 crawler and an answer engine can read. Measured on the production build:
 `/[locale]/studios/[slug]` is **2.55 kB / 180 kB First Load JS** and `/[locale]/studios`
 2.53 kB / 174 kB, against the landing page's 10.3 kB / 192 kB. Read that honestly: 102 kB
-of the total is the shared-by-all baseline and the rest is the layout chain (NavBar and
-Footer are client components), so the server-component rule kept these pages from
-*adding* to the bundle — it did not make them cheap. The plan asserted the landing page
-was "265 kB of gzipped JS"; this build reports 192 kB, so do not repeat the 265 figure.
+of the total is the shared-by-all baseline and the rest is the layout chain, so the
+server-component rule kept these pages from *adding* to the bundle — it did not make them
+cheap. **The one client boundary in that chain is `NavBar.tsx:1`.** `Footer.tsx` carries
+no `'use client'` at all — it is a server component that renders exactly one client child,
+`LocaleSwitcher.tsx:1`. An earlier version of this paragraph named both as client
+components; if you go hunting for the Footer boundary to trim, there is none to find.
+The plan asserted the landing page was "265 kB of gzipped JS"; this build reports 192 kB,
+so do not repeat the 265 figure.
 
 **Measured in the built documents, not in the source.** `/ar/studios/creator`,
 `/ar/studios/voiceover`, `/ar/studios/plan` and `/en/studios/creator` each carry exactly
-one `<h1>`, two `application/ld+json` blocks holding one `FAQPage` and one
-`BreadcrumbList`, a page-exact canonical, and three page-exact `rel="alternate"` links
-(ar, en, x-default). Only voiceover carries an `<audio>`.
+one `<h1>`, **one** `application/ld+json` block whose `@graph` holds a `BreadcrumbList`, a
+`WebPage` and a `FAQPage` (the two index pages hold `BreadcrumbList` + `CollectionPage` +
+`ItemList`), a page-exact canonical, and three page-exact `rel="alternate"` links (ar, en,
+x-default). Only voiceover carries an `<audio>`. One block is the design, not an accident:
+`lib/seo/studio-schema.ts:25` and `:79` each build a single `@graph`.
 
-> **A grep trap, recorded because it wasted a measurement here.** React serialises the
-> attribute as `hrefLang`, so `grep -o 'hreflang=' ar/studios/creator.html` returns **0**
-> on a document that carries all three links. HTML attribute names are case-insensitive,
-> so this is correct output and a case-sensitive grep is the wrong instrument. Same family
-> as the `grep -c` one-line trap this file already records for prerendered documents.
+> **That count is on script ELEMENTS, and it has to be.** All 20 built studio documents
+> match `<script[^>]*type="application/ld+json"…>` exactly **once** and the payload parses
+> — but `grep -o 'application/ld+json' | wc -l` reports **2** on every one of them. Byte
+> 5330 of `ar/studios/creator.html` is the real element; byte 37636 is
+> `\"type\":\"application/ld+json\"` inside the RSC flight payload (`self.__next_f`) — a
+> JSON *string*, not an element. An earlier version of this paragraph reported that 2 as
+> two blocks. Read it as a regression against the plan's own re-measurement
+> (`curl … | grep -c 'application/ld+json'  # expect 1`) and the plausible "fix" is to emit
+> a second block, i.e. a duplicate graph a crawler then has to reconcile.
+>
+> **Third member of a family this file already records**, and the reason a raw grep is the
+> wrong instrument on a prerendered document: (1) `grep -c` counts **lines**, and a
+> prerendered document is one line, so it returns 1 however many times the thing occurs;
+> (2) `grep -o 'hreflang='` returns **0** on a document carrying all three links, because
+> React serialises the attribute as `hrefLang` and HTML attribute names are
+> case-insensitive — correct output, wrong instrument; (3) `grep -o` on any string that
+> also appears in the flight payload double-counts it. Parse the elements.
 
 #### The examples are real product output, and the exact claim matters
 
