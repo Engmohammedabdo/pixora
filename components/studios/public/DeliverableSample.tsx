@@ -126,7 +126,7 @@ export type SampleNoteKey = 'sampleNote' | 'sampleNoteFull';
  *
  * `sampleNoteFull` claims neither a truncation nor an account copy; it claims
  * that the page carries the whole of the run's output, which is only honest for
- * an `full` extent. An `excerpt` studio that is not retrievable therefore has
+ * a `full` extent. An `excerpt` studio that is not retrievable therefore has
  * no honest note here at all — the gate refuses that combination rather than
  * letting this function pick the less-wrong string.
  */

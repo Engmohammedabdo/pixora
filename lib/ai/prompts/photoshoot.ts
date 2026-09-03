@@ -62,7 +62,24 @@ interface EnvironmentPreset {
   shots: ShotRecipe[];
 }
 
-const ENVIRONMENT_PRESETS: Record<string, EnvironmentPreset> = {
+/**
+ * The seven environments, each with the six shot recipes written for IT.
+ *
+ * EXPORTED for one reason: scripts/tests/studio-pages.test.ts asserts that no
+ * shot name in here appears in any public translation. /studios/photoshoot
+ * shipped `white_studio`'s six names — `Front hero` (:98) through
+ * `Elevated dynamic` (:128) — in its definition and its first FAQ answer, in
+ * both locales and inside the FAQPage JSON-LD, in the same sentence that sells
+ * seven environments. It was
+ * v2.0's abandoned global list (see the `shots` field above), republished as
+ * the product's universal output, and it is wrong for six of the seven
+ * environments a customer can pick — including `luxury`, which is where all
+ * four example images on that very page come from.
+ *
+ * A shot list belongs to an environment, so the page states the RULE and no
+ * translation may carry the names again.
+ */
+export const ENVIRONMENT_PRESETS: Record<string, EnvironmentPreset> = {
   white_studio: {
     environment: 'Professional photo studio, infinity cove',
     background: 'Pure white seamless backdrop, no visible horizon line, no props',
