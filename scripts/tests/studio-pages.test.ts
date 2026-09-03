@@ -1022,5 +1022,47 @@ for (const [bucket, vocabulary] of [['gulf', GULF_MARKERS], ['egyptian', EGYPTIA
   );
 }
 
+// (c) THE ONE-CLICK PAIR, pinned by name.
+//
+// (a) and (b) are namespace-wide and BOTH pass on the exact instance this
+// section's header opens with. The landing card read «مو عارف توصف؟» and the
+// page it links to read «مش عارف توصف؟» — one click apart, opposite dialects.
+// `مش` is Egyptian and the landing namespace uses `مش` elsewhere, so the SUBSET
+// rule is satisfied and the NOT-DISJOINT rule is satisfied, and the pair can
+// drift back with all 33 gates green. 85b8606 closed it by hand and added
+// nothing to hold it, which is a fix with nothing holding it.
+//
+// Stated on the pair rather than on the namespaces: whatever marker the pair
+// turns on must be turned on by BOTH halves.
+const LINKED_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
+  ['landing.studios.s9Desc', 'studios.prompt-builder.tagline', 'مو'],
+];
+for (const [landingKey, studioKey, marker] of LINKED_PAIRS) {
+  const read = (path: string): string => {
+    const parts = path.split('.');
+    let node: unknown = arNamespaces;
+    // The slug `prompt-builder` contains no dot, so a plain walk is safe here;
+    // if a future slug ever does, this must switch to an explicit key list.
+    for (const part of parts) node = (node as Record<string, unknown> | undefined)?.[part];
+    return typeof node === 'string' ? node : '';
+  };
+  const landingText = read(landingKey);
+  const studioText = read(studioKey);
+  check(`the linked-pair scan found ${landingKey}`, landingText.length > 0, landingKey);
+  check(`the linked-pair scan found ${studioKey}`, studioText.length > 0, studioKey);
+  const inLandingHalf = dialectMarkersIn([landingText]).has(marker);
+  const inStudioHalf = dialectMarkersIn([studioText]).has(marker);
+  check(
+    `${landingKey} and ${studioKey} are one click apart and must agree on ${marker}`,
+    inLandingHalf && inStudioHalf,
+    `${marker} in landing:${inLandingHalf} studio:${inStudioHalf} — «${landingText.slice(0, 30)}» vs «${studioText.slice(0, 30)}»`,
+  );
+}
+// LIMIT, stated because a check that looks like a verdict and is not is worse
+// than none: this pins ONE pair by name. The other eight landing cards link to
+// their pages too and are NOT pinned — mapping `s1..s9` to slugs needs the
+// showcase's own order, which is a bigger surface than this defect warrants
+// today. If a second pair ever drifts, generalise it rather than adding a row.
+
 if (failures) { console.log(`\n[studio-pages] ${failures} of ${checks} checks FAILED`); process.exit(1); }
 console.log(`[studio-pages] ${checks} checks passed`);

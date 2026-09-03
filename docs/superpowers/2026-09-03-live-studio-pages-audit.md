@@ -25,7 +25,7 @@ below can find their own sentences.
 |---|---|
 | defects **1** and **8** — photoshoot's per-environment shot list | `studios.photoshoot.definition`, `studios.photoshoot.a1` |
 | defects **2** and **7** — the voiceover rewrite's plan/dialect gate | `studios.voiceover.definition`, `studios.voiceover.a1` |
-| defect **3** — the edit page's before/after provenance | `studios.edit.beforeLabel`, plus the NEW key `studios.shared.pairProvenance` |
+| defect **3** — the edit page's before/after provenance | `studios.shared.beforeLabel`, plus the NEW key `studios.shared.pairProvenance` |
 | defect **4** — the prompt-builder sample note | the NEW key `studios.shared.sampleNoteFull` |
 | defect **6** — campaign's two-band price | the NEW key `studios.shared.perCampaign` |
 
@@ -69,7 +69,11 @@ $ npm run test:studio-pages
 Error: Cannot find module '../../lib/credits/campaign-cost'   (MODULE_NOT_FOUND)
 ```
 
-**Three of the nine are in SHIPPING pages**, not in tests. `lib/credits/campaign-cost.ts` is
+**Four of the nine are in SHIPPING pages**, not in tests — three in
+`studios/[slug]/page.tsx` (11,35 · 119,5 · 265,13) and one in `studios/page.tsx`
+(11,35); the other five are in `scripts/tests/studio-pages.test.ts`. An earlier
+version of this sentence said three, and the evidence block twelve lines above it
+listed four — the same shape as every defect this document records. `lib/credits/campaign-cost.ts` is
 created by the *later* commit `57f03f6` and `ENVIRONMENT_PRESETS` is exported by the *later*
 `e3eaba3` — so `9342ff4` swept in two other groups' page and test code without the modules
 that code imports. The gate whose growth it reports **cannot even load at that tree**, so
@@ -117,9 +121,15 @@ written, and the repair round is still adding; rewriting
 published history is a worse trade than a correction that can be read — the same call
 `d3235c2` and the note above this one already made. What changes is the procedure, and it is
 the actual fix: stage only the paths belonging to the group (`git add <paths>`), then run
-`npx tsc --noEmit` and `npm run gates` against the **staged** tree — `git stash --keep-index`,
-or a worktree at it — so that a green run is a run of the commit rather than a run of whatever
-else happened to be on disk.
+`npx tsc --noEmit` and `npm run gates` against the **staged** tree — via
+`git worktree add --detach <dir> <tree>`, so that a green run is a run of the commit
+rather than a run of whatever else happened to be on disk.
+
+> **Not `git stash --keep-index`**, which an earlier version of this sentence offered.
+> `git stash` does not touch UNTRACKED files unless given `-u`, and every concurrent
+> group's new modules are untracked — which is exactly the contamination the procedure
+> exists to remove. `--include-untracked` would work; a detached worktree is total, needs
+> no flag remembered, and is what the verification that caught this actually used.
 
 ## defect (16)
 
