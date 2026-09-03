@@ -103,12 +103,35 @@ for (const s of MUST_NOT_MATCH) {
   check(`the credit detector PASSES ${JSON.stringify(s)}`, !CREDIT_NUMBER.test(s));
 }
 
-for (const slug of STUDIO_SLUGS) {
-  for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
-    const ns = (msgs as Record<string, Record<string, Record<string, string>>>).studios?.[slug];
-    if (!ns) continue;
-    const joined = Object.values(ns).join(' ');
-    check(`${locale}: studios.${slug} copy states no credit number`, !CREDIT_NUMBER.test(joined), (joined.match(CREDIT_NUMBER) ?? [''])[0]);
+// The scan reads EVERY namespace under `studios`, not the nine slugs.
+//
+// Its first version looped `STUDIO_SLUGS` and therefore never opened
+// `studios.shared` — the namespace that publishes the index page's H1, its
+// subtitle, the cost labels and the CTA, i.e. copy on ten public pages rather
+// than fragments. Measured, not reasoned about: setting
+// `studios.shared.indexSubtitle` to a sentence carrying a hardcoded 99-credit
+// price left this file reporting all checks passed. §6's seconds rule already
+// walked `Object.entries(studios)`, so the two rules in one file disagreed
+// about their own scope, and the weaker one guarded the price.
+//
+// Stated on what the file HAS rather than on a list of names, and then the
+// coverage itself is asserted — a future edit that narrows the walk back to
+// the nine fails HERE instead of going quiet.
+for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+  const studioMsgs = (msgs as Record<string, Record<string, Record<string, string>>>).studios ?? {};
+  const scanned: string[] = [];
+  for (const [ns, entries] of Object.entries(studioMsgs)) {
+    scanned.push(ns);
+    const joined = Object.values(entries).filter((v) => typeof v === 'string').join(' ');
+    check(`${locale}: studios.${ns} copy states no credit number`, !CREDIT_NUMBER.test(joined), (joined.match(CREDIT_NUMBER) ?? [''])[0]);
+  }
+  // Coverage is asserted on what the walk above ACTUALLY VISITED, never on the
+  // keys of the file — a rule stated against the file would be satisfied by a
+  // `studios.shared` that exists and is never opened, which is exactly the
+  // defect. `shared` is named explicitly because it is the one namespace with
+  // no slug to carry it in.
+  for (const ns of [...STUDIO_SLUGS, 'shared']) {
+    check(`${locale}: the credit scan opened studios.${ns}`, scanned.includes(ns), scanned.join(' '));
   }
 }
 
@@ -255,6 +278,21 @@ const showcaseEntries = [...showcase.matchAll(/nameKey:/g)].length;
 check('the showcase holds exactly as many cards as the catalogue has studios', showcaseEntries === STUDIO_SLUGS.length, `${showcaseEntries} cards vs ${STUDIO_SLUGS.length} studios`);
 const showcaseSlugs = [...showcase.matchAll(/slug:\s*'([a-z-]+)'/g)].map((m) => m[1]);
 check('the showcase slugs are exactly the catalogue slugs', JSON.stringify([...showcaseSlugs].sort()) === JSON.stringify([...STUDIO_SLUGS].sort()), showcaseSlugs.join(' ') || 'none found');
+
+// The other direction. The index calls itself the hub of the nine, and the nine
+// linked to two siblings each and to nothing above them — so `backToStudios`
+// sat in both locales with zero readers while the graph stayed one-directional.
+// Both arms, because either alone passes the state that shipped: a component
+// that links up while no page passes it a label renders nothing, and a page
+// that passes a label to a component with no link is the dead string again.
+const relatedSrc = stripComments(readFileSync(join(ROOT, 'components/studios/public/StudioRelated.tsx'), 'utf8'));
+check('the related section links UP to the index', relatedSrc.includes('href="/studios"'), 'no href="/studios" in the comment-stripped source');
+const studioPageSrc = stripComments(readFileSync(join(ROOT, 'app/[locale]/(landing)/studios/[slug]/page.tsx'), 'utf8'));
+check('the studio page reads studios.shared.backToStudios', studioPageSrc.includes("s('backToStudios')"), "no s('backToStudios') in the comment-stripped source");
+for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+  const back = (msgs as Record<string, Record<string, Record<string, string>>>).studios?.shared?.backToStudios;
+  check(`${locale}: studios.shared.backToStudios is a non-empty string`, typeof back === 'string' && back.trim().length > 0);
+}
 
 // ── 9. The index page carries its own copy, in both locales ────────────────
 for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {

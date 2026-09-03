@@ -265,7 +265,7 @@ export default async function StudioPage({
           button={s('ctaButton')}
           pricing={s('seePricing')}
         />
-        <StudioRelated title={s('relatedTitle')} items={related} />
+        <StudioRelated title={s('relatedTitle')} items={related} backLabel={s('backToStudios')} />
       </main>
       <Footer />
     </div>
