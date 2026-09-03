@@ -1,0 +1,14 @@
+{
+  "file": "/examples/studios/voiceover-gulf-sample.mp3",
+  "bytes": 258342,
+  "durationSeconds": 15,
+  "provider": "elevenlabs",
+  "voice": "el_arabic_male_1",
+  "dialect": "gulf",
+  "tone": "friendly",
+  "scriptAsWritten": "شاورما الشام في الكرامة. لحمة طازة كل يوم، وخبز على الفحم، وتوصيل سريع لباب بيتك. اطلب الحين.",
+  "scriptAsSpoken": "شاورما الشام في الكرامة. لحمة طازة كل يوم، وخبز على الفحم، وتوصيل سريع لباب بيتك. اطلب الحين.",
+  "creditsCharged": 3,
+  "generatedAt": "2026-09-02T19:36:26.654Z",
+  "generatedOn": "https://pyrasuite.pyramedia.cloud"
+}

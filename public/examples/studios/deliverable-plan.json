@@ -1,0 +1,102 @@
+{
+  "sourceRun": "2026-09-01T03-43-10-125Z",
+  "generatedOn": "https://pyrasuite.pyramedia.cloud",
+  "lang": "en",
+  "data": {
+    "objectives": [
+      {
+        "goal": "Increase monthly delivery order volume by 30 percent compared to the previous month",
+        "kpi": "Number of delivery orders",
+        "target": "30 percent increase"
+      },
+      {
+        "goal": "Grow Instagram following within the Dubai region to increase brand awareness",
+        "kpi": "Instagram follower count",
+        "target": "500 new local followers"
+      }
+    ],
+    "channels": [
+      {
+        "name": "Instagram Ads",
+        "budget_pct": 60,
+        "strategy": "Run geo-targeted ads within a 5km radius of Karama focusing on high-quality food photography and 'Order Now' CTA buttons."
+      },
+      {
+        "name": "Influencer Partnerships",
+        "budget_pct": 25,
+        "strategy": "Collaborate with 3 micro-food influencers in Dubai for authentic reviews and Instagram Stories featuring our signature shawarma platters."
+      },
+      {
+        "name": "Content Creation",
+        "budget_pct": 15,
+        "strategy": "Professional photography of menu items to maintain a high-quality visual feed that appeals to local foodies."
+      }
+    ],
+    "calendar": [
+      {
+        "week": 1,
+        "content": [
+          "High-quality close-up video of chicken shawarma preparation",
+          "Introduction to our Karama location"
+        ],
+        "channel": "Instagram"
+      },
+      {
+        "week": 2,
+        "content": [
+          "Influencer unboxing stories",
+          "Limited time offer: Free side with every family platter order"
+        ],
+        "channel": "Instagram"
+      },
+      {
+        "week": 3,
+        "content": [
+          "Customer testimonial reposts",
+          "Behind the scenes of our grill station"
+        ],
+        "channel": "Instagram"
+      },
+      {
+        "week": 4,
+        "content": [
+          "Weekend family bundle promotion",
+          "User-generated content highlight reel"
+        ],
+        "channel": "Instagram"
+      }
+    ],
+    "budget": {
+      "total": "AED 8,000",
+      "breakdown": [
+        {
+          "item": "Instagram Paid Ads",
+          "amount": "AED 4,800",
+          "pct": 60
+        },
+        {
+          "item": "Influencer Collaborations",
+          "amount": "AED 2,000",
+          "pct": 25
+        },
+        {
+          "item": "Content Production",
+          "amount": "AED 1,200",
+          "pct": 15
+        }
+      ]
+    },
+    "kpis": [
+      {
+        "metric": "Delivery Order Growth",
+        "target": "30 percent increase",
+        "tracking": "Comparison of delivery platform sales reports month-over-month"
+      },
+      {
+        "metric": "Instagram Engagement Rate",
+        "target": "3 percent average",
+        "tracking": "Instagram Insights dashboard"
+      }
+    ]
+  }
+}

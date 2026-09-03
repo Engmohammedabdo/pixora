@@ -1,0 +1,158 @@
+[
+  {
+    "id": "creator-shawarma-square",
+    "file": "/examples/studios/creator-shawarma-square.webp",
+    "width": 1600,
+    "height": 1600,
+    "bytes": 201732,
+    "sourceRun": "2026-09-01T03-43-10-125Z",
+    "sourceFile": "creator-creator_ar_raw.png",
+    "alt": {
+      "ar": "ساندويتش شاورما على طاولة خشب داخل مطعم، واسم المطعم بالعربي مطبوع على الغلاف",
+      "en": "A shawarma wrap on a wooden table inside a restaurant, the shop name printed in Arabic on the wrapper"
+    }
+  },
+  {
+    "id": "creator-instagram-portrait",
+    "file": "/examples/studios/creator-instagram-portrait.webp",
+    "width": 1289,
+    "height": 1600,
+    "bytes": 202044,
+    "sourceRun": "2026-08-31T15-21-03-866Z",
+    "sourceFile": "creator-creator_ig_portrait.png",
+    "alt": {
+      "ar": "نفس الطلب بقماش إنستجرام الطولي 4:5، مؤطّر للمنصة مش مقصوص",
+      "en": "The same request on Instagram’s 4:5 portrait canvas — framed for the platform, not cropped to it"
+    }
+  },
+  {
+    "id": "creator-signage-square",
+    "file": "/examples/studios/creator-signage-square.webp",
+    "width": 1600,
+    "height": 1600,
+    "bytes": 230766,
+    "sourceRun": "2026-08-31T15-21-03-866Z",
+    "sourceFile": "creator-creator_ar_signage.png",
+    "alt": {
+      "ar": "واجهة محل بلافتة مضيئة مكتوب عليها اسم المطعم بالعربي",
+      "en": "A shopfront with a lit sign carrying the restaurant name in Arabic"
+    }
+  },
+  {
+    "id": "creator-skyline-wide",
+    "file": "/examples/studios/creator-skyline-wide.webp",
+    "width": 1600,
+    "height": 893,
+    "bytes": 118526,
+    "sourceRun": "2026-08-31T15-24-43-567Z",
+    "sourceFile": "creator-creator_ar_wide.png",
+    "alt": {
+      "ar": "مشهد عريض بخلفية أفق دبي",
+      "en": "A wide frame against the Dubai skyline"
+    }
+  },
+  {
+    "id": "photoshoot-shot-1",
+    "file": "/examples/studios/photoshoot-shot-1.webp",
+    "width": 1600,
+    "height": 893,
+    "bytes": 80288,
+    "sourceRun": "2026-08-27T21-28-51-817Z",
+    "sourceFile": "photoshoot-multi-0.png",
+    "alt": {
+      "ar": "اللقطة الأولى من جلسة تصوير منتج واحد",
+      "en": "The first frame of a single-product shoot"
+    }
+  },
+  {
+    "id": "photoshoot-shot-2",
+    "file": "/examples/studios/photoshoot-shot-2.webp",
+    "width": 1600,
+    "height": 1195,
+    "bytes": 86522,
+    "sourceRun": "2026-08-27T21-28-51-817Z",
+    "sourceFile": "photoshoot-multi-1.png",
+    "alt": {
+      "ar": "اللقطة الثانية من نفس الجلسة، بزاوية مختلفة",
+      "en": "The second frame of the same shoot, a different angle"
+    }
+  },
+  {
+    "id": "photoshoot-shot-3",
+    "file": "/examples/studios/photoshoot-shot-3.webp",
+    "width": 1600,
+    "height": 893,
+    "bytes": 82964,
+    "sourceRun": "2026-08-27T21-28-51-817Z",
+    "sourceFile": "photoshoot-multi-2.png",
+    "alt": {
+      "ar": "اللقطة الثالثة من نفس الجلسة",
+      "en": "The third frame of the same shoot"
+    }
+  },
+  {
+    "id": "photoshoot-luxury",
+    "file": "/examples/studios/photoshoot-luxury.webp",
+    "width": 1600,
+    "height": 1600,
+    "bytes": 89398,
+    "sourceRun": "2026-09-01T03-43-10-125Z",
+    "sourceFile": "photoshoot-shot-0.png",
+    "alt": {
+      "ar": "منتج العميل داخل طقم تصوير فخم على سطح رخام",
+      "en": "The customer's product in a luxury set on marble"
+    }
+  },
+  {
+    "id": "edit-before-cafe",
+    "file": "/examples/studios/edit-before-cafe.webp",
+    "width": 1376,
+    "height": 768,
+    "bytes": 104612,
+    "sourceRun": "2026-08-27T21-07-40-884Z",
+    "sourceFile": "fixture-retail_scene.png",
+    "alt": {
+      "ar": "قبل: برطمان دبس تمر مصوّر داخل كافيه، بخلفية مزحومة",
+      "en": "Before: a date-syrup jar photographed inside a café, against a busy background"
+    }
+  },
+  {
+    "id": "edit-after-marketplace",
+    "file": "/examples/studios/edit-after-marketplace.webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 30382,
+    "sourceRun": "2026-08-27T21-07-40-884Z",
+    "sourceFile": "edit-marketplace_white.png",
+    "alt": {
+      "ar": "بعد: نفس البرطمان على خلفية بيضا نقية جاهزة للماركت بليس، والملصق كما هو",
+      "en": "After: the same jar on a pure white marketplace-ready background, its label untouched"
+    }
+  },
+  {
+    "id": "campaign-post-1",
+    "file": "/examples/studios/campaign-post-1.webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 124696,
+    "sourceRun": "2026-08-31T09-35-51-970Z",
+    "sourceFile": "campaign-image-0.png",
+    "alt": {
+      "ar": "صورة من حملة كاملة مولّدة بتسع منشورات",
+      "en": "One image from a generated nine-post campaign"
+    }
+  },
+  {
+    "id": "campaign-post-2",
+    "file": "/examples/studios/campaign-post-2.webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 251556,
+    "sourceRun": "2026-08-31T09-35-51-970Z",
+    "sourceFile": "campaign-image-1.png",
+    "alt": {
+      "ar": "صورة أخرى من نفس الحملة",
+      "en": "Another image from the same campaign"
+    }
+  }
+]

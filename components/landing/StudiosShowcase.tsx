@@ -15,10 +15,26 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Link } from '@/i18n/routing';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 
+/**
+ * `slug` points each card at its own public page, and it is the only new field
+ * here. It is matched to the catalogue BY MEANING, not by position: the card
+ * copy (`landing.studios.sNName`) is deliberately shorter than the page copy
+ * (`studios.<slug>.name`) and the two lists are ordered independently, so
+ * pairing them by index would be a silent mis-link the first time either is
+ * reordered.
+ *
+ * Deliberately NOT merged with lib/studios/catalogue.ts. Making this array read
+ * the catalogue's copy keys would flatten a landing card (one line, scanned) and
+ * a page heading (a full name) into one string. What the gate asserts instead is
+ * the only thing that can drift dangerously: that the nine slugs here are
+ * exactly the nine in the catalogue — see scripts/tests/studio-pages.test.ts § 8.
+ */
 const studios = [
   {
+    slug: 'creator',
     icon: Image,
     nameKey: 'studios.s1Name',
     descKey: 'studios.s1Desc',
@@ -28,6 +44,7 @@ const studios = [
     iconColor: 'text-purple-600 dark:text-purple-400',
   },
   {
+    slug: 'photoshoot',
     icon: Camera,
     nameKey: 'studios.s2Name',
     descKey: 'studios.s2Desc',
@@ -37,6 +54,7 @@ const studios = [
     iconColor: 'text-blue-600 dark:text-blue-400',
   },
   {
+    slug: 'campaign',
     icon: LayoutGrid,
     nameKey: 'studios.s3Name',
     descKey: 'studios.s3Desc',
@@ -46,6 +64,7 @@ const studios = [
     iconColor: 'text-green-600 dark:text-green-400',
   },
   {
+    slug: 'plan',
     icon: Map,
     nameKey: 'studios.s4Name',
     descKey: 'studios.s4Desc',
@@ -55,6 +74,7 @@ const studios = [
     iconColor: 'text-amber-600 dark:text-amber-400',
   },
   {
+    slug: 'storyboard',
     icon: Film,
     nameKey: 'studios.s5Name',
     descKey: 'studios.s5Desc',
@@ -64,6 +84,7 @@ const studios = [
     iconColor: 'text-rose-600 dark:text-rose-400',
   },
   {
+    slug: 'analysis',
     icon: BarChart3,
     nameKey: 'studios.s6Name',
     descKey: 'studios.s6Desc',
@@ -73,6 +94,7 @@ const studios = [
     iconColor: 'text-cyan-600 dark:text-cyan-400',
   },
   {
+    slug: 'voiceover',
     icon: Mic,
     nameKey: 'studios.s7Name',
     descKey: 'studios.s7Desc',
@@ -82,6 +104,7 @@ const studios = [
     iconColor: 'text-orange-600 dark:text-orange-400',
   },
   {
+    slug: 'edit',
     icon: Pencil,
     nameKey: 'studios.s8Name',
     descKey: 'studios.s8Desc',
@@ -91,6 +114,7 @@ const studios = [
     iconColor: 'text-pink-600 dark:text-pink-400',
   },
   {
+    slug: 'prompt-builder',
     icon: Lightbulb,
     nameKey: 'studios.s9Name',
     descKey: 'studios.s9Desc',
@@ -134,28 +158,38 @@ export function StudiosShowcase(): React.ReactElement {
                   boxShadow: '0 20px 40px rgba(99,102,241,0.15)',
                 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className="relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
               >
-                <Badge
-                  variant={studio.free ? 'success' : 'secondary'}
-                  className="absolute end-4 top-4"
+                {/* The whole card is the link, so the padding belongs to the
+                    <a> and not to the wrapper: a Link that covers only the
+                    text leaves a five-pixel dead border on a card that looks
+                    entirely clickable. The `relative` moves with it, because
+                    the badge is positioned against it. */}
+                <Link
+                  href={`/studios/${studio.slug}`}
+                  className="relative block h-full rounded-2xl p-5"
                 >
-                  {t(studio.creditsKey)}
-                </Badge>
+                  <Badge
+                    variant={studio.free ? 'success' : 'secondary'}
+                    className="absolute end-4 top-4"
+                  >
+                    {t(studio.creditsKey)}
+                  </Badge>
 
-                <div className="flex flex-row items-start gap-4">
-                  <div className={`rounded-xl p-3 ${studio.iconBg}`}>
-                    <Icon className={`h-6 w-6 ${studio.iconColor}`} />
+                  <div className="flex flex-row items-start gap-4">
+                    <div className={`rounded-xl p-3 ${studio.iconBg}`}>
+                      <Icon className={`h-6 w-6 ${studio.iconColor}`} />
+                    </div>
+                    <div className="flex-1 pe-12">
+                      <h3 className="mb-1 font-semibold text-[var(--color-text-primary)]">
+                        {t(studio.nameKey)}
+                      </h3>
+                      <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                        {t(studio.descKey)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 pe-12">
-                    <h3 className="mb-1 font-semibold text-[var(--color-text-primary)]">
-                      {t(studio.nameKey)}
-                    </h3>
-                    <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                      {t(studio.descKey)}
-                    </p>
-                  </div>
-                </div>
+                </Link>
               </motion.div>
             );
           })}
