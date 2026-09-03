@@ -1829,13 +1829,193 @@ open anything.
   owned. Empty is the correct state; invented is not.
 - **The container healthcheck is still not enabled** (see the corrected bullet above), and
   **`ADMIN_PASSWORD` is still weak and unrotated**.
-- **No public `/studios/[slug]`, `/use-cases/[slug]` or `/compare/[slug]` pages.** The audit
-  rated these the largest SEO lever, and they are explicitly out of scope here: multi-day,
-  and they need real curated output images.
+- ~~**No public `/studios/[slug]`, `/use-cases/[slug]` or `/compare/[slug]` pages.**~~
+  **The studios half is built** — see "Public studio pages — 2026-09-02" below. `/use-cases`
+  and `/compare` are still absent, and still the audit's other two content routes.
 - **`درهم` appears 0 times on the Arabic pricing page.** Whether to show AED alongside USD
   is a product decision, not a code one.
 - **No CDN with edge TLS.** The TLS handshake is 0.3–0.5 s from the Gulf on every
   connection, because the box is in Kuala Lumpur.
+
+### Public studio pages — 2026-09-02
+
+The 2026-09-01 audit measured the entire indexable footprint at 12 URLs and named the
+gap plainly: *"all nine studios — the highest-intent product terms — have no public
+URL."* Not a bug: `/ar/creator` is the logged-in studio and correctly 307s to the login
+form (`lib/routing/protected.ts:20`). There was simply nothing for a crawler to land on.
+The nine now have a page each, in both locales, plus an index
+(`docs/superpowers/plans/2026-09-02-public-studio-pages.md`, seven tasks).
+
+**Twenty new URLs, measured rather than intended.** Calling `sitemap()` directly returns
+**30 URLs where it returned 10** — `/{ar,en}/studios` plus `/{ar,en}/studios/{nine
+slugs}`. `npm run build` prerenders **82 documents where it prerendered 62**
+(`[built-document] 82 documents checked, each with exactly one <html>`), and the 20 new
+ones are exactly those URLs: `.next/server/app/{ar,en}/studios/*.html` is 18 files and
+`{ar,en}/studios.html` is 2. `video` is deliberately **not** among them — it is in
+`types/studios.ts` and is not built, and a public page for a studio that does not exist
+is the worst possible landing. An unknown slug reaches `notFound()`
+(`app/[locale]/(landing)/studios/[slug]/page.tsx:85`) and 404s.
+
+**One catalogue, or the surfaces drift.** `lib/studios/catalogue.ts` holds the nine —
+slug, i18n key base, example ids, related slugs — and the page, the index, the landing
+showcase and the sitemap all read it (`app/sitemap.ts:2`). Every credit figure comes from
+`lib/credits/costs.ts` through `lib/studios/cost-label.ts` and is never typed into a
+translation — the rule that made the admin per-studio price knob deletable.
+
+> **That detector shipped DEAD on Arabic and was caught by making it prove itself.** The
+> first version was `/\d+\s*(كريدت|credits?)\b/i`, which can never fire on the locale this
+> product is for, for two independent reasons both measured rather than reasoned about:
+> JS `\b` is ASCII-only, so after the non-ASCII `ت` it demands a *following* ASCII word
+> character and a space, a full stop or end-of-string all kill the match — i.e. every real
+> sentence; and `\d` never matches Arabic-Indic digits, so `٣ كريدت` reads as clean. It is
+> now unit-anchored with a negative lookahead and carries both digit ranges
+> (`studio-pages.test.ts:79`), and it runs against a `MUST_MATCH`/`MUST_NOT_MATCH` corpus
+> **before** it is trusted, so a future edit that re-kills the Arabic arm fails there
+> instead of going quiet. Same family as `no-var-opacity-modifier` and the SEO round's
+> unsatisfiable `[^:]*` host regex: a gate that passes on broken input is worse than none.
+
+Every example is read from `public/examples/studios/manifest.json`, never a hardcoded
+path. All the page components are **server** components — their whole job is HTML a
+crawler and an answer engine can read. Measured on the production build:
+`/[locale]/studios/[slug]` is **2.55 kB / 180 kB First Load JS** and `/[locale]/studios`
+2.53 kB / 174 kB, against the landing page's 10.3 kB / 192 kB. Read that honestly: 102 kB
+of the total is the shared-by-all baseline and the rest is the layout chain (NavBar and
+Footer are client components), so the server-component rule kept these pages from
+*adding* to the bundle — it did not make them cheap. The plan asserted the landing page
+was "265 kB of gzipped JS"; this build reports 192 kB, so do not repeat the 265 figure.
+
+**Measured in the built documents, not in the source.** `/ar/studios/creator`,
+`/ar/studios/voiceover`, `/ar/studios/plan` and `/en/studios/creator` each carry exactly
+one `<h1>`, two `application/ld+json` blocks holding one `FAQPage` and one
+`BreadcrumbList`, a page-exact canonical, and three page-exact `rel="alternate"` links
+(ar, en, x-default). Only voiceover carries an `<audio>`.
+
+> **A grep trap, recorded because it wasted a measurement here.** React serialises the
+> attribute as `hrefLang`, so `grep -o 'hreflang=' ar/studios/creator.html` returns **0**
+> on a document that carries all three links. HTML attribute names are case-insensitive,
+> so this is correct output and a case-sensitive grep is the wrong instrument. Same family
+> as the `grep -c` one-line trap this file already records for prerendered documents.
+
+#### The examples are real product output, and the exact claim matters
+
+Seventeen artifacts: 12 webp images, 4 text deliverables, 1 mp3. Every one names the live
+run it came from (`sourceRun` in `manifest.json` and in each `deliverable-*.json`), and
+`scripts/build-studio-examples.mjs` will not build an entry whose source is missing.
+
+**The blanket phrase "all paid-plan output" is false and must not be written.** Measured
+per source run: the 12 images and the `plan`/`analysis` deliverables come from paid runs
+(`2026-09-01T03-43-10-125Z`, `2026-08-31T15-*`, `2026-08-31T09-35-51-970Z`,
+`2026-08-27T21-*`, whose reports assert `watermark absence — paid plan` or name the pro
+plan's provider). **`storyboard` and `prompt-builder` come from `2026-08-27T13-07-38-852Z`,
+which is a FREE-plan run** — its own report reads *"shot 0 carries the free-plan corner
+mark"*. That is immaterial for those two, because the plan gates the watermark, the
+resolution and the voice provider, and none of those touches text — but the accurate
+sentence is "every image is unwatermarked paid-plan output; every text deliverable is a
+real live run", not one clause covering both.
+
+**The `plan` sample is English on an Arabic-first page**, because no Arabic plan artifact
+exists in any run — every `plan_*.json` on disk is `plan_en`. The page says so rather than
+pretending: `DeliverableSample.tsx:313` renders `studios.shared.sampleLangNote` only when
+the sample's language differs from the page's, and it is visible on **`/ar/studios/plan`
+alone** — measured outside `<script>` in the built HTML: plan 1, analysis 0, storyboard 0,
+prompt-builder 0. (Counted with a global regex on the stripped document; a raw `grep -c`
+reports 1 for all four, since each is one line.)
+
+#### The voiceover sample, and what no automated check can say about it
+
+`scripts/make-voiceover-sample.ts` spent **3 credits** on production, on the real route,
+the way a customer would, and kept the bytes — the harness had always measured a voiceover
+and then discarded it, so there was nothing to play.
+`public/examples/studios/voiceover-gulf-sample.json` records provider `elevenlabs`, voice
+`el_arabic_male_1`, dialect `gulf`, `creditsCharged: 3`.
+
+Passing the shipped mp3 through `measureAudio()` (`scripts/live/audio.ts`) — which the
+sample script does **not** call, so this was measured here rather than inherited:
+
+```
+seconds 16.14   frames 618   sampleRate 44100   bytes 258342
+longRunShare 0.00204  against SILENCE_RUN_SHARE 0.5  ->  not digital silence
+```
+
+44.1 kHz independently corroborates `provider: elevenlabs` — `audio.ts` records OpenAI TTS
+at 24 kHz and ElevenLabs at 44.1 kHz, so the container agrees with the field.
+
+**Nothing has listened to it.** `audio.ts` says so in its own header: it cannot see whether
+the narrator speaks Arabic, whether the dialect is the one that was paid for, whether the
+words are the customer's script, or whether it sounds human. Those need ears, and
+`make-voiceover-sample.ts` ends by printing *"NOW LISTEN TO IT before putting it on a
+page."* **Whether anyone did is not recorded anywhere in this repo, so do not assume it.**
+No automated check covers any of those four properties and none is proposed, because a
+check that looks like a verdict and is not is worse than none.
+
+**Two numbers disagree, and the page prints neither.** The route reported `duration: 15`
+(an estimate from `estimateVoiceoverDuration` over the text handed to the provider); the
+frame headers measure 16.14 s. `AudioSample.tsx:31-38` deliberately never renders the
+figure — the `<audio>` element prints the real length, and two numbers disagreeing on one
+page is the failure the page exists to avoid.
+
+**The plan's own transcript label would have been a lie, and Task 5 refused it.** The plan
+specified `transcriptLabel` = *"النص المنطوق" / "What is spoken"*. `POST
+/api/studios/voiceover` returns no rewritten text, so `make-voiceover-sample.ts:148` falls
+through its `?? SCRIPT` and writes the **submitted** script into `scriptAsSpoken` always —
+which is why the two fields in the file are byte-identical, not because nothing was
+rewritten. A rewrite demonstrably *was* spoken: 93 characters at the premium rate would
+have been reported as ~9 s, and the route reported 15. The label now reads
+**"النص اللي بعتناه"** / "the script we sent", which is the only claim the artifact
+supports.
+
+#### Two harness findings, both measured while sourcing these assets
+
+- **`cornerMarkPresent` cannot be used as a watermark detector, and was not.**
+  `scripts/live/checks.ts:97` measures contrast in the bottom-right corner and returns true
+  for *any* photograph with a busy corner. It is right for the white-field marketplace
+  checks it was written for; the harness already refuses to assert watermark **absence**
+  with it on paid plans (`studio-cases.ts:207-218, 685-697`) precisely because that would
+  manufacture failures on every textured scene. So these twelve images were vetted by
+  **the source run's plan**, not by the detector — recorded in
+  `build-studio-examples.mjs:20-24` so the next person does not reach for it.
+- **11 of the 12 source files named `.png` are JPEG.** Magic bytes on the manifest's own
+  sources: `ffd8` on eleven, `89504e47` on one (`edit-marketplace_white.png`).
+  `run.ts:451` writes provider bytes verbatim under a caller-supplied name and every caller
+  spells it `.png` (`studio-cases.ts:179, 669, 768, 839`). Harmless here — `sharp` sniffs
+  the container, not the extension, so all twelve converted correctly — and a real trap for
+  anything downstream that trusts the name. This repo has already paid for that once:
+  `formatFromUrl()` returned `png` for every `data:` URL and exported JPEG bytes as `.png`.
+
+#### One new gate
+
+`npm run test:studio-pages` — **457 checks**, in `prebuild`. Every membership assertion is
+exact and every scan fails when it matches nothing, the rule `mock-from-schema.test.ts:247`
+states: the catalogue is exactly the nine shipped studios and `video` is not among them;
+`studios.<slug>` carries all fourteen required keys in both locales, non-empty, with a
+`definition` long enough to be a sentence an answer engine can lift; no credit number
+appears in any translation; every example id names a file that exists; and every studio URL
+is in the sitemap. `prebuild` is now **33 links: `check:invariants` (18 rules) plus 32 test
+files carrying 2,517 checks** — `npm run gates`, 33/33 in 48.8 s. `test:sitemap` grew 16 →
+24 and `test:root-document` 62 → 64 to cover the two new routes.
+
+#### Still open, deliberately
+
+- **Nothing here is verified against production.** The branch is not merged and not
+  deployed, and this repo's rule is that Coolify's status field is not evidence. The
+  re-measurement is in the plan's Task 7 Step 4: 30 `<loc>`, nine 200s, `/ar/studios/video`
+  404, one `ld+json` on creator, one `<audio>` on voiceover.
+- **Nothing outside the nine studio pages links to the `/studios` index.**
+  `StudioRelated.tsx:49` points at the hub from each studio page, and
+  `StudiosShowcase.tsx:169` points the landing cards at the nine *slug* pages — so the hub
+  is reachable only once you are already on one of its children, or from the sitemap. The
+  **footer's four studio links still go to `/#studios`**, the landing anchor
+  (`Footer.tsx:7-10`), and the footer is on every public page. That is the cheapest
+  remaining internal-linking win and it was not taken here.
+- **`/studios` is not in the NavBar** — `NavBar.tsx:21` is still the `#studios` anchor.
+  A navigation decision, deliberately out of scope.
+- **The Arabic plan sample does not exist.** Generating one costs 5 credits and is the
+  founder's call; until then `/ar/studios/plan` shows an English deliverable under a note
+  saying so, which is honest and still weaker than the alternative.
+- **No `/use-cases/[industry]` and no `/compare/[slug]`** — the audit's other two content
+  routes, untouched.
+- **No gate asserts an example image is what its `alt` text says.** Same limit this file
+  already records for invented text in images: it stays an eye pass.
 
 ### Not built — do not describe these as done
 
@@ -2119,7 +2299,7 @@ npm run test:provider-retry     #  20 checks: transient vs permanent provider fa
 npm run test:response-schemas   #  28 checks: what we ASK the model for matches what we parse
 npm run test:prompts            # 414 golden-string checks over the prompt builders
 npm run test:analytics          #  46 checks: the client may never report a server-witnessed event — GA4 AND Meta — plus cookie parsers, Meta hashing, and the five load-bearing CSP hosts
-npm run test:root-document      #  62 checks: exactly ONE <html> per route, with lang/dir/fonts
+npm run test:root-document      #  64 checks: exactly ONE <html> per route, with lang/dir/fonts
 npm run test:website-url        #  48 checks: the URL normaliser and BOTH storage layers agree
 npm run test:brand-extract      # 135 checks: the extract route, its codes and its bounds
 npm run test:brand-context      #  32 checks: business facts reach the prompt, sanitised
@@ -2130,12 +2310,13 @@ npm run test:white-field        #   6 checks: the marketplace white background i
 npm run test:robots             #  26 checks: ONE robots.txt ships — the one app/robots.ts writes
 npm run test:alternates         #  37 checks: every public page canonical to itself, one hreflang channel
 npm run test:schema             #  39 checks: no placeholder in the JSON-LD; sameAs holds only URLs that exist
-npm run test:sitemap            #  16 checks: the sitemap matches an open signup, and nothing links to /waitlist
+npm run test:sitemap            #  24 checks: the sitemap matches an open signup, and nothing links to /waitlist
 npm run test:landing-copy       #  13 checks: the definition sentence is in the SOURCE, not only in an animation
 npm run test:api-hygiene        #   6 checks: the upload throttle runs BEFORE the body is read
 npm run test:config-hygiene     #   8 checks: no dead CSP host, no X-Powered-By, no needless font preload
 npm run test:protected-prefixes #  13 checks: PROTECTED_PREFIXES agrees with the (dashboard) directory
 npm run test:invariants-doc     #  every rule in check-invariants.ts has a section in docs/INVARIANTS.md
+npm run test:studio-pages       # 457 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
 ```
 
 **One runner runs the whole chain and reports EVERY failure, not the first** — which is
@@ -2144,7 +2325,7 @@ must stop at the first failing gate. It reads the chain out of `package.json`, s
 two can never list different gates:
 
 ```bash
-npm run gates                   # 32/32 in ~72 s; .github/workflows/gates.yml runs it on every push
+npm run gates                   # 33/33 in ~49 s; .github/workflows/gates.yml runs it on every push
 ```
 
 **One gate runs AFTER the build**, because before it there is nothing to read:
@@ -2153,9 +2334,11 @@ npm run gates                   # 32/32 in ~72 s; .github/workflows/gates.yml ru
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**2,050 checks across 31 prebuild test files, plus `check:invariants` (18 rules) and one
-postbuild gate** — counted 2026-09-02 from a green `npm run gates`. The figure here
-before that ("roughly 2,180 checks across 20 prebuild test files") was stale in both
+**2,517 checks across 32 prebuild test files, plus `check:invariants` (18 rules) and one
+postbuild gate** — counted 2026-09-02 from a green `npm run gates` (33/33 in 48.8 s). It
+was 2,050 across 31 earlier the same day; `test:studio-pages` (457) is new, `test:sitemap`
+grew 16 → 24 and `test:root-document` 62 → 64. The figure before both
+("roughly 2,180 checks across 20 prebuild test files") was stale in both
 halves. Several exist because the defect they guard was
 invisible in review — `test:prompts` catches a prompt that "reads fine" while
 inventing a business stage the product never collects, and `test:voiceover-budget`
