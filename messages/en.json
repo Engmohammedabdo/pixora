@@ -1362,7 +1362,7 @@
       "freeLabel": "Free",
       "perImage": "per image, by resolution",
       "perShoot": "per shoot, by number of frames",
-      "perDuration": "per 15 seconds",
+      "perDuration": "{freeCredits, plural, one {# credit} other {# credits}} per {freeSeconds} seconds on Free and Starter · {paidCredits, plural, one {# credit} other {# credits}} per {paidSeconds} seconds on Pro and above",
       "ctaTitle": "Try it now",
       "ctaBody": "Sign up with your email and start straight away — {credits} free credits, no card.",
       "ctaButton": "Start free",
@@ -1459,7 +1459,7 @@
       "step2": "Pick the dialect — Saudi, Emirati, Egyptian, Gulf or Formal Arabic — and the platform: Instagram, TikTok, LinkedIn, Twitter or Facebook.",
       "step3": "Decide whether to generate images, then copy the captions one at a time or all at once. And if you close the page, your recent campaigns are waiting for you in the same studio.",
       "q1": "How many posts come back?",
-      "a1": "Nine, in a deliberate order: the first three introduce the product, the next three are engagement and social proof, and the last three convert with an offer and a call to action. Those nine are what the campaign is priced for, and if fewer arrive the charge is settled against what actually reached you — and you keep the posts that did.",
+      "a1": "Nine, in a deliberate order: the first three introduce the product, the next three are engagement and social proof, and the last three convert with an offer and a call to action. Those nine are what the campaign is priced for. If fewer arrive you keep the ones that did and the share of the missing ones comes back — a missing image in full, but the text share of one post is a fraction of a credit and only comes back once it adds up to a whole one, so a shortfall of one or two posts with images switched off can come back as nothing.",
       "q2": "Are the images compulsory?",
       "a2": "No, and it changes the price rather than the shape. There is a \"Generate All Images\" box — clear it and you get the nine posts as text only, and you pay for the text half alone, because the image share is never reserved from your balance. If you do ask for images and one of them does not arrive, its share comes back to you and you keep the rest — a campaign is not lost over one picture.",
       "q3": "Are the captions really in my dialect?",
@@ -1527,7 +1527,7 @@
       "q2": "Does it sound human or robotic?",
       "a2": "Listen to the clip above and judge for yourself — that is the most honest answer we can give. What we can state exactly: Pyra has two voice paths, the higher plans run on the Pyra Voice Pro path, and this clip was generated on it. And if the voice you picked on that path cannot speak, Pyra does not substitute one that reads Arabic in a foreign accent — it stops the run and returns your credits in full.",
       "q3": "What does a minute cost?",
-      "a3": "You are charged by duration, and the cost is stated above: fixed units of seconds, with the unit and its price depending on your plan. Once the audio is delivered the charge is settled against what was actually spoken — so if it comes out shorter than the estimate, the difference goes back to your balance without you asking for it. And the longest voiceover allowed grows with the plan: half a minute on the free plan, up to ten minutes on the highest."
+      "a3": "You are charged by duration, not by the minute: Pyra counts fixed units of seconds, and both the length of the unit and its price differ between Free and Starter on one side and Pro and above on the other — both bands are stated above in full. Once the audio is delivered the charge is settled against what was actually spoken — so if it comes out shorter than the estimate, the difference goes back to your balance without you asking for it. And the longest voiceover allowed grows with the plan: half a minute on the free plan, up to ten minutes on the highest."
     },
     "prompt-builder": {
       "name": "Prompt Assistant",

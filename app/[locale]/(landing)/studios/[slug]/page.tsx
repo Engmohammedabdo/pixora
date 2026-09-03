@@ -10,6 +10,7 @@ import { buildStudioSchema } from '@/lib/seo/studio-schema';
 import { STUDIO_SLUGS, getStudio, type StudioSlug } from '@/lib/studios/catalogue';
 import { getExamples } from '@/lib/studios/examples';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { PLANS } from '@/lib/stripe/plans';
 import { StudioHero } from '@/components/studios/public/StudioHero';
 import { StudioExamples } from '@/components/studios/public/StudioExamples';
@@ -56,6 +57,22 @@ export function generateStaticParams(): { locale: string; slug: string }[] {
  * `CREDIT_COSTS.photoshoot` and is. `landing.studios.s2Credits` already
  * publishes the same "2-8" range, so this agrees with what the product says
  * today rather than inventing a second figure.
+ *
+ * ── WHY `perDuration` CARRIES NO NUMBER OF ITS OWN ─────────────────────────
+ * Voiceover is the one studio whose UNIT is not universal. It shipped as
+ * `${CREDIT_COSTS.voiceover}+ credits · per 15 seconds`, with the 15 typed into
+ * a translation, and that is wrong for three of the five plans:
+ * lib/credits/voiceover-costs.ts bills free and starter at 1 credit per 15s and
+ * pro, business and agency at 3 per 20s. A 60-second Pro voiceover costs
+ * ceil(60/20)*3 = 9 credits, which the "1+ · per 15 seconds" badge reads as
+ * roughly 4. The product already publishes the correct split on the pricing
+ * page (`pricing.voiceoverNote`), so the page contradicted the page it links to.
+ *
+ * Both bands now come from `getVoiceoverConfig()` and arrive as ICU values, so
+ * the string states neither the unit nor the price and cannot drift from the
+ * table that charges. The credit detector in scripts/tests/studio-pages.test.ts
+ * could never have caught the old one: 15 is a SECONDS figure, not a credit
+ * figure, so the gate that guards prices did not apply. It does now.
  */
 function costValue(
   slug: StudioSlug,
@@ -75,7 +92,11 @@ function costValue(
     case 'shotRange':
       return `2–${CREDIT_COSTS.photoshoot} ${unit} · ${perShoot}`;
     case 'perDuration':
-      return `${CREDIT_COSTS.voiceover}+ ${unit} · ${perDuration}`;
+      // The whole line, both bands, already composed by the caller from
+      // getVoiceoverConfig(). No `unit` and no leading figure: a single number
+      // in front of a two-band price is what made the old badge read as one
+      // universal rate.
+      return perDuration;
     case 'flat':
     default:
       return `${CREDIT_COSTS[entry.costKey] as number} ${unit}`;
@@ -116,13 +137,26 @@ export default async function StudioPage({
   const loc = locale === 'en' ? 'en' : 'ar';
 
   const faq = [1, 2, 3].map((n) => ({ q: t(`q${n}`), a: t(`a${n}`) }));
+
+  // Voiceover's two price bands, read from the table that actually charges.
+  // 'free' and 'pro' are representatives, not the whole list: starter shares
+  // free's unit and business and agency share pro's, which is why the copy
+  // names the bands ("Free and Starter" / "Pro and above") and not five plans.
+  const voiceoverFree = getVoiceoverConfig('free');
+  const voiceoverPaid = getVoiceoverConfig('pro');
+
   const cost = costValue(
     entry.slug,
     s('creditUnit'),
     s('freeLabel'),
     s('perImage'),
     s('perShoot'),
-    s('perDuration'),
+    s('perDuration', {
+      freeCredits: voiceoverFree.creditsPerUnit,
+      freeSeconds: voiceoverFree.unitSeconds,
+      paidCredits: voiceoverPaid.creditsPerUnit,
+      paidSeconds: voiceoverPaid.unitSeconds,
+    }),
   );
 
   // The edit studio's page IS the pair — the same product, from the photo a

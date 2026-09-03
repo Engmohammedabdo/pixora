@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { STUDIO_CATALOGUE, STUDIO_SLUGS, getStudio } from '../../lib/studios/catalogue';
 import { getExample } from '../../lib/studios/examples';
 import { CREDIT_COSTS } from '../../lib/credits/costs';
+import { getVoiceoverConfig } from '../../lib/credits/voiceover-costs';
 
 let failures = 0;
 let checks = 0;
@@ -150,6 +151,67 @@ check('the example loop actually ran', exampleCount >= 12, String(exampleCount))
 for (const slug of STUDIO_SLUGS) {
   const entry = STUDIO_CATALOGUE[slug];
   check(`${slug}: costKey is a real key of CREDIT_COSTS`, entry.costKey in CREDIT_COSTS, entry.costKey);
+}
+
+// ── 6. No DURATION figure in the copy contradicts the voiceover table ──────
+// The credit detector above guards prices and is blind to this: the voiceover
+// badge shipped as "1+ credits · per 15 seconds" with the 15 typed into
+// `studios.shared.perDuration`, and 15 is a SECONDS figure. It is the free and
+// starter unit; pro, business and agency bill 3 credits per 20 seconds
+// (lib/credits/voiceover-costs.ts), so the badge published one band's unit as
+// if it were everyone's and the FAQ answer under it pointed at that line.
+//
+// Two rules, because either alone would have passed the defect:
+//   (a) any seconds figure anywhere in `studios.*` must be a figure the plan
+//       table actually publishes — a unit or a duration cap;
+//   (b) the voiceover badge itself must state NO figure at all. 15 satisfies
+//       (a) — it is a real unit — and was still wrong, because the failure was
+//       publishing ONE band as universal. Only (b) catches that.
+const PLAN_IDS = ['free', 'starter', 'pro', 'business', 'agency'] as const;
+const PUBLISHABLE_SECONDS = new Set<number>();
+for (const p of PLAN_IDS) {
+  const c = getVoiceoverConfig(p);
+  PUBLISHABLE_SECONDS.add(c.unitSeconds);
+  PUBLISHABLE_SECONDS.add(c.maxDurationSeconds);
+}
+check('the voiceover table publishes more than one unit', new Set(PLAN_IDS.map((p) => getVoiceoverConfig(p).unitSeconds)).size > 1, [...PUBLISHABLE_SECONDS].join(' '));
+
+// Arabic-Indic digits included for the same reason the credit detector carries
+// them: `\d` matches neither range, and this product's copy is Arabic first.
+const ARABIC_DIGITS = /[٠-٩۰-۹]/;
+const ANY_DIGIT = /[\d٠-٩۰-۹]/;
+const SECONDS_FIGURE = /([\d٠-٩۰-۹]+)\s*(?:ثانية|ثواني|seconds?)(?![\p{L}\p{N}])/giu;
+function digitsToNumber(raw: string): number {
+  return Number([...raw].map((ch) => (ARABIC_DIGITS.test(ch) ? String((ch.codePointAt(0) as number) & 0xf) : ch)).join(''));
+}
+// The detector proves itself before it is trusted — the rule section 3 states,
+// and the reason its own first version was dead on Arabic.
+for (const [s, want] of [['لكل 15 ثانية', 15], ['per 15 seconds', 15], ['٢٠ ثانية', 20], ['up to 600 seconds', 600], ['20 ثواني', 20]] as const) {
+  const m = [...s.matchAll(SECONDS_FIGURE)];
+  check(`the seconds detector reads ${JSON.stringify(s)} as ${want}`, m.length === 1 && digitsToNumber(m[0][1]) === want, m.map((x) => x[1]).join(','));
+}
+for (const s of ['نص دقيقة على المجانية', 'ثانية واحدة', 'ten minutes', 'secondary market']) {
+  check(`the seconds detector PASSES ${JSON.stringify(s)}`, [...s.matchAll(SECONDS_FIGURE)].length === 0);
+}
+
+for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+  const studios = (msgs as Record<string, unknown>).studios as Record<string, Record<string, string>>;
+  for (const [ns, entries] of Object.entries(studios)) {
+    for (const [key, value] of Object.entries(entries)) {
+      if (typeof value !== 'string') continue;
+      for (const m of value.matchAll(SECONDS_FIGURE)) {
+        const n = digitsToNumber(m[1]);
+        check(`${locale}: studios.${ns}.${key} states ${n} seconds, which the plan table publishes`, PUBLISHABLE_SECONDS.has(n), m[0]);
+      }
+    }
+  }
+  // (b). The badge's numbers arrive as ICU values from getVoiceoverConfig(), so
+  // the string carries no digit of its own and names both bands.
+  const perDuration = studios.shared?.perDuration ?? '';
+  check(`${locale}: studios.shared.perDuration states no duration of its own`, perDuration.length > 0 && !ANY_DIGIT.test(perDuration), perDuration);
+  for (const token of ['{freeCredits', '{freeSeconds', '{paidCredits', '{paidSeconds']) {
+    check(`${locale}: studios.shared.perDuration carries ${token}}`, perDuration.includes(token), perDuration);
+  }
 }
 
 if (failures) { console.log(`\n[studio-pages] ${failures} of ${checks} checks FAILED`); process.exit(1); }
