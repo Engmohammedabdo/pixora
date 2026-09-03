@@ -745,3 +745,73 @@ Severity nit rather than defect: the responses are HTTP-conformant, nothing is b
 
 </details>
 
+
+---
+
+## After the fixes — re-measured on production 2026-09-03
+
+Deploy `kc2mmgssmuhzlwiaa4uusyjv`. Confirmed by a probe, not by a status field:
+the campaign badge's **3-credit band appeared** where the old build published 12
+alone. 22 of 23 checks passed.
+
+| Finding | State on production |
+|---|---|
+| campaign published one of two prices | ✅ both bands live, ar and en, computed by the module the route reserves with |
+| the edit "before" claimed a photograph | ✅ «كادر مزحوم زي اللي بتبدأ منه» + a provenance sentence; «مصوّر داخل كافيه» gone |
+| photoshoot published one environment's shot list as universal | ✅ «مخصوص للبيئة»; the six angles no longer enumerated |
+| the header's two content links were dead | ✅ zero `href="#studios"` / `href="#features"`; `/ar/studios` and `/ar` both linked |
+| llms.txt named none of the twenty pages | ✅ all nine `/studios/<slug>` present, `video` correctly absent |
+| regression | ✅ sitemap 30, nine 200s, `/ar/studios/video` 404, `/ar` 200, `/ar/creator` still 307 |
+
+### The one check that failed was mine, not the page's
+
+`ALL CHECKS PASSED` was withheld by an assertion that «الصورة اللي عندك» must
+not appear on `/ar/studios/edit`. It does — in `studios.edit.step1`:
+
+> «ارفع الصورة اللي عندك — نفس صورة المنتج اللي مصوّرها بموبايلك»
+
+That sentence is **addressed to the customer about their own photograph**, in the
+how-it-works steps, and is true. The defect was the CAPTION on the displayed
+example asserting that frame was a customer photo, and that is fixed. A substring
+scan cannot tell a caption from an instruction — **the assertion's label promised
+more than its logic asserted**, which is the class this whole document records.
+Re-stated on the caption keys (`beforeLabel`, `afterLabel`, `pairProvenance`),
+all three pass.
+
+### One thing found while verifying, and NOT fixed
+
+The BeforeAfter figcaption renders the label and the alt text as two `block`
+spans, and both begin with the same word:
+
+```
+قبل — كادر مزحوم زي اللي بتبدأ منه
+قبل: برطمان دبس تمر على ترابيزة كافيه، بخلفية مزحومة
+```
+
+The markup is correct — two separate spans, not a concatenation; that appearance
+was an artifact of tag-stripping during measurement. The redundancy is real
+though: the `alt` carries a «قبل: » / «بعد: » prefix that earns its place on the
+`<img>`, where it stands alone, and repeats the label when the same string is
+reused as the visible caption. The fix is to strip that prefix at the caption
+site only, keeping `alt` intact. Left undone deliberately: it is cosmetic and
+does not justify a third build-and-deploy cycle without the owner's call.
+
+### A process defect in how these fixes were RUN, worth more than any of them
+
+The six fix groups were dispatched **concurrently against one working tree**
+instead of `isolation: 'worktree'`. Three consequences, all measured:
+
+- agents staged each other's in-flight files: `85b8606` carries four other
+  groups' copy, and the payload group's edits to `BeforeAfter.tsx` and
+  `studio-pages.test.ts` landed in `57f03f6` and `9342ff4`;
+- `e3eaba3`'s message describes a fix its own diff does not contain — the fix is
+  in `85b8606`, a different group's commit;
+- `node_modules` was emptied entirely (0 top-level entries), which made **9 of 33
+  gates fail for a reason that had nothing to do with any of the code**. The git
+  tree was clean and `package-lock.json` untouched, so `npm ci` restored it and
+  all 33 passed.
+
+No work was lost, and every product fix is verified live. But the commit history
+of this round cannot be read as "this commit contains this fix", and that is a
+cost paid for a scheduling choice. **Fan-out that writes files needs an isolated
+worktree per agent.**
