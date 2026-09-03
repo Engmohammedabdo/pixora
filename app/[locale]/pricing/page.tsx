@@ -10,7 +10,7 @@ import { TopupGrid } from '@/components/pricing/TopupGrid';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { buildStructuredData } from '@/lib/seo/schema';
 import { Badge } from '@/components/ui/badge';
-import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+import { publicAlternates, publicSocial } from '@/lib/seo/alternates';
 
 export async function generateMetadata({
   params,
@@ -25,7 +25,7 @@ export async function generateMetadata({
     title: t('title'),
     description: t('description'),
     alternates: publicAlternates(locale, '/pricing'),
-    openGraph: publicOpenGraph(locale, { title: t('title'), description: t('description'), path: '/pricing' }),
+    ...publicSocial(locale, { title: t('title'), description: t('description'), path: '/pricing' }),
   };
 }
 

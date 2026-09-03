@@ -9,16 +9,38 @@ import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
 import { Menu, X } from 'lucide-react';
 import { fadeIn } from '@/lib/animations';
 
-// "features" and "studios" stay in-page anchors — those sections only exist
-// on the landing page. "pricing" now points at the dedicated /pricing route
-// (not the #pricing anchor): it's a real, linkable, indexable page with the
-// full per-action credit cost table, which is the whole point of closing
-// this gap — the anchor version can't show that without overwhelming the
-// landing page. The embedded PricingSection (#pricing) still lives on the
-// landing page for anyone scrolling past it organically.
+// EVERY entry here is a real destination from EVERY page. It was not: until
+// 2026-09-03 `features` and `studios` were bare in-page fragments, and the
+// comment that stood here said that was fine because "those sections only exist
+// on the landing page". That was true when this component was landing-only. It
+// stopped being true when app/[locale]/(landing)/studios/[slug]/page.tsx:4 and
+// studios/page.tsx:3 started rendering <NavBar/> themselves: the live audit
+// measured `href="#studios"` present and `id="studios"` absent on all 20 studio
+// pages (and on /pricing, /privacy, /terms), so two of the three content links
+// did NOTHING when clicked — including the one labelled "Studios", on the
+// studios pages. A bare fragment resolves inside the CURRENT document; it does
+// not fall back to the landing page.
+//
+//   features -> "/#features"  next-intl renders /ar#features: it scrolls on the
+//               landing page and navigates there from anywhere else.
+//   studios  -> "/studios"    A PRODUCT DECISION, taken here deliberately.
+//               /studios is a real, indexable page whose entire subject is that
+//               word — the hub of the nine, built 2026-09-02. Pointing the nav
+//               item at it fixes the dead link and, in the same edit, the
+//               "nothing outside the nine studio pages links to the index" gap
+//               CLAUDE.md records as open. The cost is that on the landing page
+//               this now navigates instead of scrolling to the showcase; the
+//               showcase section keeps its #studios id and the footer still
+//               links to it, and a destination that always works beats a scroll
+//               that works on one page in twenty-six.
+//   pricing  -> "/pricing"    unchanged: a real, linkable, indexable page with
+//               the full per-action credit cost table, which the #pricing
+//               anchor could never show without overwhelming the landing page.
+//               The embedded PricingSection (#pricing) still lives there for
+//               anyone scrolling past it organically.
 const NAV_LINKS = [
-  { key: 'features', href: '#features' },
-  { key: 'studios', href: '#studios' },
+  { key: 'features', href: '/#features' },
+  { key: 'studios', href: '/studios' },
   { key: 'pricing', href: '/pricing' },
 ] as const;
 
@@ -55,23 +77,25 @@ export function NavBar(): React.ReactElement {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-        {/* Logo */}
-        <span className="text-2xl font-bold text-[var(--color-brand)] font-cairo">PyraSuite</span>
+        {/* Wordmark. A LINK, not a <span>: it is the only route home from the
+            header, and on a studio page the JSON-LD BreadcrumbList already
+            declares position 1 as the locale root — a hierarchy the HTML did
+            not implement on any of the 20 pages until this became an anchor. */}
+        <Link href="/" className={`text-2xl font-bold text-[var(--color-brand)] font-cairo ${NAV_LINK_FOCUS}`}>
+          PyraSuite
+        </Link>
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((link) => {
-            const className = `text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors ${NAV_LINK_FOCUS}`;
-            return link.href.startsWith('#') ? (
-              <a key={link.href} href={link.href} className={className}>
-                {t(`nav.${link.key}`)}
-              </a>
-            ) : (
-              <Link key={link.href} href={link.href} className={className}>
-                {t(`nav.${link.key}`)}
-              </Link>
-            );
-          })}
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors ${NAV_LINK_FOCUS}`}
+            >
+              {t(`nav.${link.key}`)}
+            </Link>
+          ))}
         </div>
 
         {/* Desktop auth buttons */}
@@ -109,28 +133,16 @@ export function NavBar(): React.ReactElement {
             className="md:hidden overflow-hidden border-t border-[var(--color-surface-2)] bg-[color-mix(in_srgb,var(--color-surface)_95%,transparent)] backdrop-blur-xl"
           >
             <div className="px-4 py-4 space-y-3">
-              {NAV_LINKS.map((link) => {
-                const className = `block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2 ${NAV_LINK_FOCUS}`;
-                return link.href.startsWith('#') ? (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={className}
-                  >
-                    {t(`nav.${link.key}`)}
-                  </a>
-                ) : (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={className}
-                  >
-                    {t(`nav.${link.key}`)}
-                  </Link>
-                );
-              })}
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-2 ${NAV_LINK_FOCUS}`}
+                >
+                  {t(`nav.${link.key}`)}
+                </Link>
+              ))}
               <LocaleSwitcher
                 variant="link"
                 className="py-2"

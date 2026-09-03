@@ -6,7 +6,7 @@ import { NavBar } from '@/components/landing/NavBar';
 import { WaitlistForm } from '@/components/landing/WaitlistForm';
 import { Footer } from '@/components/landing/Footer';
 import { routing } from '@/i18n/routing';
-import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+import { publicAlternates, publicSocial } from '@/lib/seo/alternates';
 import { BETA_CREDITS } from '@/lib/credits/beta';
 
 export function generateStaticParams(): { locale: string }[] {
@@ -24,7 +24,7 @@ export async function generateMetadata({
     title: t('title'),
     description: t('subtitle'),
     alternates: publicAlternates(locale, '/waitlist'),
-    openGraph: publicOpenGraph(locale, { title: t('title'), description: t('subtitle'), path: '/waitlist' }),
+    ...publicSocial(locale, { title: t('title'), description: t('subtitle'), path: '/waitlist' }),
   };
 }
 

@@ -22,6 +22,26 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.
 // actually on the page.
 const FAQ_COUNT = 8;
 
+/**
+ * The @id of each site-wide entity, minted ONCE.
+ *
+ * Every studio page's WebPage node points at these three by @id instead of
+ * restating the entities (see lib/seo/studio-schema.ts for why that is the
+ * deliberate shape). Until 2026-09-03 the pointers were hand-typed string
+ * literals in that other file — byte-identical to these, and byte-identical by
+ * nothing but care. A rename here would have left twenty pages referencing ids
+ * nothing anywhere mints, which is the difference between a reference an engine
+ * resolves site-wide and one that resolves nowhere at all.
+ *
+ * They are fragment ids on the bare origin, NOT on `/{locale}`: one entity, one
+ * identifier, whichever locale an engine happened to fetch.
+ */
+export const ENTITY_IDS = {
+  organization: `${APP_URL}/#organization`,
+  website: `${APP_URL}/#website`,
+  software: `${APP_URL}/#software`,
+} as const;
+
 export function toOgLocale(locale: string): OgLocale {
   return locale === 'ar' ? 'ar' : 'en';
 }
@@ -101,7 +121,7 @@ export function buildOrganizationSchema(locale: string): SchemaOrgOrganization {
   const og = OG_CONTENT[toOgLocale(locale)];
   return {
     '@type': 'Organization',
-    '@id': `${APP_URL}/#organization`,
+    '@id': ENTITY_IDS.organization,
     name: 'PyraSuite',
     alternateName: [...ORGANIZATION_ALTERNATE_NAMES],
     // ONE url under ONE @id. It was `/{locale}`, so the same entity claimed two
@@ -124,11 +144,11 @@ export function buildOrganizationSchema(locale: string): SchemaOrgOrganization {
 export function buildWebSiteSchema(locale: string): SchemaOrgWebSite {
   return {
     '@type': 'WebSite',
-    '@id': `${APP_URL}/#website`,
+    '@id': ENTITY_IDS.website,
     url: `${APP_URL}/${locale}`,
     name: 'PyraSuite',
     inLanguage: ['ar', 'en'],
-    publisher: { '@id': `${APP_URL}/#organization` },
+    publisher: { '@id': ENTITY_IDS.organization },
   };
 }
 
@@ -137,7 +157,7 @@ export function buildSoftwareApplicationSchema(locale: string): SchemaOrgSoftwar
   const isAr = locale === 'ar';
   return {
     '@type': 'SoftwareApplication',
-    '@id': `${APP_URL}/#software`,
+    '@id': ENTITY_IDS.software,
     // The bare product name. The tagline lived here and became the entity's
     // name in every engine that read it.
     name: 'PyraSuite',
@@ -150,7 +170,7 @@ export function buildSoftwareApplicationSchema(locale: string): SchemaOrgSoftwar
     inLanguage: ['ar', 'en'],
     isAccessibleForFree: true,
     featureList: STUDIO_FEATURES[isAr ? 'ar' : 'en'],
-    publisher: { '@id': `${APP_URL}/#organization` },
+    publisher: { '@id': ENTITY_IDS.organization },
     // Prices are read live from PLANS — this can never drift from what
     // Stripe actually charges (see lib/stripe/plans.ts).
     offers: Object.values(PLANS).map((plan) => ({

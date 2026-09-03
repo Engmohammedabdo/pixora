@@ -6,7 +6,7 @@ import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
 import { FileText } from 'lucide-react';
 import { getLegalDoc } from '@/lib/legal/policy';
-import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+import { publicAlternates, publicSocial } from '@/lib/seo/alternates';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     title,
     description,
     alternates: publicAlternates(locale, '/terms'),
-    openGraph: publicOpenGraph(locale, { title, description, path: '/terms' }),
+    ...publicSocial(locale, { title, description, path: '/terms' }),
   };
 }
 

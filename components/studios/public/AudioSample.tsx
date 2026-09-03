@@ -115,7 +115,7 @@ export function AudioSample({
     <section className="mx-auto max-w-3xl px-6 py-12">
       <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">{title}</h2>
       <p className="mt-2 text-sm text-[var(--color-text-muted)]">{note}</p>
-      <p className="mt-1 text-start text-xs text-[var(--color-text-muted)]" dir="ltr">
+      <p className="mt-1 text-start text-xs text-[var(--color-text-muted)]" dir="ltr" lang="en">
         {provenance}
       </p>
       <div className="mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
@@ -124,11 +124,15 @@ export function AudioSample({
           {transcriptLabel}
         </p>
         {/* The script is Arabic whatever language the page is in, so it carries
-            its OWN direction — the rule DeliverableSample states for its English
-            samples, applied the other way round. Without it the English page
-            renders Arabic in a left-to-right paragraph and mangles the
-            punctuation at both ends. */}
-        <p className="mt-1 text-start text-[var(--color-text-secondary)]" dir="rtl">
+            its OWN direction AND its own language — the rule DeliverableSample
+            states for its English samples, applied the other way round. Without
+            the direction the English page renders Arabic in a left-to-right
+            paragraph and mangles the punctuation at both ends; without the
+            language a screen reader on /en/studios/voiceover reads Arabic
+            aloud in an English voice (WCAG 2.1 SC 3.1.2). `transcriptLabel`
+            above stays outside it, in the page's language, because it is the
+            page's word and not the sample's. */}
+        <p className="mt-1 text-start text-[var(--color-text-secondary)]" dir="rtl" lang="ar">
           {transcript}
         </p>
         <p className="mt-3 text-xs text-[var(--color-text-muted)]">{meta}</p>

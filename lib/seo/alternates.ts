@@ -66,7 +66,7 @@ export const OG_IMAGE = {
   alt: 'PyraSuite — AI Marketing Platform',
 } as const;
 
-export function publicOpenGraph(
+function buildOpenGraph(
   locale: string,
   o: { title: string; description: string; path: string },
 ): NonNullable<Metadata['openGraph']> {
@@ -88,5 +88,49 @@ export function publicOpenGraph(
         alt: OG_IMAGE.alt,
       },
     ],
+  };
+}
+
+/**
+ * The two social channels of one page, produced by ONE call.
+ *
+ * Why they are not two exported helpers a caller spreads separately: Next
+ * merges `twitter` exactly as shallowly as `openGraph` — a page-level object
+ * replaces the [locale] segment's wholesale, and a page that sets NEITHER
+ * inherits the segment's, which is the landing page's own title and
+ * description. Measured 2026-09-03 on production: all 20 studio pages, plus
+ * /contact, /privacy, /terms and /pricing, carried a page-exact og:title and
+ * the site-wide twitter:title — "PyraSuite — AI Marketing Platform" on ten
+ * English URLs and its Arabic twin on ten more. X reads twitter:* when it is
+ * present and only falls back to og:* when it is absent, so present-but-wrong
+ * is worse than absent: every share of the highest-intent product URLs in the
+ * product rendered the generic homepage card.
+ *
+ * The old shape (`openGraph: publicOpenGraph(...)`) let a caller supply one
+ * channel and forget the other — the drift-between-copies class this repo
+ * keeps paying for. This returns both keys, so a page cannot have an og
+ * identity without the matching twitter one. `buildOpenGraph` is deliberately
+ * NOT exported for the same reason.
+ *
+ * `images` is deliberately absent from the twitter block: Next fills
+ * twitter:image from openGraph.images whenever `twitter` has no `images` key
+ * of its own (next/dist/lib/metadata/resolve-metadata.js postProcessMetadata),
+ * so the file-based OG route already resolves and twitter:image:alt stays the
+ * static OG_IMAGE.alt the image route actually renders. Naming images here
+ * would pin a second copy of that URL.
+ */
+export function publicSocial(
+  locale: string,
+  o: { title: string; description: string; path: string },
+): { openGraph: NonNullable<Metadata['openGraph']>; twitter: NonNullable<Metadata['twitter']> } {
+  return {
+    openGraph: buildOpenGraph(locale, o),
+    twitter: {
+      // The segment's block is REPLACED, not merged into, so the card type has
+      // to be restated here or every one of these pages drops to `summary`.
+      card: 'summary_large_image',
+      title: o.title,
+      description: o.description,
+    },
   };
 }

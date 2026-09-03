@@ -5,9 +5,10 @@ import { Footer } from '@/components/landing/Footer';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Badge } from '@/components/ui/badge';
 import { Link, routing } from '@/i18n/routing';
-import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+import { publicAlternates, publicSocial } from '@/lib/seo/alternates';
 import { buildStudioIndexSchema } from '@/lib/seo/studio-schema';
 import { STUDIO_SLUGS, type StudioSlug } from '@/lib/studios/catalogue';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
 import { studioCostLabel } from '@/lib/studios/cost-label';
 import { getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 import { PLANS } from '@/lib/stripe/plans';
@@ -50,7 +51,7 @@ export async function generateMetadata({
     title,
     description,
     alternates: publicAlternates(locale, '/studios'),
-    openGraph: publicOpenGraph(locale, { title, description, path: '/studios' }),
+    ...publicSocial(locale, { title, description, path: '/studios' }),
   };
 }
 
@@ -69,6 +70,12 @@ export default async function StudiosIndexPage({
   // names the bands and not five plans.
   const voiceoverFree = getVoiceoverConfig('free');
   const voiceoverPaid = getVoiceoverConfig('pro');
+
+  // Campaign's two price bands, read from the same module the campaign ROUTE
+  // reserves from. The page published only the flat 12 while the route charges
+  // 3 for a campaign with the images unchecked — the cheaper path this very
+  // page's FAQ tells the visitor about.
+  const campaignBands = campaignCostBands();
   const costLabels = {
     unit: s('creditUnit'),
     free: s('freeLabel'),
@@ -79,6 +86,10 @@ export default async function StudiosIndexPage({
       freeSeconds: voiceoverFree.unitSeconds,
       paidCredits: voiceoverPaid.creditsPerUnit,
       paidSeconds: voiceoverPaid.unitSeconds,
+    }),
+    perCampaign: s('perCampaign', {
+      textCredits: campaignBands.text,
+      fullCredits: campaignBands.full,
     }),
   };
 

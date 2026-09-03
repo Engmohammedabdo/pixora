@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import robots from '../../app/robots';
+import { buildLlmsTxt } from '../../lib/seo/llms';
 
 let failures = 0;
 let checks = 0;
@@ -39,15 +40,16 @@ check('AI group allows /', aiGroup?.allow === '/');
 check('AI group carries the same disallows as *', JSON.stringify(aiGroup?.disallow) === JSON.stringify(star?.disallow));
 check('sitemap declared', typeof out.sitemap === 'string' && out.sitemap.endsWith('/sitemap.xml'));
 
-const llms = join(ROOT, 'public', 'llms.txt');
-check('public/llms.txt exists', existsSync(llms));
-if (existsSync(llms)) {
-  const body = require('node:fs').readFileSync(llms, 'utf8');
-  check('llms.txt names the product and its definition', /^# PyraSuite/m.test(body) && /AI marketing/.test(body));
-  check('llms.txt has the Arabic definition too', /منصة تسويق بالذكاء الاصطناعي/.test(body));
-  check('llms.txt links pricing', /\/pricing/.test(body));
-  check('llms.txt names no model vendor', !/gemini|openai|flux|elevenlabs/i.test(body));
-}
+// llms.txt is generated from lib/seo/llms.ts and served by app/llms.txt/route.ts,
+// for the same reason robots.txt is: a hand-typed copy drifts from the routes.
+// The static file must NOT come back — a public/ file wins over a route of the
+// same name, which is exactly how 19 robots.txt rules went unserved.
+check('public/llms.txt does not exist (it shadows app/llms.txt/route.ts)', !existsSync(join(ROOT, 'public', 'llms.txt')));
+const body = buildLlmsTxt();
+check('llms.txt names the product and its definition', /^# PyraSuite/m.test(body) && /AI marketing/.test(body));
+check('llms.txt has the Arabic definition too', /منصة تسويق بالذكاء الاصطناعي/.test(body));
+check('llms.txt links pricing', /\/pricing/.test(body));
+check('llms.txt names no model vendor', !/gemini|openai|flux|elevenlabs/i.test(body));
 const sec = join(ROOT, 'public', '.well-known', 'security.txt');
 check('security.txt exists', existsSync(sec));
 if (existsSync(sec)) {

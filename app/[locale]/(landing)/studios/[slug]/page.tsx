@@ -5,9 +5,10 @@ import { NavBar } from '@/components/landing/NavBar';
 import { Footer } from '@/components/landing/Footer';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { routing } from '@/i18n/routing';
-import { publicAlternates, publicOpenGraph } from '@/lib/seo/alternates';
+import { publicAlternates, publicSocial } from '@/lib/seo/alternates';
 import { buildStudioSchema } from '@/lib/seo/studio-schema';
 import { STUDIO_SLUGS, getStudio, type StudioSlug } from '@/lib/studios/catalogue';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
 import { studioCostLabel } from '@/lib/studios/cost-label';
 import { getExamples } from '@/lib/studios/examples';
 import { getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
@@ -18,6 +19,7 @@ import { BeforeAfter } from '@/components/studios/public/BeforeAfter';
 import {
   DeliverableSample,
   hasDeliverableSample,
+  sampleNoteKey,
   type DeliverableLabels,
 } from '@/components/studios/public/DeliverableSample';
 import {
@@ -70,7 +72,7 @@ export async function generateMetadata({
     title,
     description,
     alternates: publicAlternates(locale, `/studios/${slug}`),
-    openGraph: publicOpenGraph(locale, { title, description, path: `/studios/${slug}` }),
+    ...publicSocial(locale, { title, description, path: `/studios/${slug}` }),
   };
 }
 
@@ -97,6 +99,12 @@ export default async function StudioPage({
   const voiceoverFree = getVoiceoverConfig('free');
   const voiceoverPaid = getVoiceoverConfig('pro');
 
+  // Campaign's two price bands, read from the same module the campaign ROUTE
+  // reserves from. The page published only the flat 12 while the route charges
+  // 3 for a campaign with the images unchecked — the cheaper path this very
+  // page's FAQ tells the visitor about.
+  const campaignBands = campaignCostBands();
+
   const cost = studioCostLabel(entry.slug, {
     unit: s('creditUnit'),
     free: s('freeLabel'),
@@ -107,6 +115,10 @@ export default async function StudioPage({
       freeSeconds: voiceoverFree.unitSeconds,
       paidCredits: voiceoverPaid.creditsPerUnit,
       paidSeconds: voiceoverPaid.unitSeconds,
+    }),
+    perCampaign: s('perCampaign', {
+      textCredits: campaignBands.text,
+      fullCredits: campaignBands.full,
     }),
   });
 
@@ -233,7 +245,14 @@ export default async function StudioPage({
         ) : hasDeliverableSample(studioSlug) ? (
           <DeliverableSample
             title={s('sampleTitle')}
-            note={s('sampleNote')}
+            note={
+              // Which note this page prints is a fact about the page, not one
+              // shared string: `sampleNote` promises a shortened excerpt whose
+              // full version is in the account, and prompt-builder renders its
+              // sample WHOLE and is absent from RETRIEVABLE_STUDIOS — so both
+              // halves were false on that one page. sampleNoteKey() asks both.
+              s(sampleNoteKey(studioSlug))
+            }
             langNote={s('sampleLangNote')}
             locale={loc}
             slug={studioSlug}
@@ -243,6 +262,7 @@ export default async function StudioPage({
           <BeforeAfter
             title={s('examplesTitle')}
             note={s('examplesNote')}
+            provenance={s('pairProvenance')}
             beforeLabel={s('beforeLabel')}
             afterLabel={s('afterLabel')}
             locale={loc}
