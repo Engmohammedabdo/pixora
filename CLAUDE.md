@@ -2036,10 +2036,40 @@ files carrying 2,517 checks** — `npm run gates`, 33/33 in 48.8 s. `test:sitema
 
 #### Still open, deliberately
 
-- **Nothing here is verified against production.** The branch is not merged and not
-  deployed, and this repo's rule is that Coolify's status field is not evidence. The
-  re-measurement is in the plan's Task 7 Step 4: 30 `<loc>`, nine 200s, `/ar/studios/video`
-  404, one `ld+json` on creator, one `<audio>` on voiceover.
+- ~~**Nothing here is verified against production.**~~ **Merged and deployed 2026-09-03,
+  and every check re-measured live.** Merge `56cadad` (19 commits), pushed
+  `9fd6830..56cadad`, deployed `dcwoxubfpkokywcxb81pd2nj`.
+
+  **The deploy was confirmed by a probe, not by Coolify's status field** — the rule this
+  file states everywhere else. `/ar/studios` went **404 → 200**; Coolify reported
+  `finished` on the same poll, so the two agreed rather than one being trusted. A `git
+  push` still does **not** deploy: the webhook does not fire, and the deploy was
+  triggered explicitly. Note for whoever automates it — `GET /api/v1/deploy` now answers
+  *"This endpoint has changed to a POST request"*; `docs/COOLIFY_MCP.md` does not say so.
+
+  Measured on production:
+
+  | | |
+  |---|---|
+  | `sitemap.xml` `<loc>` | **30** (was 10), 20 of them `/studios` |
+  | `/{ar,en}/studios/<nine slugs>` | **eighteen 200s** |
+  | `/{ar,en}/studios` | **200** |
+  | `/ar/studios/video` | **404** — video is in `types/studios.ts` and is not built |
+  | per page | one `<h1>`, one `ld+json` **element**, three `rel="alternate"`, page-exact canonical |
+  | `@graph` | `BreadcrumbList+WebPage+FAQPage` on a studio, `BreadcrumbList+CollectionPage+ItemList` on the index |
+  | `<audio>` | 1 on voiceover, 0 on every other page |
+  | the mp3 | 200, 252 kB, `audio/mpeg` |
+  | an example webp | 200, 197 kB |
+
+  **The raw `ld+json` count is 2 on every page and that is correct** — occurrence 1 is the
+  `<script>` element, occurrence 2 is a JSON string inside `self.__next_f`. The checker
+  counts elements and parses the payload; see the instrument note above before "fixing"
+  a 2 into a 1 by emitting a second block.
+
+  **No regression, checked rather than assumed:** `/ar`, `/en`, `/ar/pricing` and
+  `/ar/contact` all still 200 with page-exact canonicals; `/ar/creator` and
+  `/ar/dashboard` still 307 to `/ar/login`; `robots.txt` still carries 38 `Disallow`
+  rules and still names GPTBot.
 - **Nothing outside the nine studio pages links to the `/studios` index.**
   `StudioRelated.tsx:49` points at the hub from each studio page, and
   `StudiosShowcase.tsx:169` points the landing cards at the nine *slug* pages — so the hub
