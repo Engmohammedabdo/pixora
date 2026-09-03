@@ -55,3 +55,59 @@ export function buildStudioSchema(
     ],
   };
 }
+
+/**
+ * The @graph for the /studios index.
+ *
+ * An `ItemList` whose members are the nine studio pages, in catalogue order,
+ * each as a `url` — the shape an engine reads as "this page is a list of those
+ * pages", and the one internal-linking signal these nine had none of before
+ * this branch. The list is BUILT FROM the caller's array, not from a second
+ * copy of the nine, for the reason the catalogue exists at all.
+ *
+ * Two levels of breadcrumb, not three: this page IS level two.
+ */
+export function buildStudioIndexSchema(
+  locale: string,
+  title: string,
+  description: string,
+  items: readonly { slug: StudioSlug; name: string; tagline: string }[],
+): Record<string, unknown> {
+  const url = `${APP_URL}/${locale}/studios`;
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${url}#breadcrumb`,
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'PyraSuite', item: `${APP_URL}/${locale}` },
+          { '@type': 'ListItem', position: 2, name: title, item: url },
+        ],
+      },
+      {
+        '@type': 'CollectionPage',
+        '@id': url,
+        url,
+        name: title,
+        description,
+        inLanguage: locale,
+        isPartOf: { '@id': `${APP_URL}/#website` },
+        about: { '@id': `${APP_URL}/#software` },
+        publisher: { '@id': `${APP_URL}/#organization` },
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${url}#list`,
+        numberOfItems: items.length,
+        itemListElement: items.map((s, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: s.name,
+          description: s.tagline,
+          url: `${APP_URL}/${locale}/studios/${s.slug}`,
+        })),
+      },
+    ],
+  };
+}

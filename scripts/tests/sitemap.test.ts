@@ -24,6 +24,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripComments } from '../lib/strip-comments';
 import sitemap from '../../app/sitemap';
+import { STUDIO_SLUGS } from '../../lib/studios/catalogue';
 
 let failures = 0;
 let checks = 0;
@@ -42,12 +43,23 @@ check('no /waitlist in the sitemap', !urls.some((u) => u.endsWith('/waitlist')))
 const authLayout = readFileSync(join(ROOT, 'app/[locale]/(auth)/layout.tsx'), 'utf8');
 check('/signup is declared noindex by the auth layout', /index:\s*false/.test(authLayout));
 
+// The static pages, named one by one rather than counted. The total below is
+// only worth asserting because this list is: a count derived from the same
+// array the sitemap builds from would be a tautology, satisfied by any array.
+const STATIC_PATHS = ['', '/pricing', '/contact', '/privacy', '/terms', '/studios'] as const;
 for (const l of ['ar', 'en']) {
   check(`/${l}/signup NOT listed — it is noindex`, !urls.includes(`/${l}/signup`), urls.join(' '));
-  check(`/${l}/contact listed`, urls.includes(`/${l}/contact`));
-  check(`/${l}/pricing listed`, urls.includes(`/${l}/pricing`));
-  check(`/${l} listed`, urls.includes(`/${l}`));
+  for (const p of STATIC_PATHS) {
+    check(`/${l}${p} listed`, urls.includes(`/${l}${p}`), urls.join(' '));
+  }
 }
+// The total. 2026-09-02 this was 10 URLs; the nine public studio pages and their
+// index take it to 30. `STUDIO_SLUGS` is imported rather than restated so a
+// studio added to the catalogue and not to app/sitemap.ts fails HERE, and a
+// studio dropped from the sitemap cannot be hidden by a hand-edited number.
+const expectedUrls = 2 * (STATIC_PATHS.length + STUDIO_SLUGS.length);
+check(`the sitemap is exactly ${expectedUrls} URLs — ${STATIC_PATHS.length} static + ${STUDIO_SLUGS.length} studios, per locale`, urls.length === expectedUrls, String(urls.length));
+check('every URL appears once', new Set(urls).size === urls.length, String(urls.length - new Set(urls).size));
 // Comment-stripped, per this repo's own rule (scripts/lib/strip-comments.ts):
 // app/sitemap.ts explains in prose why it does NOT use `new Date()`, and a raw
 // file scan is satisfied by that sentence — it would fail the correct file and

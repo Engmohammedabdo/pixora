@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { STUDIO_SLUGS } from '@/lib/studios/catalogue';
 
 /**
  * Only pages worth an organic landing. Auth forms are noindex (see
@@ -18,9 +19,31 @@ import type { MetadataRoute } from 'next';
  */
 const LOCALES = ['ar', 'en'] as const;
 
-const PAGES: { path: string; updated: string; changeFrequency: 'weekly' | 'monthly' | 'yearly'; priority: number }[] = [
+interface SitemapPage {
+  path: string;
+  updated: string;
+  changeFrequency: 'weekly' | 'monthly' | 'yearly';
+  priority: number;
+}
+
+const PAGES: SitemapPage[] = [
   { path: '', updated: '2026-09-02', changeFrequency: 'weekly', priority: 1 },
   { path: '/pricing', updated: '2026-08-29', changeFrequency: 'monthly', priority: 0.9 },
+  // The index of the nine, and then the nine. They are GENERATED from
+  // STUDIO_SLUGS rather than listed: a tenth studio added to the catalogue
+  // reaches the sitemap by existing, and a studio that is not in the catalogue
+  // — `video` — cannot reach it at all. Nine hand-typed lines here is the
+  // second copy of the list this whole branch exists to avoid, and the surface
+  // where a stale copy costs the most: a 404 submitted to Google.
+  { path: '/studios', updated: '2026-09-02', changeFrequency: 'monthly', priority: 0.8 },
+  ...STUDIO_SLUGS.map(
+    (slug): SitemapPage => ({
+      path: `/studios/${slug}`,
+      updated: '2026-09-02',
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    }),
+  ),
   { path: '/contact', updated: '2026-08-23', changeFrequency: 'yearly', priority: 0.5 },
   { path: '/privacy', updated: '2026-08-29', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', updated: '2026-08-29', changeFrequency: 'yearly', priority: 0.3 },

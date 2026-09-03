@@ -16,6 +16,8 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripComments } from '../lib/strip-comments';
+import sitemap from '../../app/sitemap';
 import { STUDIO_CATALOGUE, STUDIO_SLUGS, getStudio } from '../../lib/studios/catalogue';
 import { getExample } from '../../lib/studios/examples';
 import { CREDIT_COSTS } from '../../lib/credits/costs';
@@ -211,6 +213,55 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
   check(`${locale}: studios.shared.perDuration states no duration of its own`, perDuration.length > 0 && !ANY_DIGIT.test(perDuration), perDuration);
   for (const token of ['{freeCredits', '{freeSeconds', '{paidCredits', '{paidSeconds']) {
     check(`${locale}: studios.shared.perDuration carries ${token}}`, perDuration.includes(token), perDuration);
+  }
+}
+
+// ── 7. Every page this branch builds is in the sitemap ─────────────────────
+// A page Google cannot find is a page that does not exist for the purpose it
+// was built for. The nine URLs and the index are generated from STUDIO_SLUGS in
+// app/sitemap.ts — imported there, never listed a second time — so this asserts
+// the generation actually happened rather than that someone typed nine lines.
+const sitemapPaths = sitemap().map((e) => new URL(e.url).pathname);
+for (const locale of ['ar', 'en'] as const) {
+  check(`/${locale}/studios (the index) is in the sitemap`, sitemapPaths.includes(`/${locale}/studios`), sitemapPaths.join(' '));
+  for (const slug of STUDIO_SLUGS) {
+    check(`/${locale}/studios/${slug} is in the sitemap`, sitemapPaths.includes(`/${locale}/studios/${slug}`));
+  }
+}
+// `video` is not built, so no surface may advertise it — the catalogue already
+// omits it, and this is the second half of that rule at the surface a crawler
+// reads first.
+check('no /studios/video in the sitemap', !sitemapPaths.some((p) => p.endsWith('/studios/video')));
+check('the sitemap lists each URL once', new Set(sitemapPaths).size === sitemapPaths.length, String(sitemapPaths.length));
+
+// ── 8. The landing showcase links to the pages, and its nine are these nine ─
+// Before this branch nothing on the site linked to a studio at all. The
+// showcase is the only path in (there is no NavBar entry — a navigation
+// decision, deliberately out of scope), so if these links go, the pages are
+// orphans reachable only from the sitemap.
+//
+// Comment-stripped, per this repo's own rule: the file documents its own slug
+// mapping in prose, and a raw scan would be satisfied by the comment alone —
+// exactly the failure app/layout.tsx's false comment caused for months.
+const showcase = stripComments(readFileSync(join(ROOT, 'components/landing/StudiosShowcase.tsx'), 'utf8'));
+check('the showcase links each card to its own page', showcase.includes('href={`/studios/'), 'no href={`/studios/ in the comment-stripped source');
+
+// Two independent arms, because either alone passes a real drift:
+//   (a) the ENTRY count, marked by `nameKey:` — a tenth entry added with no
+//       slug would leave the slug set unchanged and untouched by (b);
+//   (b) the slug SET, exact — a renamed or duplicated slug leaves the count at
+//       nine and is invisible to (a).
+const showcaseEntries = [...showcase.matchAll(/nameKey:/g)].length;
+check('the showcase holds exactly as many cards as the catalogue has studios', showcaseEntries === STUDIO_SLUGS.length, `${showcaseEntries} cards vs ${STUDIO_SLUGS.length} studios`);
+const showcaseSlugs = [...showcase.matchAll(/slug:\s*'([a-z-]+)'/g)].map((m) => m[1]);
+check('the showcase slugs are exactly the catalogue slugs', JSON.stringify([...showcaseSlugs].sort()) === JSON.stringify([...STUDIO_SLUGS].sort()), showcaseSlugs.join(' ') || 'none found');
+
+// ── 9. The index page carries its own copy, in both locales ────────────────
+for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+  const shared = (msgs as Record<string, Record<string, Record<string, string>>>).studios?.shared ?? {};
+  for (const k of ['indexTitle', 'indexSubtitle', 'indexMetaTitle', 'indexMetaDescription']) {
+    const v = shared[k];
+    check(`${locale}: studios.shared.${k} is a non-empty string`, typeof v === 'string' && v.trim().length > 0);
   }
 }
 
