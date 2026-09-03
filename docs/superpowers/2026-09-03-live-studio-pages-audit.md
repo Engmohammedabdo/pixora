@@ -41,6 +41,86 @@ rewriting published history is a worse trade than a correction that can be read.
 same shape as `d3235c2`, and the same rule — a record that lies misdirects every later
 decision — applied to the repo's own history rather than to a page.
 
+## Where the navigation findings' own figures were wrong — recorded 2026-09-03
+
+Commit `9342ff4` (defects **12**, **13**, **14** — the `[linking]` group) closes with
+
+> VERIFIED: npx tsc --noEmit clean, next lint clean, `npm run gates` 33/33 in 46.2 s
+
+and, under GATES, with `test:studio-pages` 457 -> 486 (+29). Both are retracted here. The
+gates really were green — but they were green on a **shared working tree** carrying three
+other groups' uncommitted files, not on the tree the commit records.
+
+**`9342ff4` does not compile in isolation.** Measured in a detached worktree at that commit,
+with the same `node_modules`:
+
+```
+$ npx tsc --noEmit                                          # 9 diagnostics
+app/[locale]/(landing)/studios/[slug]/page.tsx(11,35)   TS2307  Cannot find module '@/lib/credits/campaign-cost'
+app/[locale]/(landing)/studios/[slug]/page.tsx(119,5)   TS2353  'perCampaign' does not exist in type 'StudioCostLabels'
+app/[locale]/(landing)/studios/[slug]/page.tsx(265,13)  TS2322  'provenance' does not exist on BeforeAfterProps
+app/[locale]/(landing)/studios/page.tsx(11,35)          TS2307  the same module
+scripts/tests/studio-pages.test.ts(24,35)               TS2307  the same module
+scripts/tests/studio-pages.test.ts(27,10)               TS2459  ENVIRONMENT_PRESETS is declared locally, not exported
+scripts/tests/studio-pages.test.ts(595,75) (598,110)    TS18046 'preset' is of type 'unknown'
+scripts/tests/studio-pages.test.ts(595,93)              TS7006  parameter 'shot' implicitly 'any'
+
+$ npm run test:studio-pages
+Error: Cannot find module '../../lib/credits/campaign-cost'   (MODULE_NOT_FOUND)
+```
+
+**Three of the nine are in SHIPPING pages**, not in tests. `lib/credits/campaign-cost.ts` is
+created by the *later* commit `57f03f6` and `ENVIRONMENT_PRESETS` is exported by the *later*
+`e3eaba3` — so `9342ff4` swept in two other groups' page and test code without the modules
+that code imports. The gate whose growth it reports **cannot even load at that tree**, so
+"+29 -> 486" was never counted by anything. (The review that caught this counted 7 errors;
+`npx tsc --noEmit | grep -c "error TS"` at that commit returns **9**.)
+
+The true span, each end measured by running the gate at that commit rather than inferred:
+
+| Commit | `npm run test:studio-pages` |
+|---|---|
+| `85b8606` — before this round's fixes | **457** passed |
+| `57f03f6` — after nav + claims + money | **726**, 1 failing (the `50vw` fallback, fixed by `6170182`) |
+| HEAD while this note was written — the repair round is still landing | **978** passed, and still climbing |
+
+So the round moved the gate **457 -> 726 across `9342ff4` + `e3eaba3` + `57f03f6`**, and no
+one of the three can honestly be credited with a slice of that, because the checks and the
+code they test were not committed together.
+
+**The llms.txt figure is wrong too.** `9342ff4` says "2,550 -> 7,536 bytes, 8 -> 28 URLs".
+The byte figures hold. The URL figures do not, under either counting rule:
+
+| | URL occurrences | unique |
+|---|---|---|
+| `public/llms.txt`, deleted | 8 | 7 |
+| `buildLlmsTxt()`, generated | **29** | **27** |
+
+`https://pyrasuite.pyramedia.cloud/ar/studios` and `.../ar/pricing` each appear **twice** —
+once in the index listing and once in their own entry — which is the whole of the gap between
+the two columns. 28 is neither number, and the substantive claim underneath is unaffected: 20
+of those unique URLs are the studio pages, which is 20 more than the file carried before.
+
+**What was swept, and what it costs a reader.** `git show --stat 9342ff4` carries
+`DeliverableSample.tsx`, `AudioSample.tsx`, `lib/seo/{alternates,schema,studio-schema}.ts`,
+`scripts/tests/{alternates,schema}.test.ts` and 447 lines of `studio-pages.test.ts` — none of
+which is defect 12, 13 or 14. So `git show e3eaba3` and `git show 57f03f6` do **not** contain
+the `perCampaign` wiring or the campaign-band gate their own messages describe; those live
+here. The visible scar is the test file's numbering: at the time of writing it carries **three
+sections numbered 10** (lines 443, 496, 526) and **two numbered 11** (477, 883), written by three
+groups that each believed they were adding the next one. Renumbering is deliberately not done
+here — two of those three sections belong to other groups, and editing them from this group
+is the same mistake in the other direction.
+
+**Nothing is being rewritten.** Five commits already sat on top of `9342ff4` when this was
+written, and the repair round is still adding; rewriting
+published history is a worse trade than a correction that can be read — the same call
+`d3235c2` and the note above this one already made. What changes is the procedure, and it is
+the actual fix: stage only the paths belonging to the group (`git add <paths>`), then run
+`npx tsc --noEmit` and `npm run gates` against the **staged** tree — `git stash --keep-index`,
+or a worktree at it — so that a green run is a run of the commit rather than a run of whatever
+else happened to be on disk.
+
 ## defect (16)
 
 ### 1. [claims] /ar/studios/photoshoot (and /en/studios/photoshoot)
