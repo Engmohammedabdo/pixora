@@ -2248,6 +2248,151 @@ A gate for it cannot be a `prebuild` link — at build time there is no producti
 It belongs beside `test:rate-limit` and `test:logo-parity`, which this file already records
 as live-only and deliberately not prebuild.
 
+### The competitor round — 2026-09-09 (crewzo.ai, and what it exposed here)
+
+A competitor, **crewzo.ai**, was found. Measured rather than reasoned about: same
+stack (Next.js `[locale]` + Supabase + Stripe + Cairo), Khaleeji/Riyadh wedge, no
+free tier ($3 trial auto-converting to $29). They are ahead on three things this
+product has none of — AI video ads, a carousel maker, chat-based editing — plus
+four ad pixels to two and **three named testimonials to zero**. They are behind on
+what is measurable: **4 sitemap URLs to our 30**, **19 preloaded font files
+(~2.2 MB, 15 uncompressed .ttf) to our 5 / 91,180 bytes**, and an **unenforced
+CSP** (`Report-Only`). Homepage structured data is at PARITY — our SEO lead is
+entirely the 20 studio pages, not the homepage. Full brief and the 14-day plan:
+https://claude.ai/code/artifact/2499b259-bf28-48c7-9e12-3838088837b9
+
+**The finding was not about them.** 52 claims survived adversarial verification
+and **77 were corrected, refuted or unverifiable** — including four rows of this
+file. `docs/POSITIONING.md` now states the decision every later change cites:
+independent food and retail businesses in Dubai selling on Instagram, the campaign
+studio as the front door, one register, and the free tier as the proof.
+
+#### Four public claims the code did not honour
+
+| Claim | Reality |
+|---|---|
+| A **Levantine voice** (`ar.json:945`) | No `levantine`/`shami` exists. `DIALECT_PROMPTS` and every plan's `dialectsAvailable` carry `formal, saudi, emirati, egyptian, gulf`. Free holds `['formal']` alone — so a free reader of that card was refused **all three** dialects it named |
+| **"ألوانك وشعارك"** | All 17 `logo` occurrences under `lib/ai/` are comments or *do-not-invent* instructions. Colours reach the model; the logo does not |
+| The voiceover badge | Published the OpenAI rate as universal. Pro bills 3 per 20s, so 60s is **9 credits** and the badge read as ~4 |
+| **"المنصة العربية الأولى"** | Unsubstantiated, and it was the meta description of `/ar` — the one URL a launch announcement points at |
+
+**The price table was wrong in the one place it claims not to be.** Its subtitle
+says *"the actual cost of every generation"* while it published the bare ceilings:
+photoshoot **8** (`SHOT_COSTS` is `{1:2, 3:4, 6:8}`) and campaign **12** (the route
+reserves `generateImages ? full : text`). Both quote **4x** what a customer is
+charged on the cheaper path *the same page advertises*. `lib/studios/cost-label.ts`
+had already fixed this for `/studios/*`; the pricing table was the third public
+surface publishing these prices and the one left behind. `SHOT_COSTS` moved to
+`lib/credits/costs.ts` as `PHOTOSHOOT_SHOT_COSTS` — prices are code.
+
+#### The gate's SCOPE was the defect, not its rule
+
+`studio-pages.test.ts` walked `msgs.studios` only. Widening it to `landing` and
+`pricingPage` found **sixteen** typed credit figures — including `landing.faq.a2`,
+which is **published as FAQPage JSON-LD**, so its "campaign = 12" reached answer
+engines. 726 → 1875 checks. The walk is now recursive (`features` is an ARRAY two
+levels down, which the old one-level `Object.values` walked past).
+
+`landing.faq` is substituted by **two mechanisms** — next-intl in the component and
+a hand-rolled `replaceAll` in `lib/seo/schema.ts` that knew one placeholder. That
+is why the live `/ar` once shipped the literal `{credits}` eleven times. Both now
+spread `lib/landing/faq-params.ts`, and `substituteFaqParams()` **throws** on any
+leftover `{placeholder}` rather than emitting it into structured data.
+
+#### One register, and two gates that were stated backwards
+
+Measured across `landing` + `studios` + `pricingPage` (450 strings): **14 Gulf
+tokens against 88 Egyptian**. A wider pass found what the first list missed —
+`شي` ×10, `ثاني/ثانية` meaning "another" ×4, `يصير`, `هذي`, `كيف`. **31 rewrites,
+each written out**, because `ثانية` is the time unit in five surviving strings and
+"another" in four that were fixed, and no regex reads meaning. After: **zero**.
+MSA survives on purpose — the rule is about what a reader NOTICES.
+
+**Two existing checks were stated backwards, and this work exposed them:**
+- The linked-pair check demanded both halves **CONTAIN `مو`** — the Gulf token the
+  pair exists to keep consistent. It was **a check that forbids removing it**:
+  rewriting both to `مش` failed it, and the cheapest way to go green was to
+  reintroduce the defect. Now asserts AGREEMENT.
+- The SUBSET check required every studios marker to appear in landing, i.e. it
+  measured **vocabulary overlap** while claiming to measure register. Rewriting
+  `ثاني` to `تاني` made both namespaces MORE consistent and failed it. Now stated
+  on BUCKETS.
+
+Both re-proved against the original defects they were written for.
+
+#### The demo's provenance claim could not be true
+
+The block headed "اللي بايرا ترجّعه" claimed "الصور دي من بايرا فعلاً" over five
+files whose mtimes are 2026-08-12 and 2026-08-25 — **all five predate the earliest
+live run on disk** (`2026-08-27T11-18-36-586Z`), so no provenance for them can
+exist even in principle. `shawarma` now uses `creator-shawarma-square` (paid run,
+2026-09-01), whose wrapper renders شاورما الشام correctly. `sourceRun` is
+per-example and the caption switches on it. **The other four have no run-tracked
+counterpart** — every manifest image is shawarma, a product shoot or a campaign
+frame — and regenerating them is a credits decision, not a code one.
+
+#### The dialect reaches the captions — 9 credits, production
+
+Nobody had ever read one. The dialect reaches the model as ONE English hint, and
+`test:prompts` pins what we ASK for, never what comes back. Three text-only
+campaigns, same brief, only `dialect` varied, all 9 posts, `completed`:
+
+```
+egyptian   بتدور · هتلاقي · يجنن · على قد الإيد · النهاردة · دلوقتي
+emirati    يا هلا · شو تتغدى · الحين · يبرد على قلبك
+gulf       على الأصول · وين ما كنت · زورونا · الجوع ما يستنى
+```
+
+All three picked **الكرامة** out of the brief.
+`.superpowers/dialect-proof/FINDING.md` carries the limits: one brief, one
+platform, and `emirati`/`gulf` are close.
+
+#### The segment page, and the first reader of `user_events`
+
+`/[locale]/for/dubai-restaurants` — the page that answers *"is this for me?"*,
+which the nine studio pages do not. `lib/segments/catalogue.ts` is the source and
+the journey steps are STUDIO SLUGS, so no segment page can quote a price the
+product does not charge. Sitemap **30 → 32**; built documents **82 → 85**.
+
+**`user_events` had exactly one writer and zero readers** across 16 admin pages and
+28 admin API routes — while `app/api/events/route.ts` claimed in a comment that the
+admin dashboard computes from it. `/admin/activation` makes that true. Three
+queries, no dashboard: the reason the table went unread is that nobody needed a
+dashboard, they needed one number — **distinct users completing on two different
+days**. A failed read renders an ERROR, never zeros.
+
+#### The same defect three times in one day
+
+1. `dialect-proof.ts` read `body.posts`; the route returns `{success, data:{posts}}`
+   so three runs reported FAILED at HTTP 200 **after the credits were spent**.
+2. The activation route queried `event_name`/`params`; the table's columns are
+   `event_type`/`metadata` — it would have compiled, queried fine and **returned
+   zeros forever**, a dashboard reporting "no activation" for a product that had it.
+3. `export { SEGMENTS }` from a page module — clean under `tsc --noEmit`, **fails
+   `next build`**.
+
+**Copy the writer's own statement. Never recall it.** This file already recorded
+two earlier instances; these are three more in a single session.
+
+#### New gates
+
+`npm run test:one-dialect` (20) and `npm run test:segment-pages` (157), both in
+`prebuild`. **35 gates.** The dialect detector proves itself on a
+MUST_MATCH/MUST_NOT_MATCH corpus before it is trusted, and was proved on three arms
+— including breaking the matcher itself to an ASCII word boundary, which fails 10
+self-tests instead of going quiet, the exact way the credit detector once died on
+Arabic.
+
+#### Still open, deliberately
+
+- **`ADMIN_PASSWORD` is still weak and unrotated.** Note it is `is_buildtime: true`,
+  so changing it needs a REBUILD, not a restart.
+- **Four demo images remain unprovenanced** (coffee, skincare, burger, perfume).
+- **Nothing in this round is verified on production** — merged to `main` locally,
+  **not pushed and not deployed**.
+- The plan's tasks 19–20 (twenty conversations in Karama, three testimonials) are
+  the founder's, and the 30-day number is unreadable without them.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |
@@ -2547,7 +2692,9 @@ npm run test:api-hygiene        #   6 checks: the upload throttle runs BEFORE th
 npm run test:config-hygiene     #  19 checks: no dead CSP host, no X-Powered-By, and an EXPLICIT preload decision for every next/font family — not for one named Inter
 npm run test:protected-prefixes #  13 checks: PROTECTED_PREFIXES agrees with the (dashboard) directory
 npm run test:invariants-doc     #  every rule in check-invariants.ts has a section in docs/INVARIANTS.md
-npm run test:studio-pages       # 726 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
+npm run test:studio-pages       # 1875 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
+npm run test:one-dialect        #   20 checks: the marketing surface speaks ONE register — and the detector proves itself on a corpus BEFORE it is trusted
+npm run test:segment-pages      #  157 checks: a segment page's journey names only shipped studios, and quotes no price the product does not charge
 ```
 
 **One runner runs the whole chain and reports EVERY failure, not the first** — which is
@@ -2565,9 +2712,11 @@ npm run gates                   # 33/33 in ~49 s; .github/workflows/gates.yml ru
 npm run test:built-document     #  every prerendered document, counted in the BYTES THAT SHIP
 ```
 
-**2,847 checks across 32 prebuild test files, plus `check:invariants` (18 rules) and one
-postbuild gate** — counted 2026-09-03 from a green `npm run gates` (33/33). It was 2,517
-across the same 32 files on 2026-09-02, and 2,050 across 31 the day before that. This
+**4,173 checks across 34 prebuild test files, plus `check:invariants` (18 rules) and one
+postbuild gate** — counted 2026-09-09 from a green `npm run gates` (35/35). It was 2,847
+across 32 files on 2026-09-03, 2,517 on 2026-09-02, and 2,050 the day before that. The
+jump is mostly `test:studio-pages` (726 -> 1875): its credit scan was widened from
+`studios` alone to `landing` and `pricingPage`, where sixteen typed prices were hiding. This
 number moves with every round; count it from `npm run gates` rather than quoting it. The
 figure before those
 ("roughly 2,180 checks across 20 prebuild test files") was stale in both
