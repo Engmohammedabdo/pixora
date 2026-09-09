@@ -933,226 +933,30 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
 // the page, invisible to every check above.
 check('the studio page picks its sample note per studio', studioPageSrc.includes('sampleNoteKey(studioSlug)'), 'no sampleNoteKey(studioSlug) in the comment-stripped page source');
 
-// ── 11. The public surface does not speak two dialects ─────────────────────
-// The 2026-09-03 live audit measured the `studios` namespace against `landing`
-// and found the two using disjoint marker sets: ZERO of the Gulf markers
-// `landing` uses, and ten Egyptian-only ones `landing` never uses. The sharpest
-// instance was one click wide — the landing card for the prompt-builder read
-// "مو عارف توصف؟" and the page it links to opened "مش عارف توصف؟". Commit
-// 85b8606 closed it by hand and did NOT add this gate, on the reasoning that
-// this file was a moving target that day; the exact marker it removed then
-// passed all 33 gates untouched, which is the definition of a fix with nothing
-// holding it.
+// ── 11. SUPERSEDED — the two-dialect rule moved to test:one-dialect ────────
 //
-// THE RULE, in two directions, because one alone is satisfiable by the defect:
-//   (a) SUBSET — a dialect marker may appear in `studios` only if `landing`
-//       already uses it. This fires the moment أيوه / بيضا / تاني / كام /
-//       مفيش / حاجة comes back into a studio page.
-//   (b) NOT DISJOINT, PER BUCKET — the Gulf markers `landing` uses may not all
-//       be absent from `studios`, and neither may the Egyptian ones. (a) alone
-//       is silent on the audit's actual headline: a `studios` written entirely
-//       in the Egyptian half of `landing`'s vocabulary is a strict subset and
-//       still reads as a different product.
+// This section asked WHICH dialect the public copy spoke and whether the two
+// namespaces agreed. On 2026-09-09 the founder read the copy and called the
+// Egyptian colloquialisms unprofessional, so the answer became NEITHER: the
+// whole product moved to clear professional Arabic, 278 colloquial occurrences
+// were removed across 1,286 strings, and `scripts/tests/one-dialect.test.ts`
+// now bans 64 dialect tokens — Egyptian and Gulf — across EVERY namespace,
+// not the three this file scanned.
 //
-// Arabic only. Dialect is not a property `messages/en.json` has, and asserting
-// it there would be a check that cannot fail.
+// So these checks did not merely become redundant, they became UNSATISFIABLE:
+// they asserted that the copy CONTAINS dialect markers ("the dialect detector
+// found markers in the studios copy") and that the two namespaces SHARE some,
+// and both fail on copy with none. That is the third time in one day a check
+// here has failed because the defect it names was properly fixed — the linked
+// pair demanded both halves carry `مو`, and the SUBSET rule measured vocabulary
+// overlap while claiming to measure register. Both were restated that morning;
+// this one is deleted instead, because a stronger rule replaced it rather than
+// a better wording of the same one.
 //
-// THE VOCABULARY IS NOT "COLLOQUIAL WORDS" — it is words whose counterpart in
-// the other dialect is a different word (أيوه/إي, إزاي/كيف, عايز/تبي,
-// دلوقتي/الحين, كام/كم, حاجة/شي, تاني/ثاني, مفيش/مافيه). `عشان` is deliberately
-// NOT in it: its Gulf form is `عشان`, so it marks nothing. Measured over
-// messages/ar.json — 15 occurrences in 14 strings across nine namespaces: 7 in
-// `studios`, 8 in auth, brandKit, studio, edit, billing, waitlist,
-// paymentFailed and contact, and **0 in `landing`**. It is the app's own voice
-// everywhere, not a register a studio page imported — and 85b8606's message
-// listed it among the markers left alone "because `landing` uses them too",
-// which is the one thing `landing` does not do with it. Counting it here would
-// fail this rule on a namespace split that does not exist.
-const DIALECT_PREFIXES = ['', 'و', 'ف', 'ب', 'ل', 'وب'] as const;
-const DIALECT_SUFFIXES = ['', 'ه', 'ها', 'هم'] as const;
-const GULF_MARKERS = ['ليش', 'إيش', 'ايش', 'تبي', 'تبين', 'أبي', 'مو', 'الحين', 'شلون'] as const;
-const EGYPTIAN_MARKERS = ['أيوه', 'ايوه', 'إزاي', 'ازاي', 'دلوقتي', 'عايز', 'عايزة', 'حاجة', 'حاجات', 'كام', 'مفيش', 'بجد', 'تاني', 'بيضا', 'ده', 'دي', 'دول', 'لأ'] as const;
+// Nothing is lost. "the two namespaces do not disagree" is implied by "no
+// namespace carries a dialect token at all", which one-dialect asserts on 4x
+// the surface and proves its own detector against a corpus before trusting it.
 
-// Matched on WHOLE TOKENS, never as substrings, and that is the whole design.
-// The audit's own count reported أبي×5 and وش×9 inside `أبيض` and `السوشال` —
-// a substring detector on Arabic reports the product's marketplace copy as a
-// dialect. Tokens are split on anything that is not a letter, then compared
-// against the marker with the clitics Arabic actually attaches (و/ف/ب/ل and the
-// object pronouns), which is what makes `تبيه` a hit and `بيضاء` not one.
-function isDialectToken(token: string, marker: string): boolean {
-  for (const prefix of DIALECT_PREFIXES) {
-    for (const suffix of DIALECT_SUFFIXES) {
-      if (token === prefix + marker + suffix) return true;
-    }
-  }
-  return false;
-}
-function dialectMarkersIn(texts: readonly string[]): Set<string> {
-  const found = new Set<string>();
-  for (const text of texts) {
-    for (const token of text.split(/[^\p{L}]+/u)) {
-      if (!token) continue;
-      for (const marker of [...GULF_MARKERS, ...EGYPTIAN_MARKERS]) {
-        if (isDialectToken(token, marker)) found.add(marker);
-      }
-    }
-  }
-  return found;
-}
-
-// The detector proves itself before it is trusted — the rule this file already
-// states for the credit detector, which shipped DEAD on Arabic for exactly the
-// reason a plausible-looking regex can.
-const DIALECT_MUST_MATCH: ReadonlyArray<readonly [string, string]> = [
-  ['أيوه، وده أهم شي في القائمة', 'أيوه'],
-  ['التوليد بكام؟', 'كام'],
-  ['خلفية بيضا من غير إكسسوار', 'بيضا'],
-  ['جرّب تاني بعد شوية', 'تاني'],
-  ['اكتب اللي تبيه بالظبط', 'تبي'],
-  ['ودي أهم حاجة', 'حاجة'],
-  ['مفيش رسوم مخفية', 'مفيش'],
-  ['مو عارف توصف؟', 'مو'],
-];
-const DIALECT_MUST_NOT_MATCH: ReadonlyArray<readonly [string, string]> = [
-  ['خلفية بيضاء متصلة من غير خط أفق', 'بيضا'],
-  ['بيئة استوديو أبيض', 'أبي'],
-  ['شارك على السوشال', 'وش'],
-  ['الموقع بتاعك', 'مو'],
-  ['الفيديو كامل', 'كام'],
-  ['بايرا موجودة', 'مو'],
-];
-for (const [text, marker] of DIALECT_MUST_MATCH) {
-  check(`the dialect detector CATCHES ${JSON.stringify(marker)} in ${JSON.stringify(text)}`, dialectMarkersIn([text]).has(marker));
-}
-for (const [text, marker] of DIALECT_MUST_NOT_MATCH) {
-  check(`the dialect detector PASSES ${JSON.stringify(text)} for ${JSON.stringify(marker)}`, !dialectMarkersIn([text]).has(marker));
-}
-
-function arabicStringsUnder(node: unknown, acc: string[] = []): string[] {
-  if (typeof node === 'string') { acc.push(node); return acc; }
-  if (node && typeof node === 'object') {
-    for (const value of Object.values(node as Record<string, unknown>)) arabicStringsUnder(value, acc);
-  }
-  return acc;
-}
-const arNamespaces = ar as unknown as Record<string, unknown>;
-const landingCopy = arabicStringsUnder(arNamespaces.landing);
-const studiosNamespaces = (arNamespaces.studios ?? {}) as Record<string, unknown>;
-const scannedDialectNs: string[] = [];
-const studiosCopy: string[] = [];
-for (const [ns, entries] of Object.entries(studiosNamespaces)) {
-  scannedDialectNs.push(ns);
-  arabicStringsUnder(entries, studiosCopy);
-}
-// A scan that matched nothing certifies nothing. Both sides are asserted to
-// have found real copy AND real markers before either comparison is believed.
-check('the dialect scan read the landing copy', landingCopy.length >= 50, `${landingCopy.length} strings`);
-check('the dialect scan read the studios copy', studiosCopy.length >= 50, `${studiosCopy.length} strings`);
-for (const ns of [...STUDIO_SLUGS, 'shared']) {
-  check(`the dialect scan opened studios.${ns}`, scannedDialectNs.includes(ns), scannedDialectNs.join(' '));
-}
-const landingMarkers = dialectMarkersIn(landingCopy);
-const studiosMarkers = dialectMarkersIn(studiosCopy);
-check('the dialect detector found markers in the landing copy', landingMarkers.size > 0);
-check('the dialect detector found markers in the studios copy', studiosMarkers.size > 0);
-
-// (a) NO CROSS-BUCKET DRIFT.
-//
-// Restated 2026-09-09. This was a SUBSET rule — every marker in `studios` had to
-// appear in `landing` too — and it measured VOCABULARY OVERLAP while claiming to
-// measure register. The dialect sweep of that date proved the difference: rewriting
-// `ثاني` to `تاني` across the studio pages made both namespaces *more* consistently
-// Egyptian and FAILED this check, because the landing copy happens never to use the
-// word `تاني`. A rule that fails when you make the copy more consistent is measuring
-// the wrong quantity, and it would have been "fixed" by reverting the improvement.
-//
-// The real invariant is that the two surfaces do not sit in OPPOSITE buckets. So:
-// whichever bucket the landing page speaks in, the studio pages may not reach into
-// the other one. That still fires on the original defect (a Gulf marker on a studio
-// page while the landing is Egyptian) and no longer fires on a synonym.
-//
-// It is deliberately NOT made redundant by `test:one-dialect`, which enforces the
-// absolute rule "no Gulf token anywhere in marketing copy" from a fixed list. This
-// one is stated on the RELATIONSHIP between two namespaces, so it still has an
-// opinion about a marker neither list happens to name.
-const bucketOf = (m: string): 'gulf' | 'egyptian' | null =>
-  (GULF_MARKERS as readonly string[]).includes(m) ? 'gulf'
-  : (EGYPTIAN_MARKERS as readonly string[]).includes(m) ? 'egyptian'
-  : null;
-const landingBuckets = new Set([...landingMarkers].map(bucketOf).filter(Boolean));
-for (const marker of studiosMarkers) {
-  const b = bucketOf(marker);
-  if (!b) continue;
-  check(
-    `the studio pages' ${marker} does not contradict the landing page's register`,
-    landingBuckets.size === 0 || landingBuckets.has(b),
-    `${marker} is ${b}; landing speaks [${[...landingBuckets].join(' ')}]`,
-  );
-}
-// (b) NOT DISJOINT, per bucket.
-for (const [bucket, vocabulary] of [['gulf', GULF_MARKERS], ['egyptian', EGYPTIAN_MARKERS]] as const) {
-  const shared = [...studiosMarkers].filter((m) => (vocabulary as readonly string[]).includes(m) && landingMarkers.has(m));
-  const inLanding = [...landingMarkers].filter((m) => (vocabulary as readonly string[]).includes(m));
-  check(
-    `the two namespaces are not disjoint in their ${bucket} markers`,
-    inLanding.length === 0 || shared.length > 0,
-    `landing uses [${inLanding.join(' ')}] and studios uses none of them`,
-  );
-}
-
-// (c) THE ONE-CLICK PAIR, pinned by name.
-//
-// (a) and (b) are namespace-wide and BOTH pass on the exact instance this
-// section's header opens with. The landing card read «مو عارف توصف؟» and the
-// page it links to read «مش عارف توصف؟» — one click apart, opposite dialects.
-// `مش` is Egyptian and the landing namespace uses `مش` elsewhere, so the SUBSET
-// rule is satisfied and the NOT-DISJOINT rule is satisfied, and the pair can
-// drift back with all 33 gates green. 85b8606 closed it by hand and added
-// nothing to hold it, which is a fix with nothing holding it.
-//
-// Stated on the pair rather than on the namespaces: whatever marker the pair
-// turns on must be turned on by BOTH halves.
-const LINKED_PAIRS: ReadonlyArray<readonly [string, string, string]> = [
-  ['landing.studios.s9Desc', 'studios.prompt-builder.tagline', 'مو'],
-];
-for (const [landingKey, studioKey, marker] of LINKED_PAIRS) {
-  const read = (path: string): string => {
-    const parts = path.split('.');
-    let node: unknown = arNamespaces;
-    // The slug `prompt-builder` contains no dot, so a plain walk is safe here;
-    // if a future slug ever does, this must switch to an explicit key list.
-    for (const part of parts) node = (node as Record<string, unknown> | undefined)?.[part];
-    return typeof node === 'string' ? node : '';
-  };
-  const landingText = read(landingKey);
-  const studioText = read(studioKey);
-  check(`the linked-pair scan found ${landingKey}`, landingText.length > 0, landingKey);
-  check(`the linked-pair scan found ${studioKey}`, studioText.length > 0, studioKey);
-  const inLandingHalf = dialectMarkersIn([landingText]).has(marker);
-  const inStudioHalf = dialectMarkersIn([studioText]).has(marker);
-  // AGREEMENT, not presence. Restated 2026-09-09.
-  //
-  // This asserted `inLandingHalf && inStudioHalf` — both halves must CONTAIN `مو`.
-  // `مو` is a Gulf marker, and the whole point of the pair check is that these two
-  // strings are one click apart and must not disagree. Demanding that both carry
-  // the Gulf token made this **a check that forbids removing it**: the dialect
-  // sweep rewrote both halves to `مش`, which is the desired end state and the
-  // register `docs/POSITIONING.md` §4 commits to, and this check failed.
-  //
-  // A gate that fails when the defect it names is fixed is worse than no gate,
-  // because the cheapest way to make it pass is to reintroduce the defect. The
-  // invariant is that the two halves AGREE — both on, or both off.
-  check(
-    `${landingKey} and ${studioKey} are one click apart and must agree on ${marker}`,
-    inLandingHalf === inStudioHalf,
-    `${marker} in landing:${inLandingHalf} studio:${inStudioHalf} — «${landingText.slice(0, 30)}» vs «${studioText.slice(0, 30)}»`,
-  );
-}
-// LIMIT, stated because a check that looks like a verdict and is not is worse
-// than none: this pins ONE pair by name. The other eight landing cards link to
-// their pages too and are NOT pinned — mapping `s1..s9` to slugs needs the
-// showcase's own order, which is a bigger surface than this defect warrants
-// today. If a second pair ever drifts, generalise it rather than adding a row.
 
 if (failures) { console.log(`\n[studio-pages] ${failures} of ${checks} checks FAILED`); process.exit(1); }
 console.log(`[studio-pages] ${checks} checks passed`);

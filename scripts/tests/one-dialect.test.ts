@@ -48,8 +48,21 @@ function check(name: string, ok: boolean, detail = ''): void {
   else failures.push(`FAIL  ${name}${detail ? `  → ${detail}` : ''}`);
 }
 
-/** The namespaces a logged-out visitor reads. */
-const MARKETING_ROOTS = ['landing', 'studios', 'pricingPage'] as const;
+/**
+ * EVERY namespace. Widened 2026-09-09 from three.
+ *
+ * The three marketing namespaces were the right scope while the rule was about a
+ * public page's register. The rule changed: the founder read the copy and called
+ * the Egyptian colloquialisms unprofessional, so the whole product moved to clear
+ * professional Arabic — and a sweep of `landing`/`studios`/`pricingPage` alone
+ * would have left 33 occurrences standing in `studio.errors`, `contact`,
+ * `paymentFailed`, `edit.presets` and `waitlist`.
+ *
+ * Those are the WORST place to leave it. They are what a customer reads when a
+ * payment failed, when a generation broke, or when they are asking for help —
+ * the moments where sounding careless costs the most.
+ */
+const MARKETING_ROOTS = null; // every root is scanned; see ROOTS below
 
 /**
  * Arabic letters. Used as a lookaround so a token matches as a WHOLE WORD.
@@ -69,17 +82,46 @@ const whole = (t: string): RegExp => new RegExp(`(?<!${AR})${t}(?!${AR})`, 'gu')
  * the next edit reaches for them.
  */
 const FOREIGN_TOKENS: Record<string, string> = {
-  'تبي': 'EGY: عايز', 'تبيه': 'EGY: عايزه', 'تبين': 'EGY: عايزة', 'يبي': 'EGY: عايز',
-  'أبي': 'EGY: عايز', 'ابي': 'EGY: عايز', 'أبغى': 'EGY: عايز', 'ابغى': 'EGY: عايز',
-  'إيش': 'EGY: إيه', 'ايش': 'EGY: إيه', 'وش': 'EGY: إيه', 'شنو': 'EGY: إيه',
-  'ليش': 'EGY: ليه', 'كيف': 'EGY: إزاي', 'متى': 'EGY: إمتى', 'وين': 'EGY: فين',
-  'مو': 'EGY: مش', 'مب': 'EGY: مش',
-  'هذي': 'EGY: دي', 'هاي': 'EGY: دي', 'هاد': 'EGY: ده',
-  'زين': 'EGY: كويس', 'عدل': 'EGY: في محله', 'كذا': 'EGY: كده', 'الحين': 'EGY: دلوقتي',
-  'شي': 'EGY: حاجة', 'أشياء': 'EGY: حاجات',
-  'يصير': 'EGY: يحصل', 'بدي': 'EGY: عايز', 'هلق': 'EGY: دلوقتي',
-  'ثاني': 'EGY: تاني (when it means "another")',
+  // ── Egyptian colloquial ────────────────────────────────────────────────
+  'دلوقتي': 'use الآن', 'عايز': 'use تريد', 'عايزة': 'use تريد', 'عاوز': 'use تريد',
+  'مش': 'use ليس/لا/غير', 'كده': 'use هكذا', 'إزاي': 'use كيف', 'ازاي': 'use كيف',
+  'إمتى': 'use متى', 'امتى': 'use متى', 'بكام': 'use بكم',
+  'بتاع': 'use الخاص بـ', 'بتاعك': 'use الخاص بك', 'بتاعتك': 'use الخاصة بك',
+  'إحنا': 'use نحن', 'احنا': 'use نحن', 'عشان': 'use حتى/لأن',
+  'مافيش': 'use لا يوجد', 'مفيش': 'use لا يوجد', 'خلاص': 'restructure',
+  'هتلاقي': 'use ستجد', 'بتدور': 'use تبحث', 'ينخلص': 'use ينتهي',
+  'تاني': 'use آخر/مجدداً', 'تانية': 'use أخرى', 'دلوقت': 'use الآن',
+  'استنى': 'use انتظر', 'كتير': 'use كثير', 'رسايل': 'use رسائل',
+  'حاجة': 'use شيء', 'حاجات': 'use أشياء', 'يشيل': 'use يزيل',
+  'تطلّعها': 'use تنتجها', 'بياخد': 'use يحصل على', 'هياخدوا': 'use يحصلون على',
+  'اتخصم': 'use خُصم', 'مانجحتش': 'use لم تنجح', 'مجاش': 'use لم يصل',
+  // ── Gulf / Levantine ───────────────────────────────────────────────────
+  'تبي': 'use تريد', 'تبيه': 'use تريده', 'تبين': 'use تريدين', 'يبي': 'use يريد',
+  'أبي': 'use أريد', 'ابي': 'use أريد', 'أبغى': 'use أريد', 'ابغى': 'use أريد',
+  'إيش': 'use ماذا', 'ايش': 'use ماذا', 'وش': 'use ماذا', 'شنو': 'use ماذا',
+  'ليش': 'use لماذا', 'وين': 'use أين', 'مو': 'use ليس', 'مب': 'use ليس',
+  'هذي': 'use هذه', 'هاي': 'use هذه', 'هاد': 'use هذا',
+  'زين': 'use جيد', 'كذا': 'use هكذا', 'الحين': 'use الآن',
+  'شي': 'use شيء', 'يصير': 'use يحدث', 'بدي': 'use أريد', 'هلق': 'use الآن',
 };
+
+/**
+ * ── WHAT IS DELIBERATELY *NOT* BANNED, AND WHY IT CHANGED ─────────────────
+ *
+ * `كيف` · `متى` · `ليس` · `شيء` · `أشياء` · `ثاني` · `ثانية` · `الذي` · `آخر`
+ *
+ * These are STANDARD ARABIC and are now the target, not the problem. An earlier
+ * version of this file banned `كيف` and `متى` outright — correct while the goal
+ * was Egyptian colloquial (`إزاي`/`إمتى`), and exactly wrong once the goal became
+ * clear professional Arabic. The list was rebuilt rather than extended, because a
+ * ban list inherited from a reversed decision fails on correct copy, and a gate
+ * that fails on correct copy gets deleted by the next person who hits it.
+ *
+ * `ثانية` is also the unit of TIME in fifteen live strings. `تاني`/`تانية` are the
+ * Egyptian forms and are banned; the standard forms are not. Same letters, and
+ * only meaning separates them — which is why this is a hand-kept list and not a
+ * stemmer.
+ */
 
 // ── The detector proves itself BEFORE it is trusted ─────────────────────────
 // studio-pages.test.ts shipped a credit detector that could never fire on Arabic
@@ -126,10 +168,14 @@ function leaves(node: unknown, path: string, out: Leaf[]): void {
   }
 }
 
+const ROOTS = Object.keys(ar);
+check('messages/ar.json has namespaces to scan', ROOTS.length >= 20, `${ROOTS.length}`);
 const all: Leaf[] = [];
-for (const root of MARKETING_ROOTS) {
-  check(`messages/ar.json has a "${root}" namespace to scan`, Boolean(ar[root]));
-  leaves(ar[root], root, all);
+for (const root of ROOTS) leaves(ar[root], root, all);
+// Named explicitly because these five carry the strings a customer reads at their
+// worst moment, and a walk that quietly stopped covering them would look clean.
+for (const must of ['landing', 'studios', 'pricingPage', 'studio', 'contact']) {
+  check(`the sweep opened "${must}"`, ROOTS.includes(must), ROOTS.join(' '));
 }
 
 // A scan that matches nothing must FAIL rather than certify an empty result — the
