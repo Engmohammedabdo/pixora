@@ -64,6 +64,28 @@ export async function generateImage(options: GenerateImageOptions): Promise<AIRe
       prompt: options.prompt,
       n: 1,
       size: openaiImageSize(options.resolution, options.aspectRatio),
+      /**
+       * PINNED, and the pin is the point of the gpt-image-2.5 adoption.
+       *
+       * This parameter was absent, so the documented default `"auto"` applied —
+       * "automatically select the best quality for the given model". That was
+       * survivable while the model's ladder topped out at `high`. gpt-image-2.5
+       * adds `xhigh` and `max` above it, at up to $0.211 per 1024x1024 — more
+       * than a 4K image earns on three of our four paid plans, and 4-7x what a
+       * 1080p image earns on any of them. `auto` on a longer ladder is an
+       * uncapped bill that no diff near the money would have shown.
+       *
+       * `high` is chosen rather than a cheaper tier because it is not a
+       * downgrade: 2.5's ladder shifted DOWN against 2's, so 2.5 at `high`
+       * bills roughly what gpt-image-2 billed at `medium`. Against the model
+       * this replaces we get better output, ~50% lower latency, and a lower
+       * cost — while the ceiling stays a named tier we have priced instead of
+       * a word OpenAI is free to reinterpret.
+       *
+       * `scripts/tests/model-registry.test.ts` fails the build if a model whose
+       * ceiling is `xhigh` or `max` is ever configured while this line is gone.
+       */
+      quality: 'high',
     }),
   }, PROVIDER_TIMEOUTS.image, 'gpt');
 

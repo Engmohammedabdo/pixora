@@ -52,7 +52,7 @@ export const MODELS = {
    * Constrained to `OPENAI_IMAGE_MODELS` below — read that block before changing
    * this value or setting the env var. This is a PRICED choice, not a name.
    */
-  openaiImage: env('PYRA_MODEL_OPENAI_IMAGE', 'gpt-image-2'),
+  openaiImage: env('PYRA_MODEL_OPENAI_IMAGE', 'gpt-image-2.5-flare'),
 
   /** OpenAI text, used as the fallback path when Gemini is unavailable. */
   openaiText: env('PYRA_MODEL_OPENAI_TEXT', 'gpt-5.4-mini'),
@@ -160,11 +160,11 @@ export function geminiImageSize(resolution: string | undefined): '1K' | '2K' | '
 export const OPENAI_IMAGE_MODELS: Record<string, { qualityCeiling: string; note: string }> = {
   'gpt-image-2': {
     qualityCeiling: 'high',
-    note: 'Current default. Ladder tops at `high`; supports v1/images/edits (our adapter does not use it).',
+    note: 'Previous default, replaced 2026-09-09. Ladder tops at `high`; supports v1/images/edits (our adapter does not use it). Kept here as the rollback target: setting PYRA_MODEL_OPENAI_IMAGE back to this is a valid, priced choice.',
   },
   'gpt-image-2.5-flare': {
     qualityCeiling: 'max',
-    note: 'Released 2026-09-08. OpenAI positions it as the default for most apps: higher quality than gpt-image-2 at ~50% lower latency. NOT ADOPTED — see the three preconditions above.',
+    note: 'ADOPTED 2026-09-09, pinned to quality `high` in lib/ai/openai.ts. OpenAI positions it as the default for most apps: better output than gpt-image-2 at ~50% lower latency. Its ladder shifted DOWN against 2.0 — 2.5 at `high` bills roughly what 2.0 billed at `medium` — so this is cheaper than what it replaces, NOT more expensive. The `max` ceiling is why the pin is mandatory.',
   },
   'gpt-image-2.5-sunburst': {
     qualityCeiling: 'max',
