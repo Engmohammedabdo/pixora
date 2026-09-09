@@ -394,6 +394,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // do this — campaign was the only studio silently dropping failed images
     // (via the catch below) without ever returning their cost.
     let failedImageCount = 0;
+    /** Every provider that served an image on this run. A set, not a string:
+     *  the router falls back per image, so nine images can come from two. */
+    const imageModelsUsed = new Set<string>();
 
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {
@@ -466,6 +469,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // it — so the canvas fix survives the provider change.
             aspectRatio: aspectRatioFor(input.platform),
           });
+          // Which provider ACTUALLY served. `generations.model` is one column
+          // and this route now uses two providers — text on gemini, images on
+          // gpt — so that column keeps the text model (the only one every run
+          // has: a text-only campaign makes no image call at all) and the image
+          // model is recorded in `output` below. Without it a 12-credit campaign
+          // bills nine gpt images and reports them at gemini's rate, which is
+          // the same 5x cost understatement the `model` column was fixed for.
+          if (imgResult.model) imageModelsUsed.add(imgResult.model);
           return imgResult.url || null;
         } catch {
           return null;
@@ -600,7 +611,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // partial refund above — mirrors creator/photoshoot, whose ledger rows
     // would otherwise disagree with the credits the user actually kept.
     await finalizeGeneration(supabase, generation.id, {
-      output: { posts: postsWithImages, mock: textResult.mock },
+      output: {
+        posts: postsWithImages,
+        mock: textResult.mock,
+        imageModels: imageModelsUsed.size > 0 ? [...imageModelsUsed] : null,
+      },
       credits_used: actualCreditsCharged,
       status: 'completed',
       // Record the model that ACTUALLY served. The row is inserted before
@@ -608,6 +623,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // gpt-served run stayed filed under gemini forever, and six admin surfaces
       // read this column. MODEL_COSTS is gemini 0.002 vs gpt 0.01, so every
       // mis-attributed run also understated estimated API cost 5x.
+      //
+      // `generations.model` is ONE column and campaign now uses TWO providers:
+      // text on gemini, images on gpt since 2026-09-09. This column keeps the
+      // TEXT model, because a text-only campaign — the free tier's whole
+      // proposition, and the cheaper of the two prices this route charges —
+      // makes no image call at all, so the text model is the only one every run
+      // has. The image model goes into `input` alongside promptVersion and the
+      // resolved brand kit, which is JSONB and needed no migration for those
+      // either. Without it a 12-credit campaign bills nine gpt images and reports
+      // them at gemini's rate, which is the 5x understatement above, back again
+      // by a different door.
       model: textResult.model,
     }, 'campaign');
 
