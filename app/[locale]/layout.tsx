@@ -55,7 +55,15 @@ export async function generateMetadata({
       // Was "نماذج AI متعددة" ("multiple AI models") — broke the Pyra persona rule in
       // CLAUDE.md (never name models to the user) on the very first sentence Google
       // shows. Now mirrors the English description's "transparent credit system" line.
-      ? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات بقوة بايرا 🦊، ونظام كريدت شفاف.'
+      //
+      // "المنصة العربية الأولى" ("the FIRST Arabic platform") was removed 2026-09-09.
+      // Nothing in this repo or anywhere else substantiates a first-to-market claim,
+      // and this string is the meta description of /ar — the single URL a launch
+      // announcement points at, i.e. the worst place in the product to carry an
+      // unprovable superlative. "مبنية بالعربي" is the claim the code actually
+      // supports: 863 Arabic keys, RTL by construction, and prompts that carry the
+      // customer's dialect. Same edit in messages/{ar,en}.json:725.
+      ? 'منصة تسويق بالذكاء الاصطناعي مبنية بالعربي — 9 استوديوهات بقوة بايرا 🦊، ونظام كريدت شفاف.'
       : 'Turn any idea into a complete marketing campaign in minutes — 9 AI studios powered by the Pyra AI engine, with a transparent credit system.',
     keywords: isAr
       ? ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI']

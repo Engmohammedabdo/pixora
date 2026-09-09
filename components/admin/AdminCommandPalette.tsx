@@ -17,8 +17,7 @@ import {
   Bot,
   FileText,
   Ticket,
-  LifeBuoy,
-} from 'lucide-react';
+  LifeBuoy, Repeat,} from 'lucide-react';
 
 interface SearchResult {
   id: string;
@@ -38,6 +37,7 @@ interface SearchResults {
 const quickActions = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Analytics', href: '/admin/analytics', icon: TrendingUp },
+  { label: 'Activation', href: '/admin/activation', icon: Repeat },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'Invites', href: '/admin/invites', icon: Ticket },
   { label: 'Support', href: '/admin/support', icon: LifeBuoy },

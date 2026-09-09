@@ -128,21 +128,74 @@ for (const s of MUST_NOT_MATCH) {
 // Stated on what the file HAS rather than on a list of names, and then the
 // coverage itself is asserted — a future edit that narrows the walk back to
 // the nine fails HERE instead of going quiet.
+// ── AND it reads `landing` and `pricingPage`, not `studios` alone ──────────
+//
+// The walk below opened `studios` only, and MEASURED on 2026-09-09 that is
+// where the price copy actually was: widening it to `landing` and
+// `pricingPage` found SIXTEEN typed credit figures the gate had never seen —
+//
+//   landing.pricing.features.<plan>[0]   "25 كريدت/شهر" x5 plans x2 locales,
+//                                        a verbatim duplicate of the line
+//                                        PricingSection renders one element
+//                                        above it from lib/stripe/plans.ts
+//   landing.pillars.p3Desc               "صورة = 1 كريدت، حملة كاملة = 12"
+//   landing.faq.a2                       same, and PUBLISHED as FAQPage JSON-LD
+//   pricingPage.costTable.voiceoverNote  both provider rates, retyped
+//
+// — while `components/pricing/StudioCostTable.tsx` was publishing the bare
+// photoshoot and campaign ceilings under a subtitle reading "the actual cost of
+// every generation". Two of those (the campaign's 12, the photoshoot's 8) quote
+// a customer 4x what the route charges on the cheaper path the same page
+// advertises.
+//
+// So the rule was right and its SCOPE was the defect — the same shape as the
+// `STUDIO_SLUGS` loop that never opened `studios.shared`, recorded above. It is
+// stated on a list of roots because a whole-file walk would also cover `admin`,
+// `billing` and the studio forms, where a credit figure in copy is describing
+// the balance the customer is spending rather than publishing a price.
+const PRICE_COPY_ROOTS = ['studios', 'landing', 'pricingPage'] as const;
+
 for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
-  const studioMsgs = (msgs as Record<string, Record<string, Record<string, string>>>).studios ?? {};
+  const all = msgs as Record<string, unknown>;
   const scanned: string[] = [];
-  for (const [ns, entries] of Object.entries(studioMsgs)) {
-    scanned.push(ns);
-    const joined = Object.values(entries).filter((v) => typeof v === 'string').join(' ');
-    check(`${locale}: studios.${ns} copy states no credit number`, !CREDIT_NUMBER.test(joined), (joined.match(CREDIT_NUMBER) ?? [''])[0]);
+  for (const root of PRICE_COPY_ROOTS) {
+    check(`${locale}: ${root} exists to be scanned`, Boolean(all[root]));
   }
+  // Every leaf string under each root, at any depth — `landing.pricing.features`
+  // is an ARRAY of strings two levels down, and the old one-level
+  // `Object.values(entries)` would have walked straight past it.
+  const walk = (node: unknown, path: string): void => {
+    if (typeof node === 'string') {
+      scanned.push(path);
+      check(`${locale}: ${path} states no credit number`, !CREDIT_NUMBER.test(node), (node.match(CREDIT_NUMBER) ?? [''])[0]);
+      return;
+    }
+    if (Array.isArray(node)) { node.forEach((v, i) => walk(v, `${path}[${i}]`)); return; }
+    if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) walk(v, `${path}.${k}`);
+    }
+  };
+  for (const root of PRICE_COPY_ROOTS) walk(all[root], root);
+
+  // A scan that matches nothing must FAIL rather than certify an empty result —
+  // studio-pages' own rule, and what would catch a `walk` that silently stopped
+  // recursing. The floor is deliberately far below the real count (~1,100).
+  check(`${locale}: the credit scan visited a plausible number of strings`, scanned.length >= 200, String(scanned.length));
+  for (const probe of ['landing.pricing.features.free[0]', 'landing.faq.a2', 'pricingPage.costTable.voiceoverNote']) {
+    // Named explicitly because each is a string the widened scan was written
+    // for: if a future edit moves or renames one, the gate says so instead of
+    // quietly covering one fewer surface.
+    check(`${locale}: the credit scan reached ${probe}`, scanned.includes(probe), `${scanned.length} strings scanned`);
+  }
+  const studioMsgs = (msgs as Record<string, Record<string, Record<string, string>>>).studios ?? {};
+  const scannedNs = Object.keys(studioMsgs);
   // Coverage is asserted on what the walk above ACTUALLY VISITED, never on the
   // keys of the file — a rule stated against the file would be satisfied by a
   // `studios.shared` that exists and is never opened, which is exactly the
   // defect. `shared` is named explicitly because it is the one namespace with
   // no slug to carry it in.
   for (const ns of [...STUDIO_SLUGS, 'shared']) {
-    check(`${locale}: the credit scan opened studios.${ns}`, scanned.includes(ns), scanned.join(' '));
+    check(`${locale}: the credit scan opened studios.${ns}`, scannedNs.includes(ns), scannedNs.join(' '));
   }
 }
 
@@ -1003,12 +1056,37 @@ const studiosMarkers = dialectMarkersIn(studiosCopy);
 check('the dialect detector found markers in the landing copy', landingMarkers.size > 0);
 check('the dialect detector found markers in the studios copy', studiosMarkers.size > 0);
 
-// (a) SUBSET.
+// (a) NO CROSS-BUCKET DRIFT.
+//
+// Restated 2026-09-09. This was a SUBSET rule — every marker in `studios` had to
+// appear in `landing` too — and it measured VOCABULARY OVERLAP while claiming to
+// measure register. The dialect sweep of that date proved the difference: rewriting
+// `ثاني` to `تاني` across the studio pages made both namespaces *more* consistently
+// Egyptian and FAILED this check, because the landing copy happens never to use the
+// word `تاني`. A rule that fails when you make the copy more consistent is measuring
+// the wrong quantity, and it would have been "fixed" by reverting the improvement.
+//
+// The real invariant is that the two surfaces do not sit in OPPOSITE buckets. So:
+// whichever bucket the landing page speaks in, the studio pages may not reach into
+// the other one. That still fires on the original defect (a Gulf marker on a studio
+// page while the landing is Egyptian) and no longer fires on a synonym.
+//
+// It is deliberately NOT made redundant by `test:one-dialect`, which enforces the
+// absolute rule "no Gulf token anywhere in marketing copy" from a fixed list. This
+// one is stated on the RELATIONSHIP between two namespaces, so it still has an
+// opinion about a marker neither list happens to name.
+const bucketOf = (m: string): 'gulf' | 'egyptian' | null =>
+  (GULF_MARKERS as readonly string[]).includes(m) ? 'gulf'
+  : (EGYPTIAN_MARKERS as readonly string[]).includes(m) ? 'egyptian'
+  : null;
+const landingBuckets = new Set([...landingMarkers].map(bucketOf).filter(Boolean));
 for (const marker of studiosMarkers) {
+  const b = bucketOf(marker);
+  if (!b) continue;
   check(
-    `the studio pages' ${marker} is a marker the landing page uses too`,
-    landingMarkers.has(marker),
-    `${marker} appears in studios and never in landing — landing uses [${[...landingMarkers].join(' ')}]`,
+    `the studio pages' ${marker} does not contradict the landing page's register`,
+    landingBuckets.size === 0 || landingBuckets.has(b),
+    `${marker} is ${b}; landing speaks [${[...landingBuckets].join(' ')}]`,
   );
 }
 // (b) NOT DISJOINT, per bucket.
@@ -1052,9 +1130,21 @@ for (const [landingKey, studioKey, marker] of LINKED_PAIRS) {
   check(`the linked-pair scan found ${studioKey}`, studioText.length > 0, studioKey);
   const inLandingHalf = dialectMarkersIn([landingText]).has(marker);
   const inStudioHalf = dialectMarkersIn([studioText]).has(marker);
+  // AGREEMENT, not presence. Restated 2026-09-09.
+  //
+  // This asserted `inLandingHalf && inStudioHalf` — both halves must CONTAIN `مو`.
+  // `مو` is a Gulf marker, and the whole point of the pair check is that these two
+  // strings are one click apart and must not disagree. Demanding that both carry
+  // the Gulf token made this **a check that forbids removing it**: the dialect
+  // sweep rewrote both halves to `مش`, which is the desired end state and the
+  // register `docs/POSITIONING.md` §4 commits to, and this check failed.
+  //
+  // A gate that fails when the defect it names is fixed is worse than no gate,
+  // because the cheapest way to make it pass is to reintroduce the defect. The
+  // invariant is that the two halves AGREE — both on, or both off.
   check(
     `${landingKey} and ${studioKey} are one click apart and must agree on ${marker}`,
-    inLandingHalf && inStudioHalf,
+    inLandingHalf === inStudioHalf,
     `${marker} in landing:${inLandingHalf} studio:${inStudioHalf} — «${landingText.slice(0, 30)}» vs «${studioText.slice(0, 30)}»`,
   );
 }

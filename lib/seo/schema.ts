@@ -10,10 +10,13 @@
 import { PLANS } from '@/lib/stripe/plans';
 import { OG_CONTENT, type OgLocale } from '@/lib/seo/og-content';
 import { AREA_SERVED, ORGANIZATION_ALTERNATE_NAMES, SOCIAL_PROFILES } from '@/lib/seo/profiles';
+import { faqParams } from '@/lib/landing/faq-params';
 import arMessages from '@/messages/ar.json';
 import enMessages from '@/messages/en.json';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
+// Exported 2026-09-09 for lib/seo/segment-schema.ts. A second copy of the origin
+// is how two page families end up publishing two different canonical hosts.
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
 
 // The landing page's FaqSection (components/landing/FaqSection.tsx) renders a
 // fixed set of 8 questions from the `landing.faq.q1..q8` / `a1..a8` keys —
@@ -184,6 +187,31 @@ export function buildSoftwareApplicationSchema(locale: string): SchemaOrgSoftwar
   };
 }
 
+/**
+ * Substitute every `{key}` this project defines for the landing FAQ, then refuse
+ * to return a string that still carries one.
+ *
+ * The throw is the point. `next-intl` raises on an unknown ICU argument, so the
+ * HTML reader fails loudly; this hand-rolled replace has no such behaviour and
+ * would happily emit `{campaignFull}` into structured data, where nobody looks
+ * until an answer engine quotes it back. `scripts/tests/schema.test.ts` calls
+ * this for every question in both locales, so a message edit that adds a
+ * placeholder without adding its value fails the BUILD rather than shipping.
+ */
+export function substituteFaqParams(text: string): string {
+  let out = text;
+  for (const [key, value] of Object.entries(faqParams())) {
+    out = out.replaceAll(`{${key}}`, String(value));
+  }
+  const leftover = out.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/);
+  if (leftover) {
+    throw new Error(
+      `landing FAQ carries an unsubstituted placeholder ${leftover[0]} — add it to lib/landing/faq-params.ts`
+    );
+  }
+  return out;
+}
+
 export function buildFaqSchema(locale: string): SchemaOrgFaqPage {
   // Cast rather than a second type declaration for the messages shape: these
   // are the same next-intl message files used everywhere else, and `faq.qN`/
@@ -198,9 +226,12 @@ export function buildFaqSchema(locale: string): SchemaOrgFaqPage {
       name: faq[`q${n}`],
       acceptedAnswer: {
         '@type': 'Answer' as const,
-        // The same params the FaqSection passes. Reading the raw message shipped
-        // the literal "{credits}" to every engine that read the schema.
-        text: faq[`a${n}`].replaceAll('{credits}', String(PLANS.free.credits)),
+        // The same params the FaqSection passes — from ONE module, so the two
+        // substitution mechanisms over these strings cannot diverge. Reading
+        // the raw message shipped the literal "{credits}" to every engine that
+        // read the schema; substituting only that one placeholder would ship
+        // the next one the same way.
+        text: substituteFaqParams(faq[`a${n}`]),
       },
     };
   });

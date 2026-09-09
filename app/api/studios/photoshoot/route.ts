@@ -5,6 +5,7 @@ import { inputImageRef, readableImageUrl } from '@/lib/storage/reference-image';
 import { createServerClient } from '@/lib/supabase/server';
 import { failGeneration, finalizeGeneration, insertAssets } from '@/lib/supabase/generation-writes';
 import { reserveCredits, refundCredits } from '@/lib/credits/deduct';
+import { PHOTOSHOOT_SHOT_COSTS } from '@/lib/credits/costs';
 import { settleCharge } from '@/lib/credits/settle';
 import { generateImage } from '@/lib/ai/router';
 import { PHOTOSHOOT_PROMPT_VERSION, buildPhotoshootPrompt } from '@/lib/ai/prompts/photoshoot';
@@ -26,7 +27,11 @@ const InputSchema = z.object({
   brandKitId: z.string().uuid().optional(),
 });
 
-const SHOT_COSTS: Record<number, number> = { 1: 2, 3: 4, 6: 8 };
+// Moved to lib/credits/costs.ts on 2026-09-09 as PHOTOSHOOT_SHOT_COSTS. It was
+// private here while three public surfaces published a photoshoot price, so the
+// pricing table published the bare six-shot ceiling and quoted a one-shot
+// customer 4x what this route charges. Prices are code; the decomposition now
+// lives beside the price it decomposes.
 
 /** One frame of the set. `url` is null when the shot never arrived from the
  *  model, or arrived and could not be watermarked — either way the customer does
@@ -84,7 +89,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const planId = profile?.plan_id || 'free';
     const shotResolution = getMaxResolution(planId);
 
-    const creditCost = SHOT_COSTS[input.shots] || 8;
+    const creditCost = PHOTOSHOOT_SHOT_COSTS[input.shots] || 8;
 
     // The Working Identity — see CONTEXT.md and lib/brand-kits/working-identity.ts.
     //

@@ -7,6 +7,7 @@ import { useState } from 'react';
 const pageNames: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
   '/admin/analytics': 'Analytics',
+  '/admin/activation': 'Activation',
   '/admin/users': 'Users',
   '/admin/generations': 'Generations',
   '/admin/transactions': 'Transactions',

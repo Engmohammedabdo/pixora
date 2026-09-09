@@ -355,9 +355,13 @@ an unauthenticated `?error=` parameter, i.e. a free social-engineering primitive
   bullet used to say the app had no healthcheck at all. `app/api/health/route.ts` probes
   DB reachability, required config, the Stripe key shape and the invite-gate trigger, and
   returns a coarse status only. It answered **200** on production 2026-09-02.
-  What is still missing is the **container** healthcheck in Coolify
-  (`health_check_enabled: false`), which is why it reports `running:unknown` rather than
-  `running:healthy`. Point it at `/api/health` — **not** `/`, which returns 307.
+  ~~What is still missing is the **container** healthcheck in Coolify.~~
+  **Corrected 2026-09-09 — it is enabled and passing.** Measured against the live Coolify
+  API rather than inferred: application `vg8scwcg488cwscgkksws0oo` (`pixora:main`) reports
+  **`running:healthy`**, where every earlier note in this file says `running:unknown`.
+  The rule those notes state still holds and is the reason to keep reading them: **confirm a
+  deploy by probing the app, never by reading the status field** — a healthcheck says the
+  container is up, not that the build you pushed is the one serving.
 
 ### Nine-studio hardening — 2026-08-24
 
@@ -765,7 +769,7 @@ Now the business facts are collected **once** — optionally read off the custom
 | `buildBrandContextBlock()` reaching creator, campaign, storyboard, photoshoot, plan, analysis | ✅ built | `lib/ai/prompts/brand-context.ts`, 32 checks. `edit` is wired but **dead** — see below |
 | Onboarding starts from the customer's website | ✅ built | `components/onboarding/WebsiteStep.tsx` — skip, success and failure all land on the same editable form **by construction**, not by three parallel paths |
 | `POST /api/brand-kits/extract` | ✅ built | auth → config check → throttle (5/60, fails CLOSED) → 90 s deadline → 256 kB bounded read. Our container **never fetches a customer URL** — it calls one fixed n8n webhook from env |
-| n8n + Apify extraction workflow | ⚠️ deployed, **inactive** | id `qH3LzMlpap3VRjPm`. Needs its own header credential — the current one is **shared** with another workflow |
+| n8n + Apify extraction workflow | ✅ deployed and **active** · ⚠️ credential still shared | Corrected 2026-09-09, measured: workflow `qH3LzMlpap3VRjPm` ("PyraSuite — Brand DNA from URL") reports `active: true`, 15 nodes, last updated 2026-08-28, and both `N8N_BRAND_DNA_WEBHOOK_URL` / `N8N_BRAND_DNA_SECRET` are set on `pixora:main` — so the extract route no longer short-circuits to 503. **The shared-credential half of this row is still true**, and the workflow itself proves it: its webhook demands a header named `X-HookLens-Secret`, i.e. HookLens's secret, a *different product on the same Coolify server*. Rotating that secret for HookLens breaks PyraSuite onboarding, silently |
 | Arabic text on generated images | ✅ **works — proved on production, both halves** | Verified 2026-08-25 and again 2026-08-27 with real generations (`mock: false`). Fidelity was never the problem: the requested string renders correctly joined, right-to-left, no invented harakat, no transliteration. Containment WAS the problem and was a PROMPT defect, not a model one — the same model that invented garbled text under a loose prompt produced a completely clean frame under an explicit one-occurrence rule. See "The Arabic containment fix" below |
 | `food` environment in photoshoot, six real recipes | ✅ built | `lib/ai/prompts/photoshoot.ts` |
 | `profiles.onboarding_step` written for the first time | ✅ fixed | read by `ProfileCompletion.tsx:23` since it was built, written by **nothing** until now |
@@ -852,7 +856,9 @@ mints a token and sends nothing, `/auth/v1/verify` redeems it for a session, and
 **The new build was confirmed live before anything was claimed about it.** The old code has no
 `website_url`/`city`/`description` in its schema, so a PUT carrying them silently dropped
 them; after the deploy the same PUT persisted `city = دبي`. That is the probe, not the
-Coolify status field, which reads `running:unknown` because this app still has no healthcheck.
+Coolify status field. (That field read `running:unknown` at the time; the container
+healthcheck was enabled later and it now reads `running:healthy` — the rule is unchanged,
+because a healthy container is not evidence that YOUR build is the one serving.)
 
 **C1 — proved fixed, with a before and an after.** The form's own normaliser output was sent
 to the live API:
@@ -954,7 +960,7 @@ blocker.
 | What | State | Proof |
 |------|-------|-------|
 | `edit` receives the customer's brand context | ✅ built | explicit kit → project kit → account default, the `photoshoot` pattern. `edit.ts`'s branch documented DEAD since F10 is finally fed |
-| 14 presets instead of a free-text box | ✅ built | `EDIT_PRESETS`. `editDescription` is now optional — except `text_add`, where it is the text to render, not an instruction |
+| 15 presets instead of a free-text box | ✅ built | `EDIT_PRESETS` — **15**, counted 2026-09-09 (this row said 14): marketplace_white, noon_white, studio_gradient, lifestyle_scene, festive_gifting, remove_props, remove_reflections, remove_labels, brand_color_match, accurate_color, product_label, promo_badge, luxury_editorial, bright_ecommerce, warm_appetite. `editDescription` is now optional — except `text_add`, where it is the text to render, not an instruction |
 | Marketplace-grade white background | ✅ **proved on production** | `marketplace_white`: 6 of 6 background sample points exactly `rgb(255,255,255)` |
 | Arabic text onto the customer's own product | ✅ **proved on production** | three runs, same image — see below |
 | Named next actions after a generation | ✅ built | `EditNextActions` on creator AND photoshoot. Photoshoot had **no** edit link at all, and it is the product-photography studio |
@@ -1007,10 +1013,13 @@ existing print preserved and nothing invented elsewhere.
 
 #### Still open, deliberately
 
-- **A studio can bill for a no-op and nothing notices.** Three failed runs each
-  returned 200 with a credit charged. A post-generation check comparing input to
-  output would catch it — but the obvious metric is the weak one above, so this
-  needs a real design, not a threshold.
+- ~~**A studio can bill for a no-op and nothing notices.**~~ **Partly closed —
+  corrected 2026-09-09.** `lib/image/edit-effect.ts` exists and `edit/route.ts`
+  calls it, with thresholds learned from eight labelled production runs. Read the
+  remaining gap precisely, because the bullet above is why: it is **logging-only
+  by design**, it covers **`edit` alone**, and its n is 8 — so a no-op is now
+  *visible in the logs* and still *billed*, in one of nine studios. Turning it
+  into a refund needs a bigger labelled sample than eight runs, not a threshold.
 - ~~`marketplace_white` does not reach its own 85% framing rule.~~ **RETRACTED
   2026-08-27 — the claim was mine and it was wrong.** The rule asks that the
   product's *longest side* span about 85% of the corresponding frame dimension.
@@ -1151,13 +1160,14 @@ once per customer-facing page and zero times on `/admin/*`; 62 of 62 documents
 still one `<html>` each.
 
 **Still open:**
-- **`META_CAPI_ACCESS_TOKEN` is NOT set** — the founder must generate it
-  (Events Manager → Data Sources → pixel → Settings → Conversions API) and set
-  it on the app service. Until then every server-sent Meta event is skipped
-  with one warning per process; the pixel still reports PageViews, so the
-  symptom is Ads Manager showing traffic but zero conversions. Optional
-  `META_CAPI_TEST_EVENT_CODE` routes CAPI events to Test Events for end-to-end
-  verification before going live.
+- ~~**`META_CAPI_ACCESS_TOKEN` is NOT set**~~ — **it IS set. Corrected 2026-09-09**,
+  measured in the live Coolify config: the key exists on `pixora:main` in BOTH the
+  production and the preview scope, runtime-only. So server-sent Meta events are no
+  longer skipped at the config check. **What has still never been observed is a Meta
+  event arriving**, and that is a different claim from the one this bullet used to make —
+  the pixel needs a real browser session for `_fbp`, exactly as GA4 does. Verify with
+  `META_CAPI_TEST_EVENT_CODE` (Events Manager → Test Events) before trusting any number
+  in Ads Manager.
 - **The pixel has never been OBSERVED in a real browser** — the same caveat GA4
   carries, for the same structural reason: an API-driven harness has no `_fbp`
   cookie. One more thing riding on the outstanding browser signups.
@@ -1602,7 +1612,8 @@ point of this round is that nobody had looked. Run artifacts:
 measured checks; planned 13 credits, spent 13.
 
 **The deploy was confirmed before anything was claimed about it**, and not from
-Coolify's status field (this app still has no healthcheck): the new
+Coolify's status field (which read `running:unknown` then and `running:healthy` now —
+either way it does not say WHICH build is serving): the new
 `/api/brand-kits/working-identity` route answers **401** on production rather
 than 404, so the route exists in the running build.
 
@@ -1827,8 +1838,8 @@ open anything.
 #### Still open, deliberately
 - **`sameAs` is empty** until the founder fills `lib/seo/profiles.ts` with profiles actually
   owned. Empty is the correct state; invented is not.
-- **The container healthcheck is still not enabled** (see the corrected bullet above), and
-  **`ADMIN_PASSWORD` is still weak and unrotated**.
+- ~~**The container healthcheck is still not enabled**~~ — **enabled, corrected 2026-09-09**:
+  the app reports `running:healthy`. **`ADMIN_PASSWORD` is still weak and unrotated.**
 - ~~**No public `/studios/[slug]`, `/use-cases/[slug]` or `/compare/[slug]` pages.**~~
   **The studios half is built** — see "Public studio pages — 2026-09-02" below. `/use-cases`
   and `/compare` are still absent, and still the audit's other two content routes.
@@ -2077,8 +2088,9 @@ files carrying 2,517 checks** — `npm run gates`, 33/33 in 48.8 s. `test:sitema
   **footer's four studio links still go to `/#studios`**, the landing anchor
   (`Footer.tsx:7-10`), and the footer is on every public page. That is the cheapest
   remaining internal-linking win and it was not taken here.
-- **`/studios` is not in the NavBar** — `NavBar.tsx:21` is still the `#studios` anchor.
-  A navigation decision, deliberately out of scope.
+- ~~**`/studios` is not in the NavBar**~~ — **fixed, corrected 2026-09-09.** `NavBar.tsx`
+  points the studios item at `/studios` and its header records the decision. The line below
+  about the FOOTER is still true and still the cheapest internal-linking win.
 - **The Arabic plan sample does not exist.** Generating one costs 5 credits and is the
   founder's call; until then `/ar/studios/plan` shows an English deliverable under a note
   saying so, which is honest and still weaker than the alternative.

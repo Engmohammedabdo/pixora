@@ -18,8 +18,7 @@ import {
   ChevronRight,
   Hexagon,
   Ticket,
-  LifeBuoy,
-} from 'lucide-react';
+  LifeBuoy, Repeat,} from 'lucide-react';
 
 interface AdminSidebarProps {
   collapsed: boolean;
@@ -43,6 +42,9 @@ type NavItem = NavLink | NavSeparator;
 const navItems: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/analytics', label: 'Analytics', icon: TrendingUp },
+  // The first reader of user_events. Directly under Analytics because it answers
+  // the one question the revenue screens cannot: did anyone come back.
+  { href: '/admin/activation', label: 'Activation', icon: Repeat },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/invites', label: 'Invites', icon: Ticket },
   { href: '/admin/support', label: 'Support', icon: LifeBuoy },

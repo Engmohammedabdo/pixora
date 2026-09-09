@@ -15,6 +15,9 @@ import {
   staggerContainer,
 } from '@/lib/animations';
 import { PLANS } from '@/lib/stripe/plans';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
+
+const campaignBands = campaignCostBands();
 
 const TYPEWRITER_WORD_KEYS = ['word1', 'word2', 'word3', 'word4', 'word5'] as const;
 
@@ -163,7 +166,24 @@ export function HeroSection(): React.ReactElement {
               variants={slideInTextSide}
               className="text-xs text-[var(--color-text-muted)]"
             >
-              {t('hero.microcopy', { credits: PLANS.free.credits })}
+              {/*
+                What the free credits BUY, not how many there are.
+                `docs/POSITIONING.md` §3: a text-only campaign is
+                `campaignCostBands().text` against the free plan's 25, so a
+                stranger gets eight complete nine-post Arabic campaigns with no
+                card — against a competitor whose cheapest entry is $3 and a card.
+                That sentence was on no surface in the product until 2026-09-09,
+                and it was verified end to end on production the same day
+                (.superpowers/dialect-proof/FINDING.md).
+
+                Both halves are computed, so the arithmetic in the copy cannot
+                drift from the arithmetic in the reservation.
+              */}
+              {t('hero.microcopy', {
+                credits: PLANS.free.credits,
+                posts: campaignBands.posts,
+                campaigns: Math.floor(PLANS.free.credits / campaignBands.text),
+              })}
             </motion.p>
           </motion.div>
 
