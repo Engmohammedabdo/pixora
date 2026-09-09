@@ -24,6 +24,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { stripComments } from '../lib/strip-comments';
 import sitemap from '../../app/sitemap';
+import { SEGMENT_SLUGS } from '../../lib/segments/catalogue.js';
 import { STUDIO_SLUGS } from '../../lib/studios/catalogue';
 
 let failures = 0;
@@ -54,11 +55,22 @@ for (const l of ['ar', 'en']) {
   }
 }
 // The total. 2026-09-02 this was 10 URLs; the nine public studio pages and their
-// index take it to 30. `STUDIO_SLUGS` is imported rather than restated so a
-// studio added to the catalogue and not to app/sitemap.ts fails HERE, and a
-// studio dropped from the sitemap cannot be hidden by a hand-edited number.
-const expectedUrls = 2 * (STATIC_PATHS.length + STUDIO_SLUGS.length);
-check(`the sitemap is exactly ${expectedUrls} URLs — ${STATIC_PATHS.length} static + ${STUDIO_SLUGS.length} studios, per locale`, urls.length === expectedUrls, String(urls.length));
+// index took it to 30, and the segment pages take it to 32. Every term is
+// IMPORTED rather than restated, so a page added to a catalogue and not to
+// app/sitemap.ts fails HERE, and a page dropped from the sitemap cannot be
+// hidden by a hand-edited number.
+//
+// The segment term was added 2026-09-09 and it is why this is stated as a sum of
+// catalogue lengths rather than a literal: the literal `30` was correct for a
+// week and then silently wrong, which is the failure mode a derived count does
+// not have.
+const expectedUrls = 2 * (STATIC_PATHS.length + STUDIO_SLUGS.length + SEGMENT_SLUGS.length);
+check(`the sitemap is exactly ${expectedUrls} URLs — ${STATIC_PATHS.length} static + ${STUDIO_SLUGS.length} studios + ${SEGMENT_SLUGS.length} segments, per locale`, urls.length === expectedUrls, String(urls.length));
+for (const l of ['ar', 'en']) {
+  for (const slug of SEGMENT_SLUGS) {
+    check(`/${l}/for/${slug} listed`, urls.includes(`/${l}/for/${slug}`), urls.join(' '));
+  }
+}
 check('every URL appears once', new Set(urls).size === urls.length, String(urls.length - new Set(urls).size));
 // Comment-stripped, per this repo's own rule (scripts/lib/strip-comments.ts):
 // app/sitemap.ts explains in prose why it does NOT use `new Date()`, and a raw

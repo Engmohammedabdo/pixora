@@ -823,7 +823,7 @@
       "subtitleStrong": "In Arabic, from day one.",
       "ctaPrimary": "Start free",
       "ctaSecondary": "Explore the studios",
-      "microcopy": "Start with {credits} free credits · No credit card · Cancel anytime",
+      "microcopy": "{credits} free credits = {campaigns} full {posts}-post campaigns · No credit card · Cancel anytime",
       "card1": "Image Creator",
       "card2": "Campaign Planner",
       "card3": "Marketing Plan",
@@ -1539,6 +1539,42 @@
       "a2": "Because that is what image models understand best. You write in plain Arabic and the result comes back in English so you can paste it into any image tool — but the tip beside each brief comes back in Arabic, so you can choose without reading English.",
       "q3": "Are the three genuinely different?",
       "a3": "They should be, and the instruction says in as many words that the three must differ in approach rather than being rephrasings — because three rephrasings of one idea give you one option, not three. Look at the sample above: one minimalist studio, one modern luxury, one natural daylight."
+    }
+  },
+  "segments": {
+    "shared": {
+      "ctaPrimary": "Start free",
+      "ctaSecondary": "See the studio",
+      "freeLine": "{free} credits free on sign-up · no card · enough for {campaigns} full {posts}-post campaigns",
+      "proofNote": "Real output from the product, from runs on a paid account — no images from any other tool.",
+      "priceBody": "A full {posts}-post campaign as text costs {text} credits. With its images, {full}. Sign-up gives you {free} credits free — {campaigns} complete campaigns before you pay anything.",
+      "contactLead": "A question before you try it? Send it over and we will answer.",
+      "contactCta": "Talk to us"
+    },
+    "dubai-restaurants": {
+      "name": "PyraSuite for Dubai restaurants",
+      "metaTitle": "Instagram content for Dubai restaurants — one dish photo, a week of posts | PyraSuite",
+      "metaDescription": "Running a restaurant or food shop in Dubai and selling through Instagram: describe your dish in Arabic and Pyra returns nine posts with captions and hashtags. Start on the free tier, no card.",
+      "eyebrow": "For restaurants and shops in Dubai",
+      "h1": "One photo of your dish — a full week of posts",
+      "definition": "PyraSuite is an AI marketing tool for independent restaurants and shops in Dubai that sell through Instagram. Describe your dish in Arabic the way you actually speak, and Pyra returns nine posts with captions and hashtags in your own dialect — Gulf, Emirati or Egyptian. No photographer, no copywriter.",
+      "audience": "Independent restaurants and food shops in Dubai",
+      "journeyTitle": "From a phone photo to published",
+      "journeySubtitle": "Three steps — and each one is a studio you can open on its own",
+      "step1": "Describe your dish in Arabic, pick the dialect, and Pyra returns nine ordered posts: three to introduce, three for engagement, three with an offer and a call to order. The captions are written in your dialect, not translated into it.",
+      "step2": "Only have a phone photo? Upload it and Pyra returns professional shots with real food lighting and finished backdrops — without booking a photographer or a studio.",
+      "step3": "And when you need to know what to publish next month: a 30/60/90-day plan written for your business and your city, with a budget and a content calendar, exportable as PDF.",
+      "proofTitle": "See the output before you sign up",
+      "priceTitle": "What does it actually cost?",
+      "faqTitle": "Questions restaurant owners ask",
+      "q1": "Do I need to be good at writing or design?",
+      "a1": "No. Describe your dish in Arabic the way you speak — \"chicken shawarma with garlic sauce and fries, fair price, fast delivery\" — and that is enough. No prompts, no settings.",
+      "q2": "Do the captions come back in my dialect or in Modern Standard Arabic?",
+      "a2": "In your dialect. Pick Gulf, Emirati, Egyptian, Saudi or Modern Standard, and the captions are written in the one you picked. We ran the same brief through three dialects on production and the difference showed in the words themselves.",
+      "q3": "What does it cost to try?",
+      "a3": "Nothing. Sign-up gives you {free} credits with no card, and a written {posts}-post campaign costs {text} credits — {campaigns} complete campaigns before you pay anything. With images it is {full}.",
+      "q4": "If an image comes back badly, do I pay for it?",
+      "a4": "No. If one of the nine never arrives, its share returns to your balance automatically and you keep the rest — a campaign is not lost over one picture."
     }
   }
 }

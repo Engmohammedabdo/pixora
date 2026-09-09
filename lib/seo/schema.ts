@@ -14,7 +14,9 @@ import { faqParams } from '@/lib/landing/faq-params';
 import arMessages from '@/messages/ar.json';
 import enMessages from '@/messages/en.json';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
+// Exported 2026-09-09 for lib/seo/segment-schema.ts. A second copy of the origin
+// is how two page families end up publishing two different canonical hosts.
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
 
 // The landing page's FaqSection (components/landing/FaqSection.tsx) renders a
 // fixed set of 8 questions from the `landing.faq.q1..q8` / `a1..a8` keys —

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { STUDIO_SLUGS } from '@/lib/studios/catalogue';
+import { SEGMENT_SLUGS } from '@/lib/segments/catalogue';
 
 /**
  * Only pages worth an organic landing. Auth forms are noindex (see
@@ -42,6 +43,22 @@ const PAGES: SitemapPage[] = [
       updated: '2026-09-02',
       changeFrequency: 'monthly',
       priority: 0.7,
+    }),
+  ),
+  // Segment pages, generated from SEGMENT_SLUGS for the same reason the studios
+  // are: `docs/POSITIONING.md` names Deira as the next one, and a second segment
+  // must cost a row in the catalogue rather than an edit in three files.
+  //
+  // Priority 0.9, above the studio pages and level with /pricing: a studio page
+  // answers "what does this tool do", and a segment page answers "is this for
+  // me" — which is the query a shop owner actually types, and the one this whole
+  // round exists to have an answer for.
+  ...SEGMENT_SLUGS.map(
+    (slug): SitemapPage => ({
+      path: `/for/${slug}`,
+      updated: '2026-09-09',
+      changeFrequency: 'monthly',
+      priority: 0.9,
     }),
   ),
   { path: '/contact', updated: '2026-08-23', changeFrequency: 'yearly', priority: 0.5 },
