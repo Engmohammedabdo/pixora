@@ -82,7 +82,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
   const tCredits = useTranslations('credits');
 
   const [prompt, setPrompt] = useState(initialPrompt ?? '');
-  const [model, setModel] = useState<AIModel>('gemini');
+  const [model, setModel] = useState<AIModel>('gpt');
   const [resolution, setResolution] = useState<Resolution>('1080p');
   const [style, setStyle] = useState<string>('photographic');
   // `general` is a square, which is what the API defaults to. Measured

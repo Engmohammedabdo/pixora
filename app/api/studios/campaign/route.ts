@@ -162,7 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const identity = await resolveWorkingIdentity(supabase, user.id, {
       optedOut: input.useBrandKit === false,
       brandKitId: input.brandKitId,
-      projectId,
+      projectId,
       // All three, because campaign is the one studio that prints all three:
       // '- Brand:', '- Brand Voice:' and '- Brand Colors:' on the override branch,
       // and passes the same three into buildCampaignPrompt.
@@ -447,12 +447,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         try {
           const imgResult = await generateImage({
             prompt: imagePrompt,
-            model: 'gemini',
+            // gpt, 2026-09-09. This route hardcoded 'gemini', and because the
+            // router puts the REQUESTED model first — `preferredOrder` in
+            // router.ts — that hardcoded value beat the admin's own
+            // fallback_order. The live settings row has said gpt-first since
+            // 2026-08-25 and was decorative for a fortnight: four image routes
+            // named gemini explicitly and never consulted it.
+            //
+            // Campaign is the one image route that can actually move. photoshoot
+            // and edit send a reference image, so IMAGE_INPUT_CAPABLE pins them
+            // to gemini whatever they ask for, and storyboard generates no
+            // images at all.
+            model: 'gpt',
             resolution: '1080p',
             // Measured 2026-08-31: nine images came back 1024x1024 for a request
-            // carrying platform 'instagram'. Campaign is pinned to gemini right
-            // here, and gemini already forwards this (gemini.ts:200), so this
-            // does not wait on the gpt/flux adapter work that creator does.
+            // carrying platform 'instagram'. Both adapters forward this — gemini
+            // at gemini.ts:200, and openaiImageSize() derives a WIDTHxHEIGHT from
+            // it — so the canvas fix survives the provider change.
             aspectRatio: aspectRatioFor(input.platform),
           });
           return imgResult.url || null;

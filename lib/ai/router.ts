@@ -20,7 +20,9 @@ async function getCachedModelConfig(): Promise<ModelConfig> {
     return config;
   } catch {
     // If DB is unavailable, return defaults
-    return { enabled: ['gemini', 'gpt', 'flux'], fallback_order: ['gemini', 'gpt', 'flux'] };
+    // Same order as IMAGE_FALLBACK_ORDER: an unreachable settings table must not
+    // quietly change which provider serves.
+    return { enabled: ['gpt', 'gemini', 'flux'], fallback_order: ['gpt', 'gemini', 'flux'] };
   }
 }
 
@@ -109,7 +111,11 @@ const DEFAULT_MODELS: Partial<Record<Studio, AIModel>> = {
  */
 const IMAGE_INPUT_CAPABLE: AIModel[] = ['gemini'];
 
-const IMAGE_FALLBACK_ORDER: AIModel[] = ['gemini', 'gpt', 'flux'];
+// gpt first, 2026-09-09. gpt-image-2.5-flare renders Arabic text correctly and,
+// unlike gemini, invents no text elsewhere in the frame — proved on production.
+// This used to be gemini-first while the live admin row said gpt-first, so a lost
+// settings row would have silently reverted the decision.
+const IMAGE_FALLBACK_ORDER: AIModel[] = ['gpt', 'gemini', 'flux'];
 const TEXT_FALLBACK_ORDER: AIModel[] = ['gemini', 'gpt'];
 
 /** The env var each adapter reads to decide real-vs-mock. */
