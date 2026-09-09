@@ -2383,13 +2383,47 @@ MUST_MATCH/MUST_NOT_MATCH corpus before it is trusted, and was proved on three a
 self-tests instead of going quiet, the exact way the credit detector once died on
 Arabic.
 
+#### Verified live on production, 2026-09-09 — every fix re-measured in the served bytes
+
+Merged `c56d43d`, pushed `08322ff`, deployed `dibqfuu7inuhpuqoongpw696` (303 s) on
+that exact commit. **Confirmed by probe, not by the status field** — `/ar/for/dubai-restaurants`
+went 404 -> **200**, a route that exists only in this build.
+
+| Measured on production | Result |
+|---|---|
+| `/{ar,en}/for/dubai-restaurants` | **200**, `/ar/for/nope` **404** |
+| that page | one `<h1>`, one `ld+json` **element** (`BreadcrumbList+WebPage+FAQPage`), page-exact canonical, 3 `rel="alternate"`, zero raw ICU placeholders |
+| `sitemap.xml` `<loc>` | **32** (was 30), both new URLs present |
+| the four false claims on `/ar` | **all absent** |
+| Gulf tokens in `/ar` visible copy | **0** |
+| `/ar/pricing` photoshoot | **`2–8 كريدت`** + `1 لقطة بـ2 · 3 لقطات بـ4 · 6 لقطات بـ8` (was a flat `8`) |
+| `/ar/pricing` campaign | **`3 أو 12 كريدت`** (was a flat `12`) |
+| hero | `25 كريدت مجاناً = 8 حملات كاملة بـ9 بوستات · بدون بطاقة ائتمان` |
+| FAQ `a2` as an engine reads it | `صورة واحدة = 1 كريدت. وحملة 9 بوستات = 3 كريدت بالنصوص وحدها، أو 12 لو طلبت صورها كمان` |
+
+**No regression, checked rather than assumed:** `/ar`, `/en`, `/ar/pricing`,
+`/ar/studios`, `/ar/studios/creator` and `/ar/contact` all still 200; `/ar/creator`
+and `/ar/dashboard` still 307 to `/ar/login`.
+
+**A fourth instrument trap, and it produced a false FAIL before it was caught.**
+The `2–8` check failed on production while the page was correct. React SSR inserts
+**`<!-- -->` text separators between adjacent JSX expressions**, so the served bytes
+read `2<!-- -->–<!-- -->8`, and stripping tags with `s/<[^>]+>/ /` turns that into
+`2 – 8`. Strip `<!-- -->` FIRST, then tags. Fourth member of the family this file
+already records — `grep -c` counting lines on a one-line document, `hreflang` vs
+React's `hrefLang`, and the flight payload double-counting `application/ld+json`.
+**A raw string search over a prerendered React document is the wrong instrument by
+default.**
+
 #### Still open, deliberately
 
 - **`ADMIN_PASSWORD` is still weak and unrotated.** Note it is `is_buildtime: true`,
   so changing it needs a REBUILD, not a restart.
 - **Four demo images remain unprovenanced** (coffee, skincare, burger, perfume).
-- **Nothing in this round is verified on production** — merged to `main` locally,
-  **not pushed and not deployed**.
+- ~~Nothing in this round is verified on production.~~ **It is** — see the section
+  above. What remains unverified is the segment page in a real BROWSER: the probes
+  are curl, so nothing has looked at the rendered layout, and the RTL bar/table
+  work in this round was checked in built bytes rather than on screen.
 - The plan's tasks 19–20 (twenty conversations in Karama, three testimonials) are
   the founder's, and the 30-day number is unreadable without them.
 
