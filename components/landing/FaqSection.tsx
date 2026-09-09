@@ -1,8 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { PLANS } from '@/lib/stripe/plans';
 import { ChevronDown } from 'lucide-react';
+import { faqParams } from '@/lib/landing/faq-params';
+
+const FAQ_PARAMS = faqParams();
 
 const FAQ_KEYS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
@@ -33,7 +35,14 @@ export function FaqSection(): React.ReactElement {
                 <div className="px-5 pb-5 text-sm leading-relaxed text-[var(--color-text-secondary)]">
                   {/* `credits` is passed to EVERY answer; next-intl ignores a param an
                       answer does not reference. PLANS.free is the one source. */}
-                  {t(`faq.a${num}`, { credits: PLANS.free.credits })}
+                  {/*
+                    a2 is the pricing answer, and it is also PUBLISHED as
+                    JSON-LD FAQPage — so a number typed into it reaches answer
+                    engines, not just readers. It stated the campaign's 12 as
+                    the only price while the route reserves 3 for the text-only
+                    path; both bands now come from the module the route imports.
+                  */}
+                  {t(`faq.a${num}`, FAQ_PARAMS)}
                 </div>
               </details>
             );

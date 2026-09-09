@@ -722,7 +722,7 @@
     "draftDescriptionManual": "Fill in what you know — you can always finish the rest later from the Brand Kit page.",
     "saveAndContinue": "Save & continue",
     "step1Title": "Welcome to PyraSuite!",
-    "step1Description": "The first Arabic AI marketing platform. 9 smart studios to help you create professional content in minutes.",
+    "step1Description": "An Arabic-first AI marketing platform, built in Arabic from the first line of code. 9 smart studios to help you create professional content in minutes.",
     "step1Cta": "Next",
     "step2Title": "Create Your Brand Kit",
     "step2Description": "Add your colors and brand voice — Pyra uses them in the Image Creator, and your colors in Product Photoshoot too.",
@@ -841,7 +841,7 @@
       "p2Title": "Arabic from A to Z",
       "p2Desc": "Not a translation. Not a retrofit. Built in Arabic from the first line of code. It understands your dialect, writes in your style, and creates content that never feels AI-made.",
       "p3Title": "Pay only for what you use",
-      "p3Desc": "A transparent credit system — know the cost before you click. An image = 1 credit, a full campaign = 12. No surprises, no hidden fees. And if a generation fails, Pyra refunds its credits to your account automatically.",
+      "p3Desc": "A transparent credit system — know the cost before you click. An image = {image} credit, and a {posts}-post campaign = {campaignText} as text alone or {campaignFull} with its images. No surprises, no hidden fees. And if a generation fails, Pyra refunds its credits to your account automatically.",
       "p4Title": "From idea to publish in minutes",
       "p4Desc": "Write your idea in one line — Pyra turns it into a ready-to-post campaign with images, captions, and hashtags. A full week's work, done in 10 minutes."
     },
@@ -942,8 +942,8 @@
       "s6Desc": "SWOT + audience personas + competitor analysis + an actionable roadmap",
       "s6Credits": "3",
       "s7Name": "VoiceOver",
-      "s7Desc": "Professional voice in your dialect — Gulf, Egyptian, Levantine. Control speed and tone",
-      "s7Credits": "from 1 credit / 15s",
+      "s7Desc": "Professional voice in your dialect — Gulf, Saudi, Emirati, or Egyptian. Control speed and tone",
+      "s7Credits": "1 per 15s · 3 per 20s",
       "s8Name": "Image Editing",
       "s8Desc": "Remove backgrounds, change colors, add text, swap styles — with one command",
       "s8Credits": "1",
@@ -961,9 +961,6 @@
     "pricing": {
       "title": "Transparent pricing — no surprises",
       "subtitle": "These are our launch prices — join now and you are in the first batch",
-      "monthly": "Monthly",
-      "annual": "Annual",
-      "saveBadge": "Save 18%",
       "popular": "Most Popular",
       "perMonth": "/mo",
       "credits": "{count} credits",
@@ -972,31 +969,26 @@
       "subscribe": "Subscribe Now",
       "features": {
         "free": [
-          "25 credits/month",
           "1080p resolution",
           "Watermark on images",
           "1 Brand Kit"
         ],
         "starter": [
-          "200 credits/month",
           "2K resolution (Creator & Photoshoot)",
           "No watermark",
           "3 Brand Kits"
         ],
         "pro": [
-          "600 credits/month",
           "4K resolution (Creator & Photoshoot)",
           "No watermark",
           "10 Brand Kits"
         ],
         "business": [
-          "1,500 credits/month",
           "4K resolution (Creator & Photoshoot)",
           "No watermark",
           "25 Brand Kits"
         ],
         "agency": [
-          "5,000 credits/month",
           "4K resolution (Creator & Photoshoot)",
           "No watermark",
           "100 Brand Kits"
@@ -1022,7 +1014,7 @@
       "q1": "What is PyraSuite?",
       "a1": "PyraSuite is an AI marketing studio for restaurants, shops and clinics in the UAE and the Gulf. Type your idea in Arabic and Pyra — the platform's engine — turns it into product photos, posts with captions, a marketing plan, a competitor analysis and a voiceover in your dialect. Nine studios, one subscription, a transparent credit system.",
       "q2": "How does the credit system work?",
-      "a2": "Every action has a clear cost you see before you click. One image = 1 credit, a full 9-post campaign = 12. No surprises — and if a generation fails, the credits return to your account automatically.",
+      "a2": "Every action has a clear cost you see before you click. One image = {image} credit. A {posts}-post campaign = {campaignText} credits as text alone, or {campaignFull} if you ask for its images too. No surprises — and if a generation fails, the credits return to your account automatically.",
       "q3": "How do I try the platform?",
       "a3": "Sign up with your email for free and start immediately — no invites, no waiting. Your account gets {credits} credits to try the studios, and no credit card is needed.",
       "q4": "Does Pyra AI really understand Arabic?",
@@ -1117,7 +1109,7 @@
         "industry": "Your industry",
         "audience": "Your audience",
         "city": "Your city",
-        "brand": "Your colours and logo",
+        "brand": "Your brand colours",
         "voice": "Your tone of voice"
       },
       "outcomes": {
@@ -1148,7 +1140,10 @@
       "creditUnit": "credits",
       "creditsCount": "{count, plural, one {# credit} other {# credits}}",
       "imageNote": "Varies by the resolution you pick — 1080p / 2K / 4K",
-      "voiceoverNote": "Free & Starter plans: 1 credit per 15 seconds · Pro and above: 3 credits per 20 seconds, higher quality",
+      "orLabel": "or",
+      "shootNote": "Varies by shot count — {a} shot {aCost} · {b} shots {bCost} · {c} shots {cCost}",
+      "campaignNote": "{text} credits for the {posts} posts as text · {full} credits with their images",
+      "voiceoverNote": "Free & Starter plans: {basicCredits} credit per {basicSeconds} seconds · Pro and above: {proCredits} credits per {proSeconds} seconds, higher quality",
       "freeLabel": "Free"
     },
     "creditPolicy": {

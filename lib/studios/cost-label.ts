@@ -1,4 +1,4 @@
-import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { CREDIT_COSTS, PHOTOSHOOT_SHOT_COSTS, PHOTOSHOOT_SHOT_OPTIONS } from '@/lib/credits/costs';
 import { getStudio, type StudioSlug } from '@/lib/studios/catalogue';
 
 /**
@@ -12,12 +12,13 @@ import { getStudio, type StudioSlug } from '@/lib/studios/catalogue';
  * switch is exactly the drift the catalogue exists to prevent — nine cards
  * quoting one number and nine pages quoting another, with nothing failing.
  *
- * The one literal is the photoshoot floor. `SHOT_COSTS` lives inside the route
- * (`app/api/studios/photoshoot/route.ts:29` — `{1:2, 3:4, 6:8}`) and is not
- * exported, so the floor cannot be imported; the ceiling is
- * `CREDIT_COSTS.photoshoot` and is. `landing.studios.s2Credits` already
- * publishes the same "2-8" range, so this agrees with what the product says
- * today rather than inventing a second figure.
+ * There are no literals left. The photoshoot floor USED to be one, because
+ * `SHOT_COSTS` lived inside `app/api/studios/photoshoot/route.ts` and was not
+ * exported. On 2026-09-09 it moved to `lib/credits/costs.ts` as
+ * `PHOTOSHOOT_SHOT_COSTS` — prompted by the pricing page's cost table, the
+ * THIRD public surface publishing this price, which was still publishing the
+ * bare six-shot ceiling and so quoted a one-shot customer 4x what the route
+ * charges. Both ends now come from that map.
  *
  * ── WHY `perDuration` CARRIES NO NUMBER OF ITS OWN ─────────────────────────
  * Voiceover is the one studio whose UNIT is not universal. It shipped as
@@ -75,7 +76,7 @@ export function studioCostLabel(slug: StudioSlug, labels: StudioCostLabels): str
     case 'imageRange':
       return `${CREDIT_COSTS.image['1080p']}–${CREDIT_COSTS.image['4K']} ${labels.unit} · ${labels.perImage}`;
     case 'shotRange':
-      return `2–${CREDIT_COSTS.photoshoot} ${labels.unit} · ${labels.perShoot}`;
+      return `${PHOTOSHOOT_SHOT_COSTS[PHOTOSHOOT_SHOT_OPTIONS[0]]}–${CREDIT_COSTS.photoshoot} ${labels.unit} · ${labels.perShoot}`;
     case 'perDuration':
       // No `unit` and no leading figure: a single number in front of a two-band
       // price is what made the old badge read as one universal rate.

@@ -11,6 +11,33 @@ export const CREDIT_COSTS = {
   video: 10,
 } as const;
 
+/**
+ * What a photoshoot costs, by shot count — the DECOMPOSITION of
+ * `CREDIT_COSTS.photoshoot`, which is only ever the six-shot ceiling.
+ *
+ * This lived as a private `const SHOT_COSTS` inside
+ * `app/api/studios/photoshoot/route.ts` while THREE public surfaces published a
+ * photoshoot price: /studios/[slug], the /studios index, and the pricing page's
+ * cost table. None could import it, so each either typed the range into a
+ * translation or published the bare ceiling — and the pricing table published
+ * the ceiling, quoting a one-shot customer 4x what the route charges.
+ *
+ * Prices are code (that is why the admin per-studio price knob was deleted), so
+ * the decomposition belongs beside the price it decomposes, exactly as
+ * `campaignCostBands()` does for the campaign's two bands. `lib/studios/cost-label.ts`
+ * previously carried a literal `2` for the floor with a comment explaining that
+ * it could not be imported; it can now.
+ *
+ * The ceiling stays derived rather than restated: `PHOTOSHOOT_SHOT_COSTS[6]` and
+ * `CREDIT_COSTS.photoshoot` must agree, and `scripts/tests/studio-pages.test.ts`
+ * asserts it, so a change to one that is not made to the other fails the build
+ * instead of shipping two prices for the same shoot.
+ */
+export const PHOTOSHOOT_SHOT_COSTS: Record<number, number> = { 1: 2, 3: 4, 6: 8 };
+
+/** The shot counts the photoshoot form offers, in the order it offers them. */
+export const PHOTOSHOOT_SHOT_OPTIONS = [1, 3, 6] as const;
+
 export type StudioCostKey = keyof typeof CREDIT_COSTS;
 
 export function getStudioCost(studio: string, resolution?: string): number {

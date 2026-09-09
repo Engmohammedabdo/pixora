@@ -5,6 +5,10 @@ import { motion, useInView } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { Layers, Globe, Coins, Zap } from 'lucide-react';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
+import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
+
+const campaignBands = campaignCostBands();
 
 const PILLARS = [
   { icon: Layers, titleKey: 'p1Title', descKey: 'p1Desc' },
@@ -51,7 +55,21 @@ export function ValuePillars(): React.ReactElement {
                   {t(`pillars.${pillar.titleKey}`)}
                 </h3>
                 <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">
-                  {t(`pillars.${pillar.descKey}`)}
+                  {/*
+                    Values, never a number in the string. `p3Desc` is the
+                    "transparent credit system" pillar, so the two prices it
+                    quotes are the whole claim — and until 2026-09-09 it typed
+                    them ("صورة = 1 كريدت، حملة كاملة = 12"), stating the
+                    campaign's expensive band as if it were the only one while
+                    app/api/studios/campaign/route.ts reserves 3 for the
+                    text-only path this very page advertises elsewhere.
+                  */}
+                  {t(`pillars.${pillar.descKey}`, {
+                    image: CREDIT_COSTS.image['1080p'],
+                    posts: campaignBands.posts,
+                    campaignText: campaignBands.text,
+                    campaignFull: campaignBands.full,
+                  })}
                 </p>
               </motion.div>
             );

@@ -7,7 +7,7 @@
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::? 'حدث خطأ أثناء تحميل الصفحة. يرجى المحاولة مرة أخرى.'",
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::{isAr ? 'إعادة المحاولة' : 'Try Again'}",
     "no-arabic-literals-in-tsx::app/[locale]/(dashboard)/error.tsx::{isAr ? 'حدث خطأ غير متوقع' : 'Something went wrong'}",
-    "no-arabic-literals-in-tsx::app/[locale]/layout.tsx::? 'المنصة العربية الأولى للتسويق بالذكاء الاصطناعي — 9 استوديوهات بقوة بايرا 🦊، ونظام كريدت شفاف.'",
+    "no-arabic-literals-in-tsx::app/[locale]/layout.tsx::? 'منصة تسويق بالذكاء الاصطناعي مبنية بالعربي — 9 استوديوهات بقوة بايرا 🦊، ونظام كريدت شفاف.'",
     "no-arabic-literals-in-tsx::app/[locale]/layout.tsx::? ['تسويق', 'ذكاء اصطناعي', 'AI marketing', 'PyraSuite', 'حملات تسويقية', 'تصميم', 'صور AI']",
     "no-arabic-literals-in-tsx::app/[locale]/not-found.tsx::? 'الصفحة اللي تدور عليها مش موجودة أو تم نقلها'",
     "no-arabic-literals-in-tsx::app/[locale]/not-found.tsx::{isAr ? 'الصفحة الرئيسية' : 'Go to Dashboard'}",
