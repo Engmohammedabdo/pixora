@@ -87,11 +87,28 @@ export function HeroSection(): React.ReactElement {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 w-full">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
           {/* Text side */}
+            {/*
+              `initial={false}`, not "hidden". Measured on a 375px viewport
+              against production 2026-09-09: the whole text column rendered at
+              opacity 0 and the first paint was a blank screen with one floating
+              paragraph — the only element in the hero NOT wrapped in motion.
+              framer-motion writes the `hidden` variant's inline style during SSR,
+              so `slideInRight`/`slideInLeft` starting at `opacity: 0` means the
+              headline, the CTAs and the free-tier line are invisible in the
+              shipped bytes until JS loads, hydrates and an IntersectionObserver
+              fires. On a shop's connection that is the whole first impression.
+
+              `initial={false}` renders the resting state immediately and skips
+              the entrance. Nothing is lost that a visitor would miss: the
+              headline already animates, letter by letter, via the typewriter
+              below. The visual column keeps its slide — it is decoration beside
+              the text, not the text.
+            */}
           <motion.div
             className="flex-1 text-center lg:text-start"
             variants={staggerContainer}
-            initial="hidden"
-            whileInView="visible"
+            initial={false}
+            animate="visible"
             viewport={{ once: true }}
           >
             <motion.div variants={slideInTextSide}>
