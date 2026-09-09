@@ -89,6 +89,26 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
       const v = segs[s.key]?.[k];
       check(`${locale}: segments.${s.key}.${k} is a non-empty string`, typeof v === 'string' && v.trim().length > 0);
     }
+    // ── THE BRAND SUFFIX IS THE LAYOUT'S JOB ─────────────────────────────
+    // `app/[locale]/layout.tsx` sets `title.template = '%s | PyraSuite'`, so a
+    // metaTitle that also carries the suffix ships DOUBLED. Measured on
+    // production 2026-09-09, seen in a real browser tab and in the served bytes:
+    //   <title>… بوستات أسبوع | PyraSuite | PyraSuite</title>
+    // Every studio page is correct because none of them writes it. This is not a
+    // typo class a human reliably catches — the string reads fine in the message
+    // file, and the defect only exists once the template has been applied.
+    check(
+      `${locale}: segments.${s.key}.metaTitle does not repeat the brand suffix`,
+      !/\|\s*PyraSuite\s*$/.test(segs[s.key]?.metaTitle ?? ''),
+      segs[s.key]?.metaTitle,
+    );
+    // Same trap, other direction: the DESCRIPTION has no template, so it must
+    // stand alone and must not be a truncated title.
+    check(
+      `${locale}: segments.${s.key}.metaDescription is a real description`,
+      (segs[s.key]?.metaDescription ?? '').length >= 80,
+      String(segs[s.key]?.metaDescription).slice(0, 40),
+    );
     // The sentence an answer engine lifts. A tagline is not a definition.
     check(`${locale}: segments.${s.key}.definition is a real sentence`, (segs[s.key]?.definition ?? '').length >= 80, String(segs[s.key]?.definition).slice(0, 40));
   }
