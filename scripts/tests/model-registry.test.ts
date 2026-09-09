@@ -88,6 +88,37 @@ if (ceiling === 'xhigh' || ceiling === 'max') {
   );
 }
 
+// ── 6. The paid-provider clamps in the creator route ──────────────────────
+// Added 2026-09-09 with the gpt switch, and both guard a hole that switch OPENED
+// rather than one it inherited: creator's InputSchema takes a free model enum and
+// the route never gated it by plan, which was harmless only while the form
+// defaulted to gemini.
+//
+//   free  -> a $0 plan on the per-token provider BY DEFAULT, with signup open
+//   4K    -> gemini switches to geminiImagePro for that tier (gemini.ts:187) and
+//            gpt does not, so the 4-credit price would buy 4.19MP from a model it
+//            was not set against
+//
+// Stated on the source because both are one line and one line is easy to delete
+// while tidying. `servingModel` is asserted to be what actually reaches the
+// router, so renaming the clamp without rewiring it fails here too.
+const creator = readFileSync(join(ROOT, 'app/api/studios/creator/route.ts'), 'utf8');
+check(
+  'creator clamps the serving model for the free plan',
+  /planId\s*===\s*'free'\s*\?\s*'gemini'/.test(creator),
+  'a $0 plan must not default to the per-token provider',
+);
+check(
+  'creator clamps 4K to the provider whose 4K the price was set against',
+  /input\.resolution\s*===\s*'4K'\s*\?\s*'gemini'/.test(creator),
+  'gemini.ts:187 switches model at 4K; gpt does not',
+);
+check(
+  'the clamped model is the one handed to the router, not input.model',
+  !/model:\s*input\.model/.test(creator),
+  'a call site still passes input.model, so the clamp is decorative there',
+);
+
 if (failures.length) {
   console.error(failures.join('\n'));
   console.error(`\n[model-registry] ${failures.length} of ${passed + failures.length} checks FAILED`);

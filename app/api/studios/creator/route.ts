@@ -227,6 +227,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    /**
+     * WHICH PROVIDER ACTUALLY SERVES — clamped here, above the reservation, from
+     * the plan this route has already read.
+     *
+     * `InputSchema.model` is a free enum and this route has never gated it by
+     * plan; it only ever gated resolution. That was harmless while
+     * `CreatorForm.tsx` defaulted to gemini. On 2026-09-09 the default became
+     * gpt, and both halves of that turn into real exposure:
+     *
+     * FREE EARNS $0. `PLANS.free.price` is 0 for 25 monthly credits, signup is
+     * open, and gpt bills per token while gemini is roughly a fifth of it
+     * (MODEL_COSTS, app/api/admin/health/route.ts). A free account is pure cost
+     * on either provider; it should not be pure cost on the dearer one BY
+     * DEFAULT. Paid plans keep the customer's choice — starter earns $0.06 a
+     * credit against roughly $0.01 of provider cost, so only the $0 tier is
+     * under water.
+     *
+     * 4K IS NOT THE SAME PRODUCT ON THE TWO PROVIDERS, and this is the only
+     * route that sells the tier directly. gemini switches MODEL for it —
+     * `gemini.ts:187` routes '4K' to `MODELS.geminiImagePro`, documented as true
+     * 4K — while gpt stays on one model and asks for 2048x2048, which is
+     * 4.19 MP against UHD's 8.29 MP. The 4-credit price was set against the
+     * former. Until someone compares them on a real paid request, a customer who
+     * never touches the model chip keeps what their plan sold them.
+     *
+     * Both clamps set the PREFERRED model rather than filtering the order, so a
+     * genuine provider outage still falls through and `usedFallback` still means
+     * what it says.
+     */
+    const planId = profile?.plan_id || 'free';
+    const servingModel: typeof input.model =
+      planId === 'free' ? 'gemini'
+      : input.resolution === '4K' ? 'gemini'
+      : input.model;
+
     // Calculate credit cost (use admin override if set)
     const creditCost = getStudioCost('creator', input.resolution);
     const totalCost = creditCost * input.variations;
@@ -346,7 +381,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .insert({
         user_id: user.id,
         studio: 'creator',
-        model: input.model,
+        model: servingModel,
         // Verified above — this is the resolved id, never the raw client value.
         project_id: projectId,
         // `...input` wrote the raw reference payload into this JSONB column — up to
@@ -438,7 +473,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let imageUrls: string[];
     let hasMock = false;
     let hasUsedFallback = false;
-    let resultModel = input.model;
+    let resultModel = servingModel;
     let resultOriginalModel: string | undefined;
     // Tracks the balance actually left after any partial refund below. Stays at
     // the reservation's balance when no partial refund is needed.
@@ -455,7 +490,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const promises = Array.from({ length: 4 }, () =>
         generateImage({
           prompt: fullPrompt,
-          model: input.model,
+          model: servingModel,
           resolution: input.resolution,
           referenceImageUrl: input.referenceImageUrl,
           // Safe to send as of 2026-08-31: gpt and flux forward this now, in
@@ -578,7 +613,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } else {
       const result = await generateImage({
         prompt: fullPrompt,
-        model: input.model,
+        model: servingModel,
         resolution: input.resolution,
         referenceImageUrl: input.referenceImageUrl,
         aspectRatio: aspectRatioFor(input.platform),
