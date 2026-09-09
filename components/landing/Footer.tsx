@@ -3,11 +3,23 @@ import { Link } from '@/i18n/routing';
 import { LocaleSwitcher } from '@/components/shared/LocaleSwitcher';
 import { SOCIAL_PROFILES } from '@/lib/seo/profiles';
 
+/**
+ * Four studios, linked to their own public pages.
+ *
+ * All four used to point at `/#studios` — a bare fragment, on a footer that renders
+ * on EVERY public page. From `/ar/pricing` or `/ar/studios/creator` that resolves
+ * inside the CURRENT document, where no `#studios` element exists, so the link did
+ * nothing at all on 25 of 26 pages. The same defect NavBar.tsx documents fixing for
+ * its own item; the footer was left behind, and CLAUDE.md records it as "the cheapest
+ * remaining internal-linking win".
+ *
+ * The LABEL comes from `studios.<slug>.name`, not from the four `landing.footer.studioN`
+ * keys it used to read. Those keys held strings byte-identical to the studio pages'
+ * own names in both locales — a second copy of a name, which is how a footer ends up
+ * calling a page something the page does not call itself. They are deleted.
+ */
 const STUDIO_LINKS = [
-  { key: 'studio1', href: '/#studios' },
-  { key: 'studio2', href: '/#studios' },
-  { key: 'studio3', href: '/#studios' },
-  { key: 'studio4', href: '/#studios' },
+  { slug: 'creator' }, { slug: 'campaign' }, { slug: 'analysis' }, { slug: 'photoshoot' },
 ] as const;
 
 const SUPPORT_LINKS = [
@@ -25,6 +37,7 @@ const LEGAL_LINKS = [
 
 export function Footer(): React.ReactElement {
   const t = useTranslations('landing');
+  const tStudios = useTranslations('studios');
 
   return (
     <footer className="border-t border-[var(--color-border)] bg-[var(--color-surface)] py-12 px-6">
@@ -50,12 +63,12 @@ export function Footer(): React.ReactElement {
             </h4>
             <ul className="space-y-2">
               {STUDIO_LINKS.map((link) => (
-                <li key={link.key}>
+                <li key={link.slug}>
                   <Link
-                    href={link.href}
+                    href={`/studios/${link.slug}`}
                     className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
                   >
-                    {t(`footer.${link.key}`)}
+                    {tStudios(`${link.slug}.name`)}
                   </Link>
                 </li>
               ))}

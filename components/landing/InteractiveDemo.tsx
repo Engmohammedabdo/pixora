@@ -51,9 +51,38 @@ import { PLANS } from '@/lib/stripe/plans';
  * credits — every one under a seventh of a Starter month.
  */
 
+/**
+ * ── PROVENANCE, AND WHY IT IS PER-EXAMPLE (2026-09-09) ──────────────────────
+ *
+ * This block is headed "اللي بايرا ترجّعه" — what Pyra returns — and its caption
+ * asserted "الصور دي من بايرا فعلاً": these images really are from Pyra. That is
+ * the strongest claim on the landing page and it was made about five files whose
+ * mtimes are 2026-08-12 and 2026-08-25, i.e. ALL FIVE PREDATE THE EARLIEST LIVE
+ * RUN ON DISK (`.superpowers/live-runs/2026-08-27T11-18-36-586Z`). So no
+ * provenance for them can exist even in principle — not that they are fake, but
+ * that nothing in this repository can show they are not, while seventeen
+ * run-tracked artifacts sat in `public/examples/studios/manifest.json` being shown
+ * only on pages a visitor reaches second.
+ *
+ * `sourceRun` is therefore a property of EACH example, not a sentence under all
+ * of them, and the caption below switches on it. A blanket claim is exactly what
+ * put an unprovable one on the highest-traffic page in the product.
+ *
+ * `shawarma` now carries the manifest artifact `creator-shawarma-square` — a paid
+ * production run, and the one whose wrapper renders شاورما الشام correctly, which
+ * is the product's hardest capability and was invisible here.
+ *
+ * The other four have no run-tracked counterpart: every image in the manifest is
+ * shawarma, a product shoot, or a campaign frame. Regenerating coffee, skincare,
+ * burger and perfume costs credits and is the founder's call — until then they
+ * keep the weaker, true caption rather than borrowing the strong one.
+ */
 interface Example {
   key: string;
   image: string;
+  /** A directory under `.superpowers/live-runs/`. Present only where the image is
+   *  a manifest-tracked artifact of a real generation. */
+  sourceRun?: string;
   deliverables: { key: string; credits: number }[];
 }
 
@@ -69,7 +98,8 @@ const EXAMPLES: Example[] = [
   // brand colour in the set dressing.
   {
     key: 'shawarma',
-    image: '/examples/shawarma.jpg',
+    image: '/examples/studios/creator-shawarma-square.webp',
+    sourceRun: '2026-09-01T03-43-10-125Z',
     deliverables: [
       { key: 'photoshoot', credits: CREDIT_COSTS.photoshoot },
       { key: 'campaign', credits: CREDIT_COSTS.campaign },
@@ -237,8 +267,10 @@ export function InteractiveDemo(): React.ReactElement {
           </motion.div>
         </AnimatePresence>
 
+        {/* The strong claim is made only where a run id backs it. See the
+            provenance note on `Example` above. */}
         <p className="mt-8 text-center text-sm text-[var(--color-text-muted)]">
-          {t('demo.caption')}
+          {active.sourceRun ? t('demo.captionProven') : t('demo.caption')}
         </p>
 
         <div className="mt-6 flex justify-center">

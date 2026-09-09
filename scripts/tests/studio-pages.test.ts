@@ -1056,12 +1056,37 @@ const studiosMarkers = dialectMarkersIn(studiosCopy);
 check('the dialect detector found markers in the landing copy', landingMarkers.size > 0);
 check('the dialect detector found markers in the studios copy', studiosMarkers.size > 0);
 
-// (a) SUBSET.
+// (a) NO CROSS-BUCKET DRIFT.
+//
+// Restated 2026-09-09. This was a SUBSET rule — every marker in `studios` had to
+// appear in `landing` too — and it measured VOCABULARY OVERLAP while claiming to
+// measure register. The dialect sweep of that date proved the difference: rewriting
+// `ثاني` to `تاني` across the studio pages made both namespaces *more* consistently
+// Egyptian and FAILED this check, because the landing copy happens never to use the
+// word `تاني`. A rule that fails when you make the copy more consistent is measuring
+// the wrong quantity, and it would have been "fixed" by reverting the improvement.
+//
+// The real invariant is that the two surfaces do not sit in OPPOSITE buckets. So:
+// whichever bucket the landing page speaks in, the studio pages may not reach into
+// the other one. That still fires on the original defect (a Gulf marker on a studio
+// page while the landing is Egyptian) and no longer fires on a synonym.
+//
+// It is deliberately NOT made redundant by `test:one-dialect`, which enforces the
+// absolute rule "no Gulf token anywhere in marketing copy" from a fixed list. This
+// one is stated on the RELATIONSHIP between two namespaces, so it still has an
+// opinion about a marker neither list happens to name.
+const bucketOf = (m: string): 'gulf' | 'egyptian' | null =>
+  (GULF_MARKERS as readonly string[]).includes(m) ? 'gulf'
+  : (EGYPTIAN_MARKERS as readonly string[]).includes(m) ? 'egyptian'
+  : null;
+const landingBuckets = new Set([...landingMarkers].map(bucketOf).filter(Boolean));
 for (const marker of studiosMarkers) {
+  const b = bucketOf(marker);
+  if (!b) continue;
   check(
-    `the studio pages' ${marker} is a marker the landing page uses too`,
-    landingMarkers.has(marker),
-    `${marker} appears in studios and never in landing — landing uses [${[...landingMarkers].join(' ')}]`,
+    `the studio pages' ${marker} does not contradict the landing page's register`,
+    landingBuckets.size === 0 || landingBuckets.has(b),
+    `${marker} is ${b}; landing speaks [${[...landingBuckets].join(' ')}]`,
   );
 }
 // (b) NOT DISJOINT, per bucket.
@@ -1105,9 +1130,21 @@ for (const [landingKey, studioKey, marker] of LINKED_PAIRS) {
   check(`the linked-pair scan found ${studioKey}`, studioText.length > 0, studioKey);
   const inLandingHalf = dialectMarkersIn([landingText]).has(marker);
   const inStudioHalf = dialectMarkersIn([studioText]).has(marker);
+  // AGREEMENT, not presence. Restated 2026-09-09.
+  //
+  // This asserted `inLandingHalf && inStudioHalf` — both halves must CONTAIN `مو`.
+  // `مو` is a Gulf marker, and the whole point of the pair check is that these two
+  // strings are one click apart and must not disagree. Demanding that both carry
+  // the Gulf token made this **a check that forbids removing it**: the dialect
+  // sweep rewrote both halves to `مش`, which is the desired end state and the
+  // register `docs/POSITIONING.md` §4 commits to, and this check failed.
+  //
+  // A gate that fails when the defect it names is fixed is worse than no gate,
+  // because the cheapest way to make it pass is to reintroduce the defect. The
+  // invariant is that the two halves AGREE — both on, or both off.
   check(
     `${landingKey} and ${studioKey} are one click apart and must agree on ${marker}`,
-    inLandingHalf && inStudioHalf,
+    inLandingHalf === inStudioHalf,
     `${marker} in landing:${inLandingHalf} studio:${inStudioHalf} — «${landingText.slice(0, 30)}» vs «${studioText.slice(0, 30)}»`,
   );
 }
