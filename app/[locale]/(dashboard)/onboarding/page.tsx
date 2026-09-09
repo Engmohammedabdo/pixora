@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,44 +26,29 @@ interface StepConfig {
   action: string | null;
 }
 
-// The five original explanatory cards, unchanged. They now occupy steps 1-5 —
-// step 0 is the new website step below, which owns its own content and
-// navigation rather than fitting this icon/title/description shape.
+/**
+ * ONE tour step, down from five. Changed 2026-09-09.
+ *
+ * The five were explanatory cards: a welcome, "go to /brand-kit", "go to
+ * /creator", "go to /billing", and a congratulations. Four of them were a
+ * slideshow, and one was actively wrong — step 4 put the pricing page in front of
+ * a brand-new free account that had not yet produced anything, which is asking
+ * for money before showing value. The welcome card repeated the landing page, and
+ * the brand-kit card asked for something step 0 has already collected.
+ *
+ * What survives is the only step that moves someone toward output, pointed at the
+ * studio docs/POSITIONING.md actually calls the front door: campaign, not creator.
+ * The completion bonus is unchanged — it fires on the last step either way — but
+ * it is now a toast rather than a whole screen, because a screen that says
+ * "congratulations" is a screen between the customer and the product.
+ */
 const TOUR_STEPS: StepConfig[] = [
   {
     icon: Rocket,
     titleKey: 'step1Title',
     descriptionKey: 'step1Description',
     ctaKey: 'step1Cta',
-    action: null,
-  },
-  {
-    icon: Palette,
-    titleKey: 'step2Title',
-    descriptionKey: 'step2Description',
-    ctaKey: 'step2Cta',
-    action: '/brand-kit',
-  },
-  {
-    icon: Image,
-    titleKey: 'step3Title',
-    descriptionKey: 'step3Description',
-    ctaKey: 'step3Cta',
-    action: '/creator',
-  },
-  {
-    icon: CreditCard,
-    titleKey: 'step4Title',
-    descriptionKey: 'step4Description',
-    ctaKey: 'step4Cta',
-    action: '/billing',
-  },
-  {
-    icon: Gift,
-    titleKey: 'step5Title',
-    descriptionKey: 'step5Description',
-    ctaKey: 'step5Cta',
-    action: null,
+    action: '/campaign',
   },
 ];
 
@@ -127,15 +113,24 @@ export default function OnboardingPage(): React.ReactElement {
         // never wins the race against an in-flight, un-awaited request — see
         // the finding this fixes for the exact sequencing.
         const res = await fetch('/api/user/onboarding', { method: 'POST' });
-        const data = await res.json() as { success: boolean; newBalance?: number };
+        const data = await res.json() as { success: boolean; newBalance?: number; creditsAwarded?: number };
         if (data.success && typeof data.newBalance === 'number') {
           // Apply the bonus locally so the credits widget reflects it
           // immediately, without waiting for the next poll/refetch.
           useCreditsStore.getState().setBalance(data.newBalance);
+          // Said in a toast rather than on a screen of its own. The customer used
+          // to get a full "congratulations, +5 credits" step; the credits are
+          // real (ONBOARDING_BONUS_CREDITS in app/api/user/onboarding/route.ts)
+          // and worth telling them about, but not worth a click.
+          if (typeof data.creditsAwarded === 'number' && data.creditsAwarded > 0) {
+            toast.success(t('bonusGranted', { credits: data.creditsAwarded }));
+          }
         }
         window.localStorage.removeItem(STORAGE_KEY);
       } catch { /* Non-blocking — the middleware still gates on the server-side flag */ }
-      router.push('/dashboard');
+      // Into the studio, not the dashboard. The dashboard is a menu; the customer
+      // came here to make something, and the last step's own CTA names it.
+      router.push(currentStep?.action ?? '/campaign');
       return;
     }
     goToStep(step + 1);

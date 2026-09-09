@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -323,7 +324,7 @@ export default function VoiceOverPage(): React.ReactElement {
         </Button>
         <p className="text-xs text-[var(--color-text-muted)]">{audioDuration} {tVo('second')}</p>
       </div>
-      <Button variant="outline" className="gap-2" onClick={() => void downloadFile(audioUrl, `pyrasuite-voiceover-${Date.now()}.mp3`)}>
+      <Button variant="outline" className="gap-2" onClick={() => { void downloadFile(audioUrl, `pyrasuite-voiceover-${Date.now()}.mp3`).catch(() => toast.error(tStudio('downloadFailed'))); }}>
         <Download className="h-4 w-4" />{tVo('downloadMp3')}
       </Button>
     </div>

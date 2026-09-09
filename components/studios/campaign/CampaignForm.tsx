@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
 import { useBrandKits } from '@/hooks/useBrandKit';
+import { useUser } from '@/hooks/useUser';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
-import { CREDIT_COSTS } from '@/lib/credits/costs';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
 import { Link } from '@/i18n/routing';
 import { Sparkles, Palette } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
@@ -42,23 +43,23 @@ const DIALECTS = ['saudi', 'emirati', 'egyptian', 'gulf', 'formal'] as const;
 const PLATFORMS = ['instagram', 'tiktok', 'linkedin', 'twitter', 'facebook'] as const;
 
 /**
- * The same decomposition app/api/studios/campaign/route.ts reserves against —
- * kept in step with it deliberately: this form showed a flat CREDIT_COSTS.campaign
- * that did not move when the customer unchecked "Generate All Images", which is
- * how the overcharge stayed invisible. The route is the authority; if the price
- * ever splits differently, it changes there first and this follows.
+ * The price comes from lib/credits/campaign-cost.ts — the module the ROUTE
+ * imports — not from a copy of the arithmetic.
+ *
+ * This file carried its own `campaignCost()` re-deriving the split from
+ * CREDIT_COSTS. That module's own header (campaign-cost.ts:22-25) says a second
+ * copy of `Math.max(1, full - 9 * perImage)` is exactly how a published price and
+ * a charged price drift apart, and names this as the reason the admin per-studio
+ * price knob was deleted. The form was the second copy.
  */
-const CAMPAIGN_POSTS = 9;
-const campaignCost = (withImages: boolean): number =>
-  withImages
-    ? CREDIT_COSTS.campaign
-    : Math.max(1, CREDIT_COSTS.campaign - CAMPAIGN_POSTS * CREDIT_COSTS.image['1080p']);
+const BANDS = campaignCostBands();
 
 export function CampaignForm({ onSubmit, isLoading, initialDescription }: CampaignFormProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
   const tCredits = useTranslations('credits');
 
+  const { profile } = useUser();
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productDescription, setProductDescription] = useState(initialDescription ?? '');
   const [targetAudience, setTargetAudience] = useState('');
@@ -71,7 +72,21 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   // in creator, and a 12-credit campaign came back generic by default. The state
   // now says the same thing in both files, with no effect to keep in sync.
   const [useBrandKit, setUseBrandKit] = useState(true);
-  const [generateImages, setGenerateImages] = useState(true);
+  /**
+   * OFF by default, changed 2026-09-09.
+   *
+   * It was ON, so the FIRST press of the first button in the product cost the
+   * full 12 credits of a free account's 25. That gave the free tier TWO
+   * campaigns — while components/landing/HeroSection.tsx prints "8 full
+   * campaigns" from the same numbers, and docs/POSITIONING.md calls that
+   * sentence the strongest true claim available. The app contradicted its own
+   * headline on the first click anyone makes.
+   *
+   * Off, the first press costs the text band and the free tier delivers what the
+   * landing page promises. Images are one tick away and the label now says what
+   * that tick costs.
+   */
+  const [generateImages, setGenerateImages] = useState(false);
   /**
    * ONLY what the customer explicitly picked, in WorkingIdentityBar. `undefined`
    * is the default and it is the point: an absent `brandKitId` means "I did not
@@ -96,7 +111,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   // Tracks the checkbox, so the figure on the button matches what the route
   // actually reserves — and a customer who cannot afford the full campaign is
   // no longer blocked from the text-only one they CAN afford.
-  const cost = campaignCost(generateImages);
+  const cost = generateImages ? BANDS.full : BANDS.text;
   const cannotAfford = creditsStatus === 'ready' && cost > balance;
 
   const handleSubmit = (e: React.FormEvent): void => {
@@ -223,8 +238,31 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
           onChange={(e) => setGenerateImages(e.target.checked)}
           className="h-4 w-4 rounded border-[var(--color-border)] text-primary-500 focus:ring-primary-500"
         />
-        <span className="text-sm">{t('generateAllImages')}</span>
+        <span className="text-sm">
+          {t('generateAllImages')}{' '}
+          {/* The delta, not the total: the customer is deciding about THIS tick,
+              and the running cost is already shown by <CreditCost/> below. */}
+          <span className="text-[var(--color-text-muted)]">
+            {t('generateAllImagesCost', { delta: BANDS.full - BANDS.text })}
+          </span>
+        </span>
       </label>
+
+      {/*
+        THE WATERMARK, SAID BEFORE THE CREDITS MOVE.
+        Measured 2026-09-09: the word "watermark" appeared on exactly two customer
+        surfaces — the landing pricing table and the plan cards on /billing — and
+        on NO studio surface at all, while campaign/route.ts burns the mark into
+        every free-plan image unconditionally. So a free customer discovered it
+        after spending, on the nine-image run the free tier exists to convert them
+        with. Shown only when the box is ticked, because the text half carries no
+        mark, and only on free, because nobody else gets one.
+      */}
+      {generateImages && (profile?.plan_id ?? 'free') === 'free' && (
+        <p className="-mt-1 text-xs text-[var(--color-text-muted)]">
+          {t('freeWatermarkNotice')}
+        </p>
+      )}
 
       {/* Whose business this campaign is for, said BEFORE Generate — the credits
           are reserved the moment it is pressed, so saying it afterwards is saying

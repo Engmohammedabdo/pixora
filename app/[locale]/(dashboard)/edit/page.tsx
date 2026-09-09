@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { StudioLayout } from '@/components/layout/StudioLayout';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,7 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
+import { formatFromUrl } from '@/lib/storage/image-format';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
@@ -482,7 +484,7 @@ function EditPageContent(): React.ReactElement {
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('original')}</p>{originalImage && <Image src={originalImage} alt="Original" width={1024} height={1024} className="w-full rounded-lg border" unoptimized />}</div>
         <div><p className="text-xs font-medium mb-2 text-center">{tEdit('afterEdit')}</p>{resultImage ? <Image src={resultImage} alt="Edited" width={1024} height={1024} className="w-full rounded-lg border" unoptimized /> : <div className="w-full aspect-square rounded-lg border-2 border-dashed border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-sm">{tEdit('pressGenerate')}</div>}</div>
       </div>
-      {resultImage && (<Button onClick={() => void downloadFile(resultImage, 'pyrasuite-edit.png')} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
+      {resultImage && (<Button onClick={() => { void downloadFile(resultImage, `pyrasuite-edit.${formatFromUrl(resultImage)}`).catch(() => toast.error(tStudio('downloadFailed'))); }} className="gap-2"><Download className="h-4 w-4" />{t('studio.download')}</Button>)}
     </div>
   );
 

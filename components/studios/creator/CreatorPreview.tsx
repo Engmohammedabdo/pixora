@@ -13,6 +13,7 @@ import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { downloadFile, downloadFiles } from '@/lib/download';
 import { formatFromUrl } from '@/lib/storage/image-format';
+import { toast } from 'sonner';
 import { Download, RefreshCw, AlertTriangle, Info, X } from 'lucide-react';
 import { EditNextActions } from '@/components/studios/EditNextActions';
 
@@ -103,12 +104,12 @@ export function CreatorPreview({
   // carrying the provider's real mime, so JPEG and WebP downloads were named .png
   // and opened wrong. formatFromUrl() is the helper the export ZIP already uses.
   const handleDownload = (url: string, index: number): void => {
-    void downloadFile(url, `pyrasuite-${Date.now()}-${index}.${formatFromUrl(url)}`);
+    void downloadFile(url, `pyrasuite-${Date.now()}-${index}.${formatFromUrl(url)}`).catch(() => toast.error(t('downloadFailed')));
   };
 
   const handleDownloadAll = (): void => {
     const stamp = Date.now();
-    void downloadFiles(imageUrls.map((url, i) => ({ url, filename: `pyrasuite-${stamp}-${i}.${formatFromUrl(url)}` })));
+    void downloadFiles(imageUrls.map((url, i) => ({ url, filename: `pyrasuite-${stamp}-${i}.${formatFromUrl(url)}` }))).catch(() => toast.error(t('downloadFailed')));
   };
 
   return (

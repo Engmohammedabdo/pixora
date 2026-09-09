@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+import { formatFromUrl } from '@/lib/storage/image-format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -162,11 +163,21 @@ export function CampaignPlanDisplay({
           <Card key={index} className="overflow-hidden">
             {/* Image */}
             {post.imageUrl ? (
-              <div className="relative w-full h-32">
+              /* aspect-square, not h-32. A 128px-tall box with object-cover
+                 crops a 1024x1024 generation to a horizontal strip — and what it
+                 crops out is the middle, which on this product's own example
+                 output is the Arabic name printed on the packaging. That is the
+                 capability three separate rounds of prompt work exist to deliver
+                 (containment, RTL joining, the edit.ts text rule), and the one
+                 surface showing nine of them at once was hiding it.
+                 photoshoot/PhotoshootPreview.tsx:124 already does this; campaign
+                 was the outlier. The `sizes` value was written for the 128px box
+                 and is corrected with it. */
+              <div className="relative w-full aspect-square">
                 <NextImage src={post.imageUrl} alt="" fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" unoptimized />
               </div>
             ) : (
-              <div className="w-full h-32 bg-surface-2 flex items-center justify-center">
+              <div className="w-full aspect-square bg-surface-2 flex items-center justify-center">
                 <Link
                   href={`/creator?prompt=${encodeURIComponent(post.scenario)}`}
                   className="flex items-center gap-1 text-xs text-[var(--color-link)] hover:underline"
@@ -217,7 +228,7 @@ export function CampaignPlanDisplay({
                     variant="ghost"
                     className="h-7 px-2 text-xs"
                     aria-label={t('downloadImage')}
-                    onClick={() => void downloadFile(post.imageUrl as string, `pyrasuite-campaign-post-${index + 1}.png`)}
+                    onClick={() => { void downloadFile(post.imageUrl as string, `pyrasuite-campaign-post-${index + 1}.${formatFromUrl(post.imageUrl as string)}`).catch(() => toast.error(tStudio('downloadFailed'))); }}
                   >
                     <Download className="h-3 w-3" />
                   </Button>

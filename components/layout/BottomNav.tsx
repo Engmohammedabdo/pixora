@@ -6,10 +6,12 @@ import { Home, Image, LayoutGrid, ImageIcon, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
 
+// campaign first, 2026-09-09: docs/POSITIONING.md makes it the front door, and
+// every navigation surface put the image creator ahead of it.
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home, labelKey: 'home' },
-  { href: '/creator', icon: Image, labelKey: 'creator' },
   { href: '/campaign', icon: LayoutGrid, labelKey: 'campaign' },
+  { href: '/creator', icon: Image, labelKey: 'creator' },
   { href: '/assets', icon: ImageIcon, labelKey: 'assets' },
 ] as const;
 

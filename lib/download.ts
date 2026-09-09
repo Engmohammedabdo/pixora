@@ -42,10 +42,17 @@ function saveBlob(blob: Blob, filename: string): void {
   const link = document.createElement('a');
   link.href = objectUrl;
   link.download = filename;
+  link.rel = 'noopener';
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(objectUrl);
+  // Revoked on a timer, NOT in this tick. `link.click()` only STARTS the save;
+  // the browser reads the object URL afterwards, and revoking synchronously can
+  // pull the bytes out from under it. Safari is the one that actually loses the
+  // file, which is the market's dominant browser — a shop owner taps Download,
+  // nothing happens, and concludes the product is broken. One second is far more
+  // than the read needs and the URL is still released.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export async function downloadFile(url: string, filename: string): Promise<void> {
@@ -73,7 +80,15 @@ export async function downloadFile(url: string, filename: string): Promise<void>
   } catch {
     // Fallback: open in a new tab so the user can save manually. Safe here —
     // this branch is only reachable for http(s) URLs.
-    window.open(url, '_blank', 'noopener,noreferrer');
+    //
+    // It runs AFTER `await fetch`, so it is outside the user gesture and every
+    // popup blocker refuses it silently: the customer taps Download, the fetch
+    // fails, and absolutely nothing happens. `window.open` returns null when it
+    // is blocked, so the caller can say so instead of the failure being invisible
+    // — the same shape lib/export/pdf.ts:282 already uses, where four call sites
+    // toast `popupBlocked`.
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) throw new Error('download_failed_popup_blocked');
   }
 }
 

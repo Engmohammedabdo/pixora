@@ -142,6 +142,7 @@ export default function ResetPasswordPage(): React.ReactElement {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder={t('passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -154,6 +155,7 @@ export default function ResetPasswordPage(): React.ReactElement {
               <Input
                 id="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 placeholder={t('passwordPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

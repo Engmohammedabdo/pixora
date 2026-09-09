@@ -40,14 +40,23 @@ function CampaignPageContent(): React.ReactElement {
   // Bumped once per successful run so RecentWork refetches and the run that just
   // finished appears in the list.
   const [runs, setRuns] = useState(0);
+  /** Kept so the error branch can offer a retry that does not make the customer
+   *  re-type a brief the form has already scrolled away from. */
+  const [lastInput, setLastInput] = useState<CampaignInput | null>(null);
 
   const setBalance = useCreditsStore((s) => s.setBalance);
 
   const handleGenerate = useCallback(async (input: CampaignInput): Promise<void> => {
     setIsLoading(true);
     setError(null);
-    setPosts([]);
     setImageFailure(null);
+    setLastInput(input);
+    // `setPosts([])` used to be here, and it destroyed paid work: a transient
+    // failure on the retry wiped nine captions the customer had already paid 3 or
+    // 12 credits for, leaving an error icon where the deliverable had been.
+    // creator/page.tsx deliberately does not clear for the same reason, and
+    // CreatorPreview.tsx:73-77 records why in prose. Posts are replaced on
+    // SUCCESS below, so a good run still shows only its own output.
 
     try {
       const response = await fetch('/api/studios/campaign', {

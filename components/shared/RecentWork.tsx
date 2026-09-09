@@ -127,14 +127,19 @@ export function RecentWork({ studio, onRestore, refreshKey }: RecentWorkProps): 
 /**
  * A name for a past run, taken from what the customer typed.
  *
- * `businessName` covers plan and analysis, `concept` covers storyboard. The
- * fallback is the empty string rather than a placeholder like "Untitled": the
+ * `businessName` covers plan and analysis, `concept` covers storyboard, and
+ * `productDescription` covers campaign — added 2026-09-09, because campaign's own
+ * InputSchema carries neither of the first two, so every campaign row rendered as
+ * a bare date. Five past campaigns were five identical blank lines, on the one
+ * surface that exists to get paid work back.
+ *
+ * The fallback is the empty string rather than a placeholder like "Untitled": the
  * date sits next to it and already identifies the row, so an invented label
  * would add nothing and translate badly.
  */
 function label(row: Row): string {
   const input = row.input ?? {};
-  const raw = input.businessName ?? input.concept ?? '';
+  const raw = input.businessName ?? input.concept ?? input.productDescription ?? '';
   const text = typeof raw === 'string' ? raw.trim() : '';
   return text.length > 70 ? `${text.slice(0, 70)}…` : text;
 }

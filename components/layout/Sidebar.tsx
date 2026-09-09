@@ -44,10 +44,12 @@ interface NavItem {
   soon?: boolean;
 }
 
+// campaign first, 2026-09-09: docs/POSITIONING.md makes it the front door, and
+// every navigation surface put the image creator ahead of it.
 const studioItems: NavItem[] = [
+  { href: '/campaign', labelKey: 'campaign', icon: <LayoutGrid className="h-4 w-4" /> },
   { href: '/creator', labelKey: 'creator', icon: <PhotoIcon className="h-4 w-4" /> },
   { href: '/photoshoot', labelKey: 'photoshoot', icon: <Camera className="h-4 w-4" /> },
-  { href: '/campaign', labelKey: 'campaign', icon: <LayoutGrid className="h-4 w-4" /> },
   { href: '/plan', labelKey: 'plan', icon: <Map className="h-4 w-4" /> },
   { href: '/storyboard', labelKey: 'storyboard', icon: <Film className="h-4 w-4" /> },
   { href: '/analysis', labelKey: 'analysis', icon: <BarChart3 className="h-4 w-4" /> },
