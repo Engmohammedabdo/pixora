@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "postbuild": "npm run test:built-document",
-    "prebuild": "npm run check:invariants && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:image-canvas && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:working-identity && npm run test:mock-from-schema && npm run test:edit-effect && npm run test:white-field && npm run test:robots && npm run test:alternates && npm run test:schema && npm run test:sitemap && npm run test:landing-copy && npm run test:api-hygiene && npm run test:config-hygiene && npm run test:protected-prefixes && npm run test:invariants-doc && npm run test:one-dialect && npm run test:studio-pages && npm run test:segment-pages",
+    "prebuild": "npm run check:invariants && npm run test:model-registry && npm run test:safety && npm run test:uploads && npm run test:plan-switch && npm run test:generation-terminal && npm run test:voiceover-budget && npm run test:image-host && npm run test:image-canvas && npm run test:reference-image && npm run test:retrievable-output && npm run test:settle && npm run test:provider-retry && npm run test:response-schemas && npm run test:prompts && npm run test:analytics && npm run test:root-document && npm run test:website-url && npm run test:brand-extract && npm run test:brand-context && npm run test:working-identity && npm run test:mock-from-schema && npm run test:edit-effect && npm run test:white-field && npm run test:robots && npm run test:alternates && npm run test:schema && npm run test:sitemap && npm run test:landing-copy && npm run test:api-hygiene && npm run test:config-hygiene && npm run test:protected-prefixes && npm run test:invariants-doc && npm run test:one-dialect && npm run test:studio-pages && npm run test:segment-pages",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,6 +13,7 @@
     "db:query": "npx tsx scripts/db-query.ts",
     "db:backfill-images": "npx tsx scripts/backfill-data-uris.ts",
     "check:invariants": "npx tsx scripts/check-invariants.ts",
+    "test:model-registry": "npx tsx scripts/tests/model-registry.test.ts",
     "test:safety": "npx tsx scripts/tests/safety.test.ts",
     "test:uploads": "npx tsx scripts/tests/uploaded-url.test.ts",
     "test:logo-parity": "npx tsx scripts/tests/logo-parity.ts",

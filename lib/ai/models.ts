@@ -48,6 +48,9 @@ export const MODELS = {
   /**
    * OpenAI image. MUST NOT be gpt-image-1: that model is deprecated and shuts
    * down on 2026-12-01. gpt-image-2 is the documented replacement.
+   *
+   * Constrained to `OPENAI_IMAGE_MODELS` below — read that block before changing
+   * this value or setting the env var. This is a PRICED choice, not a name.
    */
   openaiImage: env('PYRA_MODEL_OPENAI_IMAGE', 'gpt-image-2'),
 
@@ -104,6 +107,71 @@ export function geminiImageSize(resolution: string | undefined): '1K' | '2K' | '
  * (3,686,400 px) line past which OpenAI explicitly calls output "experimental".
  * The 4K tier therefore rides a band OpenAI reserves the right to change.
  */
+/**
+ * ── THE OPENAI IMAGE MODELS THIS PRODUCT HAS PRICED ────────────────────────
+ *
+ * `PYRA_MODEL_OPENAI_IMAGE` is an env var, so the image model on the paid
+ * fallback path can be changed on production with no code, no review and no
+ * gate. That was fine while there was one sane value. On 2026-09-08 OpenAI
+ * shipped **gpt-image-2.5**, and it is not one id — it is two:
+ * `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst`. **There is no model called
+ * `gpt-image-2.5`**, so the obvious env edit 400s every fallback request.
+ *
+ * The bigger reason this list exists is PRICE. Image output bills per token at
+ * $30/1M — the same rate as gpt-image-2 — but 2.5 adds two quality tiers,
+ * `xhigh` and `max`, ABOVE `high`. Documented cost per 1024x1024 runs $0.006 at
+ * `low` to **$0.211 at `max`**. Against what a credit actually earns:
+ *
+ *     plan       4K image revenue     cost at `max` (1024x1024!)
+ *     starter          $0.240                 $0.211
+ *     pro              $0.193                 $0.211   <- loses money
+ *     business         $0.157                 $0.211   <- loses money
+ *     agency           $0.119                 $0.211   <- loses money
+ *
+ * and at 1080p, where a customer pays ONE credit, every plan loses $0.15-0.18.
+ * Our 4K request asks for 2048x2048, four times the area that table prices, so
+ * the real figure is worse.
+ *
+ * **We send no `quality` parameter at all**, so the API default applies, and the
+ * documented default is `"auto"` — "automatically select the best quality for
+ * the given model". On gpt-image-2 that ceiling is `high`. On 2.5 the same word
+ * reaches `max`. So adopting 2.5 by changing this string alone would move the
+ * cost ceiling without changing a single line that mentions money.
+ *
+ * ── WHAT ADOPTING 2.5 REQUIRES, BEFORE THE ID CHANGES ──────────────────────
+ * 1. Send an explicit `quality`. Not `auto` — a named tier, priced against the
+ *    table above. This is a PRODUCT decision (it sets what a paid image looks
+ *    like), so it is deliberately not taken here.
+ * 2. Re-measure `openaiImageSize()`'s constants against the new model's docs.
+ *    They encode gpt-image-2's published limits; nothing has verified they hold.
+ * 3. Check the rate limit. Tier 1 on 2.5 is **5 images/minute** and a campaign
+ *    generates nine — a gemini outage mid-campaign would hit it.
+ *
+ * ── WHAT 2.5 DOES *NOT* UNLOCK, CONTRARY TO THE OBVIOUS READING ────────────
+ * Image EDITING. `gpt-image-2` already lists `v1/images/edits` as supported —
+ * checked in OpenAI's own model page, not recalled. CLAUDE.md has been right all
+ * along that the blocker is **our adapter**, which posts to
+ * `/v1/images/generations` and has no field for an image, which is why
+ * `IMAGE_INPUT_CAPABLE` in router.ts is `['gemini']`. 2.5 improves edit quality;
+ * it does not change what is buildable. Do not cite this release as the reason
+ * to build the refine loop — `docs/POSITIONING.md` schedules that for weeks 7-8
+ * and conditions it on the 30-day number.
+ */
+export const OPENAI_IMAGE_MODELS: Record<string, { qualityCeiling: string; note: string }> = {
+  'gpt-image-2': {
+    qualityCeiling: 'high',
+    note: 'Current default. Ladder tops at `high`; supports v1/images/edits (our adapter does not use it).',
+  },
+  'gpt-image-2.5-flare': {
+    qualityCeiling: 'max',
+    note: 'Released 2026-09-08. OpenAI positions it as the default for most apps: higher quality than gpt-image-2 at ~50% lower latency. NOT ADOPTED — see the three preconditions above.',
+  },
+  'gpt-image-2.5-sunburst': {
+    qualityCeiling: 'max',
+    note: 'Released 2026-09-08. Premium tier for edit precision, longer generation times. NOT ADOPTED — same preconditions, and its latency is the wrong trade for a 9-image campaign.',
+  },
+};
+
 const OPENAI_STEP = 16;
 const OPENAI_MAX_EDGE = 3840;
 const OPENAI_MIN_PIXELS = 655_360;
