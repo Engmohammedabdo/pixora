@@ -15,6 +15,7 @@
  * matches nothing — the rule mock-from-schema.test.ts:246 already states.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { PLANS } from '../../lib/stripe/plans.js';
 import { join } from 'node:path';
 import { stripComments } from '../lib/strip-comments';
 import sitemap from '../../app/sitemap';
@@ -273,10 +274,12 @@ const campaignRouteSrc = stripComments(readFileSync(join(ROOT, 'app/api/studios/
 check('the campaign route reserves from campaignCostBands()', campaignRouteSrc.includes('campaignCostBands()'), 'no campaignCostBands() in the comment-stripped route');
 check('the campaign route keeps no second copy of the split', !/fullCost\s*-\s*EXPECTED_POSTS/.test(campaignRouteSrc));
 
-// The five plan ids, declared here because BOTH this section and section 6's
-// seconds rule read the voiceover table per plan. Two copies of this list is
-// two answers to "which plans does the product have".
-const PLAN_IDS = ['free', 'starter', 'pro', 'business', 'agency'] as const;
+// Every plan id, READ FROM lib/stripe/plans.ts rather than typed out. This was
+// the literal ['free','starter','pro','business','agency'] and the comment below
+// it already said two copies of the list is two answers to "which plans does the
+// product have" — then a sixth plan (`entry`, the $2 tier) was added and this
+// copy silently kept testing five. It did not fail; it just stopped covering.
+const PLAN_IDS: string[] = Object.keys(PLANS);
 
 const PRICE_BANDS: Record<StudioSlug, readonly number[]> = {
   creator: Object.values(CREDIT_COSTS.image),

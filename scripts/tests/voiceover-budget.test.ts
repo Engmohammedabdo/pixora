@@ -21,6 +21,7 @@ import {
   getVoiceoverConfig,
   maxCharsForBudget,
 } from '../../lib/credits/voiceover-costs';
+import { PLANS } from '../../lib/stripe/plans';
 
 let failures = 0;
 let checks = 0;
@@ -33,12 +34,16 @@ function check(label: string, actual: unknown, expected: unknown): void {
   }
 }
 
-const PLANS = ['free', 'starter', 'pro', 'business', 'agency'];
+// Read from lib/stripe/plans.ts, not typed out: this was a private
+// ['free','starter','pro','business','agency'] and would have gone on testing
+// five plans after a sixth shipped. Named PLAN_IDS because the imported table is
+// PLANS and the two are different things — the ids, and the table they key.
+const PLAN_IDS: string[] = Object.keys(PLANS);
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];
 const LENGTHS = [1, 40, 100, 137, 300, 640, 1200, 2000];
 
 // ---- The budget never costs more than was quoted, and one char more does. ----
-for (const plan of PLANS) {
+for (const plan of PLAN_IDS) {
   for (const speed of SPEEDS) {
     for (const len of LENGTHS) {
       const quoted = calculateVoiceoverCost(len, speed, plan);
@@ -119,7 +124,7 @@ for (const plan of PLANS) {
 }
 
 // ---- A budget is never negative or zero, even at the smallest quote. ----
-for (const plan of PLANS) {
+for (const plan of PLAN_IDS) {
   for (const speed of SPEEDS) {
     const quoted = calculateVoiceoverCost(1, speed, plan);
     check(`${plan}@${speed}: minimum quote yields a usable budget`, maxCharsForBudget(quoted, speed, plan) >= 1, true);

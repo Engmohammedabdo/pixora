@@ -28,6 +28,40 @@ export const PLANS: Record<string, PlanConfig> = {
     features: ['25 credits/month', '1080p resolution', 'Watermark on images', '1 Brand Kit'],
     featuresAr: ['25 كريدت/شهر', 'دقة 1080p', 'علامة مائية', 'هوية بصرية واحدة'],
   },
+  /**
+   * The paid entry tier. $2/month for what `free` used to give away.
+   *
+   * Every gate here is field-for-field what `free` carries: 1080p, watermark,
+   * one brand kit, one project. Only the price and the credits move — the point
+   * of the change is that the 25 credits stop being free, not that the tier
+   * becomes different.
+   *
+   * `free` keeps its id and its gates and loses its credits in the step after
+   * this one. It stays the "signed up, not paying" state: 62 places in this
+   * codebase compare against the literal 'free' and in every one of them it
+   * already means "not a paying customer". Renaming it would be a 62-site edit
+   * to the gating layer of a live product for no benefit.
+   *
+   * Stripe: price_1UE2543HV9MX1JIk0qq7wwCj, product Pixora Entry, metadata
+   * plan_id=entry. The CHECK constraint on profiles.plan_id was widened by
+   * migration 047 BEFORE this row existed — a paid customer whose plan cannot be
+   * written is money taken with nothing granted, and Stripe retries that forever.
+   */
+  entry: {
+    id: 'entry',
+    name: 'Entry',
+    nameAr: 'البداية',
+    price: 2,
+    priceId: process.env.STRIPE_ENTRY_PRICE_ID || 'price_entry_placeholder',
+    credits: 25,
+    resolution: '1080p',
+    watermark: true,
+    maxBrandKits: 1,
+    maxProjects: 1,
+    features: ['25 credits/month', '1080p resolution', 'Watermark on images', '1 Brand Kit'],
+    featuresAr: ['25 كريدت/شهر', 'دقة 1080p', 'علامة مائية على الصور', 'هوية بصرية واحدة'],
+  },
+
   starter: {
     id: 'starter',
     name: 'Starter',

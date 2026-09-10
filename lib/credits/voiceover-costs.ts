@@ -40,6 +40,25 @@ const PLAN_VOICEOVER_CONFIG: Record<string, VoiceoverCostConfig> = {
     toneEnabled: false,
     enhanceEnabled: false,
   },
+  /**
+   * The $2 entry tier gets exactly what free used to: OpenAI TTS, 1 credit per
+   * 15 seconds, 30 seconds maximum, formal only. Stated as its own row rather
+   * than left to the `|| PLAN_VOICEOVER_CONFIG.free` fallback at the bottom of
+   * this file — that fallback returns the right answer here for the wrong
+   * reason, and two consumers read this table directly without going through
+   * getVoiceoverConfig().
+   */
+  entry: {
+    creditsPerUnit: 1,
+    unitSeconds: 15,
+    maxDurationSeconds: 30,
+    provider: 'openai',
+    dialectsAvailable: ['formal'],
+    voicesAvailable: ['male_pro', 'female_pro'],
+    toneEnabled: false,
+    enhanceEnabled: false,
+  },
+
   starter: {
     creditsPerUnit: 1,
     unitSeconds: 15,

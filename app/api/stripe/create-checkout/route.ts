@@ -8,7 +8,16 @@ import { gaCheckoutMetadata, metaCheckoutMetadata } from '@/lib/analytics/stripe
 import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 
 const InputSchema = z.object({
-  planId: z.enum(['starter', 'pro', 'business', 'agency']),
+  /**
+   * Derived from PLANS, not typed out. The literal list was
+   * ['starter','pro','business','agency'] and it — not the `!plan.priceId`
+   * guard below — is what rejected a new plan: `InputSchema.parse()` runs
+   * before that guard is ever reached, so an unknown id became a
+   * `400 validation_error` naming no plan. The guard already refuses `free`,
+   * which has no priceId, so the hand-typed list was redundant as well as a
+   * second answer to "which plans can be bought".
+   */
+  planId: z.string().refine((v) => Object.hasOwn(PLANS, v), { message: 'unknown_plan' }),
   // Optional: pre-existing callers that omit it fall back to the default locale.
   locale: z.string().optional(),
 });
