@@ -83,6 +83,9 @@ const STUDIO_ROWS = [
 export function StudioCostTable(): React.ReactElement {
   const t = useTranslations('pricingPage.costTable');
   const tStudios = useTranslations('landing.studios');
+  // The voiceover figure is COMPUTED, like the other rows. It was the typed
+  // landing.studios.s7Credits — the last price in this table read from a translation.
+  const tShared = useTranslations('studios.shared');
   const campaignBands = campaignCostBands();
 
   return (
@@ -165,7 +168,12 @@ export function StudioCostTable(): React.ReactElement {
                       {row.kind === 'voiceover' && (
                         <div>
                           <p className="text-sm font-semibold text-[var(--color-brand)]">
-                            {tStudios('s7Credits')}
+                            {tShared('perDurationShort', {
+                              freeCredits: BASIC_VOICE.creditsPerUnit,
+                              freeSeconds: BASIC_VOICE.unitSeconds,
+                              paidCredits: PRO_VOICE.creditsPerUnit,
+                              paidSeconds: PRO_VOICE.unitSeconds,
+                            })}
                           </p>
                           <p className="text-xs text-[var(--color-text-muted)]">
                             {t('voiceoverNote', {

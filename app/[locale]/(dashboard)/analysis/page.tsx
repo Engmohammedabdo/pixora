@@ -20,7 +20,7 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
-import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { Sparkles, AlertTriangle, TrendingUp, Users, Target, Map, BarChart3, FileText } from 'lucide-react';
 import { generateAnalysisPdf, openPdfInNewTab } from '@/lib/export/pdf';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
@@ -211,7 +211,7 @@ export default function AnalysisPage(): React.ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.analysis} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (<Button asChild variant="default" size="sm"><Link href="/billing">{t('credits.topUpShort')}</Link></Button>)}
+          {cannotAfford && <GetCreditsButton />}
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
         </div>
       </div>

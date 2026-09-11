@@ -7,17 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Check, Gift, Users, Share2 } from 'lucide-react';
+import { REFERRAL_CREDITS } from '@/lib/credits/offer';
 
 interface ReferralStats {
   /** Whether a share can actually earn anything — see /api/referrals. */
   enabled: boolean;
   code: string | null;
   totalReferred: number;
+  /** Credits actually paid — only rewards whose friend has paid (migration 048). */
   creditsEarned: number;
 }
 
-/** Mirrors the p_credits default in claim_referral (migration 023/026). */
-const CREDITS_PER_REFERRAL = 25;
+/** The reward both sides receive when the friend first pays. One source: lib/credits/offer.ts. */
+const CREDITS_PER_REFERRAL = REFERRAL_CREDITS;
 
 export default function ReferralsPage(): React.ReactElement {
   const t = useTranslations('referrals');

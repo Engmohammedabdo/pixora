@@ -95,6 +95,14 @@ const FOREIGN_TOKENS: Record<string, string> = {
   'حاجة': 'use شيء', 'حاجات': 'use أشياء', 'يشيل': 'use يزيل',
   'تطلّعها': 'use تنتجها', 'بياخد': 'use يحصل على', 'هياخدوا': 'use يحصلون على',
   'اتخصم': 'use خُصم', 'مانجحتش': 'use لم تنجح', 'مجاش': 'use لم يصل',
+  // Added 2026-09-11 — found in live copy by adversarial review AFTER the sweep
+  // reported zero. None was on this list, which is the only way the count could
+  // say zero while the /ar headline read قولها بالعربي.
+  'اللي': 'use الذي/التي', 'إيه': 'use ماذا/ما', 'أوي': 'use جداً', 'بالظبط': 'use تحديداً',
+  'إنت': 'use أنت', 'ليه': 'use لماذا', 'مين': 'use من', 'بس': 'use فقط/لكن',
+  'تقدر': 'use يمكنك', 'أقدر': 'use يمكنني', 'محتاج': 'use تحتاج/يتطلب', 'محتاجة': 'use تحتاج',
+  'لوحده': 'use وحده', 'لوحدها': 'use وحدها', 'قولها': 'use قُلها', 'شيل': 'use احذف',
+  'عايزه': 'use تريده', 'عايزها': 'use تريدها',
   // ── Gulf / Levantine ───────────────────────────────────────────────────
   'تبي': 'use تريد', 'تبيه': 'use تريده', 'تبين': 'use تريدين', 'يبي': 'use يريد',
   'أبي': 'use أريد', 'ابي': 'use أريد', 'أبغى': 'use أريد', 'ابغى': 'use أريد',
@@ -137,6 +145,10 @@ const MUST_MATCH: [string, string][] = [
   ['اكتب أي شي', 'شي'],
   ['إيش يصير لو خلصت الكريدت؟', 'يصير'],
   ['كيف يشتغل نظام الكريدت؟', 'كيف'],
+  ['الكلام قصير أوي', 'أوي'],
+  ['اكتب النص اللي عايزه بس', 'اللي'],
+  ['تقدر تشحن كريدت إضافي', 'تقدر'],
+  ['قولها بالعربي...', 'قولها'],
 ];
 for (const [sentence, token] of MUST_MATCH) {
   check(`the detector CATCHES ${JSON.stringify(token)} in a real sentence`, whole(token).test(sentence), sentence);
@@ -153,6 +165,11 @@ const MUST_NOT_MATCH: [string, string][] = [
   ['الموقع', 'مو'],
   ['وشك', 'وش'],
   ['ثانية واحدة من الصوت', 'ثاني'],
+  ['نص بسيط وواضح', 'بس'],
+  ['عليه أن يدفع', 'ليه'],
+  ['على اليمين', 'مين'],
+  ['تقدير التكلفة', 'تقدر'],
+  ['قُلها بالعربية', 'قولها'],
 ];
 for (const [sentence, token] of MUST_NOT_MATCH) {
   check(`the detector does NOT fire on ${JSON.stringify(sentence)} for ${JSON.stringify(token)}`, !whole(token).test(sentence), sentence);

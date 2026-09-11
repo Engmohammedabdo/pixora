@@ -5,25 +5,22 @@ import { motion, useInView } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
 import { PLANS } from '@/lib/stripe/plans';
+import { entryOffer } from '@/lib/credits/offer';
+
+const OFFER = entryOffer();
 
 /*
- * The second stat was the literal 25 — the free plan's monthly allowance — while
- * the hero forty pixels up advertises the 100-credit launch gift. One offer
- * stated as two numbers reads to a visitor as a discount, not a bonus, and it
- * was the single most expensive contradiction on the acquisition surface.
- *
- * It now carries the GIFT, and takes it from BETA_CREDITS rather than a literal.
- * That constant already has a live test (`npm run test:beta-credits`) asserting
- * the number this page PROMISES equals the number the database GRANTS — so the
- * figure here can no longer drift from the one the customer actually receives.
+ * Every figure here is read from code, because this band has carried a wrong
+ * number twice: the literal 25 beside a hero promising a 100-credit gift, and
+ * then `PLANS.free.credits`, which became 0 on 2026-09-11 and would have printed
+ * "0 free credits on sign-up" in the largest type on the page.
  */
 const STATS = [
   { value: 9, suffixKey: null, labelKey: 'stats.stat1Label' },
-  // Was BETA_CREDITS (the 100-credit invite grant). With the gate open nobody
-  // redeems an invite, so the honest figure is what a new free account holds —
-  // read from PLANS rather than typed, for the same reason BETA_CREDITS was.
-  { value: PLANS.free.credits, suffixKey: null, labelKey: 'stats.stat2Label' },
-  { value: 5, suffixKey: null, labelKey: 'stats.stat3Label' },
+  // What the $2 plan buys, in campaigns — the label names the price.
+  { value: OFFER.campaigns, suffixKey: null, labelKey: 'stats.stat2Label' },
+  // Plans a customer can BUY. Was the literal 5; derived, so Entry counted itself.
+  { value: Object.values(PLANS).filter((p) => p.price > 0).length, suffixKey: null, labelKey: 'stats.stat3Label' },
   { value: 10, suffixKey: 'stats.stat4Suffix', labelKey: 'stats.stat4Label' },
 ] as const;
 
@@ -108,7 +105,7 @@ export default function StatsSection() {
                 inView={isInView}
               />
             </div>
-            <div className="text-sm text-primary-200">{t(stat.labelKey)}</div>
+            <div className="text-sm text-primary-200">{t(stat.labelKey, { price: OFFER.price })}</div>
           </motion.div>
         ))}
       </motion.div>

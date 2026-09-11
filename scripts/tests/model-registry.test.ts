@@ -8,7 +8,7 @@
  * tiers `xhigh` and `max` above `high` — documented at **$0.211 per 1024x1024 at
  * `max`**, against $0.119-$0.240 of revenue for a 4K image depending on plan.
  *
- * We send no `quality`, so the default `"auto"` applies and the ceiling is
+ * We USED to send no `quality`, so the default `"auto"` applied and the ceiling was
  * whatever the configured model's ladder tops out at. Changing one env string
  * therefore moves a cost ceiling without touching anything that mentions money —
  * the exact shape of defect this repo's money-path rounds exist to prevent.
@@ -23,6 +23,7 @@
  * impossible to introduce quietly in code.
  */
 import { readFileSync } from 'node:fs';
+import { stripComments } from '../lib/strip-comments';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, OPENAI_IMAGE_MODELS } from '../../lib/ai/models.js';
@@ -69,24 +70,19 @@ check('the non-existent bare "gpt-image-2.5" is not in the registry', !Object.ha
 // default at a model whose ceiling is `xhigh` or `max`, the adapter MUST also
 // have started sending a named quality — otherwise the cost ceiling moved and
 // nothing that mentions money changed.
-const adapter = readFileSync(join(ROOT, 'lib/ai/openai.ts'), 'utf8');
-const sendsQuality = /(^|[^\w.])quality\s*:/m.test(adapter);
-const ceiling = OPENAI_IMAGE_MODELS[configured]?.qualityCeiling;
-if (ceiling === 'xhigh' || ceiling === 'max') {
-  check(
-    `${configured} has a ${ceiling} ceiling, so the adapter must send an explicit quality`,
-    sendsQuality,
-    'lib/ai/openai.ts sends no `quality`, so the API default "auto" applies and may reach the ceiling',
-  );
-} else {
-  // Not vacuous: it asserts the CURRENT state is the one the reasoning above
-  // assumes, so if someone starts sending a quality the registry note stops
-  // being the whole story and this says so.
-  check(
-    `${configured} tops out at ${ceiling ?? '?'}, and the adapter's no-quality default is consistent with that`,
-    true,
-  );
-}
+const adapter = stripComments(readFileSync(join(ROOT, 'lib/ai/openai.ts'), 'utf8'));
+// The VALUE, not the key. The first version of this check asked only whether
+// `quality:` appeared anywhere — so `quality: 'auto'`, `quality: 'max'` and a
+// commented-out pin all passed, which is the whole exposure this file names.
+// Comment-stripped, because the adapter documents the tiers in prose.
+const PRICED_QUALITIES = ['low', 'medium', 'high'];
+const pinned = adapter.match(/(?:^|[^\w.])quality\s*:\s*'([a-z]+)'/m)?.[1];
+check('the image adapter pins an explicit quality', Boolean(pinned), 'no `quality:` in the comment-stripped adapter — the API default "auto" applies');
+check(
+  `the pinned quality is a priced tier (${PRICED_QUALITIES.join('/')}), never auto/xhigh/max`,
+  Boolean(pinned) && PRICED_QUALITIES.includes(pinned as string),
+  String(pinned),
+);
 
 // ── 6. The paid-provider clamps in the creator route ──────────────────────
 // Added 2026-09-09 with the gpt switch, and both guard a hole that switch OPENED
@@ -119,10 +115,31 @@ check(
   'a call site still passes input.model, so the clamp is decorative there',
 );
 
+check(
+  'creator clamps a reference-image request to the provider that can take one',
+  /input\.referenceImageUrl\s*\?\s*'gemini'/.test(creator),
+  'only gemini takes a reference image (router.ts IMAGE_INPUT_CAPABLE); unclamped, every such paid run reports a fallback',
+);
+
+// Campaign is the other route that serves images — nine per run. The review of
+// 2026-09-11 found it on gpt for every plan, free included: 9de39be switched it,
+// and 8c9c0a6's free clamp was written, and gated, for creator only.
+const campaign = stripComments(readFileSync(join(ROOT, 'app/api/studios/campaign/route.ts'), 'utf8'));
+check(
+  "campaign serves a free account's images on gemini",
+  /planId\s*===\s*'free'\s*\?\s*'gemini'\s*:\s*'gpt'/.test(campaign),
+  'the $0 rule must hold on the route that makes nine images per run',
+);
+check(
+  'campaign reads the plan BEFORE the image fan-out',
+  campaign.indexOf(".select('plan_id')") > -1 && campaign.indexOf(".select('plan_id')") < campaign.indexOf('generateImage('),
+  'read after the images are made, the clamp cannot exist',
+);
+
 if (failures.length) {
   console.error(failures.join('\n'));
   console.error(`\n[model-registry] ${failures.length} of ${passed + failures.length} checks FAILED`);
   console.error('See the OPENAI_IMAGE_MODELS block in lib/ai/models.ts — a model id is a priced choice.');
   process.exit(1);
 }
-console.log(`[model-registry] ${passed} checks passed (configured: ${configured}, ceiling: ${ceiling})`);
+console.log(`[model-registry] ${passed} checks passed (configured: ${configured}, pinned quality: ${pinned})`);

@@ -174,6 +174,7 @@ export default function AdminUsersPage() {
             label: 'All Plans',
             options: [
               { value: 'free', label: 'Free' },
+              { value: 'entry', label: 'Entry' },
               { value: 'starter', label: 'Starter' },
               { value: 'pro', label: 'Pro' },
               { value: 'business', label: 'Business' },

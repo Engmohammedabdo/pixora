@@ -1,4 +1,6 @@
 import { STUDIO_SLUGS, type StudioSlug } from '@/lib/studios/catalogue';
+import { PLANS } from '@/lib/stripe/plans';
+import { entryOffer } from '@/lib/credits/offer';
 import arMessages from '@/messages/ar.json';
 import enMessages from '@/messages/en.json';
 
@@ -35,6 +37,21 @@ import enMessages from '@/messages/en.json';
  */
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://pyrasuite.pyramedia.cloud';
+
+/**
+ * The pricing line, read from PLANS like everything else in this file. It was
+ * the one hand-typed line left — "Free: 25 credits, no credit card" — and on
+ * 2026-09-11 it became false twice: the free account holds no monthly credits,
+ * and a sixth plan (Entry, $2) existed that it did not name.
+ */
+function pricingLine(): string {
+  const offer = entryOffer();
+  const paid = Object.values(PLANS)
+    .filter((p) => p.price > 0)
+    .map((p) => `${p.name} $${p.price}/mo (${p.credits.toLocaleString('en-US')} credits)`)
+    .join('. ');
+  return `Free account: sign up with no credit card and try one full campaign on ${offer.trial} trial credits. ${paid}.`;
+}
 
 interface StudioCopy {
   name: string;
@@ -85,7 +102,7 @@ ${STUDIO_SLUGS.map(studioBlock).join('\n\n')}
 
 ## Pricing
 
-- Free: 25 credits, no credit card. Starter $12/mo. Pro $29/mo. Business $59/mo. Agency $149/mo.
+- ${pricingLine()}
 - Every action has a published credit cost: ${APP_URL}/ar/pricing
 
 ## Links

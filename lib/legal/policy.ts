@@ -364,7 +364,7 @@ const AR_TERMS: LegalDoc = {
       body: [
         'تحتفظ بملكية المحتوى الذي تنشئه، وأنت مسؤول عن استخدامه بما يتوافق مع القوانين المعمول بها وسياسات المنصات التي تنشره عليها.',
         'تمنحنا ترخيصاً محدوداً بتخزين محتواك وعرضه داخل حسابك، لغرض تشغيل الخدمة فقط.',
-        'تحمل الصور المولَّدة في الخطة المجانية علامة مائية. تُزال العلامة في الخطط المدفوعة.',
+        'تحمل الصور المولَّدة في الحساب المجاني وفي باقة البداية علامة مائية. وتُسلَّم الصور بدونها في باقة ستارتر وما فوقها.',
         'أنظمة الذكاء الاصطناعي قد تُنتج مخرجات متشابهة لمستخدمين مختلفين، ولا نضمن تفرّد أي مخرج ولا صلاحيته للتسجيل كعلامة تجارية.',
       ],
     },
@@ -464,7 +464,7 @@ const EN_TERMS: LegalDoc = {
       body: [
         'You keep ownership of the content you create, and you are responsible for using it lawfully and in line with the policies of the platforms you publish it on.',
         'You grant us a limited licence to store and display your content inside your account, for the sole purpose of running the service.',
-        'Images generated on the free plan carry a watermark. Paid plans are delivered without it.',
+        'Images generated on a free account and on the Entry plan carry a watermark. Starter and above are delivered without it.',
         'AI systems can produce similar output for different customers. We do not guarantee that any output is unique or that it can be registered as a trademark.',
       ],
     },

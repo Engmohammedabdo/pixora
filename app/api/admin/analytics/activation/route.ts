@@ -22,15 +22,15 @@ import { createAdminClient } from '@/lib/admin/db';
  * lagging to steer by. A second day, unprompted, is the only cheap signal that
  * the product did something a human wanted twice.
  *
- * ── WHY THE DAY BUCKET IS UTC AND SAYS SO ──────────────────────────────────
- * `created_at` is timestamptz and the buckets below are UTC dates. The market is
- * GST (UTC+4), so a generation at 02:00 Dubai time falls in the previous UTC day
- * and a customer working across a Gulf midnight can be counted as two days when
- * they meant one. That inflates the metric — in the optimistic direction, which
- * is the dangerous one — so it is stated in the payload as `dayBucket` rather
- * than hidden. Fixing it means bucketing at UTC+4; not worth a migration until
- * the number is non-zero, and a number whose definition is written down is worth
- * more than one that is quietly wrong.
+ * ── WHY THE DAY BUCKET IS A DUBAI DAY, NOT A UTC ONE ───────────────────────
+ * `created_at` is timestamptz, and `.slice(0, 10)` of its ISO string is a UTC
+ * date, whose midnight falls at 04:00 in Dubai. The first version bucketed there
+ * and wrote the caveat into the payload. So one working night, say 02:00 and
+ * 05:00 Dubai time, landed on two UTC days and counted that customer as
+ * RETURNING. That inflated the one number this route exists for, in the
+ * optimistic direction, which is the dangerous one. `dubaiDay()` shifts by +4h
+ * before slicing. GST has no daylight saving, so a fixed offset is exact rather
+ * than an approximation, and it needs no migration and no time-zone database.
  *
  * ── WHY THE SERVICE-ROLE CLIENT ────────────────────────────────────────────
  * Migration 022 enabled RLS on `user_events`, revoked ALL from `anon` and
@@ -57,6 +57,14 @@ interface EventRow {
   event_type: string;
   created_at: string;
   metadata: Record<string, unknown> | null;
+}
+
+/** GST is UTC+4 all year, with no daylight saving. */
+const DUBAI_OFFSET_MS = 4 * 3_600_000;
+
+/** The Dubai calendar date (YYYY-MM-DD) of a timestamptz — see the header. */
+function dubaiDay(createdAt: string): string {
+  return new Date(Date.parse(createdAt) + DUBAI_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -86,12 +94,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const rows = (data ?? []) as EventRow[];
   const real = rows.filter((r) => r.user_id && !EXCLUDED_USER_IDS.includes(r.user_id));
 
-  // ── 1. Signups per day ──────────────────────────────────────────────────
-  const signupsByDay = new Map<string, number>();
+  // ── 1. Signups per day — PEOPLE, not rows ───────────────────────────────
+  // Distinct user_id, per Dubai day and in the total. Nothing makes `sign_up`
+  // once-per-user at write time: POST /api/events accepts it from any signed-in
+  // session up to its 30-a-minute throttle (app/api/events/route.ts:81), so a
+  // retried client report is a second row. Counting rows counted EVENTS under a
+  // card labelled "Sign-ups", which anyone reads as people. The per-day sets can
+  // sum past the total if one person's rows straddle a midnight; the total is
+  // the number to quote.
+  const signupUsersByDay = new Map<string, Set<string>>();
+  const signupUsers = new Set<string>();
   for (const r of real) {
-    if (r.event_type !== 'sign_up') continue;
-    const d = r.created_at.slice(0, 10);
-    signupsByDay.set(d, (signupsByDay.get(d) ?? 0) + 1);
+    if (r.event_type !== 'sign_up' || !r.user_id) continue;
+    signupUsers.add(r.user_id);
+    const d = dubaiDay(r.created_at);
+    if (!signupUsersByDay.has(d)) signupUsersByDay.set(d, new Set());
+    signupUsersByDay.get(d)!.add(r.user_id);
   }
 
   // ── 2. generation_started by studio ─────────────────────────────────────
@@ -108,7 +126,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   for (const r of real) {
     if (r.event_type !== 'generation_completed' || !r.user_id) continue;
     if (!daysByUser.has(r.user_id)) daysByUser.set(r.user_id, new Set());
-    daysByUser.get(r.user_id)!.add(r.created_at.slice(0, 10));
+    daysByUser.get(r.user_id)!.add(dubaiDay(r.created_at));
     const studio = typeof r.metadata?.studio === 'string' ? r.metadata.studio : null;
     if (studio) {
       if (!studiosByUser.has(r.user_id)) studiosByUser.set(r.user_id, new Set());
@@ -125,7 +143,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     data: {
       windowDays: days,
       since,
-      dayBucket: 'UTC — the market is GST (UTC+4), so a run after 20:00 UTC counts to the next day and can overstate a return',
+      dayBucket: 'Days are Dubai calendar days (GST, UTC+4, no daylight saving): a run at 02:00 and one at 05:00 Dubai time are the same day. Sign-ups count distinct people, not event rows.',
       excludedUserIds: EXCLUDED_USER_IDS,
       eventsScanned: rows.length,
       eventsCounted: real.length,
@@ -133,10 +151,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       returningUsers: returningUserIds.length,
       returningUsersUsingTwoStudios: returningWithTwoStudios,
       activeUsers: daysByUser.size,
-      signups: [...signupsByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count })),
+      signups: [...signupUsersByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, users]) => ({ date, count: users.size })),
       startedByStudio: [...byStudio.entries()].sort((a, b) => b[1] - a[1]).map(([studio, count]) => ({ studio, count })),
       totals: {
-        sign_up: real.filter((r) => r.event_type === 'sign_up').length,
+        // Distinct PEOPLE — see section 1. Every other total here is a row count
+        // by design: a generation IS an event.
+        sign_up: signupUsers.size,
         generation_started: real.filter((r) => r.event_type === 'generation_started').length,
         generation_completed: real.filter((r) => r.event_type === 'generation_completed').length,
         generation_failed: real.filter((r) => r.event_type === 'generation_failed').length,

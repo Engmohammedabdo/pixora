@@ -197,6 +197,8 @@ export interface Database {
           code_used: string;
           credits_each: number;
           created_at: string;
+          /** Migration 048: when the friend's first payment paid both sides. NULL = pending. */
+          rewarded_at: string | null;
         };
         Insert: {
           id?: string;
@@ -620,6 +622,15 @@ export interface Database {
       grant_onboarding_bonus: {
         Args: {
           p_user_id: string;
+          p_credits: number;
+        };
+        Returns: Record<string, unknown>;
+      };
+      // Migration 048. SECURITY DEFINER, service_role only — called by the
+      // Stripe webhook after a referred account's first payment. Pays once.
+      reward_referral_on_payment: {
+        Args: {
+          p_referee_id: string;
           p_credits: number;
         };
         Returns: Record<string, unknown>;

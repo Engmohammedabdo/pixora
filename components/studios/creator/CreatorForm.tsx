@@ -16,7 +16,7 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { Upload, X, Sparkles, Palette, Shuffle, Loader2 } from 'lucide-react';
 import type { AIModel, Resolution } from '@/types/studios';
 import { PLATFORM_FRAMING, PLATFORM_IDS, type PlatformId } from '@/lib/ai/prompts/platform-framing';
@@ -79,7 +79,6 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10MB — the limit /api/upload enforces
 export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormProps): React.ReactElement {
   const t = useTranslations('creator');
   const tStudio = useTranslations('studio');
-  const tCredits = useTranslations('credits');
 
   const [prompt, setPrompt] = useState(initialPrompt ?? '');
   const [model, setModel] = useState<AIModel>('gpt');
@@ -451,11 +450,7 @@ export function CreatorForm({ onSubmit, isLoading, initialPrompt }: CreatorFormP
           >
             <Shuffle className="h-4 w-4" />
           </Button>
-          {cannotAfford && (
-            <Button asChild variant="default" size="sm">
-              <Link href="/billing">{tCredits('topUpShort')}</Link>
-            </Button>
-          )}
+          {cannotAfford && <GetCreditsButton />}
           <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? tStudio('generating') : tStudio('generate')}

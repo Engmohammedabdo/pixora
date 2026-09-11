@@ -14,10 +14,9 @@ import {
   slideInLeft,
   staggerContainer,
 } from '@/lib/animations';
-import { PLANS } from '@/lib/stripe/plans';
-import { campaignCostBands } from '@/lib/credits/campaign-cost';
+import { entryOffer } from '@/lib/credits/offer';
 
-const campaignBands = campaignCostBands();
+const offer = entryOffer();
 
 const TYPEWRITER_WORD_KEYS = ['word1', 'word2', 'word3', 'word4', 'word5'] as const;
 
@@ -170,36 +169,32 @@ export function HeroSection(): React.ReactElement {
 
             {/* The launch-gift pill that sat here is gone. It promised 100
                 credits granted by `redeem_invite()`, and with the invite gate
-                open there are no invites to redeem — a new account gets the
-                free plan's own allowance instead. A promise the product cannot
-                keep is a refund conversation, not a marketing line.
-
-                The number below is read from PLANS.free rather than typed, so
-                the copy cannot drift from what the account actually receives —
-                the same rule `lib/credits/beta.ts` was written to enforce for
-                the figure this replaces. */}
+                open there are no invites to redeem. A promise the product cannot
+                keep is a refund conversation, not a marketing line. */}
 
             <motion.p
               variants={slideInTextSide}
               className="text-xs text-[var(--color-text-muted)]"
             >
               {/*
-                What the free credits BUY, not how many there are.
-                `docs/POSITIONING.md` §3: a text-only campaign is
-                `campaignCostBands().text` against the free plan's 25, so a
-                stranger gets eight complete nine-post Arabic campaigns with no
-                card — against a competitor whose cheapest entry is $3 and a card.
-                That sentence was on no surface in the product until 2026-09-09,
-                and it was verified end to end on production the same day
-                (.superpowers/dialect-proof/FINDING.md).
+                What signing up gets you, then what $2 gets you — in campaigns,
+                the unit a shop owner counts in, not in credits.
 
-                Both halves are computed, so the arithmetic in the copy cannot
-                drift from the arithmetic in the reservation.
+                Rewritten 2026-09-11, when the 25-credit month stopped being free
+                (docs/POSITIONING.md §3). The line it replaces — "25 free credits
+                = 8 full campaigns, no card" — was computed from PLANS.free, so
+                left alone it would have rendered "0 free credits = 0 campaigns"
+                on the one line under the headline.
+
+                Every number comes from lib/credits/offer.ts, so the arithmetic in
+                the copy cannot drift from the arithmetic in the reservation. "A
+                full campaign free" is words, not a number: the trial is gated in
+                scripts/tests/segment-pages.test.ts to pay for at least one.
               */}
               {t('hero.microcopy', {
-                credits: PLANS.free.credits,
-                posts: campaignBands.posts,
-                campaigns: Math.floor(PLANS.free.credits / campaignBands.text),
+                credits: offer.credits,
+                price: offer.price,
+                campaigns: offer.campaigns,
               })}
             </motion.p>
           </motion.div>
@@ -214,7 +209,11 @@ export function HeroSection(): React.ReactElement {
             that delivers them is a picture — so the landing page opened by
             failing to answer the only question the ad had raised.
 
-            A real generated output, not an illustration: `shawarma.jpg` is the
+            A real generated output, not an illustration — and since 2026-09-11 one
+            with a named source run: creator-shawarma-square.webp is manifest-tracked
+            (paid run 2026-09-01T03-43-10-125Z, made from one Arabic sentence).
+            `shawarma.jpg`, which sat here, predates every run on disk, so the
+            caption's "real Pyra output" could not be proved for it. It was the
             deliberate lead example (see InteractiveDemo's header) and it is the
             same business the copy names two lines above. `priority` because this
             is the LCP element on mobile; explicit width/height so it reserves its
@@ -223,10 +222,10 @@ export function HeroSection(): React.ReactElement {
           <div className="lg:hidden w-full mt-8">
             <figure className="relative rounded-2xl overflow-hidden border border-[var(--color-surface-2)] shadow-xl">
               <Image
-                src="/examples/shawarma.jpg"
+                src="/examples/studios/creator-shawarma-square.webp"
                 alt={t('hero.exampleAlt')}
-                width={1024}
-                height={1024}
+                width={1600}
+                height={1600}
                 priority
                 sizes="(max-width: 1024px) 100vw, 0px"
                 className="w-full h-auto"

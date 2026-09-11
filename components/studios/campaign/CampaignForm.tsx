@@ -11,7 +11,8 @@ import { useUser } from '@/hooks/useUser';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import { campaignCostBands } from '@/lib/credits/campaign-cost';
-import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
+import { getPlan } from '@/lib/stripe/plans';
 import { Sparkles, Palette } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
@@ -57,7 +58,6 @@ const BANDS = campaignCostBands();
 export function CampaignForm({ onSubmit, isLoading, initialDescription }: CampaignFormProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
-  const tCredits = useTranslations('credits');
 
   const { profile } = useUser();
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
@@ -258,7 +258,9 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
         with. Shown only when the box is ticked, because the text half carries no
         mark, and only on free, because nobody else gets one.
       */}
-      {generateImages && (profile?.plan_id ?? 'free') === 'free' && (
+      {/* On the plan's WATERMARK flag, not the literal 'free' — Entry is paid
+          and watermarked, and was the first plan the literal missed. */}
+      {generateImages && getPlan(profile?.plan_id ?? 'free').watermark && (
         <p className="-mt-1 text-xs text-[var(--color-text-muted)]">
           {t('freeWatermarkNotice')}
         </p>
@@ -280,11 +282,7 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={cost} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (
-            <Button asChild variant="default" size="sm">
-              <Link href="/billing">{tCredits('topUpShort')}</Link>
-            </Button>
-          )}
+          {cannotAfford && <GetCreditsButton />}
           <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? tStudio('generating') : t('generateCampaign')}

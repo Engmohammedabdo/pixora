@@ -21,9 +21,9 @@ import { stripComments } from '../lib/strip-comments';
 import sitemap from '../../app/sitemap';
 import { STUDIO_CATALOGUE, STUDIO_SLUGS, getStudio, type StudioSlug } from '../../lib/studios/catalogue';
 import { getExample } from '../../lib/studios/examples';
-import { CREDIT_COSTS } from '../../lib/credits/costs';
+import { CREDIT_COSTS, PHOTOSHOOT_SHOT_COSTS, PHOTOSHOOT_SHOT_OPTIONS } from '../../lib/credits/costs';
 import { campaignCostBands } from '../../lib/credits/campaign-cost';
-import { studioCostLabel } from '../../lib/studios/cost-label';
+import { studioCostLabel, studioCostBadge } from '../../lib/studios/cost-label';
 import { getVoiceoverConfig } from '../../lib/credits/voiceover-costs';
 import { ENVIRONMENT_PRESETS } from '../../lib/ai/prompts/photoshoot';
 import { RETRIEVABLE_STUDIOS } from '../../lib/studios/text-output';
@@ -154,7 +154,10 @@ for (const s of MUST_NOT_MATCH) {
 // stated on a list of roots because a whole-file walk would also cover `admin`,
 // `billing` and the studio forms, where a credit figure in copy is describing
 // the balance the customer is spending rather than publishing a price.
-const PRICE_COPY_ROOTS = ['studios', 'landing', 'pricingPage'] as const;
+//
+// `auth` joined 2026-09-11: `auth.signupSubtitle` said "ابدأ مجاناً مع 25 كريدت" —
+// the one price on the signup page — and no scan saw it.
+const PRICE_COPY_ROOTS = ['studios', 'landing', 'pricingPage', 'auth'] as const;
 
 for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
   const all = msgs as Record<string, unknown>;
@@ -260,9 +263,9 @@ for (const slug of STUDIO_SLUGS) {
 // The bands are read from the modules that charge, never typed: image
 // resolutions from CREDIT_COSTS, the campaign split from the same
 // campaignCostBands() the route reserves with, the voiceover rates from
-// getVoiceoverConfig(). The ONE literal is photoshoot's floor, for the reason
-// lib/studios/cost-label.ts already records: SHOT_COSTS lives inside
-// app/api/studios/photoshoot/route.ts and a route module cannot export it.
+// getVoiceoverConfig(). Photoshoot's floor was the one literal until 2026-09-11;
+// it now comes from PHOTOSHOOT_SHOT_COSTS, the map the route charges from, and
+// the map's ceiling is asserted equal to CREDIT_COSTS.photoshoot below.
 const campaignBands = campaignCostBands();
 check('the campaign price really is two DIFFERENT bands', campaignBands.text !== campaignBands.full && campaignBands.text > 0, `${campaignBands.text} / ${campaignBands.full}`);
 check('the campaign split is the reservation arithmetic itself', campaignBands.text === Math.max(1, campaignBands.full - campaignBands.posts * campaignBands.perImage), String(campaignBands.text));
@@ -283,7 +286,7 @@ const PLAN_IDS: string[] = Object.keys(PLANS);
 
 const PRICE_BANDS: Record<StudioSlug, readonly number[]> = {
   creator: Object.values(CREDIT_COSTS.image),
-  photoshoot: [2, CREDIT_COSTS.photoshoot],
+  photoshoot: [PHOTOSHOOT_SHOT_COSTS[PHOTOSHOOT_SHOT_OPTIONS[0]], CREDIT_COSTS.photoshoot],
   edit: [CREDIT_COSTS.edit],
   campaign: [campaignBands.text, campaignBands.full],
   plan: [CREDIT_COSTS.plan],
@@ -292,6 +295,38 @@ const PRICE_BANDS: Record<StudioSlug, readonly number[]> = {
   voiceover: PLAN_IDS.map((p) => getVoiceoverConfig(p).creditsPerUnit),
   'prompt-builder': [CREDIT_COSTS.prompt],
 };
+
+// The two ends of the photoshoot range are one map. lib/credits/costs.ts said
+// this file asserted the ceiling equality; until 2026-09-11 nothing did.
+{
+  const top = PHOTOSHOOT_SHOT_COSTS[PHOTOSHOOT_SHOT_OPTIONS[PHOTOSHOOT_SHOT_OPTIONS.length - 1]];
+  check('the six-shot price IS the published photoshoot ceiling', top === CREDIT_COSTS.photoshoot, `${top} vs ${CREDIT_COSTS.photoshoot}`);
+}
+
+// ── The LANDING cards quote the same bands ─────────────────────────────────
+// `landing.studios.s3Credits` was a typed "12" on the landing page while the
+// default campaign costs 3 — the one price surface the decomposition missed,
+// and invisible to the credit scan because a bare number carries no unit. The
+// card badge is now built by studioCostBadge() from the same modules, so both
+// ENDS of every band must reach it — the ends, as §5b states the rule, because a
+// card shows "1–4" for creator and never lists the 2K tier between them.
+{
+  const vLow = getVoiceoverConfig('entry');
+  const vHigh = getVoiceoverConfig('pro');
+  const short = fillIcu((en as Record<string, any>).studios.shared.perDurationShort ?? '', {
+    freeCredits: vLow.creditsPerUnit, freeSeconds: vLow.unitSeconds,
+    paidCredits: vHigh.creditsPerUnit, paidSeconds: vHigh.unitSeconds,
+  });
+  check('studios.shared.perDurationShort has no unfed placeholder', short.length > 0 && !short.includes('{'), short);
+  for (const slug of STUDIO_SLUGS) {
+    if (getStudio(slug)?.costShape === 'free') continue;
+    const badge = studioCostBadge(slug, { unit: 'credits', free: 'Free', perDurationShort: short });
+    const band = PRICE_BANDS[slug];
+    for (const n of new Set([Math.min(...band), Math.max(...band)])) {
+      check(`the landing card for ${slug} states ${n}`, statesFigure(badge, n), badge);
+    }
+  }
+}
 
 // Enough ICU to read the two COMPOSED band strings — `{name}` and
 // `{name, plural, one {# credit} other {# credits}}` — down to the number they
@@ -325,7 +360,8 @@ check('the figure reader DOES read 3 out of "3 credits"', statesFigure('3 credit
 
 for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
   const shared = (msgs as Record<string, Record<string, Record<string, string>>>).studios?.shared ?? {};
-  const vFree = getVoiceoverConfig('free');
+  // The lower band is named Entry and Starter in the copy; free is identical.
+  const vFree = getVoiceoverConfig('entry');
   const vPaid = getVoiceoverConfig('pro');
   const perDurationFilled = fillIcu(shared.perDuration ?? '', {
     freeCredits: vFree.creditsPerUnit, freeSeconds: vFree.unitSeconds,

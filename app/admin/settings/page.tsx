@@ -24,7 +24,7 @@ interface AppConfig {
   default_locale: string;
 }
 
-const PLANS = ['free', 'starter', 'pro', 'business', 'agency'];
+const PLANS = ['free', 'entry', 'starter', 'pro', 'business', 'agency'];
 
 export default function AdminSettingsPage() {
   const [flags, setFlags] = useState<FeatureFlags>({

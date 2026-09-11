@@ -26,7 +26,7 @@ export async function GET(): Promise<NextResponse> {
     // RLS on `referrals` limits this to rows where the user is referrer or referee.
     const { data: rows } = await supabase
       .from('referrals')
-      .select('id, referee_id, credits_each, created_at')
+      .select('id, referee_id, credits_each, created_at, rewarded_at')
       .eq('referrer_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -66,7 +66,10 @@ export async function GET(): Promise<NextResponse> {
         enabled,
         code: profile?.referral_code ?? null,
         totalReferred: referrals.length,
-        creditsEarned: referrals.reduce((sum, r) => sum + (r.credits_each ?? 0), 0),
+        // Only rewards actually PAID. Since migration 048 a signup records a
+        // referral and the friend's first payment pays both sides; counting
+        // every signup here would tell the referrer they hold credits they do not.
+        creditsEarned: referrals.reduce((sum, r) => sum + (r.rewarded_at ? (r.credits_each ?? 0) : 0), 0),
         recent: referrals.slice(0, 10).map((r) => ({ id: r.id, createdAt: r.created_at, credits: r.credits_each })),
       },
     });

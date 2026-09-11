@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import { UpgradePrompt } from '@/components/shared/UpgradePrompt';
 import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
@@ -122,11 +123,7 @@ export default function PromptBuilderPage(): React.ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={0} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (
-            <Button asChild variant="default" size="sm">
-              <Link href="/billing">{t('credits.topUpShort')}</Link>
-            </Button>
-          )}
+          {cannotAfford && <GetCreditsButton />}
           <Button onClick={handleGenerate} disabled={description.length < 5 || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? t('studio.generating') : tPb('build')}

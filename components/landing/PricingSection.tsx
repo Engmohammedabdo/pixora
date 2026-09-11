@@ -35,7 +35,11 @@ export default function PricingSection() {
           animate={isInView ? 'visible' : 'hidden'}
           className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5"
         >
-          {Object.values(PLANS).map((plan) => {
+          {/* Plans a visitor can BUY. The free account holds no credits since
+              2026-09-11, and a $0 card showing 0 credits beside a $2 card
+              showing 25 reads as a trick, not a choice. What signing up gets
+              you is said once, under the grid. */}
+          {Object.values(PLANS).filter((plan) => plan.price > 0).map((plan) => {
             const isPro = plan.id === 'pro';
             const displayPrice = plan.price;
             // Sourced from next-intl (messages/*.json → landing.pricing.features), not
@@ -118,6 +122,10 @@ export default function PricingSection() {
             );
           })}
         </motion.div>
+
+        <p className="mt-8 text-center text-sm text-[var(--color-text-secondary)]">
+          {t('pricing.freeNote')}
+        </p>
       </div>
     </section>
   );

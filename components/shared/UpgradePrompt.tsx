@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/routing';
 import { useTranslations, useLocale } from 'next-intl';
 import { Coins, Sparkles, Lock } from 'lucide-react';
-import { getPlan } from '@/lib/stripe/plans';
+import { getPlan, getMaxResolution } from '@/lib/stripe/plans';
+import { UnlockButton } from '@/components/shared/UnlockButton';
 
 type PromptVariant = 'insufficient_credits' | 'feature_locked' | 'resolution_locked';
 
@@ -62,11 +63,18 @@ export function UpgradePrompt({
     resolution_locked: {
       icon: <Sparkles className="h-10 w-10 text-[var(--color-brand)]" />,
       title: t('resolutionLocked'),
-      description: t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: currentPlan === 'free' ? '1080p' : '2K' }),
+      // Read from the plan, not `currentPlan === 'free' ? '1080p' : '2K'`. That
+      // ternary was right only by coincidence (free was 1080p, starter 2K, and
+      // pro+ never reach this variant) and Entry was the first plan it lied to:
+      // an Entry customer would have been told their ceiling is 2K.
+      description: t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: getMaxResolution(currentPlan) }),
     },
   };
 
   const { icon, title, description } = content[variant];
+
+  // A free account that runs out has no plan to top up — it has one to start.
+  const offerEntry = variant === 'insufficient_credits' && getPlan(currentPlan).price === 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -87,12 +95,16 @@ export function UpgradePrompt({
         </div>
 
         <div className="flex flex-col gap-2 mt-4">
-          <Button asChild>
-            <Link href="/billing">
-              <Sparkles className="h-4 w-4 me-2" />
-              {variant === 'insufficient_credits' ? t('topUpCredits') : t('upgradePlan')}
-            </Link>
-          </Button>
+          {offerEntry ? (
+            <UnlockButton label="long" size="default" className="h-auto whitespace-normal py-2" />
+          ) : (
+            <Button asChild>
+              <Link href="/billing">
+                <Sparkles className="h-4 w-4 me-2" />
+                {variant === 'insufficient_credits' ? t('topUpCredits') : t('upgradePlan')}
+              </Link>
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose}>{t('later')}</Button>
         </div>
       </DialogContent>

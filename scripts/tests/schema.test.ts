@@ -16,6 +16,7 @@ import { buildStudioSchema, buildStudioIndexSchema } from '../../lib/seo/studio-
 import { STUDIO_SLUGS } from '../../lib/studios/catalogue';
 import { SOCIAL_PROFILES } from '../../lib/seo/profiles';
 import { PLANS } from '../../lib/stripe/plans';
+import { TRIAL_CREDITS } from '../../lib/credits/offer';
 
 let failures = 0;
 let checks = 0;
@@ -55,8 +56,13 @@ for (const locale of ['ar', 'en'] as const) {
 
   const faq = g.find((n) => n['@type'] === 'FAQPage') as { mainEntity: { name: string; acceptedAnswer: { text: string } }[] } | undefined;
   check(`${locale}: FAQ present`, Boolean(faq));
-  const free = faq?.mainEntity.map((q) => q.acceptedAnswer.text).find((t) => t.includes(String(PLANS.free.credits)));
-  check(`${locale}: the free-credit answer states the real number ${PLANS.free.credits}`, Boolean(free));
+  // Restated 2026-09-11. This read `includes(String(PLANS.free.credits))`, and at
+  // 0 that is `includes('0')` — satisfied by answers already shipping, i.e. a
+  // check that keeps passing while asserting nothing. Whole numbers now, and the
+  // two that a3 actually states: the Entry credits and the trial.
+  const statesWhole = (t: string, n: number): boolean => new RegExp(`(?<![\\d٠-٩])${n}(?![\\d٠-٩])`).test(t);
+  const offer = faq?.mainEntity.map((q) => q.acceptedAnswer.text).find((t) => statesWhole(t, PLANS.entry.credits) && statesWhole(t, TRIAL_CREDITS));
+  check(`${locale}: the trial answer states the real Entry credits ${PLANS.entry.credits} and trial ${TRIAL_CREDITS}`, Boolean(offer));
   check(`${locale}: first FAQ asks what PyraSuite is`, /PyraSuite/.test(faq?.mainEntity[0]?.name ?? ''), faq?.mainEntity[0]?.name);
 }
 

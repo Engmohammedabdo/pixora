@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getCachedFeatureFlags } from '@/lib/admin/settings';
+import { REFERRAL_CREDITS } from '@/lib/credits/offer';
 import { trackEventNow } from '@/lib/analytics/track';
 import { readMetaIds, sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 import { EVENTS } from '@/lib/analytics/events';
@@ -192,10 +193,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
               const admin = await createServiceRoleClient();
               // supabase-js resolves with { error } instead of throwing, so the
               // catch below would never see a rejected claim.
+              // Records only; the reward is paid on first payment (048).
               const { error: claimError } = await admin.rpc('claim_referral', {
                 p_referee_id: userId,
                 p_code: referralCode,
-                p_credits: 25,
+                p_credits: REFERRAL_CREDITS,
               });
               if (claimError) {
                 console.error('[callback] referral claim failed:', claimError.message);

@@ -13,7 +13,7 @@ import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
 import NextImage from 'next/image';
-import { Copy, Check, Download, Image as ImageIcon, AlertTriangle, FileText } from 'lucide-react';
+import { Copy, Check, Download, Image as ImageIcon, AlertTriangle, FileText, X } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { downloadFile } from '@/lib/download';
 import { generateCampaignPdf, openPdfInNewTab } from '@/lib/export/pdf';
@@ -48,6 +48,7 @@ export function CampaignPlanDisplay({
 }: CampaignPlanDisplayProps): React.ReactElement {
   const t = useTranslations('campaign');
   const tStudio = useTranslations('studio');
+  const tCommon = useTranslations('common');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const { balance, status: creditsStatus } = useCredits();
   const { profile } = useUser();
@@ -104,7 +105,13 @@ export function CampaignPlanDisplay({
     );
   }
 
-  if (error) {
+  // Only when there is nothing to show, the rule CreatorPreview.tsx:79 already
+  // states. This used to return unconditionally, and a failed run does not clear
+  // the previous one's posts: campaign/page.tsx:51-52 resets the error and the
+  // image notice, never `posts`. So a network blip on a second run REPLACED nine
+  // captions the customer had already paid 3 or 12 credits for with a panel that
+  // had no dismiss. When there ARE posts, the error is a banner above them.
+  if (error && posts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
         <AlertTriangle className="h-12 w-12 text-[var(--color-error)]" />
@@ -126,6 +133,24 @@ export function CampaignPlanDisplay({
 
   return (
     <div className="space-y-4">
+      {/* An error with posts already on screen (see the early return above).
+          ABOVE the grid rather than instead of it, with a dismiss, because the
+          posts below are paid work. Same markup as CreatorPreview.tsx:120-133. */}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span className="flex-1">{error.message}</span>
+          <button
+            type="button"
+            onClick={onDismissError}
+            aria-label={tCommon('close')}
+            className="flex-shrink-0 rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Images were asked for and some did not arrive. Without this the screen
           showed empty tiles offering to "generate an image elsewhere" — no message,
           and no notice of the refund that HAD already happened. */}

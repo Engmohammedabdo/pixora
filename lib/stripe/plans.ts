@@ -15,18 +15,35 @@ export interface PlanConfig {
 }
 
 export const PLANS: Record<string, PlanConfig> = {
+  /**
+   * The account itself — signed up, not paying. Holds NO monthly credits since
+   * 2026-09-11; the 25-credit month it used to give away is `entry`, below, at $2.
+   *
+   * A new account is not empty-handed: it receives `TRIAL_CREDITS`
+   * (lib/credits/offer.ts) on finishing or skipping onboarding, enough for one
+   * complete campaign. That grant is a separate pool (`purchased_credits`), so
+   * `credits: 0` here is exactly what the monthly reset and a downgrade write.
+   *
+   * The 0 is also stated in the DATABASE, where two of the three grants lived:
+   * migration 048 sets `profiles.credits_balance DEFAULT 0` and removes the free
+   * refill from `reset_monthly_credits()`. This constant alone changed neither.
+   *
+   * Not shown on either pricing grid (`price > 0` filters it out): a $0 card
+   * holding 0 credits beside a $2 card holding 25 reads as a trick. /billing
+   * describes it in the current-plan card instead.
+   */
   free: {
     id: 'free',
-    name: 'Free',
-    nameAr: 'مجاني',
+    name: 'Free account',
+    nameAr: 'حساب مجاني',
     price: 0,
-    credits: 25,
+    credits: 0,
     resolution: '1080p',
     watermark: true,
     maxBrandKits: 1,
     maxProjects: 1,
-    features: ['25 credits/month', '1080p resolution', 'Watermark on images', '1 Brand Kit'],
-    featuresAr: ['25 كريدت/شهر', 'دقة 1080p', 'علامة مائية', 'هوية بصرية واحدة'],
+    features: ['No monthly credits', 'Free Prompt Assistant', '1080p, watermarked', '1 Brand Kit'],
+    featuresAr: ['بدون رصيد شهري', 'مساعد البرومبت مجاناً', 'دقة 1080p مع علامة مائية', 'هوية بصرية واحدة'],
   },
   /**
    * The paid entry tier. $2/month for what `free` used to give away.
@@ -36,8 +53,8 @@ export const PLANS: Record<string, PlanConfig> = {
    * of the change is that the 25 credits stop being free, not that the tier
    * becomes different.
    *
-   * `free` keeps its id and its gates and loses its credits in the step after
-   * this one. It stays the "signed up, not paying" state: 62 places in this
+   * `free` kept its id and its gates and lost its credits (deploy B, migration
+   * 048). It stays the "signed up, not paying" state: 62 places in this
    * codebase compare against the literal 'free' and in every one of them it
    * already means "not a paying customer". Renaming it would be a 62-site edit
    * to the gating layer of a live product for no benefit.

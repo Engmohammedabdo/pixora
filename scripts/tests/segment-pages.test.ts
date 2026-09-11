@@ -18,6 +18,7 @@ import { SEGMENTS, SEGMENT_SLUGS, getSegment } from '../../lib/segments/catalogu
 import { STUDIO_SLUGS } from '../../lib/studios/catalogue.js';
 import { campaignCostBands } from '../../lib/credits/campaign-cost.js';
 import { PLANS } from '../../lib/stripe/plans.js';
+import { entryOffer, TRIAL_CREDITS } from '../../lib/credits/offer';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ar = JSON.parse(readFileSync(join(ROOT, 'messages/ar.json'), 'utf8')) as Record<string, any>;
@@ -142,14 +143,29 @@ for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
 // A scan matching nothing certifies nothing.
 check('the credit scan read the segment copy', scanned >= 40, `${scanned} strings`);
 
-// ── 5. The free-tier arithmetic in the copy is the arithmetic in the code ──
-// The page's strongest claim is "N free campaigns". Both halves come from code
-// at render time, so this asserts the CLAIM IS WORTH MAKING — if a price change
-// ever drops it below two, the sentence stops being a reason to sign up and the
-// build says so instead of shipping a weak one.
+// ── 5. The offer arithmetic in the copy is the arithmetic in the code ──────
+// Restated 2026-09-11, when the 25-credit month stopped being free. This check
+// used to assert "a free account can run two campaigns"; at 0 free credits it
+// would have failed the build — correctly — and the reason it existed survives
+// the repricing: a price change must not ship a weak claim. So it now holds the
+// claims the copy MAKES, in words:
+//   - "try a full campaign free"  -> the trial pays for at least one
+//   - "N full campaigns for $2"   -> worth saying only if N is at least two
 const bands = campaignCostBands();
-const freeCampaigns = Math.floor(PLANS.free.credits / bands.text);
-check('a free account can run at least two full text campaigns', freeCampaigns >= 2, `${PLANS.free.credits} / ${bands.text} = ${freeCampaigns}`);
+const offer = entryOffer();
+check('the free account holds no monthly credits — the 25 are the $2 plan now', PLANS.free.credits === 0, String(PLANS.free.credits));
+check('the trial pays for at least one full text campaign ("try a full campaign free")', offer.trialCampaigns >= 1, `${TRIAL_CREDITS} / ${bands.text} = ${offer.trialCampaigns}`);
+check('one Entry month pays for at least two full text campaigns', offer.campaigns >= 2, `${PLANS.entry.credits} / ${bands.text} = ${offer.campaigns}`);
+check(
+  'the onboarding route grants the trial from lib/credits/offer.ts, not a literal',
+  /ONBOARDING_BONUS_CREDITS\s*=\s*TRIAL_CREDITS/.test(readFileSync(join(ROOT, 'app/api/user/onboarding/route.ts'), 'utf8')),
+  'app/api/user/onboarding/route.ts',
+);
+// The retired placeholder must not survive anywhere a customer reads: a
+// component no longer passes `free`, so a leftover `{free}` renders literally.
+for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+  check(`${locale}: no message still carries the retired {free} placeholder`, !JSON.stringify(msgs).includes('{free}'));
+}
 check('the text band is genuinely cheaper than the full band', bands.text < bands.full, `${bands.text} vs ${bands.full}`);
 
 // ── 6. Every segment URL is in the sitemap ────────────────────────────────

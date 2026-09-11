@@ -85,15 +85,43 @@ export async function downloadFile(url: string, filename: string): Promise<void>
     // popup blocker refuses it silently: the customer taps Download, the fetch
     // fails, and absolutely nothing happens. `window.open` returns null when it
     // is blocked, so the caller can say so instead of the failure being invisible
-    // — the same shape lib/export/pdf.ts:282 already uses, where four call sites
+    // — the same shape lib/export/pdf.ts:283 already uses, where four call sites
     // toast `popupBlocked`.
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    //
+    // NO `noopener` in the feature string, and that is load-bearing. With
+    // `noopener`, or `noreferrer` (which implies it), the HTML spec makes
+    // window.open return null EVEN WHEN THE TAB OPENED. The previous version
+    // passed both and then tested the return value, so the test could not tell
+    // "blocked" from "opened": every fallback threw, and every caller toasted
+    // "download failed" over a tab that had in fact appeared. Clearing `opener`
+    // by hand, after the check, keeps the protection `noopener` was there for —
+    // the opened page cannot reach back into ours. Dropping `noreferrer` costs
+    // nothing real: next.config.ts sets `Referrer-Policy:
+    // strict-origin-when-cross-origin`, so a cross-origin tab sees our origin
+    // and never the path.
+    const opened = window.open(url, '_blank');
     if (!opened) throw new Error('download_failed_popup_blocked');
+    opened.opener = null;
   }
 }
 
+/**
+ * Saves every item, then reports failure ONCE, at the end.
+ *
+ * It used to `await downloadFile()` in a bare loop, so the first failing item
+ * threw out of the loop and every item after it was never attempted: one bad URL
+ * in a six-shot photoshoot cost the customer the shots behind it, not just that
+ * one. Every caller already toasts on a throw, so one summary error after the
+ * loop keeps the "say so" contract without abandoning the rest of the set.
+ */
 export async function downloadFiles(items: { url: string; filename: string }[]): Promise<void> {
+  let failed = 0;
   for (const item of items) {
-    await downloadFile(item.url, item.filename);
+    try {
+      await downloadFile(item.url, item.filename);
+    } catch {
+      failed++;
+    }
   }
+  if (failed > 0) throw new Error(`download_failed_${failed}_of_${items.length}`);
 }

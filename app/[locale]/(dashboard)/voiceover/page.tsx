@@ -13,7 +13,7 @@ import { useCreditsStore } from '@/store/credits';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
-import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { Sparkles, AlertTriangle, Mic, Download, Play, Pause, Lock, Info } from 'lucide-react';
 import { calculateVoiceoverCost, getVoiceoverConfig, estimateVoiceoverDuration } from '@/lib/credits/voiceover-costs';
 import { toStudioError, getGatedUpgradeVariant, type StudioError } from '@/lib/studio-errors';
@@ -195,7 +195,11 @@ export default function VoiceOverPage(): React.ReactElement {
             // speed works) and were given the restricted set, while pro/business/
             // agency run on ElevenLabs (0.7-1.2) and were given all five — so a Pro
             // customer picking 0.5x was guaranteed to fail on a paid generation.
-            const usesElevenLabs = !['free', 'starter'].includes(planId);
+            // From the provider the plan is actually served by, not a list of plan
+            // ids. `!['free','starter'].includes(planId)` had no 'entry', so an
+            // Entry customer — served by OpenAI, which takes 0.25–4.0 — was
+            // offered 2 of the 5 speeds as if they were on ElevenLabs.
+            const usesElevenLabs = config.provider === 'elevenlabs';
             const isAvailable = usesElevenLabs ? ['0.75', '1'].includes(s) : true;
             return (
               <button key={s} type="button"
@@ -249,11 +253,7 @@ export default function VoiceOverPage(): React.ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={creditCost} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (
-            <Button asChild variant="default" size="sm">
-              <Link href="/billing">{t('credits.topUpShort')}</Link>
-            </Button>
-          )}
+          {cannotAfford && <GetCreditsButton />}
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? t('studio.generating') : t('studio.generate')}

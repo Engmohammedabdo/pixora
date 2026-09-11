@@ -38,6 +38,14 @@ import './globals.css';
  * and ar/rtl is what this page has always actually served — it is the one place
  * the old hardcoded root <html> happened to be right.
  *
+ * The Arabic line is clear professional Arabic, not Egyptian or Gulf colloquial
+ * (the founder's rule for the whole product): it read "اللي تدور عليها مش
+ * موجودة" until 2026-09-11. This page cannot use next-intl — nothing above it
+ * provides messages — so it stays a literal, and it is baselined debt under
+ * `no-arabic-literals-in-tsx`, keyed on the trimmed LINE TEXT. Rewording it
+ * therefore moves its key in scripts/invariants-baseline.json; the old key goes
+ * stale (reported, not failing) and the new one fails until it is recorded.
+ *
  * There is no ThemeProvider in this chain and never has been, so the `dark:`
  * variants below have never applied. Owning the document does not change that.
  * An unchanged appearance here is therefore NOT evidence the fix worked — read
@@ -57,7 +65,7 @@ export default function NotFound(): React.ReactElement {
               الصفحة غير موجودة
             </h2>
             <p className="text-slate-600 dark:text-slate-400 mb-2">
-              الصفحة اللي تدور عليها مش موجودة أو تم نقلها
+              الصفحة التي تبحث عنها غير موجودة أو تم نقلها
             </p>
             <p className="text-slate-500 text-sm mb-8">
               Page not found — The page you&apos;re looking for doesn&apos;t exist

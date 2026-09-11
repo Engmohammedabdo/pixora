@@ -152,6 +152,7 @@ export default function UserDetailCard({
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-base sm:text-sm text-slate-700 outline-none transition-colors hover:bg-slate-50 focus:border-indigo-500"
         >
           <option value="free">Free</option>
+          <option value="entry">Entry</option>
           <option value="starter">Starter</option>
           <option value="pro">Pro</option>
           <option value="business">Business</option>

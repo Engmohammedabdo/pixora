@@ -4,9 +4,11 @@ import { useTranslations } from 'next-intl';
 import { useCredits } from '@/hooks/useCredits';
 import { useUser } from '@/hooks/useUser';
 import { getPlan } from '@/lib/stripe/plans';
+import { entryOffer } from '@/lib/credits/offer';
 import { Link } from '@/i18n/routing';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { UnlockButton } from '@/components/shared/UnlockButton';
 import { Coins, AlertTriangle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,13 +19,22 @@ interface CreditsWidgetProps {
 
 export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): React.ReactElement {
   const t = useTranslations('credits');
-  const { balance, status, refetch } = useCredits();
+  const { balance, status, refetch, planId: serverPlanId } = useCredits();
   const { profile } = useUser();
-  const planCredits = getPlan(profile?.plan_id || 'free').credits;
-  const effectiveMax = maxCredits ?? planCredits;
+  // The server's plan first, for the reason billing/page.tsx gives: the cached
+  // profile is read once and never invalidated when the webhook lands.
+  const planId = serverPlanId ?? profile?.plan_id ?? 'free';
+  const planCredits = getPlan(planId).credits;
 
-  const percentage = Math.min((balance / effectiveMax) * 100, 100);
-  const isLow = percentage < 20;
+  // A free account has no monthly allowance, so there is nothing to draw a bar
+  // against. Measured before this guard: 0/0 is NaN, `NaN < 20` is false, so a
+  // 0-credit account got a calm empty bar with every warning skipped — and at
+  // the 5-credit trial, 5/0 is Infinity, clamped to 100: a FULL green bar,
+  // beside a banner saying the opposite.
+  const isFreeAccount = maxCredits === undefined && planCredits <= 0;
+  const effectiveMax = maxCredits ?? planCredits;
+  const percentage = effectiveMax > 0 ? Math.min((balance / effectiveMax) * 100, 100) : 0;
+  const isLow = !isFreeAccount && percentage < 20;
 
   if (status === 'loading') {
     return (
@@ -51,6 +62,25 @@ export function CreditsWidget({ maxCredits, className }: CreditsWidgetProps): Re
           <RefreshCw className="h-3 w-3 me-1" />
           {t('retry')}
         </Button>
+      </div>
+    );
+  }
+
+  if (isFreeAccount) {
+    const offer = entryOffer();
+    return (
+      <div className={cn('rounded-lg border p-4 space-y-3', className)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Coins className="h-5 w-5 text-[var(--color-brand)]" />
+            <span className="text-sm font-medium">{t('balance')}</span>
+          </div>
+          <span className="text-lg font-bold text-[var(--color-brand)]">{balance}</span>
+        </div>
+        <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+          {t('freeAccountHint', { credits: offer.credits, price: offer.price })}
+        </p>
+        <UnlockButton className="w-full" />
       </div>
     );
   }

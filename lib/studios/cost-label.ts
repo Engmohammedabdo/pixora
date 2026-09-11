@@ -1,5 +1,6 @@
 import { CREDIT_COSTS, PHOTOSHOOT_SHOT_COSTS, PHOTOSHOOT_SHOT_OPTIONS } from '@/lib/credits/costs';
 import { getStudio, type StudioSlug } from '@/lib/studios/catalogue';
+import { campaignCostBands } from '@/lib/credits/campaign-cost';
 
 /**
  * The credit figure a public page shows, built from lib/credits/costs.ts and
@@ -87,6 +88,43 @@ export function studioCostLabel(slug: StudioSlug, labels: StudioCostLabels): str
       // would put the expensive band back in the reading position that made the
       // old badge look universal.
       return labels.perCampaign;
+    case 'flat':
+    default:
+      return `${CREDIT_COSTS[entry.costKey] as number} ${labels.unit}`;
+  }
+}
+
+export interface StudioBadgeLabels {
+  /** `studios.shared.creditUnit`. */
+  unit: string;
+  /** `studios.shared.freeLabel`. */
+  free: string;
+  /** `studios.shared.perDurationShort`, composed by the caller from getVoiceoverConfig(). */
+  perDurationShort: string;
+}
+
+/**
+ * The COMPACT figure a landing card shows in its corner badge — same modules,
+ * same bands as studioCostLabel(), no descriptive tail. Added 2026-09-11: the
+ * landing cards were the last surface quoting a typed price, and the campaign
+ * card said "12" beside an FAQ saying 3.
+ */
+export function studioCostBadge(slug: StudioSlug, labels: StudioBadgeLabels): string {
+  const entry = getStudio(slug);
+  if (!entry) return '';
+  switch (entry.costShape) {
+    case 'free':
+      return labels.free;
+    case 'imageRange':
+      return `${CREDIT_COSTS.image['1080p']}–${CREDIT_COSTS.image['4K']} ${labels.unit}`;
+    case 'shotRange':
+      return `${PHOTOSHOOT_SHOT_COSTS[PHOTOSHOOT_SHOT_OPTIONS[0]]}–${CREDIT_COSTS.photoshoot} ${labels.unit}`;
+    case 'perDuration':
+      return labels.perDurationShort;
+    case 'campaignBands': {
+      const bands = campaignCostBands();
+      return `${bands.text}–${bands.full} ${labels.unit}`;
+    }
     case 'flat':
     default:
       return `${CREDIT_COSTS[entry.costKey] as number} ${labels.unit}`;

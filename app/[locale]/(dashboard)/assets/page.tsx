@@ -111,7 +111,7 @@ export default function AssetsPage(): React.ReactElement {
   const handleDownloadSelected = (): void => {
     const selected = assets.filter((a) => selectedIds.has(a.id));
     // The extension comes from the row, not from a guess — see assetFileName.
-    // downloadFiles() saves sequentially and stops at the first failure, so a
+    // downloadFiles() saves sequentially and now tries every file and reports the failures together, so a
     // partial batch must say so rather than looking like a completed one.
     downloadFiles(selected.map((asset) => ({ url: asset.url, filename: assetFileName(asset) })))
       .catch(() => toast.error(t('downloadFailed')));

@@ -9,6 +9,14 @@
  *    renders left-to-right reads as broken, and this is the first thing a Gulf
  *    customer will see from the product.
  *  - A plain-text alternative for every message. HTML-only mail scores as spam.
+ *
+ * The Arabic is clear professional Arabic, not Egyptian or Gulf colloquial —
+ * the founder's rule for the whole product. Until 2026-09-11 these templates
+ * still spoke Egyptian (مفيش، عشان، دلوقتي، بتاعتك) after the site had been
+ * rewritten. An email outlives the page that sent it, and a payment-failure or
+ * password message in a dialect the reader does not speak reads as a scam. No
+ * gate scans this file: test:one-dialect reads messages/ar.json and never lib/. The
+ * vocabulary follows the product's own: كلمة المرور, بوست, كريدت.
  */
 
 const BRAND = '#4F46E5';
@@ -89,7 +97,7 @@ function layout({ locale, heading, paragraphs, cta, footnote, reason }: LayoutIn
         </td></tr>
       </table>
       <p style="margin:16px 0 0;font-size:12px;color:${MUTED};font-family:${font};direction:${dir};">
-        ${reason ?? (isAr ? 'وصلتك الرسالة دي لأن عندك حساب على PyraSuite.' : 'You received this because you have a PyraSuite account.')}
+        ${reason ?? (isAr ? 'وصلتك هذه الرسالة لأن لديك حساباً على PyraSuite.' : 'You received this because you have a PyraSuite account.')}
       </p>
     </td></tr>
   </table>
@@ -117,15 +125,15 @@ function toText(paragraphs: string[], cta?: { label: string; url: string }, foot
 export function paymentFailedEmail(locale: Locale, planName: string, portalUrl: string): EmailContent {
   if (locale === 'ar') {
     const paragraphs = [
-      `حاولنا نسحب اشتراك <strong>${planName}</strong> بس البنك رفض العملية.`,
-      'مفيش حاجة اتلغت — رصيدك وشغلك زي ما هما. بس محتاجين تحدّث طريقة الدفع عشان الاشتراك يكمل.',
-      'أغلب الأسباب بسيطة: كارت منتهي، أو حد للمشتريات الأونلاين، أو رصيد مش كفاية وقت المحاولة.',
+      `حاولنا تحصيل رسوم اشتراك <strong>${planName}</strong>، لكن البنك رفض العملية.`,
+      'لم يُلغَ أي شيء — رصيدك وأعمالك كما هي. نحتاج فقط إلى تحديث طريقة الدفع لكي يستمر اشتراكك.',
+      'غالباً ما يكون السبب بسيطاً: بطاقة منتهية الصلاحية، أو حدّ للمشتريات عبر الإنترنت، أو رصيد غير كافٍ وقت المحاولة.',
     ];
     const cta = { label: 'حدّث طريقة الدفع', url: portalUrl };
-    const footnote = 'هنحاول تاني تلقائياً على مدى الأيام الجاية. لو حدّثت الكارت، اعتبر الرسالة دي ملغية.';
+    const footnote = 'سنعيد المحاولة تلقائياً خلال الأيام القادمة. إذا كنت قد حدّثت بطاقتك، فيمكنك تجاهل هذه الرسالة.';
     return {
-      subject: 'محتاجين تحدّث طريقة الدفع — PyraSuite',
-      html: layout({ locale, heading: 'الدفع ماتمّش', paragraphs, cta, footnote }),
+      subject: 'يرجى تحديث طريقة الدفع — PyraSuite',
+      html: layout({ locale, heading: 'لم تكتمل عملية الدفع', paragraphs, cta, footnote }),
       text: toText(paragraphs, cta, footnote),
     };
   }
@@ -155,16 +163,16 @@ export function waitlistWelcomeEmail(locale: Locale, name?: string | null): Emai
   if (locale === 'ar') {
     const greeting = name ? `أهلاً ${escapeHtml(name)} 👋` : 'أهلاً 👋';
     const paragraphs = [
-      'سجّلناك في قائمة انتظار PyraSuite.',
-      'PyraSuite بتحوّل فكرتك لحملة تسويقية كاملة — صور، نصوص، خطة — بقوة بايرا 🦊.',
-      'هنبعتلك أول ما نفتح الأبواب. مش هنبعت حاجة تانية.',
+      'تم تسجيلك في قائمة انتظار PyraSuite.',
+      'تحوّل PyraSuite فكرتك إلى حملة تسويقية كاملة — صور ونصوص وخطة — بقوة بايرا 🦊.',
+      'سنراسلك فور فتح الأبواب، ولن نرسل إليك أي شيء آخر.',
     ];
-    const footnote = 'لو مش انت اللي سجّلت، تجاهل الرسالة ومش هيوصلك حاجة تانية.';
+    const footnote = 'إذا لم تكن أنت من سجّل، فتجاهل هذه الرسالة ولن يصلك منّا شيء بعد ذلك.';
     return {
-      subject: 'سجّلناك في قائمة الانتظار 🦊',
+      subject: 'تم تسجيلك في قائمة الانتظار 🦊',
       html: layout({
         locale, heading: greeting, paragraphs, footnote,
-        reason: 'وصلتك الرسالة دي لأنك سجّلت في قائمة انتظار PyraSuite.',
+        reason: 'وصلتك هذه الرسالة لأنك سجّلت في قائمة انتظار PyraSuite.',
       }),
       text: toText([greeting, ...paragraphs], undefined, footnote),
     };
@@ -220,15 +228,15 @@ function escapeHtml(value: string): string {
 export function passwordResetEmail(locale: Locale, resetUrl: string): EmailContent {
   if (locale === 'ar') {
     const paragraphs = [
-      'وصلنا طلب لتغيير كلمة السر بتاعت حسابك في PyraSuite.',
-      'اضغط الزرار تحت وتقدر تحط كلمة سر جديدة على طول. الرابط صالح لفترة قصيرة ومرة واحدة بس.',
+      'وصلنا طلب لتغيير كلمة المرور الخاصة بحسابك في PyraSuite.',
+      'اضغط على الزر أدناه لتعيين كلمة مرور جديدة مباشرةً. الرابط صالح لفترة قصيرة ولمرة واحدة فقط.',
     ];
-    const cta = { label: 'اختار كلمة سر جديدة', url: resetUrl };
+    const cta = { label: 'اختر كلمة مرور جديدة', url: resetUrl };
     const footnote =
-      'لو مش انت اللي طلبت ده، تجاهل الرسالة — كلمة السر بتاعتك ماتغيرتش، ومحدش يقدر يغيّرها من غير الرابط ده.';
+      'إذا لم تطلب ذلك، فتجاهل هذه الرسالة — لم تتغير كلمة المرور الخاصة بك، ولا يستطيع أحد تغييرها دون هذا الرابط.';
     return {
-      subject: 'تغيير كلمة السر — PyraSuite',
-      html: layout({ locale, heading: 'كلمة سر جديدة', paragraphs, cta, footnote }),
+      subject: 'تغيير كلمة المرور — PyraSuite',
+      html: layout({ locale, heading: 'كلمة مرور جديدة', paragraphs, cta, footnote }),
       text: toText(paragraphs, cta, footnote),
     };
   }
@@ -274,20 +282,20 @@ export function passwordResetEmail(locale: Locale, resetUrl: string): EmailConte
 export function inviteEmail(locale: Locale, inviteUrl: string, credits: number): EmailContent {
   if (locale === 'ar') {
     const paragraphs = [
-      'دورك جه 🎉 — فتحنا لك باب PyraSuite.',
-      'PyraSuite بتحوّل فكرتك لحملة تسويقية كاملة: صور منتجات، بوستات، تعليق صوتي، وخطة تسويق — كلها بقوة بايرا 🦊.',
+      'حان دورك 🎉 — أصبح PyraSuite متاحاً لك الآن.',
+      'تحوّل PyraSuite فكرتك إلى حملة تسويقية كاملة: صور منتجات، وبوستات، وتعليق صوتي، وخطة تسويق — كلها بقوة بايرا 🦊.',
       credits > 0
-        ? `حسابك هيفتح وفيه <strong>${credits} كريدت</strong> هدية عشان تجرّب من غير ما تدفع حاجة.`
-        : 'اضغط الزرار تحت وابدأ على طول.',
+        ? `سيُفتح حسابك وفيه <strong>${credits} كريدت</strong> هدية، لتجرّب المنصة دون أن تدفع شيئاً.`
+        : 'اضغط على الزر أدناه وابدأ مباشرةً.',
     ];
-    const cta = { label: 'افتح حسابك دلوقتي', url: inviteUrl };
+    const cta = { label: 'أنشئ حسابك الآن', url: inviteUrl };
     const footnote =
-      'الرابط ده مخصوص لإيميلك انت ويشتغل مرة واحدة. لو بعتّه لحد تاني، هو مش هيقدر يستخدمه وانت هتخسر مكانك.';
+      'هذا الرابط مخصّص لبريدك الإلكتروني ويعمل مرة واحدة فقط. إذا أرسلته إلى شخص آخر، فلن يتمكن من استخدامه وستفقد مكانك.';
     return {
-      subject: 'دعوتك لـ PyraSuite جاهزة 🦊',
+      subject: 'دعوتك إلى PyraSuite جاهزة 🦊',
       html: layout({
-        locale, heading: 'أهلاً بيك في PyraSuite', paragraphs, cta, footnote,
-        reason: 'وصلتك الرسالة دي لأنك في قائمة انتظار PyraSuite ودورك جه.',
+        locale, heading: 'أهلاً بك في PyraSuite', paragraphs, cta, footnote,
+        reason: 'وصلتك هذه الرسالة لأنك في قائمة انتظار PyraSuite وقد حان دورك.',
       }),
       text: toText(paragraphs, cta, footnote),
     };

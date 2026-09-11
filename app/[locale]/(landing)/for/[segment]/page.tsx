@@ -18,7 +18,7 @@ import { SEGMENT_SLUGS, getSegment } from '@/lib/segments/catalogue';
 import { getStudio } from '@/lib/studios/catalogue';
 import { campaignCostBands } from '@/lib/credits/campaign-cost';
 import { getExamples } from '@/lib/studios/examples';
-import { PLANS } from '@/lib/stripe/plans';
+import { entryOffer } from '@/lib/credits/offer';
 
 /**
  * One public page per customer segment. `/[locale]/for/dubai-restaurants`.
@@ -43,13 +43,14 @@ import { PLANS } from '@/lib/stripe/plans';
  * rule `scripts/tests/studio-pages.test.ts` enforces and that this page's own
  * gate repeats.
  *
- * The strongest true sentence in the product is the free-tier one, and it is the
- * page's close: a text-only campaign costs `campaignCostBands().text` against the
- * free plan's `PLANS.free.credits`, so eight complete nine-post Arabic campaigns
- * a month with no card. Both halves are read from code, so the arithmetic in the
- * copy cannot drift from the arithmetic in the reservation. It was verified end
- * to end on production 2026-09-09 — see `.superpowers/dialect-proof/FINDING.md`
- * for the captions the three dialects actually returned.
+ * The page closes on the offer: a first campaign free on the trial credits, then
+ * the Entry plan — `PLANS.entry.credits` for `PLANS.entry.price` dollars, i.e.
+ * eight complete nine-post Arabic campaigns a month at `campaignCostBands().text`
+ * each. Until 2026-09-11 it closed on "25 free credits, no card"; the free month
+ * became the $2 plan, and every figure is still read from code
+ * (lib/credits/offer.ts), so the arithmetic in the copy cannot drift from the
+ * arithmetic in the reservation. The captions were verified end to end on
+ * production 2026-09-09 — see `.superpowers/dialect-proof/FINDING.md`.
  */
 export function generateStaticParams(): { locale: string; segment: string }[] {
   return routing.locales.flatMap((locale) => SEGMENT_SLUGS.map((segment) => ({ locale, segment })));
@@ -65,7 +66,7 @@ export async function generateMetadata({
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: `segments.${segment}` });
   const title = t('metaTitle');
-  const description = t('metaDescription');
+  const description = t('metaDescription', segmentOfferParams());
   return {
     title,
     description,
@@ -75,6 +76,21 @@ export async function generateMetadata({
 }
 
 const FAQ_KEYS = [1, 2, 3, 4] as const;
+
+/** Every value the page's offer sentences interpolate — one object, see the call site. */
+function segmentOfferParams(): Record<string, number> {
+  const bands = campaignCostBands();
+  const offer = entryOffer();
+  return {
+    text: bands.text,
+    full: bands.full,
+    posts: bands.posts,
+    trial: offer.trial,
+    price: offer.price,
+    credits: offer.credits,
+    campaigns: offer.campaigns,
+  };
+}
 
 export default async function SegmentPage({
   params,
@@ -92,14 +108,14 @@ export default async function SegmentPage({
   const tShared = await getTranslations({ locale, namespace: 'segments.shared' });
   const tStudios = await getTranslations({ locale, namespace: 'studios' });
 
-  const bands = campaignCostBands();
-  const freeCredits = PLANS.free.credits;
-  // Integer division, deliberately: the sentence promises what a customer can
-  // actually complete, so a partial ninth campaign is not counted.
-  const freeCampaigns = Math.floor(freeCredits / bands.text);
   const examples = getExamples(entry.examples);
+  // ONE set of values for every sentence on this page that quotes the offer —
+  // the hero line, the price block and the FAQ (which also ships as JSON-LD).
+  // Three call sites each spelling their own object is how one of them ends up
+  // missing a key and rendering a literal `{price}`.
+  const offerParams = segmentOfferParams();
 
-  const faq = FAQ_KEYS.map((n) => ({ q: t(`q${n}`), a: t(`a${n}`, { text: bands.text, full: bands.full, posts: bands.posts, free: freeCredits, campaigns: freeCampaigns }) }));
+  const faq = FAQ_KEYS.map((n) => ({ q: t(`q${n}`), a: t(`a${n}`, offerParams) }));
 
   return (
     <>
@@ -134,7 +150,7 @@ export default async function SegmentPage({
               </Link>
             </div>
             <p className="mt-4 text-sm text-[var(--color-text-muted)]">
-              {tShared('freeLine', { free: freeCredits, text: bands.text, campaigns: freeCampaigns, posts: bands.posts })}
+              {tShared('freeLine', offerParams)}
             </p>
           </div>
         </section>
@@ -211,7 +227,7 @@ export default async function SegmentPage({
               {t('priceTitle')}
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-[var(--color-text-secondary)]">
-              {tShared('priceBody', { text: bands.text, full: bands.full, posts: bands.posts, free: freeCredits, campaigns: freeCampaigns })}
+              {tShared('priceBody', offerParams)}
             </p>
             <Link
               href="/signup"

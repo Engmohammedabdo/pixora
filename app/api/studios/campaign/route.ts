@@ -398,6 +398,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      *  the router falls back per image, so nine images can come from two. */
     const imageModelsUsed = new Set<string>();
 
+    // The plan is read HERE, before the image fan-out, because it decides which
+    // provider serves the nine images as well as the watermark below. It used to
+    // be read after the images were made — which is why the free-plan clamp
+    // creator got on 2026-09-09 could not exist here.
+    const { data: planRow } = await supabase
+      .from('profiles')
+      .select('plan_id')
+      .eq('id', user.id)
+      .single();
+    const planId = planRow?.plan_id || 'free';
+    // Same rule and same reason as creator/route.ts: a $0 account — since
+    // 2026-09-11 holding only its trial credits — is not served by the dearer
+    // provider by default. Every paid plan, Entry included, keeps gpt.
+    const imageModel = planId === 'free' ? 'gemini' : 'gpt';
+
     if (input.generateImages && posts.length > 0) {
       const imagePromises = posts.map(async (post, i) => {
         // `post.scenario` is MODEL-authored text going straight to the image model,
@@ -461,7 +476,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // and edit send a reference image, so IMAGE_INPUT_CAPABLE pins them
             // to gemini whatever they ask for, and storyboard generates no
             // images at all.
-            model: 'gpt',
+            //
+            // Except the FREE account, which gets gemini — see imageModel above.
+            model: imageModel,
             resolution: '1080p',
             // Measured 2026-08-31: nine images came back 1024x1024 for a request
             // carrying platform 'instagram'. Both adapters forward this — gemini
@@ -486,13 +503,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       failedImageCount = postImages.filter((url) => url === null).length;
     }
 
-    // Apply watermark to campaign images for free plan users
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('plan_id')
-      .eq('id', user.id)
-      .single();
-    const planId = profile?.plan_id || 'free';
+    // Apply watermark to campaign images for free plan users (planId was read
+    // above, before the image fan-out).
     // Pyra returns images as data: URLs; without persisting them a nine-post
     // campaign wrote nine base64 images into one generations.output row. The
     // watermark is burned in before the upload — see lib/storage/persist-image.ts.
@@ -629,11 +641,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // TEXT model, because a text-only campaign — the free tier's whole
       // proposition, and the cheaper of the two prices this route charges —
       // makes no image call at all, so the text model is the only one every run
-      // has. The image model goes into `input` alongside promptVersion and the
-      // resolved brand kit, which is JSONB and needed no migration for those
-      // either. Without it a 12-credit campaign bills nine gpt images and reports
-      // them at gemini's rate, which is the 5x understatement above, back again
-      // by a different door.
+      // has. The image model goes into `output.imageModels` (JSONB, no migration).
+      // Recorded, NOT yet priced: app/api/admin/health/route.ts still estimates
+      // cost from this column alone, so until it reads imageModels a campaign's
+      // images are counted at the text model's rate. An earlier version of this
+      // comment said `input` and implied the understatement was fixed; it is
+      // only recoverable.
       model: textResult.model,
     }, 'campaign');
 

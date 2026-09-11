@@ -17,6 +17,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/routing';
 import { staggerContainer, fadeInUp } from '@/lib/animations';
+import { studioCostBadge } from '@/lib/studios/cost-label';
+import { getVoiceoverConfig } from '@/lib/credits/voiceover-costs';
 
 /**
  * `slug` points each card at its own public page, and it is the only new field
@@ -38,7 +40,6 @@ const studios = [
     icon: Image,
     nameKey: 'studios.s1Name',
     descKey: 'studios.s1Desc',
-    creditsKey: 'studios.s1Credits',
     free: false,
     iconBg: 'bg-purple-100 dark:bg-purple-900/30',
     iconColor: 'text-purple-600 dark:text-purple-400',
@@ -48,7 +49,6 @@ const studios = [
     icon: Camera,
     nameKey: 'studios.s2Name',
     descKey: 'studios.s2Desc',
-    creditsKey: 'studios.s2Credits',
     free: false,
     iconBg: 'bg-blue-100 dark:bg-blue-900/30',
     iconColor: 'text-blue-600 dark:text-blue-400',
@@ -58,7 +58,6 @@ const studios = [
     icon: LayoutGrid,
     nameKey: 'studios.s3Name',
     descKey: 'studios.s3Desc',
-    creditsKey: 'studios.s3Credits',
     free: false,
     iconBg: 'bg-green-100 dark:bg-green-900/30',
     iconColor: 'text-green-600 dark:text-green-400',
@@ -68,7 +67,6 @@ const studios = [
     icon: Map,
     nameKey: 'studios.s4Name',
     descKey: 'studios.s4Desc',
-    creditsKey: 'studios.s4Credits',
     free: false,
     iconBg: 'bg-amber-100 dark:bg-amber-900/30',
     iconColor: 'text-amber-600 dark:text-amber-400',
@@ -78,7 +76,6 @@ const studios = [
     icon: Film,
     nameKey: 'studios.s5Name',
     descKey: 'studios.s5Desc',
-    creditsKey: 'studios.s5Credits',
     free: false,
     iconBg: 'bg-rose-100 dark:bg-rose-900/30',
     iconColor: 'text-rose-600 dark:text-rose-400',
@@ -88,7 +85,6 @@ const studios = [
     icon: BarChart3,
     nameKey: 'studios.s6Name',
     descKey: 'studios.s6Desc',
-    creditsKey: 'studios.s6Credits',
     free: false,
     iconBg: 'bg-cyan-100 dark:bg-cyan-900/30',
     iconColor: 'text-cyan-600 dark:text-cyan-400',
@@ -98,7 +94,6 @@ const studios = [
     icon: Mic,
     nameKey: 'studios.s7Name',
     descKey: 'studios.s7Desc',
-    creditsKey: 'studios.s7Credits',
     free: false,
     iconBg: 'bg-orange-100 dark:bg-orange-900/30',
     iconColor: 'text-orange-600 dark:text-orange-400',
@@ -108,7 +103,6 @@ const studios = [
     icon: Pencil,
     nameKey: 'studios.s8Name',
     descKey: 'studios.s8Desc',
-    creditsKey: 'studios.s8Credits',
     free: false,
     iconBg: 'bg-pink-100 dark:bg-pink-900/30',
     iconColor: 'text-pink-600 dark:text-pink-400',
@@ -118,7 +112,6 @@ const studios = [
     icon: Lightbulb,
     nameKey: 'studios.s9Name',
     descKey: 'studios.s9Desc',
-    creditsKey: 'studios.s9Credits',
     free: true,
     iconBg: 'bg-yellow-100 dark:bg-yellow-900/30',
     iconColor: 'text-yellow-600 dark:text-yellow-400',
@@ -127,6 +120,24 @@ const studios = [
 
 export function StudiosShowcase(): React.ReactElement {
   const t = useTranslations('landing');
+  const s = useTranslations('studios.shared');
+  // The badge is COMPUTED, like every other public price. It was
+  // `landing.studios.sNCredits` — nine typed strings — and the campaign one said
+  // "12" while the default campaign costs 3 (CampaignForm leaves images
+  // unticked). The widened credit scan could not see it: a bare number carries
+  // no unit. studio-pages.test.ts now asserts every band end reaches the card.
+  const vLow = getVoiceoverConfig('entry');
+  const vHigh = getVoiceoverConfig('pro');
+  const badgeLabels = {
+    unit: s('creditUnit'),
+    free: s('freeLabel'),
+    perDurationShort: s('perDurationShort', {
+      freeCredits: vLow.creditsPerUnit,
+      freeSeconds: vLow.unitSeconds,
+      paidCredits: vHigh.creditsPerUnit,
+      paidSeconds: vHigh.unitSeconds,
+    }),
+  };
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
 
@@ -173,7 +184,7 @@ export function StudiosShowcase(): React.ReactElement {
                     variant={studio.free ? 'success' : 'secondary'}
                     className="absolute end-4 top-4"
                   >
-                    {t(studio.creditsKey)}
+                    {studioCostBadge(studio.slug, badgeLabels)}
                   </Badge>
 
                   <div className="flex flex-row items-start gap-4">

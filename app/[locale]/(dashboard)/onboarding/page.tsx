@@ -144,17 +144,24 @@ export default function OnboardingPage(): React.ReactElement {
     router.push(currentStep.action);
   };
 
-  // Skip must still mark onboarding as complete server-side (without the
-  // completion bonus — see app/api/user/onboarding/route.ts) or the
+  // Skip must still mark onboarding as complete server-side or the
   // middleware's onboarding redirect bounces the user straight back here,
-  // turning Skip into a dead control.
+  // turning Skip into a dead control. It also pays the same trial as finishing
+  // (see app/api/user/onboarding/route.ts), so it says so the same way.
   const handleSkip = async (): Promise<void> => {
     try {
-      await fetch('/api/user/onboarding', {
+      const res = await fetch('/api/user/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skipped: true }),
       });
+      const data = await res.json() as { success: boolean; newBalance?: number; creditsAwarded?: number };
+      if (data.success && typeof data.newBalance === 'number') {
+        useCreditsStore.getState().setBalance(data.newBalance);
+        if (typeof data.creditsAwarded === 'number' && data.creditsAwarded > 0) {
+          toast.success(t('bonusGranted', { credits: data.creditsAwarded }));
+        }
+      }
       window.localStorage.removeItem(STORAGE_KEY);
     } catch { /* Non-blocking — user still proceeds to /dashboard */ }
     router.push('/dashboard');

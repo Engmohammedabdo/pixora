@@ -281,7 +281,7 @@ export default async function StudioPage({
         <StudioFaq title={s('faqTitle')} items={faq} />
         <StudioCta
           title={s('ctaTitle')}
-          body={s('ctaBody', { credits: PLANS.free.credits })}
+          body={s('ctaBody', { price: PLANS.entry.price })}
           button={s('ctaButton')}
           pricing={s('seePricing')}
         />

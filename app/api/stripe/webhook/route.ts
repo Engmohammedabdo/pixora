@@ -8,6 +8,7 @@ import { trackEventWithIds } from '@/lib/analytics/track';
 import { gaIdsFromMetadata, metaIdsFromMetadata } from '@/lib/analytics/stripe-attribution';
 import { sendMetaCapiEvent } from '@/lib/analytics/meta-capi';
 import { EVENTS } from '@/lib/analytics/events';
+import { REFERRAL_CREDITS } from '@/lib/credits/offer';
 import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -143,6 +144,77 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.warn(`[webhook] downgraded ${userId}: ${previousPlan} -> free (${reason})`);
   }
 
+  /**
+   * Which plan a completed SUBSCRIPTION checkout paid for — refused, never guessed.
+   *
+   * This read `session.metadata?.planId || 'starter'`. The only writer of that
+   * metadata is create-checkout, which always sets it, so the fallback never ran
+   * — until a payment link, a dashboard-created session or a mistyped metadata
+   * key reached it, and then it booked the customer onto Starter with 200
+   * credits whatever they had paid. The $2 plan made that concrete: a $2 payment
+   * without metadata would have been granted a $12 month.
+   *
+   * So metadata is trusted only when it names a plan this product SELLS (in
+   * PLANS, price > 0 — `free` is not something a checkout can buy). Otherwise the
+   * plan is read off the subscription's price, the rule `subscription.updated`
+   * already uses. If neither names one, throw: the route answers 500, the event
+   * stays unprocessed and visible, and Stripe keeps retrying while a person
+   * grants it by hand. A loud retry is recoverable; money taken for the wrong
+   * plan is a refund conversation.
+   */
+  async function resolveCheckoutPlan(
+    session: Stripe.Checkout.Session,
+    subscriptionId: string | undefined
+  ): Promise<string> {
+    const named = session.metadata?.planId;
+    if (named && Object.hasOwn(PLANS, named) && PLANS[named].price > 0) return named;
+
+    if (subscriptionId) {
+      const sub = await stripe.subscriptions.retrieve(subscriptionId);
+      const priceId = sub.items.data[0]?.price?.id;
+      const byPrice = priceId
+        ? Object.values(PLANS).find((p) => p.price > 0 && p.priceId === priceId)
+        : undefined;
+      if (byPrice) {
+        console.warn(`[webhook] checkout ${session.id}: metadata planId=${named ?? 'absent'} — plan resolved from price ${priceId} as ${byPrice.id}`);
+        return byPrice.id;
+      }
+    }
+
+    throw new Error(`subscription: checkout ${session.id} names no plan this product sells (metadata planId=${named ?? 'absent'}) — refusing to guess; grant it by hand`);
+  }
+
+  /**
+   * Pay the referral reward, if this account was referred and has never paid.
+   * Migration 048 moved the reward here from signup, where it made a shared link
+   * worth more than the $2 plan.
+   *
+   * NOT wrapped in mustSucceed, deliberately. The customer's own purchase is
+   * already granted when this runs, and a 500 would make Stripe re-run all of it
+   * for the sake of a bonus. `reward_referral_on_payment()` pays at most once per
+   * referral (row lock + `rewarded_at`), so calling it on every first delivery is
+   * safe; a failure is logged as OWED — the tag the credit reconciler uses for a
+   * debt a person must settle — and is paid by hand.
+   */
+  async function rewardReferral(userId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.rpc('reward_referral_on_payment', {
+        p_referee_id: userId,
+        p_credits: REFERRAL_CREDITS,
+      });
+      if (error) {
+        console.error(`[referral][OWED] reward for referee ${userId} not paid: ${error.message}`);
+        return;
+      }
+      const result = data as { rewarded?: boolean } | null;
+      if (result?.rewarded) {
+        console.info(`[webhook] referral reward paid: referee ${userId}, ${REFERRAL_CREDITS} credits to each side`);
+      }
+    } catch (e) {
+      console.error(`[referral][OWED] reward for referee ${userId} threw:`, e);
+    }
+  }
+
   // ═══ DB-BASED IDEMPOTENCY (atomic) ═══
   // Check if already processed successfully
   const { data: existing } = await supabase
@@ -188,11 +260,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         let purchase: { itemId: string; itemName: string } | null = null;
 
         if (session.mode === 'subscription') {
-          const planId = session.metadata?.planId || 'starter';
-          const credits = getCreditsForPlan(planId);
           const subscriptionId = typeof session.subscription === 'string'
             ? session.subscription
             : session.subscription?.id;
+          // Refused, not guessed — see resolveCheckoutPlan() above.
+          const planId = await resolveCheckoutPlan(session, subscriptionId);
+          const credits = getCreditsForPlan(planId);
 
           // `.select()` returns the updated row, so the ledger's balance_after can
           // include purchased credits without a second round trip. Writing plain
@@ -331,6 +404,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               content_name: purchase.itemId,
             },
           });
+
+          // Inside the same guard: a replay the grant absorbed pays nothing here
+          // either. The RPC itself also pays at most once per referral.
+          await rewardReferral(userId);
         }
         break;
       }

@@ -107,7 +107,7 @@ export default function ActivationPage(): React.ReactElement {
               {[
                 { icon: Users, label: 'Active users (any completion)', value: data.activeUsers },
                 { icon: Zap, label: 'Generations completed', value: data.totals.generation_completed ?? 0 },
-                { icon: Repeat, label: 'Sign-ups', value: data.totals.sign_up ?? 0 },
+                { icon: Repeat, label: 'Sign-ups (distinct people)', value: data.totals.sign_up ?? 0 },
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
                   <Icon className="h-4 w-4 text-slate-500" />
@@ -135,7 +135,7 @@ export default function ActivationPage(): React.ReactElement {
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-                <h2 className="mb-4 text-sm font-semibold text-slate-300">Sign-ups per day</h2>
+                <h2 className="mb-4 text-sm font-semibold text-slate-300">Sign-ups per day · distinct people · Dubai calendar days</h2>
                 {data.signups.length === 0 ? (
                   <p className="text-sm text-slate-500">None in this window.</p>
                 ) : (

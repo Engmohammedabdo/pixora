@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GenerationProgress } from '@/components/shared/GenerationProgress';
@@ -90,7 +91,11 @@ export function PhotoshootPreview({
           url: shot.url as string,
           filename: `pyrasuite-photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`,
         }))
-    );
+      // lib/download.ts THROWS on a failed save now, and says so on purpose. A
+      // bare `void` here made that throw an unhandled rejection: the customer
+      // tapped Download All, nothing saved, and nothing on screen said so.
+      // Same toast as CreatorPreview.tsx:112, the other image studio.
+    ).catch(() => toast.error(t('downloadFailed')));
   };
 
   return (
@@ -130,7 +135,7 @@ export function PhotoshootPreview({
                       variant="secondary"
                       className="gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                       aria-label={tShoot('downloadShot', { number: shot.index + 1 })}
-                      onClick={() => void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`)}
+                      onClick={() => { void downloadFile(shot.url as string, `photoshoot-${shot.index + 1}.${formatFromUrl(shot.url as string)}`).catch(() => toast.error(t('downloadFailed'))); }}
                     >
                       <Download className="h-4 w-4" />
                     </Button>

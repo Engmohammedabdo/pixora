@@ -21,6 +21,7 @@ import { formatFromUrl } from '@/lib/storage/image-format';
 import { downloadFile } from '@/lib/download';
 import Image from 'next/image';
 import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { Sparkles, Upload, X, Download, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
@@ -456,7 +457,7 @@ function EditPageContent(): React.ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={CREDIT_COSTS.edit} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (<Button asChild variant="default" size="sm"><Link href="/billing">{t('credits.topUpShort')}</Link></Button>)}
+          {cannotAfford && <GetCreditsButton />}
           <Button onClick={handleGenerate} disabled={!isValid || isLoading || cannotAfford} className="gap-2"><Sparkles className="h-4 w-4" />{isLoading ? t('studio.generating') : t('studio.generate')}</Button>
         </div>
       </div>

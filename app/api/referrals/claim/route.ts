@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getCachedFeatureFlags } from '@/lib/admin/settings';
+import { REFERRAL_CREDITS } from '@/lib/credits/offer';
 
 const InputSchema = z.object({
   code: z.string().min(4).max(32),
@@ -36,11 +37,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { code } = InputSchema.parse(await request.json());
 
+    // Records the referral and grants NOTHING (migration 048). Both sides are
+    // paid REFERRAL_CREDITS by the Stripe webhook once this account first pays —
+    // paying at signup made a shared link worth more than the $2 plan.
     const admin = await createServiceRoleClient();
     const { data, error } = await admin.rpc('claim_referral', {
       p_referee_id: user.id,
       p_code: code,
-      p_credits: 25,
+      p_credits: REFERRAL_CREDITS,
     });
 
     if (error) {

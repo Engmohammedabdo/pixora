@@ -12,7 +12,9 @@ import { Progress } from '@/components/ui/progress';
 import { PlanCard } from '@/components/billing/PlanCard';
 import { TopupCard } from '@/components/billing/TopupCard';
 import { TransactionTable } from '@/components/billing/TransactionTable';
+import { UnlockButton } from '@/components/shared/UnlockButton';
 import {PLANS, TOPUPS, getPlan} from '@/lib/stripe/plans';
+import { entryOffer } from '@/lib/credits/offer';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Check, CreditCard, Coins, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
@@ -40,6 +42,13 @@ export default function BillingPage(): React.ReactElement {
   // runs, so the whole page heals itself within 30s.
   const currentPlanId = serverPlanId ?? profile?.plan_id ?? 'free';
   const currentPlan = getPlan(currentPlanId);
+
+  // The free account holds no monthly allowance (2026-09-11). Everything below
+  // that reads "N credits a month", "balance / N" or "renews on" is a statement
+  // about an allowance, so for this account it is replaced rather than printed
+  // as "0 credits a month", "5 / 0" and a renewal date that renews nothing.
+  const isFreeAccount = currentPlan.price === 0;
+  const offer = entryOffer();
 
   // Stripe has taken the money but the webhook has not landed yet. Say that,
   // rather than claiming an activation that has not happened.
@@ -161,10 +170,13 @@ export default function BillingPage(): React.ReactElement {
                   <Badge variant="default">{locale === 'ar' ? currentPlan.nameAr : currentPlan.name}</Badge>
                 </div>
                 <p className="text-sm text-[var(--color-text-secondary)]">
-                  {currentPlan.credits.toLocaleString()} {t('creditsPerMonth')} — {t('resolution')} {currentPlan.resolution}
+                  {isFreeAccount
+                    ? t('freeAccountLine')
+                    : `${currentPlan.credits.toLocaleString()} ${t('creditsPerMonth')} — ${t('resolution')} ${currentPlan.resolution}`}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {isFreeAccount && !planPending && <UnlockButton label="long" size="sm" />}
                 {hasBillingHistory && (
                   <Button variant="outline" size="sm" onClick={handleManageSubscription} disabled={loading === 'portal'} className="gap-1">
                     <ExternalLink className="h-3 w-3" />
@@ -173,6 +185,12 @@ export default function BillingPage(): React.ReactElement {
                 )}
               </div>
             </div>
+
+            {isFreeAccount && (
+              <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
+                {t('entryPitch', { credits: offer.credits, price: offer.price, campaigns: offer.campaigns, posts: offer.posts })}
+              </p>
+            )}
 
             <Separator className="my-4" />
 
@@ -184,11 +202,15 @@ export default function BillingPage(): React.ReactElement {
                   {t('creditBalance')}
                 </span>
                 <span className="font-bold text-[var(--color-brand)]">
-                  {creditsStatus === 'ready' ? `${balance} / ${currentPlan.credits}` : tCredits('unavailable')}
+                  {creditsStatus !== 'ready'
+                    ? tCredits('unavailable')
+                    : isFreeAccount
+                      ? balance
+                      : `${balance} / ${currentPlan.credits}`}
                 </span>
               </div>
-              <Progress value={creditPercentage} className="h-2.5" />
-              {profile?.credits_reset_date && (
+              {!isFreeAccount && <Progress value={creditPercentage} className="h-2.5" />}
+              {!isFreeAccount && profile?.credits_reset_date && (
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {t('renewsAt')} {format.dateTime(new Date(profile.credits_reset_date), { month: 'long', day: 'numeric' })}
                 </p>
@@ -204,8 +226,11 @@ export default function BillingPage(): React.ReactElement {
           <Sparkles className="h-5 w-5 text-primary-500" />
           <h2 className="text-xl font-bold font-cairo">{t('plansAndPricing')}</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {Object.values(PLANS).map((plan) => {
+        {/* Plans that can be bought. The free account is described in the card
+            above; as a sixth card it was a $0 box of 0 credits with a disabled
+            button, wrapped onto a row of its own. */}
+        <div className={cn('grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4')}>
+          {Object.values(PLANS).filter((plan) => plan.price > 0).map((plan) => {
             return (
               <PlanCard
                 key={plan.id}

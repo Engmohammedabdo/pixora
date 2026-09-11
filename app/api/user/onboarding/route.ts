@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v4';
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { TRIAL_CREDITS } from '@/lib/credits/offer';
 
-// Matches the "أضفنا 5 كريدت مجانية لحسابك" promise on onboarding step 5
-// (messages/ar.json: onboarding.step5Description). Keep in sync with that copy.
-const ONBOARDING_BONUS_CREDITS = 5;
+// The trial every new account receives. Stated in lib/credits/offer.ts, where the
+// landing page, the FAQ and the $2 button read the same number — the step-5 card
+// this constant used to "keep in sync with" by comment no longer exists.
+const ONBOARDING_BONUS_CREDITS = TRIAL_CREDITS;
 
 // Body is optional. Normal completion sends none (or `{}`); the Skip control
-// sends `{ skipped: true }` to release the user from the middleware's
-// onboarding redirect WITHOUT paying out the completion bonus.
+// sends `{ skipped: true }`. Both now pay the trial — see below.
 const BodySchema = z.object({
   skipped: z.boolean().optional(),
 }).strict();
@@ -31,26 +32,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!user) return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
 
     const rawBody = await request.text();
-    const { skipped } = rawBody ? BodySchema.parse(JSON.parse(rawBody)) : { skipped: undefined };
+    // Still validated, so a malformed body stays a 400 — but `skipped` no longer
+    // changes what the account receives.
+    if (rawBody) BodySchema.parse(JSON.parse(rawBody));
 
-    if (skipped === true) {
-      // Skip must still release the user from the middleware's onboarding
-      // redirect, but must NOT grant the completion bonus. Only flip the
-      // flag, via the session client — 022 grants authenticated users UPDATE
-      // on this exact column, so no service-role client / RPC is needed and
-      // no credit_transactions row is written.
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ onboarding_completed: true })
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.error('Onboarding skip update error:', updateError.message);
-        return NextResponse.json({ success: false, error: 'internal_error' }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, skipped: true });
-    }
+    // Skip used to release the user WITHOUT the bonus. That was right when
+    // onboarding was five cards worth finishing, and wrong from 2026-09-11: the
+    // account now holds no monthly credits, so a customer who skipped the
+    // website step reached every studio at 0 while the landing page promised
+    // them a free campaign. The trial is the product's proof, not a reward for
+    // clicking through — finish and Skip pay the same, and `skipped` only
+    // decides where the page sends them next.
 
     // Releases the user from the middleware's onboarding redirect regardless
     // of what happens to the credit payout below. Uses the SESSION client —

@@ -5,10 +5,11 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { CreditCost } from '@/components/shared/CreditCost';
+import { PHOTOSHOOT_SHOT_COSTS, PHOTOSHOOT_SHOT_OPTIONS } from '@/lib/credits/costs';
 import { selectedChipClasses, unselectedChipClasses } from '@/components/studios/selectable-chip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { Link } from '@/i18n/routing';
+import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
 import { Upload, X, Camera, Sparkles, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
@@ -38,11 +39,13 @@ const ENVIRONMENTS = [
   { id: 'festive', emoji: '🎉' },
 ] as const;
 
-const SHOT_OPTIONS: { count: 1 | 3 | 6; credits: number }[] = [
-  { count: 1, credits: 2 },
-  { count: 3, credits: 4 },
-  { count: 6, credits: 8 },
-];
+// Read from the map the route charges from, not typed. This list feeds
+// <CreditCost/> and the affordability check — the price shown the moment before
+// the reservation — and its three literals were a fourth copy of that map.
+const SHOT_OPTIONS: { count: 1 | 3 | 6; credits: number }[] = PHOTOSHOOT_SHOT_OPTIONS.map((count) => ({
+  count,
+  credits: PHOTOSHOOT_SHOT_COSTS[count],
+}));
 
 /**
  * What POST /api/upload actually accepts. The picker used to say `image/*`, so
@@ -341,11 +344,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
         <CreditCost cost={selectedShotOption.credits} />
         <div className="flex items-center gap-2">
-          {cannotAfford && (
-            <Button asChild variant="default" size="sm">
-              <Link href="/billing">{tCredits('topUpShort')}</Link>
-            </Button>
-          )}
+          {cannotAfford && <GetCreditsButton />}
           <Button type="submit" disabled={!isValid || isLoading || cannotAfford} className="gap-2">
             <Sparkles className="h-4 w-4" />
             {isLoading ? tStudio('generating') : tStudio('generate')}

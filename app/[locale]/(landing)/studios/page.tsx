@@ -143,7 +143,7 @@ export default async function StudiosIndexPage({
 
         <StudioCta
           title={s('ctaTitle')}
-          body={s('ctaBody', { credits: PLANS.free.credits })}
+          body={s('ctaBody', { price: PLANS.entry.price })}
           button={s('ctaButton')}
           pricing={s('seePricing')}
         />

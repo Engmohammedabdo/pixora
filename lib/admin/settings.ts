@@ -84,9 +84,15 @@ export interface ModelConfig {
   fallback_order: string[];
 }
 
+// gpt first, matching the decision in router.ts (IMAGE_FALLBACK_ORDER,
+// 2026-09-09). This is the default that actually RUNS when the settings row is
+// missing or unreadable — getSetting() returns null and this object answers. The
+// router's own catch-branch default only covers createAdminClient() throwing, so
+// leaving this gemini-first meant the one fallback that runs most often
+// contradicted the decision.
 const DEFAULT_MODEL_CONFIG: ModelConfig = {
   enabled: ['gemini', 'gpt', 'flux'],
-  fallback_order: ['gemini', 'gpt', 'flux'],
+  fallback_order: ['gpt', 'gemini', 'flux'],
 };
 
 export async function getModelConfig(): Promise<ModelConfig> {

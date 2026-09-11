@@ -236,13 +236,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      * `CreatorForm.tsx` defaulted to gemini. On 2026-09-09 the default became
      * gpt, and both halves of that turn into real exposure:
      *
-     * FREE EARNS $0. `PLANS.free.price` is 0 for 25 monthly credits, signup is
-     * open, and gpt bills per token while gemini is roughly a fifth of it
-     * (MODEL_COSTS, app/api/admin/health/route.ts). A free account is pure cost
-     * on either provider; it should not be pure cost on the dearer one BY
-     * DEFAULT. Paid plans keep the customer's choice — starter earns $0.06 a
-     * credit against roughly $0.01 of provider cost, so only the $0 tier is
-     * under water.
+     * FREE EARNS $0. `PLANS.free.price` is 0 and, since 2026-09-11, a free
+     * account holds no monthly credits — only its trial (TRIAL_CREDITS,
+     * lib/credits/offer.ts). Signup is open, and gpt bills per token while
+     * gemini is roughly a fifth of it (MODEL_COSTS, app/api/admin/health/route.ts).
+     * The trial is pure cost on either provider; it should not be pure cost on
+     * the dearer one BY DEFAULT. Every PAID plan keeps the customer's choice —
+     * Entry included: $2 for 25 credits is about $0.066 a credit after Stripe's
+     * fee, against roughly $0.01 of provider cost. Deliberately keyed on the id
+     * 'free', not on "1080p": Entry is 1080p too, and it pays.
      *
      * 4K IS NOT THE SAME PRODUCT ON THE TWO PROVIDERS, and this is the only
      * route that sells the tier directly. gemini switches MODEL for it —
@@ -256,10 +258,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      * genuine provider outage still falls through and `usedFallback` still means
      * what it says.
      */
+    // A REFERENCE IMAGE is the third clamp. Only gemini can take one
+    // (router.ts IMAGE_INPUT_CAPABLE), so the router already re-routes such a
+    // request — but it did so as a FALLBACK: with gpt the form's default since
+    // 2026-09-09, every paid run with a photo attached came back flagged
+    // `usedFallback`, and the customer was told Pyra had to take another path on
+    // a request that had only ever had one. Choosing gemini here states the
+    // route's real capability, and keeps `usedFallback` meaning an outage.
     const planId = profile?.plan_id || 'free';
     const servingModel: typeof input.model =
       planId === 'free' ? 'gemini'
       : input.resolution === '4K' ? 'gemini'
+      : input.referenceImageUrl ? 'gemini'
       : input.model;
 
     // Calculate credit cost (use admin override if set)

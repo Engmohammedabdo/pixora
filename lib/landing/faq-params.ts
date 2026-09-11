@@ -1,6 +1,6 @@
-import { PLANS } from '@/lib/stripe/plans';
 import { CREDIT_COSTS } from '@/lib/credits/costs';
 import { campaignCostBands } from '@/lib/credits/campaign-cost';
+import { entryOffer } from '@/lib/credits/offer';
 
 /**
  * The values `landing.faq.a*` interpolates — stated ONCE, for the two readers
@@ -23,9 +23,18 @@ import { campaignCostBands } from '@/lib/credits/campaign-cost';
  */
 export function faqParams(): Record<string, string | number> {
   const campaign = campaignCostBands();
+  const offer = entryOffer();
   return {
-    /** The free plan's monthly allowance — the figure a2/a5 promise. */
-    credits: PLANS.free.credits,
+    /** The Entry plan's monthly credits — a3. Was `PLANS.free.credits`, which
+     *  is 0 since 2026-09-11: left pointing there, a3 would have told answer
+     *  engines that a new account starts with 0 credits. */
+    credits: offer.credits,
+    /** The Entry plan's price in dollars — a3. */
+    price: offer.price,
+    /** Complete text campaigns one Entry month pays for — a3. */
+    campaigns: offer.campaigns,
+    /** The trial a new account receives — a3. */
+    trial: offer.trial,
     /** One 1080p image, the cheapest generation the product sells. */
     image: CREDIT_COSTS.image['1080p'],
     /** Posts in a campaign (EXPECTED_POSTS), so the sentence cannot say "9"
