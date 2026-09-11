@@ -2484,7 +2484,7 @@ matcher fires and does not fire on `بسيط`, `عليه`, `اليمين`, `تق
 | The webhook's write for an `entry` checkout succeeds | ✅ **rehearsed on the live DB, rolled back** | the exact `profiles` update + ledger insert from `webhook/route.ts`, inside `BEGIN … ROLLBACK`: PASS, `entry / 25 / reset +30d` |
 | `|| 'starter'` removed | ✅ | a planless subscription checkout resolves from the price or THROWS — a $2 payment could have been booked as a $12 month |
 | Free account → 0; a TRIAL of 5 credits on finishing OR skipping onboarding, enough for one full text campaign | ✅ code (`25fea32`) | `lib/credits/offer.ts` is the one source for every surface quoting the offer; `test:segment-pages` fails if the trial stops buying a campaign |
-| Migration 048: `credits_balance DEFAULT 0`; the monthly reset names `entry` and no longer refills free; `claim_referral` records only; `reward_referral_on_payment` pays both sides ONCE on the friend's first payment | ✅ rehearsed 9/9 (two probes as `authenticated`) | a referral paid at signup made any shared link worth the whole Entry plan |
+| Migration 048: `credits_balance DEFAULT 0`; the monthly reset names `entry` and no longer refills free; `claim_referral` records only; `reward_referral_on_payment` pays both sides ONCE on the friend's first payment | ✅ **applied 2026-09-11 18:22Z**, 12/12 probes (two as `authenticated`, three for the dispute clawback); read back: default 0, reset names entry and never refills free, all four money functions service-role only | a referral paid at signup made any shared link worth the whole Entry plan |
 | One click from "not enough credits" to the Entry checkout | ✅ | `UnlockButton` / `GetCreditsButton` (replaces nine copies of one `<Link>`), the banner, the widget, `UpgradePrompt` |
 
 **The founder declined to buy the plan to test it**, so no real `checkout.session.completed`
@@ -2498,6 +2498,10 @@ price. The first real Entry customer is that test — watch `webhook_events` and
 Entry customer their ceiling is 2K; the campaign watermark notice never showed for
 Entry; the voiceover page offered Entry 2 of 5 speeds; three admin plan lists had no
 `entry`; `CreditsWidget` drew a FULL green bar at 5/0 (`Infinity`, clamped).
+
+#### Shipped and verified on production — 2026-09-11
+
+Deployed `cf6de55` through the Coolify REST API (the MCP was down; see the deploy-facts memory) — Coolify reported `finished` on that exact sha in 284 s, and the build was confirmed by probe, not status: `/ar` serves "بوستات مكتوبة مجاناً" and no "25 كريدت مجاناً", the Dubai page serves the new H1, `/llms.txt` names Entry, the landing cards carry computed 1–4 / 2–8 / 3–12 badges. Code first, then 048. A signed-in probe as the e2e account after both: `create-checkout` for `entry` → **200** with a `cs_live` URL (so the new settling check does not block a normal checkout), `free` → 400 `invalid_plan`, `constructor` → 400; `/api/referrals` → 200.
 
 #### The review, and the gates proving themselves
 
@@ -2551,8 +2555,10 @@ recorded as "free plan — 0 credits".
 #### Still open, deliberately
 
 - **The Stripe Customer Portal.** Upgrading from Entry, cancelling, and fixing an
-  expired card ALL route through `/api/stripe/portal`, and this file last recorded
-  zero portal configurations on the live account. The walkthrough ranked it the
+  expired card ALL route through `/api/stripe/portal`, and the live account has
+  **zero portal configurations — measured 2026-09-11** (`GET
+  /v1/billing_portal/configurations` → empty list), so every one of those paths
+  errors today. The walkthrough ranked it the
   #1 issue. It is a dashboard setting on an account three products share, so it
   was left for the founder: save a default configuration with payment-method
   update, invoices, cancellation and plan switching across the five PyraSuite
@@ -2741,8 +2747,9 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **47 files** in `supabase/migrations/`, latest `046_brand_kit_default_is_the_rule.sql`
-  (applied 2026-09-01, re-probed independently as `authenticated`: 11 of 11).
+- **49 files** in `supabase/migrations/`, latest `048_free_account_holds_no_monthly_credits.sql`
+  (applied 2026-09-11, 12 of 12 probes; 047 applied 2026-09-10). 046 was applied
+  2026-09-01 and re-probed independently as `authenticated`: 11 of 11.
   `public.schema_migrations` records 24 of them (022 → 045, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
   it predates the ledger, not that it was skipped. Verified against the live
