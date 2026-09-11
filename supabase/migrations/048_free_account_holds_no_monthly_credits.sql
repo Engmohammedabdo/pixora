@@ -27,7 +27,9 @@
 --      repeatable with throwaway addresses up to the referrer's lifetime cap of
 --      50. The claim now only RECORDS who referred whom. The reward moves to
 --      `reward_referral_on_payment()`, which the Stripe webhook calls after the
---      friend's first successful payment, and which pays exactly once.
+--      friend's first successful SUBSCRIPTION payment, and which pays exactly
+--      once. `revoke_referral_reward()` takes it back from both sides when that
+--      payment is disputed — otherwise "pay $2, collect 50, charge back" is a tap.
 --
 -- ── WHAT THIS DOES NOT DO ───────────────────────────────────────────────────
 -- It does not touch any balance. `SET DEFAULT` affects new rows only, and the
@@ -98,6 +100,7 @@ REVOKE ALL ON FUNCTION public.reset_monthly_credits() FROM PUBLIC, anon, authent
 
 -- ── §3 Referral reward moves from signup to first payment ──────────────────
 ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS rewarded_at TIMESTAMPTZ;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
 
 -- Every row that exists today was paid at claim time by 026. Mark it so, or the
 -- friend's next payment would pay the pair a second time.
@@ -242,6 +245,45 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 REVOKE ALL ON FUNCTION public.reward_referral_on_payment(UUID, INTEGER) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reward_referral_on_payment(UUID, INTEGER) TO service_role;
 
+-- Takes a paid reward back from BOTH sides when the referee's qualifying payment
+-- is disputed. Floored at zero: credits the pair already spent cannot be
+-- recovered, and a negative balance would block the account for a debt the
+-- product never tells it about. `revoked_at` makes a replayed dispute a no-op,
+-- and a revoked row is never paid again because `rewarded_at` stays set.
+CREATE OR REPLACE FUNCTION public.revoke_referral_reward(
+  p_referee_id UUID
+) RETURNS JSONB AS $$
+DECLARE
+  v_ref RECORD;
+BEGIN
+  SELECT id, referrer_id, credits_each INTO v_ref
+  FROM public.referrals
+  WHERE referee_id = p_referee_id AND rewarded_at IS NOT NULL AND revoked_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', true, 'revoked', false);
+  END IF;
+
+  UPDATE public.profiles
+  SET purchased_credits = GREATEST(COALESCE(purchased_credits, 0) - v_ref.credits_each, 0)
+  WHERE id IN (p_referee_id, v_ref.referrer_id);
+
+  INSERT INTO public.credit_transactions (user_id, amount, type, description, balance_after)
+  SELECT id, -v_ref.credits_each, 'referral',
+         'Referral bonus reversed — the qualifying payment was disputed',
+         COALESCE(credits_balance, 0) + COALESCE(purchased_credits, 0)
+  FROM public.profiles WHERE id IN (p_referee_id, v_ref.referrer_id);
+
+  UPDATE public.referrals SET revoked_at = NOW() WHERE id = v_ref.id;
+
+  RETURN jsonb_build_object('success', true, 'revoked', true, 'credits_each', v_ref.credits_each);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION public.revoke_referral_reward(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.revoke_referral_reward(UUID) TO service_role;
+
 -- ── §4 PROBES ───────────────────────────────────────────────────────────────
 -- Reported as a final SELECT: scripts/db/apply.js discards NOTICE and WARNING.
 --
@@ -265,6 +307,7 @@ DECLARE
   v_r1 jsonb; v_r2 jsonb;
   v_claim_def text;
   v_h text; v_i text;
+  v_ee2 int; v_er2 int; v_rv1 jsonb; v_rv2 jsonb;
 BEGIN
   -- A. new accounts start at zero
   SELECT column_default INTO v_default
@@ -308,6 +351,8 @@ BEGIN
   IF v_referee IS NULL OR v_referrer IS NULL THEN
     INSERT INTO probe_results VALUES ('E reward pays both once', 'INCONCLUSIVE no unreferred pair');
     INSERT INTO probe_results VALUES ('F second payment pays nothing', 'INCONCLUSIVE no unreferred pair');
+    INSERT INTO probe_results VALUES ('J dispute takes the reward back from both', 'INCONCLUSIVE no unreferred pair');
+    INSERT INTO probe_results VALUES ('K a replayed dispute takes nothing more', 'INCONCLUSIVE no unreferred pair');
   ELSE
     BEGIN
       SELECT COALESCE(purchased_credits, 0) INTO v_ee0 FROM public.profiles WHERE id = v_referee;
@@ -318,6 +363,11 @@ BEGIN
       v_r2 := public.reward_referral_on_payment(v_referee, 25);
       SELECT COALESCE(purchased_credits, 0) INTO v_ee1 FROM public.profiles WHERE id = v_referee;
       SELECT COALESCE(purchased_credits, 0) INTO v_er1 FROM public.profiles WHERE id = v_referrer;
+      -- and the dispute: taken back from both, once
+      v_rv1 := public.revoke_referral_reward(v_referee);
+      v_rv2 := public.revoke_referral_reward(v_referee);
+      SELECT COALESCE(purchased_credits, 0) INTO v_ee2 FROM public.profiles WHERE id = v_referee;
+      SELECT COALESCE(purchased_credits, 0) INTO v_er2 FROM public.profiles WHERE id = v_referrer;
       RAISE EXCEPTION 'probe rollback' USING ERRCODE = 'PR001';
     EXCEPTION WHEN SQLSTATE 'PR001' THEN NULL;
     END;
@@ -326,12 +376,21 @@ BEGIN
            THEN 'PASS' ELSE 'FAIL r1=' || COALESCE(v_r1::text, 'null') || ' referee ' || v_ee0 || '->' || v_ee1 || ' referrer ' || v_er0 || '->' || v_er1 END);
     INSERT INTO probe_results VALUES ('F second payment pays nothing',
       CASE WHEN (v_r2->>'rewarded') = 'false' THEN 'PASS' ELSE 'FAIL r2=' || COALESCE(v_r2::text, 'null') END);
+    INSERT INTO probe_results VALUES ('J dispute takes the reward back from both',
+      CASE WHEN (v_rv1->>'revoked') = 'true' AND v_ee2 = v_ee0 AND v_er2 = v_er0
+           THEN 'PASS' ELSE 'FAIL rv1=' || COALESCE(v_rv1::text, 'null') || ' referee ' || v_ee0 || '->' || v_ee2 || ' referrer ' || v_er0 || '->' || v_er2 END);
+    INSERT INTO probe_results VALUES ('K a replayed dispute takes nothing more',
+      CASE WHEN (v_rv2->>'revoked') = 'false' THEN 'PASS' ELSE 'FAIL rv2=' || COALESCE(v_rv2::text, 'null') END);
   END IF;
 
   -- G. nobody but the service role can call the new function
   INSERT INTO probe_results VALUES ('G reward not executable by anon/authenticated',
     CASE WHEN NOT has_function_privilege('anon', 'public.reward_referral_on_payment(uuid,integer)', 'EXECUTE')
           AND NOT has_function_privilege('authenticated', 'public.reward_referral_on_payment(uuid,integer)', 'EXECUTE')
+         THEN 'PASS' ELSE 'FAIL executable' END);
+  INSERT INTO probe_results VALUES ('L revoke not executable by anon/authenticated',
+    CASE WHEN NOT has_function_privilege('anon', 'public.revoke_referral_reward(uuid)', 'EXECUTE')
+          AND NOT has_function_privilege('authenticated', 'public.revoke_referral_reward(uuid)', 'EXECUTE')
          THEN 'PASS' ELSE 'FAIL executable' END);
 
   -- H/I. AS `authenticated`: a customer cannot reopen a paid reward, or forge a

@@ -19,6 +19,7 @@ import { STUDIO_SLUGS } from '../../lib/studios/catalogue.js';
 import { campaignCostBands } from '../../lib/credits/campaign-cost.js';
 import { PLANS } from '../../lib/stripe/plans.js';
 import { entryOffer, TRIAL_CREDITS } from '../../lib/credits/offer';
+import { stripComments } from '../lib/strip-comments';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ar = JSON.parse(readFileSync(join(ROOT, 'messages/ar.json'), 'utf8')) as Record<string, any>;
@@ -156,11 +157,18 @@ const offer = entryOffer();
 check('the free account holds no monthly credits — the 25 are the $2 plan now', PLANS.free.credits === 0, String(PLANS.free.credits));
 check('the trial pays for at least one full text campaign ("try a full campaign free")', offer.trialCampaigns >= 1, `${TRIAL_CREDITS} / ${bands.text} = ${offer.trialCampaigns}`);
 check('one Entry month pays for at least two full text campaigns', offer.campaigns >= 2, `${PLANS.entry.credits} / ${bands.text} = ${offer.campaigns}`);
-check(
-  'the onboarding route grants the trial from lib/credits/offer.ts, not a literal',
-  /ONBOARDING_BONUS_CREDITS\s*=\s*TRIAL_CREDITS/.test(readFileSync(join(ROOT, 'app/api/user/onboarding/route.ts'), 'utf8')),
-  'app/api/user/onboarding/route.ts',
-);
+{
+  // The ARGUMENT, not only the definition: a literal `p_credits: 5` beside a
+  // correct constant passed the first version of this check.
+  const onboarding = stripComments(readFileSync(join(ROOT, 'app/api/user/onboarding/route.ts'), 'utf8'));
+  check('the onboarding constant is TRIAL_CREDITS', /ONBOARDING_BONUS_CREDITS\s*=\s*TRIAL_CREDITS\b/.test(onboarding), 'app/api/user/onboarding/route.ts');
+  const args = [...onboarding.matchAll(/p_credits:\s*([^,}\s]+)/g)].map((m) => m[1]);
+  check(
+    'the onboarding grant passes that constant, never a literal',
+    args.length > 0 && args.every((a) => a === 'ONBOARDING_BONUS_CREDITS' || a === 'TRIAL_CREDITS'),
+    args.join(',') || 'no p_credits argument found',
+  );
+}
 // The retired placeholder must not survive anywhere a customer reads: a
 // component no longer passes `free`, so a leftover `{free}` renders literally.
 for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {

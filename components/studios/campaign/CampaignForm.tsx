@@ -63,7 +63,9 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
   const { projectId, projectBrandKitId, onProjectChange } = useProjectSelection();
   const [productDescription, setProductDescription] = useState(initialDescription ?? '');
   const [targetAudience, setTargetAudience] = useState('');
-  const [dialect, setDialect] = useState<string>('saudi');
+  // Emirati, not Saudi: the product is sold to shops in Dubai (docs/POSITIONING.md
+  // §2), and a Saudi-dialect campaign is the wrong output for a Karama restaurant.
+  const [dialect, setDialect] = useState<string>('emirati');
   const [platform, setPlatform] = useState<string>('instagram');
   const [occasion, setOccasion] = useState('');
   // ON by default, in BOTH studios. It was `useState(false)` in each, with a
@@ -289,6 +291,14 @@ export function CampaignForm({ onSubmit, isLoading, initialDescription }: Campai
           </Button>
         </div>
       </div>
+      {/* Generate greys out until both fields are long enough — say which, once
+          the customer has started typing, instead of a button that will not
+          press and will not explain itself. */}
+      {!isValid && (productDescription.length > 0 || targetAudience.length > 0) && (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {productDescription.length < 10 ? t('needDescription') : t('needAudience')}
+        </p>
+      )}
     </form>
   );
 }

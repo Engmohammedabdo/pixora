@@ -203,6 +203,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         p_credits: REFERRAL_CREDITS,
       });
       if (error) {
+        // Migration 048 not applied yet: the function does not exist, and every
+        // referral from before it was already paid at signup by 026 — so nothing
+        // is owed. Tagging these OWED would send an operator to pay a pair twice.
+        if (error.code === 'PGRST202' || error.code === '42883') {
+          console.warn(`[referral] reward system not installed yet (migration 048) — nothing owed for ${userId}`);
+          return;
+        }
         console.error(`[referral][OWED] reward for referee ${userId} not paid: ${error.message}`);
         return;
       }
@@ -212,6 +219,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } catch (e) {
       console.error(`[referral][OWED] reward for referee ${userId} threw:`, e);
+    }
+  }
+
+  /**
+   * Take a paid referral reward back from both sides when the referee's payment
+   * is disputed. Without this, "pay $2, collect 25 + 25, charge back" minted
+   * credits for nothing. Never fatal, for the reason rewardReferral gives; a
+   * failure is logged for a person to settle by hand.
+   */
+  async function revokeReferral(refereeId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.rpc('revoke_referral_reward', { p_referee_id: refereeId });
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') return; // 048 not applied: nothing was paid on payment yet
+        console.error(`[referral][CLAWBACK] could not reverse the reward for referee ${refereeId}: ${error.message}`);
+        return;
+      }
+      if ((data as { revoked?: boolean } | null)?.revoked) {
+        console.warn(`[webhook] referral reward reversed for referee ${refereeId} after a dispute`);
+      }
+    } catch (e) {
+      console.error(`[referral][CLAWBACK] could not reverse the reward for referee ${refereeId}:`, e);
     }
   }
 
@@ -406,8 +435,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
 
           // Inside the same guard: a replay the grant absorbed pays nothing here
-          // either. The RPC itself also pays at most once per referral.
-          await rewardReferral(userId);
+          // either, and the RPC pays at most once per referral. SUBSCRIPTIONS
+          // only — the referral page, the share message and the ledger line all
+          // promise the reward "when your friend subscribes", and a top-up is not
+          // that. Paying on one would make every surface that says so wrong.
+          if (session.mode === 'subscription') await rewardReferral(userId);
         }
         break;
       }
@@ -662,6 +694,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         console.error(`[webhook] DISPUTE ${dispute.id}: ${dispute.amount / 100} ${dispute.currency} on ${disputedProfile.plan_id} — reason "${dispute.reason}"`);
         await downgradeToFree(disputedProfile.id, `payment disputed (${dispute.reason})`, null);
+        await revokeReferral(disputedProfile.id);
         break;
       }
 
@@ -681,6 +714,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .single();
 
         if (!renewalProfile) break;
+
+        // A renewal that lands on an account already downgraded to free (retries
+        // exhausted, then an old invoice paid) would record "free plan — 0 credits"
+        // and grant nothing for money taken. Grant nothing, and say so loudly.
+        if (renewalProfile.plan_id === 'free') {
+          console.error(`[credits][OWED] renewal payment ${invoice.id} (${(invoice.amount_paid ?? 0) / 100} ${invoice.currency}) landed on ${renewalProfile.id}, which is on the free plan — nothing granted; resolve by hand`);
+          break;
+        }
 
         const renewalCredits = getCreditsForPlan(renewalProfile.plan_id);
 

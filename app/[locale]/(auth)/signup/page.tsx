@@ -55,6 +55,15 @@ export default function SignupPage(): React.ReactElement {
     return () => { cancelled = true; };
   }, []);
 
+  // Instagram's and Facebook's in-app browsers are where the Meta ads land, and
+  // Google refuses OAuth inside embedded webviews ("disallowed_useragent") — so
+  // the button was a dead end on the paid channel's first screen. Email signup
+  // works there; Google stays on every other browser.
+  const [inAppBrowser, setInAppBrowser] = useState(false);
+  useEffect(() => {
+    setInAppBrowser(/Instagram|FBAN|FBAV|FB_IAB/i.test(navigator.userAgent));
+  }, []);
+
   const claimReferral = async (): Promise<void> => {
     if (!referralCode) return;
     try {
@@ -295,7 +304,7 @@ export default function SignupPage(): React.ReactElement {
             every attempt. Leaving the button visible would give an invited person a
             path that always fails. Google stays available on the LOGIN page, where
             it signs in accounts that already exist. */}
-        {inviteOnly === false && (
+        {inviteOnly === false && !inAppBrowser && (
           <>
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">

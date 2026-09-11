@@ -327,6 +327,17 @@ const PRICE_BANDS: Record<StudioSlug, readonly number[]> = {
     }
   }
 }
+// …and the card RENDERS it. The check above tests the function; this one keeps
+// the landing card from going back to a typed key while the function stays green.
+{
+  const showcase = stripComments(readFileSync(join(ROOT, 'components/landing/StudiosShowcase.tsx'), 'utf8'));
+  check('the landing cards render studioCostBadge(), not a typed key', showcase.includes('studioCostBadge(studio.slug'), 'components/landing/StudiosShowcase.tsx');
+  for (const [locale, msgs] of [['ar', ar], ['en', en]] as const) {
+    const cards = ((msgs as Record<string, any>).landing?.studios ?? {}) as Record<string, unknown>;
+    const typed = Object.keys(cards).filter((k) => /Credits$/.test(k));
+    check(`${locale}: no typed price key is back under landing.studios`, typed.length === 0, typed.join(','));
+  }
+}
 
 // Enough ICU to read the two COMPOSED band strings — `{name}` and
 // `{name, plural, one {# credit} other {# credits}}` — down to the number they

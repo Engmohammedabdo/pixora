@@ -202,12 +202,20 @@ export function CampaignPlanDisplay({
                 <NextImage src={post.imageUrl} alt="" fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" unoptimized />
               </div>
             ) : (
-              <div className="w-full aspect-square bg-surface-2 flex items-center justify-center">
+              /* No image: a slim row, not a blank square. Nine empty grey squares
+                 read as "unfinished" on a phone — and the trial buys text only, so
+                 that is what most first campaigns look like. A food shop's own
+                 photos are what its Instagram sells, so its own picture is the
+                 first action offered (photoshoot), Pyra's the second. */
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] bg-surface-2 px-4 py-2">
+                <Link href="/photoshoot" className="flex items-center gap-1 text-xs font-medium text-[var(--color-link)] hover:underline">
+                  <ImageIcon className="h-4 w-4" />
+                  {t('ownPhotoCta')}
+                </Link>
                 <Link
                   href={`/creator?prompt=${encodeURIComponent(post.scenario)}`}
-                  className="flex items-center gap-1 text-xs text-[var(--color-link)] hover:underline"
+                  className="text-xs text-[var(--color-text-secondary)] hover:underline"
                 >
-                  <ImageIcon className="h-4 w-4" />
                   {t('generateImage')}
                 </Link>
               </div>

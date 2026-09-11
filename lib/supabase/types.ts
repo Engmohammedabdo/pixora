@@ -199,6 +199,8 @@ export interface Database {
           created_at: string;
           /** Migration 048: when the friend's first payment paid both sides. NULL = pending. */
           rewarded_at: string | null;
+          /** Migration 048: when a dispute took the reward back. */
+          revoked_at: string | null;
         };
         Insert: {
           id?: string;
@@ -632,6 +634,13 @@ export interface Database {
         Args: {
           p_referee_id: string;
           p_credits: number;
+        };
+        Returns: Record<string, unknown>;
+      };
+      // Migration 048. Service role only — the dispute handler reverses a paid reward.
+      revoke_referral_reward: {
+        Args: {
+          p_referee_id: string;
         };
         Returns: Record<string, unknown>;
       };

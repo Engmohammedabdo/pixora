@@ -97,6 +97,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const customerId = await getOrCreateStripeCustomer(supabase, user.id, user.email || '');
+
+    // A payment that has SETTLED but whose webhook has not landed yet leaves
+    // `stripe_subscription_id` empty, so the 409 above cannot see it — and the
+    // $2 button is on every page a free account visits, so "pay, come back, click
+    // again before the webhook" opened a second subscription. A completed
+    // subscription session for this customer in the last half hour means one is
+    // settling; the billing page and UnlockButton both say so.
+    const recent = await stripe.checkout.sessions.list({ customer: customerId, limit: 5 });
+    const settling = recent.data.find(
+      (s) => s.mode === 'subscription' && s.status === 'complete' && Date.now() / 1000 - s.created < 30 * 60
+    );
+    if (settling) {
+      return NextResponse.json({ success: false, error: 'checkout_pending' }, { status: 409 });
+    }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
@@ -109,6 +123,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // exists in the Stripe dashboard, so enabling it costs nothing — but
       // without it a code you create later simply cannot be redeemed.
       allow_promotion_codes: true,
+      // Names the product and the terms on Stripe's own page, where the Stripe
+      // product name is otherwise the only brand the customer sees.
+      custom_text: {
+        submit: {
+          message: locale === 'ar'
+            ? 'PyraSuite — اشتراك شهري، تلغيه في أي وقت.'
+            : 'PyraSuite — a monthly subscription you can cancel anytime.',
+        },
+      },
       metadata: {
         // Captured here for the same reason the locale is, three lines up: the
         // webhook has no customer request to read them from. Without them the

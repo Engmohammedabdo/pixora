@@ -163,8 +163,10 @@ export default function OnboardingPage(): React.ReactElement {
         }
       }
       window.localStorage.removeItem(STORAGE_KEY);
-    } catch { /* Non-blocking — user still proceeds to /dashboard */ }
-    router.push('/dashboard');
+    } catch { /* Non-blocking — user still proceeds */ }
+    // To the front door, not the dashboard menu: Skip pays the trial too, and the
+    // campaign studio is where it buys something.
+    router.push('/campaign');
   };
 
   return (

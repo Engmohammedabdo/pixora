@@ -79,9 +79,11 @@ export function Sidebar(): React.ReactElement {
   const tCredits = useTranslations('credits');
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed, toggleCollapsed } = useUIStore();
-  const { balance, status: creditsStatus, refetch: refetchCredits } = useCredits();
+  const { balance, status: creditsStatus, refetch: refetchCredits, planId: serverPlanId } = useCredits();
   const { profile } = useUser();
-  const planCredits = getPlan(profile?.plan_id || 'free').credits;
+  // Server plan first (the cached profile is not invalidated by the webhook).
+  // A free account has no allowance: 5 / 0 is Infinity, which drew a FULL bar.
+  const planCredits = getPlan(serverPlanId ?? profile?.plan_id ?? 'free').credits;
 
   // The closed drawer is only translated off-screen, so without `inert` its
   // ~18 links stay in the tab order on mobile. Escape and the scroll lock are
@@ -244,7 +246,9 @@ export function Sidebar(): React.ReactElement {
                 <span className="font-bold text-[var(--color-brand)]">{balance}</span>
               )}
             </div>
-            <Progress value={creditsStatus === 'ready' ? Math.min((balance / planCredits) * 100, 100) : 0} className="h-2" />
+            {planCredits > 0 && (
+              <Progress value={creditsStatus === 'ready' ? Math.min((balance / planCredits) * 100, 100) : 0} className="h-2" />
+            )}
             <Link
               href="/billing"
               className="block text-center text-xs text-[var(--color-link)] hover:underline"

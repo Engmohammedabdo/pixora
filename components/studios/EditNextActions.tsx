@@ -36,6 +36,9 @@ export const PRODUCT_NEXT_ACTIONS: readonly EditPresetId[] = [
   // that is not a pure white seamless, and no customer reaches that spec by
   // typing "white background".
   'marketplace_white',
+  // noon's own spec (2:3 portrait), beside Amazon's square — noon is a primary
+  // marketplace for UAE retail, and the Amazon preset is the wrong canvas for it.
+  'noon_white',
   // A phone photograph of a product is almost never clean — this is the second
   // thing anyone does to one.
   'remove_props',

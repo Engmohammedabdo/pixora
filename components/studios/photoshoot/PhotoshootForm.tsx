@@ -10,6 +10,7 @@ import { selectedChipClasses, unselectedChipClasses } from '@/components/studios
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { GetCreditsButton } from '@/components/shared/GetCreditsButton';
+import { getPlan } from '@/lib/stripe/plans';
 import { Upload, X, Camera, Sparkles, Loader2 } from 'lucide-react';
 import { ProjectSelector } from '@/components/shared/ProjectSelector';
 import { WorkingIdentityBar } from '@/components/studios/WorkingIdentityBar';
@@ -80,7 +81,10 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   // the default below must never move it again, even if the project (and so
   // the brand kit it carries) changes afterward.
   const [environmentTouched, setEnvironmentTouched] = useState(false);
-  const [shots, setShots] = useState<1 | 3 | 6>(6);
+  // Three shots, not six: six cost 8 credits, so a trial account (5) opened this
+  // studio on a disabled Generate beside a payment button and concluded the
+  // trial did not cover photos. Three is the middle price, and one tap away.
+  const [shots, setShots] = useState<1 | 3 | 6>(3);
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -96,7 +100,7 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
   // upload is in flight `productImage` is still null, so Generate stays down
   // rather than shipping the previous file under the new preview.
   const isValid = !!productImage && !uploading;
-  const { balance, status: creditsStatus } = useCredits();
+  const { balance, status: creditsStatus, planId } = useCredits();
   const cannotAfford = creditsStatus === 'ready' && selectedShotOption.credits > balance;
 
   // ── A kit read for ONE purpose: seeding the environment preset ─────────────
@@ -339,6 +343,12 @@ export function PhotoshootForm({ onSubmit, isLoading }: PhotoshootFormProps): Re
         brandKitId={chosenKitId}
         onChange={setChosenKitId}
       />
+
+      {/* Before the credits move, not after: a noon or Amazon main image may not
+          carry a watermark, and trial and Entry output does. */}
+      {planId && getPlan(planId).watermark && (
+        <p className="text-xs text-[var(--color-text-muted)]">{tStudio('watermarkNotice')}</p>
+      )}
 
       {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">

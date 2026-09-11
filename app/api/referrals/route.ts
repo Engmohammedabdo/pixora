@@ -24,13 +24,25 @@ export async function GET(): Promise<NextResponse> {
       .single();
 
     // RLS on `referrals` limits this to rows where the user is referrer or referee.
-    const { data: rows } = await supabase
+    const primary = await supabase
       .from('referrals')
       .select('id, referee_id, credits_each, created_at, rewarded_at')
       .eq('referrer_id', user.id)
       .order('created_at', { ascending: false });
 
-    const referrals = rows ?? [];
+    let referrals = primary.data ?? [];
+    // Between the code deploy and migration 048 `rewarded_at` does not exist
+    // (42703) and the select above returns nothing — every referrer would see 0
+    // sign-ups. Read without it; every row from before 048 was paid at signup by
+    // 026, so each one counts as rewarded.
+    if (primary.error?.code === '42703') {
+      const legacy = await supabase
+        .from('referrals')
+        .select('id, referee_id, credits_each, created_at')
+        .eq('referrer_id', user.id)
+        .order('created_at', { ascending: false });
+      referrals = (legacy.data ?? []).map((r) => ({ ...r, rewarded_at: r.created_at }));
+    }
 
     // Whether sharing a link can actually produce anything, answered HERE rather
     // than by a second client fetch.

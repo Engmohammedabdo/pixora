@@ -2427,6 +2427,155 @@ default.**
 - The plan's tasks 19–20 (twenty conversations in Karama, three testimonials) are
   the founder's, and the 30-day number is unreadable without them.
 
+### GPT first, one register, and the $2 plan — 2026-09-09 → 2026-09-11
+
+Four founder decisions in three days, each shipped and each then reviewed. Read the
+last subsection first: the review of this work confirmed 24 defects in it and refuted
+none, and the pattern this file keeps recording — the fixes carry the next defects —
+held again.
+
+#### gpt-image-2.5 is the primary image provider
+
+| What | Proof |
+|---|---|
+| gpt-image-2.5 ships as TWO ids (`-flare`, `-sunburst`); bare `gpt-image-2.5` 400s. It adds `xhigh`/`max` tiers up to $0.211 per image | `OPENAI_IMAGE_MODELS` in `lib/ai/models.ts`; `-flare` is the default, gpt-image-2 kept as the rollback |
+| `quality` is PINNED to `high`, which costs what gpt-image-2 cost at `medium` | `lib/ai/openai.ts`; `test:model-registry` now asserts the VALUE is a priced tier — the first version checked only that the key existed, so `'auto'`, `'max'` and a commented-out pin all passed |
+| gpt is first in `IMAGE_FALLBACK_ORDER` and in the settings default | `lib/ai/router.ts`; `lib/admin/settings.ts` `DEFAULT_MODEL_CONFIG` was still gemini-first until 2026-09-11, and it is the default that actually RUNS when the settings row is missing |
+| The admin's `fallback_order` was inert for a fortnight: four image routes named `gemini` explicitly and the router puts the requested model first | fixed in `9de39be` |
+| Three clamps to gemini, all gated: the FREE account (a $0 trial should not default to the per-token provider), 4K (gemini switches model for it, gpt does not), and a REFERENCE IMAGE (only gemini takes one — unclamped, every paid run with a photo reported a fallback) | `creator/route.ts` `servingModel`; `campaign/route.ts` `imageModel`, whose plan read moved ABOVE the image fan-out on 2026-09-11 — read after the images, the clamp could not exist, and free campaign images went to gpt for two days |
+
+`output.imageModels` records which provider served a campaign's images, but
+`app/api/admin/health/route.ts` does not read it yet — the cost understatement is
+**recoverable, not removed**. Its comment used to claim otherwise.
+
+#### One register: clear professional Arabic
+
+The founder reversed `docs/POSITIONING.md` §4 ("Egyptian-leaning") the day it was
+written. `ea7ff2c` swept 278 colloquial occurrences to zero against
+`scripts/tests/one-dialect.test.ts`'s list. **Zero against a list proves only that
+the listed tokens are absent**: the 2026-09-11 review found 18 constructions the
+list never named — `قولها` in the `/ar` headline, `اللي`, `تقدر`, `على كيفك` in the
+FAQ that ships as JSON-LD — and the emails and 404 pages, which the gate never
+read. All rewritten; the tokens are in the gate with a corpus that proves the
+matcher fires and does not fire on `بسيط`, `عليه`, `اليمين`, `تقدير`. Standard
+`كيف`/`متى`/`ليس` are the target, not the problem.
+
+#### The first run, measured
+
+- The campaign studio's images default to OFF (`5f15ebc`): a free account was
+  spending 12 of 25 credits on its first click.
+- Onboarding: six steps to two, ending in the campaign studio.
+- The mobile hero rendered **blank** until JavaScript ran — framer-motion writes
+  the `hidden` variant into SSR (`2266732`, `initial={false}`).
+- The mobile hero image is now `creator-shawarma-square.webp`, manifest-tracked;
+  `shawarma.jpg` predates every run on disk, so its "real Pyra output" caption
+  could not be proved.
+
+#### The $2 Entry plan — two deploys, and verified without a purchase
+
+**The decision:** the 25-credit month stops being free and costs $2. `plan_id =
+'free'` keeps its id (62 sites read it as "not paying") and holds **0** credits.
+
+| Step | State | Proof |
+|---|---|---|
+| Migration 047: `check_plan_id` admits `'entry'` | ✅ applied 2026-09-10 | `schema_migrations` 047; the constraint read back from the live DB |
+| Stripe LIVE price `price_1UE2543HV9MX1JIk0qq7wwCj` ($2/mo, product `Pixora Entry`) + `STRIPE_ENTRY_PRICE_ID` | ✅ | Deploy A `956d05a`: `create-checkout` → 200 with a `cs_live` URL for `entry`, 400 for `free` |
+| The checkout carries the plan to the webhook | ✅ **read back from Stripe** | the session created by that probe: `mode: subscription`, `amount_total: 200 usd`, `metadata.planId: entry` |
+| The webhook's write for an `entry` checkout succeeds | ✅ **rehearsed on the live DB, rolled back** | the exact `profiles` update + ledger insert from `webhook/route.ts`, inside `BEGIN … ROLLBACK`: PASS, `entry / 25 / reset +30d` |
+| `|| 'starter'` removed | ✅ | a planless subscription checkout resolves from the price or THROWS — a $2 payment could have been booked as a $12 month |
+| Free account → 0; a TRIAL of 5 credits on finishing OR skipping onboarding, enough for one full text campaign | ✅ code (`25fea32`) | `lib/credits/offer.ts` is the one source for every surface quoting the offer; `test:segment-pages` fails if the trial stops buying a campaign |
+| Migration 048: `credits_balance DEFAULT 0`; the monthly reset names `entry` and no longer refills free; `claim_referral` records only; `reward_referral_on_payment` pays both sides ONCE on the friend's first payment | ✅ rehearsed 9/9 (two probes as `authenticated`) | a referral paid at signup made any shared link worth the whole Entry plan |
+| One click from "not enough credits" to the Entry checkout | ✅ | `UnlockButton` / `GetCreditsButton` (replaces nine copies of one `<Link>`), the banner, the widget, `UpgradePrompt` |
+
+**The founder declined to buy the plan to test it**, so no real `checkout.session.completed`
+for `entry` has ever reached the webhook. What IS proved: the session Stripe holds
+names the plan, and the write that event triggers succeeds against the live
+constraint. What is NOT: Stripe's delivery of that event to our endpoint for this
+price. The first real Entry customer is that test — watch `webhook_events` and the
+`[webhook]` log lines for it.
+
+**Literal-`'free'` checks that Entry exposed**, each fixed: `UpgradePrompt` told an
+Entry customer their ceiling is 2K; the campaign watermark notice never showed for
+Entry; the voiceover page offered Entry 2 of 5 speeds; three admin plan lists had no
+`entry`; `CreditsWidget` drew a FULL green bar at 5/0 (`Infinity`, clamped).
+
+#### The review, and the gates proving themselves
+
+A five-dimension adversarial review of `e87d122..956d05a` confirmed **24 findings
+and refuted 0** — not a sign of a clean round, a sign the finders were careful. The
+two worth remembering: the free-plan cost clamp was written, and gated, for
+`creator` only, while `campaign` makes nine images a run; and the landing
+campaign card still said a typed "12" beside an FAQ saying 3, invisible to the
+price scan because a bare number carries no unit — the badges are computed now
+(`studioCostBadge`).
+
+Every new or changed gate was then **proved by reintroducing its defect** and
+watching it fail — 12 of 12: the campaign clamp removed, `quality` set to `'auto'`,
+the pin commented out, the reference-image clamp removed, the trial shrunk to 2,
+free back to 25, the onboarding grant back to a literal, a3 losing its trial
+figure, the campaign card back to the ceiling, the photoshoot map drifting from
+its published ceiling, the colloquial headline restored, and "25 credits" typed
+into the signup subtitle.
+
+#### The second review and the customer walkthrough — before deploy B shipped
+
+A four-dimension review of deploy B (`25fea32`) confirmed **14 findings, refuted 0**.
+The three that mattered: the $2 button could open a **second** checkout while the
+first payment's webhook was still in flight (the 409 cannot see a subscription the
+webhook has not written — now `create-checkout` refuses with `checkout_pending`
+while a completed session is settling, and `UnlockButton` shows "activating");
+a brand-new account's **first** screen said "no credits, pay $2" before the step
+that grants the trial; and the campaign clamp gate checked that the ternary
+EXISTED, not that `generateImage()` received it — the exact shape of `9de39be`
+would have passed. Also fixed: a disputed payment kept its referral reward
+(`revoke_referral_reward()` in 048 takes it back from both sides, once); the
+reward fired on top-ups while every surface says "when your friend subscribes"
+(subscriptions only now); the gap between the deploy and 048 would have logged a
+false `[referral][OWED]` on every checkout and shown every referrer 0 sign-ups.
+Migration 048 was re-rehearsed: **12/12 probes**, three of them the clawback.
+
+Six simulated customers were then walked through the code at `25fea32` (the
+English café owner's trace stalled and is not reported). The fixes taken before
+shipping: "a full campaign free" read as pictures while the trial buys text —
+every trial line now says **written**, and an image-less post shows a slim
+"use your own photo" row instead of an empty grey square; Skip lands in the
+campaign studio; leaving onboarding through the sidebar no longer loses the
+trial (the banner points back to it); photoshoot defaults to 3 shots, which the
+trial can afford, and warns about the watermark **before** the credits move;
+the campaign dialect defaults to Emirati and Generate says which field is short;
+Google sign-up is hidden inside Instagram's in-app browser, where Google refuses
+OAuth; the $2 button says "/month"; noon gets its own one-tap edit after a shoot;
+a renewal landing on a downgraded account is logged `[credits][OWED]` instead of
+recorded as "free plan — 0 credits".
+
+#### Still open, deliberately
+
+- **The Stripe Customer Portal.** Upgrading from Entry, cancelling, and fixing an
+  expired card ALL route through `/api/stripe/portal`, and this file last recorded
+  zero portal configurations on the live account. The walkthrough ranked it the
+  #1 issue. It is a dashboard setting on an account three products share, so it
+  was left for the founder: save a default configuration with payment-method
+  update, invoices, cancellation and plan switching across the five PyraSuite
+  prices, then open one live portal session to confirm.
+- **The checkout names "Pixora Entry".** The Stripe products carry the old product
+  name, and on the card form it is the only brand the customer sees. A dashboard
+  rename; `create-checkout` now adds a PyraSuite line to the submit text meanwhile.
+- **Every in-flow upgrade sells Entry**, which keeps the watermark and the
+  one-kit/one-project limits — a marketplace seller or a freelancer needs Starter.
+  A "remove the watermark — Starter" checkout on the watermark and limit surfaces
+  is the next conversion fix.
+- **No re-engagement email** (abandoned checkout, trial running low): the webhook
+  handles six events and none is `checkout.session.expired`.
+- Plan/analysis keep the previous client's prefilled fields after a client switch;
+  PDFs are always RTL with a PyraSuite footer; a brand kit saved without touching
+  the pickers stores PyraSuite's own palette as the customer's.
+- **No real Entry purchase** has been observed end to end (above).
+- `admin/health` does not price `output.imageModels`.
+- The free and 4K clamps override an explicit "quality" pick silently — the model
+  chip could hide gpt for those, or the notice could disclose it.
+- iOS download of generated files is still unverified on a real iPhone.
+- Four demo images remain unprovenanced; `ADMIN_PASSWORD` is still weak.
+
 ### Not built — do not describe these as done
 
 | Item | Real state |

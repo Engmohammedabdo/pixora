@@ -90,6 +90,12 @@ export default function BillingPage(): React.ReactElement {
         return;
       }
 
+      // A payment is already settling — see create-checkout. Not an error.
+      if (data.error === 'checkout_pending') {
+        toast.info(t('pendingActivation'));
+        return;
+      }
+
       toast.error(t('checkoutError'));
     } catch {
       toast.error(t('networkError'));

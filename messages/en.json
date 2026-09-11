@@ -41,7 +41,7 @@
     "signupTitle": "Create your PyraSuite account",
     "loginTitle": "Welcome to PyraSuite",
     "loginSubtitle": "Sign in to start creating professional marketing content",
-    "signupSubtitle": "Sign up free with no card, and try a full campaign on us",
+    "signupSubtitle": "Sign up free with no card, and try a full written campaign on us",
     "continueWithGoogle": "Continue with Google",
     "or": "or",
     "termsAgree": "By creating an account, you agree to our Terms of Service and Privacy Policy",
@@ -154,10 +154,11 @@
     "youHave": "You have {balance}",
     "notEnough": "Not enough",
     "topUpShort": "Top up",
-    "unlockShort": "Activate for ${price}",
+    "unlockShort": "Activate for ${price}/mo",
     "unlockLong": "Activate Entry — {credits} credits a month for ${price}",
     "unlockFailed": "Could not open checkout. Try again from the billing page.",
-    "freeAccountHint": "Free account — no monthly credits. The Entry plan is {credits} credits a month for ${price}."
+    "freeAccountHint": "Free account — no monthly credits. The Entry plan is {credits} credits a month for ${price}.",
+    "activating": "Activating…"
   },
   "brandKit": {
     "title": "Brand Kit",
@@ -316,7 +317,8 @@
       "automatic": "Automatic (follow the project)",
       "unknown": "We could not check which identity this will use.",
       "projectGone": "The selected project no longer exists — this generation will fail. Pick another."
-    }
+    },
+    "watermarkNotice": "On your current plan images carry a small watermark; Starter and above remove it. Marketplaces like noon and Amazon reject a main image that carries one."
   },
   "creator": {
     "title": "Image Creator",
@@ -377,7 +379,7 @@
     "productDescription": "Product or Service Description",
     "productDescriptionPlaceholder": "Describe your product or service...",
     "targetAudience": "Target Audience",
-    "targetAudiencePlaceholder": "Example: Women 25-35 interested in skincare",
+    "targetAudiencePlaceholder": "e.g. families and office workers in Karama ordering lunch",
     "dialect": "Dialect",
     "dialects": {
       "saudi": "Saudi",
@@ -405,7 +407,10 @@
     "exportPdf": "Export PDF",
     "emptyState": "The campaign will appear here",
     "downloadImage": "Download post image",
-    "imagesFailed": "We couldn't generate {count} of the images this time — all the copy below is ready."
+    "imagesFailed": "We couldn't generate {count} of the images this time — all the copy below is ready.",
+    "ownPhotoCta": "Use your own photo",
+    "needDescription": "Describe your product a little more — at least 10 characters.",
+    "needAudience": "Add a target audience — at least 5 characters."
   },
   "assets": {
     "title": "My Assets",
@@ -692,7 +697,7 @@
     "renewsAt": "Renews on:",
     "plansAndPricing": "Plans & Pricing",
     "topUpCredits": "Top Up Credits",
-    "topUpDescription": "Extra credits that never expire (valid for 12 months)",
+    "topUpDescription": "Extra credits, valid for 12 months",
     "transactionHistory": "Transaction History",
     "successMessage": "Success! Your account has been updated.",
     "date": "Date",
@@ -709,8 +714,8 @@
     "pendingActivation": "Payment received — activating your plan. This page will update in a few seconds.",
     "billingAndReceipts": "Billing & receipts",
     "noBillingHistory": "No payments on your account yet.",
-    "freeAccountLine": "No subscription — your balance is trial and top-up credits only.",
-    "entryPitch": "Entry: {credits} credits every month for ${price} — enough for {campaigns} full {posts}-post campaigns."
+    "freeAccountLine": "No subscription — your account gets no monthly credits.",
+    "entryPitch": "Entry: {credits} credits every month for ${price} — enough for {campaigns} full written {posts}-post campaigns."
   },
   "onboarding": {
     "stepOf": "Step {current} of {total}",
@@ -734,7 +739,7 @@
     "step1Description": "Describe your business in one line and Pyra returns nine ordered posts with captions and hashtags, ready to publish. The captions alone cost only a few credits; images are optional.",
     "step1Cta": "Start your first campaign",
     "next": "Next",
-    "bonusGranted": "We added {credits} trial credits to your balance — enough for a full campaign."
+    "bonusGranted": "We added {credits} trial credits to your balance — enough for a full written campaign."
   },
   "projects": {
     "empty": "No projects yet",
@@ -777,7 +782,8 @@
     "topUpCredits": "Top Up Credits",
     "upgradePlan": "Upgrade Plan",
     "later": "Later",
-    "yourPlan": "Your plan:"
+    "yourPlan": "Your plan:",
+    "resolutionLockedFree": "A free account goes up to {maxRes}. Move to a higher plan for more resolution."
   },
   "export": {
     "export": "Export",
@@ -790,8 +796,10 @@
     "lowBalance": "Low credit balance ({balance} credits remaining).",
     "topUpNow": "Top Up Now",
     "topUpCredits": "Top Up Credits",
-    "freeTrial": "You have {balance} trial credits. When they run out, activate the Entry plan for ${price} a month.",
-    "freeEmpty": "Your account has no credits. The Entry plan is {credits} credits a month for ${price} — enough for {campaigns} full campaigns."
+    "freeTrial": "You have {balance} credits left. When they run out, activate the Entry plan for ${price} a month.",
+    "freeEmpty": "Your account has no credits. The Entry plan is {credits} credits a month for ${price} — enough for {campaigns} full campaigns.",
+    "claimTrial": "Your free written campaign is waiting — finish the first step to get {trial} credits.",
+    "claimTrialCta": "Finish the step"
   },
   "localeSwitcher": {
     "label": "Change language",
@@ -823,7 +831,7 @@
       "subtitleStrong": "In Arabic, from day one.",
       "ctaPrimary": "Start free",
       "ctaSecondary": "Explore the studios",
-      "microcopy": "Sign up with no card and try a full campaign free · then {credits} credits a month for ${price} = {campaigns} full campaigns · cancel anytime",
+      "microcopy": "Sign up with no card and try {posts} written posts free · then {credits} credits a month for ${price} = {campaigns} written campaigns · cancel anytime",
       "card1": "Image Creator",
       "card2": "Campaign Planner",
       "card3": "Marketing Plan",
@@ -941,7 +949,7 @@
     },
     "stats": {
       "stat1Label": "Specialized studios",
-      "stat2Label": "full campaigns a month for ${price}",
+      "stat2Label": "written campaigns a month for ${price}",
       "stat3Label": "Plans for every budget",
       "stat4Label": "From idea to campaign",
       "stat4Suffix": " min"
@@ -989,7 +997,7 @@
       },
       "ctaFree": "Start free",
       "ctaPaid": "Subscribe now",
-      "freeNote": "Signing up is free with no card, and your first full campaign is on us before you choose a plan."
+      "freeNote": "Signing up is free with no card, and your first full written campaign is on us before you choose a plan."
     },
     "social": {
       "title": "Join Pyra's early adopters 🦊",
@@ -1010,7 +1018,7 @@
       "q2": "How does the credit system work?",
       "a2": "Every action has a clear cost you see before you click. One image = {image} credit. A {posts}-post campaign = {campaignText} credits as text alone, or {campaignFull} if you ask for its images too. No surprises — and if a generation fails, the credits return to your account automatically.",
       "q3": "How do I try the platform?",
-      "a3": "Sign up with your email — free, no credit card, no invites, no waiting. A new account gets {trial} trial credits, enough for one full campaign. After that, the Entry plan is ${price} a month for {credits} credits — {campaigns} full campaigns.",
+      "a3": "Sign up with your email — free, no credit card, no invites, no waiting. A new account gets {trial} trial credits, enough for one full written campaign. After that, the Entry plan is ${price} a month for {credits} credits — {campaigns} full campaigns.",
       "q4": "Does Pyra AI really understand Arabic?",
       "a4": "It doesn't just understand it — it's built Arabic-first. Write in Gulf, Egyptian, Levantine, or Modern Standard Arabic. Pyra AI gets the context and creates content that sounds natural, not translated.",
       "q5": "Do credits expire?",
@@ -1354,7 +1362,7 @@
       "perDuration": "{freeCredits, plural, one {# credit} other {# credits}} per {freeSeconds} seconds on Entry and Starter · {paidCredits, plural, one {# credit} other {# credits}} per {paidSeconds} seconds on Pro and above",
       "perCampaign": "Text only {textCredits, plural, one {# credit} other {# credits}} · with images {fullCredits, plural, one {# credit} other {# credits}}",
       "ctaTitle": "Try it now",
-      "ctaBody": "Sign up with your email, no card, and try a full campaign free. After that, the Entry plan is ${price} a month.",
+      "ctaBody": "Sign up with your email, no card, and try a full written campaign free. After that, the Entry plan is ${price} a month.",
       "ctaButton": "Start free",
       "seePricing": "See all prices",
       "relatedTitle": "Other studios you might want",
@@ -1520,7 +1528,7 @@
       "q2": "Does it sound human or robotic?",
       "a2": "Listen to the clip above and judge for yourself — that is the most honest answer we can give. What we can state exactly: Pyra has two voice paths, the higher plans run on the Pyra Voice Pro path, and this clip was generated on it. And if the voice you picked on that path cannot speak, Pyra does not substitute one that reads Arabic in a foreign accent — it stops the run and returns your credits in full.",
       "q3": "What does a minute cost?",
-      "a3": "You are charged by duration, not by the minute: Pyra counts fixed units of seconds, and both the length of the unit and its price differ between Entry and Starter on one side and Pro and above on the other — both bands are stated above in full. Once the audio is delivered the charge is settled against what was actually spoken — so if it comes out shorter than the estimate, the difference goes back to your balance without you asking for it. And the longest voiceover allowed grows with the plan: half a minute on Entry, up to ten minutes on the highest."
+      "a3": "You are charged by duration, not by the minute: Pyra counts fixed units of seconds, and both the length of the unit and its price differ between Entry and Starter on one side and Pro and above on the other — both bands are stated above in full. Once the audio is delivered the charge is settled against what was actually spoken — so if it comes out shorter than the estimate, the difference goes back to your balance without you asking for it. And the longest voiceover allowed grows with the plan: half a minute on the Entry plan, up to ten minutes on the highest."
     },
     "prompt-builder": {
       "name": "Prompt Assistant",
@@ -1543,16 +1551,16 @@
     "shared": {
       "ctaPrimary": "Start free",
       "ctaSecondary": "See the studio",
-      "freeLine": "Sign up with no card and try a full campaign free · then {credits} credits a month for ${price} = {campaigns} full {posts}-post campaigns",
+      "freeLine": "Sign up with no card and try {posts} written posts free · then {credits} credits a month for ${price} = {campaigns} full written campaigns",
       "proofNote": "Real output from the product, from runs on a paid account — no images from any other tool.",
-      "priceBody": "A full {posts}-post campaign as text costs {text} credits. With its images, {full}. Your first campaign is free when you sign up; after that the Entry plan is ${price} a month for {credits} credits — {campaigns} complete campaigns every month.",
+      "priceBody": "A full {posts}-post campaign as text costs {text} credits. With its images, {full}. Your first written campaign is free when you sign up; after that the Entry plan is ${price} a month for {credits} credits — {campaigns} complete campaigns every month.",
       "contactLead": "A question before you try it? Send it over and we will answer.",
       "contactCta": "Talk to us"
     },
     "dubai-restaurants": {
       "name": "PyraSuite for Dubai restaurants",
       "metaTitle": "Instagram content for Dubai restaurants — one line about your dish, a week of posts",
-      "metaDescription": "Running a restaurant or food shop in Dubai and selling through Instagram: describe your dish in Arabic and Pyra returns nine posts with captions and hashtags. Try your first campaign free, then ${price} a month.",
+      "metaDescription": "Running a restaurant or food shop in Dubai and selling through Instagram: describe your dish in Arabic and Pyra returns nine posts with captions and hashtags. Try your first written campaign free, then ${price} a month.",
       "eyebrow": "For restaurants and shops in Dubai",
       "h1": "Describe your dish in one line — a full week of posts",
       "definition": "PyraSuite is an AI marketing tool for independent restaurants and shops in Dubai that sell through Instagram. Describe your dish in Arabic the way you actually speak, and Pyra returns nine posts with captions and hashtags in your own dialect — Gulf, Emirati or Egyptian. No photographer, no copywriter.",
@@ -1570,7 +1578,7 @@
       "q2": "Do the captions come back in my dialect or in Modern Standard Arabic?",
       "a2": "In your dialect. Pick Gulf, Emirati, Egyptian, Saudi or Modern Standard, and the captions are written in the one you picked. We ran the same brief through three dialects on production and the difference showed in the words themselves.",
       "q3": "What does it cost to try?",
-      "a3": "Your first campaign is free. Sign-up gives you {trial} trial credits with no card, and a written {posts}-post campaign costs {text} credits. After that the Entry plan is ${price} a month for {credits} credits — {campaigns} complete campaigns. With images a campaign is {full}.",
+      "a3": "Your first written campaign is free. Sign-up gives you {trial} trial credits with no card, and a written {posts}-post campaign costs {text} credits. After that the Entry plan is ${price} a month for {credits} credits — {campaigns} complete campaigns. With images a campaign is {full}.",
       "q4": "If an image comes back badly, do I pay for it?",
       "a4": "No. If one of the nine never arrives, its share returns to your balance automatically and you keep the rest — a campaign is not lost over one picture."
     }

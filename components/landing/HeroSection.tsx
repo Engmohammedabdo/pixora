@@ -195,6 +195,7 @@ export function HeroSection(): React.ReactElement {
                 credits: offer.credits,
                 price: offer.price,
                 campaigns: offer.campaigns,
+                posts: offer.posts,
               })}
             </motion.p>
           </motion.div>

@@ -1,6 +1,8 @@
 'use client';
 
 import { Link } from '@/i18n/routing';
+import { usePathname } from 'next/navigation';
+import { useUser } from '@/hooks/useUser';
 import { useTranslations } from 'next-intl';
 import { useCredits } from '@/hooks/useCredits';
 import { AlertTriangle, XCircle, Coins, Sparkles } from 'lucide-react';
@@ -9,7 +11,9 @@ import { entryOffer } from '@/lib/credits/offer';
 import { UnlockButton } from '@/components/shared/UnlockButton';
 
 export function LowCreditsBanner(): React.ReactElement | null {
-  const { balance, status, planId } = useCredits();
+  const { balance, status, planId, paymentFailed } = useCredits();
+  const { profile } = useUser();
+  const pathname = usePathname();
   const t = useTranslations('lowCredits');
 
   // Only assert "you are low" when we actually know the number.
@@ -22,7 +26,23 @@ export function LowCreditsBanner(): React.ReactElement | null {
   // "top up" names the wrong thing to buy. This names the plan and its price,
   // and the button goes straight to checkout.
   if (planId === 'free') {
+    // Not before the trial exists. A brand-new account lands on /onboarding at
+    // 0 credits, and its FIRST screen said "your account has no credits" beside
+    // a $2 button — before the step that grants the trial it was about to get.
+    if (pathname?.includes('/onboarding')) return null;
     const offer = entryOffer();
+    // Left onboarding through the sidebar before the step that grants the trial.
+    // Not "you have nothing, pay": the free campaign is still theirs to claim,
+    // and the walkthrough of 2026-09-11 found this path never received it.
+    if (profile?.onboarding_completed === false) {
+      return (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm bg-primary-50 dark:bg-primary-900/30 border-b border-primary-200 dark:border-primary-800 text-primary-800 dark:text-primary-200">
+          <Sparkles className="h-4 w-4 flex-shrink-0" />
+          <span className="flex-1 min-w-0">{t('claimTrial', { trial: offer.trial })}</span>
+          <Link href="/onboarding" className="font-medium hover:underline">{t('claimTrialCta')}</Link>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm bg-primary-50 dark:bg-primary-900/30 border-b border-primary-200 dark:border-primary-800 text-primary-800 dark:text-primary-200">
         <Sparkles className="h-4 w-4 flex-shrink-0" />
@@ -35,6 +55,10 @@ export function LowCreditsBanner(): React.ReactElement | null {
       </div>
     );
   }
+
+  // A subscriber whose card failed already has PaymentFailedBanner saying what
+  // to fix. This one would add "top up" — a purchase that does not fix the card.
+  if (paymentFailed) return null;
 
   const isEmpty = balance <= 0;
 

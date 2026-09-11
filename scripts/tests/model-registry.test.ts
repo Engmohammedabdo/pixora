@@ -130,6 +130,17 @@ check(
   /planId\s*===\s*'free'\s*\?\s*'gemini'\s*:\s*'gpt'/.test(campaign),
   'the $0 rule must hold on the route that makes nine images per run',
 );
+// …and the call USES it. The ternary above can exist beside `model: 'gpt'` —
+// the exact shape of 9de39be — so the argument itself is asserted.
+{
+  const start = campaign.indexOf('generateImage({');
+  const call = start > -1 ? campaign.slice(start, campaign.indexOf('});', start)) : '';
+  check(
+    'campaign hands the clamped model to generateImage(), not a literal',
+    /model:\s*imageModel\b/.test(call) && !/model:\s*'(?:gpt|gemini|flux)'/.test(call),
+    call.slice(0, 160) || 'no generateImage({ call found',
+  );
+}
 check(
   'campaign reads the plan BEFORE the image fan-out',
   campaign.indexOf(".select('plan_id')") > -1 && campaign.indexOf(".select('plan_id')") < campaign.indexOf('generateImage('),

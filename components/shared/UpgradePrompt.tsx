@@ -67,7 +67,11 @@ export function UpgradePrompt({
       // ternary was right only by coincidence (free was 1080p, starter 2K, and
       // pro+ never reach this variant) and Entry was the first plan it lied to:
       // an Entry customer would have been told their ceiling is 2K.
-      description: t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: getMaxResolution(currentPlan) }),
+      // The free account gets its own sentence: the shared one reads "باقة {plan}",
+      // and with the free plan named "حساب مجاني" that rendered "باقة حساب مجاني".
+      description: getPlan(currentPlan).price === 0
+        ? t('resolutionLockedFree', { maxRes: getMaxResolution(currentPlan) })
+        : t('resolutionLockedDescription', { plan: planDisplayName(currentPlan), maxRes: getMaxResolution(currentPlan) }),
     },
   };
 
