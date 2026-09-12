@@ -2554,18 +2554,13 @@ recorded as "free plan — 0 credits".
 
 #### Still open, deliberately
 
-- **The Stripe Customer Portal.** Upgrading from Entry, cancelling, and fixing an
-  expired card ALL route through `/api/stripe/portal`, and the live account has
-  **zero portal configurations — measured 2026-09-11** (`GET
-  /v1/billing_portal/configurations` → empty list), so every one of those paths
-  errors today. The walkthrough ranked it the
-  #1 issue. It is a dashboard setting on an account three products share, so it
-  was left for the founder: save a default configuration with payment-method
-  update, invoices, cancellation and plan switching across the five PyraSuite
-  prices, then open one live portal session to confirm.
-- **The checkout names "Pixora Entry".** The Stripe products carry the old product
-  name, and on the card form it is the only brand the customer sees. A dashboard
-  rename; `create-checkout` now adds a PyraSuite line to the submit text meanwhile.
+- ~~**The Stripe Customer Portal.**~~ **Built and live — see "The billing portal"
+  below.** Configuration `bpc_1UEmYq3HV9MX1JIkKHBVBzzj`, created 2026-09-12,
+  `is_default: false`, named by id in `portal/route.ts`.
+- ~~**The checkout names "Pixora Entry".**~~ **DECIDED 2026-09-12 — the founder
+  keeps the Pixora product names.** One Stripe account carries three products and
+  the names stay as they are; `create-checkout`'s `custom_text` line is what puts
+  PyraSuite on the card form. Do not propose renaming them again.
 - **Every in-flow upgrade sells Entry**, which keeps the watermark and the
   one-kit/one-project limits — a marketplace seller or a freelancer needs Starter.
   A "remove the watermark — Starter" checkout on the watermark and limit surfaces
@@ -2581,6 +2576,178 @@ recorded as "free plan — 0 credits".
   chip could hide gpt for those, or the notice could disclose it.
 - iOS download of generated files is still unverified on a real iPhone.
 - Four demo images remain unprovenanced; `ADMIN_PASSWORD` is still weak.
+
+### The billing portal — 2026-09-12
+
+The founder settled both open Stripe decisions in one line: one account, several
+products, **keep the "Pixora …" product names**, and prepare everything else. What
+was left was the portal, and re-measured that morning `GET
+/v1/billing_portal/configurations` still returned an **empty list** — so upgrade,
+cancel and card-update errored for every customer who had ever paid, which the
+customer walkthrough ranked the #1 issue.
+
+**Configuration `bpc_1UEmYq3HV9MX1JIkKHBVBzzj`, created 2026-09-12, `is_default:
+false`.** That last field is the whole safety story on a shared account: the
+default configuration is ONE account-wide object, so owning it would hand HookLens
+customers PyraSuite's plans and cancellation policy. `portal/route.ts` names this
+one by id and **refuses with 503 rather than inherit a default** — proved by
+reintroducing both shapes of fallback (a conditional spread and an `||`).
+
+| Feature | Setting, and the default it is overriding |
+|---|---|
+| payment method, invoices, billing info | enabled |
+| cancel | `at_period_end` — they paid for the month — with the 8-option reason survey |
+| plan switch | the five PyraSuite prices, `default_allowed_updates: ['price']` ONLY |
+| proration | `always_invoice`. Stripe's DEFAULT is `none`, which hands over the new tier's credits and collects nothing until the next cycle |
+| downgrades | `schedule_at_period_end: [decreasing_item_amount]` — see below |
+| quantity | `adjustable_quantity: false` on every product. Stripe defaults it to ENABLED, and the webhook grants per PLAN, reading the price and never the quantity: a customer on quantity 3 would be billed three times for one allowance |
+| portal login page | off — it would confirm whether an address is a customer |
+
+**The five prices were measured from production, not read off the dashboard.**
+`create-checkout` was called once per plan as a signed-in customer (open sessions,
+nothing paid) and each session's line item read back from Stripe; the Coolify env
+was then read independently and agrees byte for byte. This matters because
+`customer.subscription.updated` maps a price BACK to a plan through those env
+vars: a portal offering a price the environment does not name grants NOTHING on a
+switch, silently. `npm run test:portal-config` (30 checks, live-only) is that
+agreement, in both directions, plus every setting above.
+
+#### The plan-switch rule is on its fifth attempt, and attempts 1–4 were all safe only because nothing could call it
+
+CLAUDE.md had said it in as many words — *"Plan switching is not reachable today …
+If it is ever enabled, re-read the plan-switch rule first."* Re-read, it did not
+survive a portal. Two independent leaks, both about TIME:
+
+1. **Stripe prorates the money by time; the rule prorated nothing.** On the last
+   day of the month `entry -> agency` costs a few cents, and the rule answered it
+   with the whole 4,975-credit difference — then the renewal granted 5,000 more,
+   hours later, every month. The grant is now `floor(difference × periodRemaining)`.
+2. **A portal upgrade whose proration charge FAILS still granted the credits.**
+   Confirmed against Stripe's own documentation rather than argued: *"By default,
+   Stripe applies updates regardless of whether payment on the new invoice
+   succeeds."* The subscription stays `active`, `past_due` is deliberately not
+   terminal here, nothing in the spend path reads `payment_failed`, and smart
+   retries take about three weeks to reach `unpaid`. Entry customer, day one,
+   4,975 credits, declined card, ~200 images. The portal configuration object
+   exposes no `payment_behavior`, so Stripe's own recommended protection —
+   pending updates — **cannot be bought from that side at all**.
+
+   `checkout.session.completed` has refused to grant without `payment_status ===
+   'paid'` since the first money round. This would have been the only
+   credit-granting path in the product without that check.
+
+**Closed as "unsettled money buys no TIME."** The plan still moves — Stripe is
+billing them for it — and `periodRemaining` is 0 until the expanded
+`latest_invoice` reads paid, so the clamp DOWN still runs (a downgrade has no
+invoice to settle) and there is one rule rather than two. The withheld credits
+arrive on `invoice.payment_succeeded` with `billing_reason ===
+'subscription_update'`.
+
+**That second handler is why the gap is now stated on the LEDGER.**
+`difference = newAllowance − alreadyGrantedThisPeriod`, not
+`newAllowance − previousAllowance`. In the ordinary case it is the identical
+number; it is strictly smaller whenever the period has already issued more than
+the old tier's headline allowance, which is exactly when generosity is wrong. The
+real reason is ORDER: the invoice event does not know what plan the customer was
+on a moment ago, and stated this way it does not need to. Both events compute the
+same figure, the first to run moves the mark, the second grants zero. **Idempotence
+by arithmetic, not by a lock** — and both delivery orders are asserted as sequences.
+
+**The down leg was the other leak, and it is closed in the Stripe payload rather
+than in code.** Upgrade on day one, spend the 5,000, downgrade the same day:
+Stripe returns nearly the whole $147 as customer balance, against credits already
+spent, and no clamp can claw back a spent credit. Once per period, every period.
+`schedule_at_period_end: [{type: 'decreasing_item_amount'}]` means a decrease is
+applied at period end instead — there is no mid-period refund to take.
+`test:portal-config` states it as a BICONDITIONAL on the arm that makes it
+necessary: a rule that only runs once someone has already changed the other
+setting is not a rule.
+
+Three further money defects were in the FEEDING, not the arithmetic, which is why
+`test:plan-switch` now reads the webhook's source too: the prior-grants read
+filtered to `type='subscription'` while the monthly cron writes `type='reset'`
+(so any period the cron paid for read as zero granted); a nullable
+`credits_reset_date` fell back to `now + 30d`, making the ledger window EMPTY and
+the ceiling maximal, under a comment claiming the opposite direction; and the
+switch cleared `payment_failed`, which a delinquent customer could use to turn the
+cron guard back on for themselves.
+
+#### Migration 049 — applied 2026-09-12, 6 of 6 probes, two as `authenticated`
+
+- **`profiles.subscription_cancel_at`.** `cancel_at_period_end` occurred **zero**
+  times in this codebase, so the moment cancelling became reachable, Stripe
+  returned the customer to `/[locale]/billing` — which read `plan_id` (still 'pro')
+  and `credits_reset_date` (untouched) and told them, in their own language, that
+  their plan RENEWS on that date. Seconds after they had cancelled it. Written from
+  the RE-READ subscription, never the event payload, and above the plan/status
+  guard: a customer cancelling a `past_due` subscription is exactly the customer
+  most likely to be cancelling. It quotes `cancel_at`, not `credits_reset_date` —
+  the latter is `now + 30 days` computed in the app, and seven of twelve months are
+  not 30 days long.
+- **`credit_transactions.type` gains `plan_change`.** The type was chosen from the
+  SIGN of the grant, so a prorated upgrade that granted zero rendered as a red
+  `destructive` badge reading "تجديد شهري" over a payment the customer had just
+  made. And the sentence beside it said "(difference between allowances)" over a
+  number that was a prorated slice of it — each cause now has its own wording,
+  chosen from quantities `planSwitchBalance` RETURNS so the caller cannot re-derive
+  them.
+
+The gate proves itself: adding `GRANT UPDATE` on the new column makes probe F fail
+and the migration refuses to commit with the reason named.
+
+#### Two defects this round put in its own fix, and a gate that would have passed one
+
+**The Arabic portal locale was a blocker, and `tsc` was green for it.** The first
+version mapped `ar -> 'ar'` under a comment claiming the map existed to stop
+exactly that. Stripe's billing portal publishes **47 locales and Arabic is not one
+of them**; the union ends in `OtherString`, an escape hatch that accepts any
+string — so it type-checked, would have reached the API, and every Arabic customer
+would have got a 500 and no portal at all. The gate written beside it asserted that
+a `locale:` KEY was present, not what it held. It now checks every value against
+the union read out of the installed package, and `ar` maps to `'auto'`: Stripe has
+no Arabic portal, and that is the honest ceiling. **Do not write `ar: 'ar'` again.**
+
+**And `test:one-dialect` was reporting zero on copy it could not read.** The
+2026-09-11 register sweep rewrote the transactional emails and both `not-found`
+pages by hand; the gate reads `messages/ar.json`. Measured 2026-09-12: 36 Arabic
+lines across `lib/email/templates.ts`, `app/not-found.tsx` and
+`app/[locale]/not-found.tsx`, 0 violations — and **nothing was holding that**. The
+gate now reads those three files, comments stripped (both files QUOTE the
+colloquial copy they replaced, so an unstripped scan fails on its own history) and
+fails if one stops carrying Arabic.
+
+#### Verified on production, 2026-09-12
+
+Deployed `3bfa1d1` then `22bc81d`. **Confirmed by probe, not by the status field:**
+`POST /api/stripe/portal` signed in as the e2e customer returned **200 with a live
+`pay.pyramedia.info` session URL in both locales**, where it had answered
+`portal_failed` for every customer since launch. The session was opened in a real
+browser: the page renders, headline "PyraSuite — إدارة اشتراكك وفواتيرك", payment
+method / billing information / invoice history, terms and privacy links.
+
+**What that run does NOT prove, stated plainly.** The e2e account has no Stripe
+subscription — the plan was moved in the database, not bought — so the portal shows
+it no subscription section, and **the upgrade and cancel screens have not been
+seen**. Creating a real subscription to see them is a financial object on the
+founder's live account and was not done. The first real Entry customer is that
+test, and it is the same gap as "no real $2 purchase has ever been observed".
+
+**Also not changed, on purpose:** the portal's return link reads "Return to
+Pyramediax for AI developing services". That string is the Stripe ACCOUNT's
+business name, shared by all three products; the headline is where PyraSuite is
+named. Renaming the account would rebrand HookLens's checkout too.
+
+#### Still open, deliberately
+
+- **No portal session with a real subscription has been opened**, so plan switching
+  and cancellation are verified in the CONFIGURATION and in the code, not on screen.
+- **The up leg still grants against money a chargeback can pull back.**
+  `charge.dispute.created` → `downgradeToFree()` fires after the credits are spent.
+  Pre-existing, and this change enlarges it: a ~$147 charge is now one click away.
+- **`credit_transactions.description` is English for every row**, including the new
+  plan-change wording, and `TransactionTable` renders it under a localized badge.
+  Structuring the facts and localizing at render is the right end state and is its
+  own change.
 
 ### Not built — do not describe these as done
 
@@ -2747,8 +2914,9 @@ Pro+         → ElevenLabs → 3 credits / 20 seconds
 - VoiceOver: tiered pricing based on plan (see `lib/credits/voiceover-costs.ts`)
 
 ### Database Migrations
-- **49 files** in `supabase/migrations/`, latest `048_free_account_holds_no_monthly_credits.sql`
-  (applied 2026-09-11, 12 of 12 probes; 047 applied 2026-09-10). 046 was applied
+- **50 files** in `supabase/migrations/`, latest `049_cancellation_is_visible.sql`
+  (applied 2026-09-12, 6 of 6 probes, two of them as `authenticated`; 048 applied
+  2026-09-11 with 12 of 12; 047 applied 2026-09-10). 046 was applied
   2026-09-01 and re-probed independently as `authenticated`: 11 of 11.
   `public.schema_migrations` records 24 of them (022 → 045, contiguous) because
   the ledger was introduced at 022 — a version's absence from it means only that
@@ -2787,6 +2955,13 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Stripe
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
+# The billing-portal configuration /api/stripe/portal opens, BY ID. NOT optional:
+# without it the route answers 503 rather than fall through to whatever the Stripe
+# account's default configuration happens to be. Three products share this account
+# and "the default" is ONE account-wide object, so inheriting it would hand a
+# PyraSuite customer another product's plans and cancellation policy with nothing
+# failing. /api/health reports degraded when it is missing.
+STRIPE_PORTAL_CONFIGURATION_ID=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 STRIPE_STARTER_PRICE_ID=
 STRIPE_PRO_PRICE_ID=
@@ -2853,7 +3028,7 @@ npx tsc --noEmit # TypeScript check
 npm run check:invariants        # 18 rules; --update-baseline is for no-arabic-literals ONLY
 npm run test:safety             # 82 checks over the prompt filter and the builders
 npm run test:uploads            # 37 checks over the brand-kit logo validator
-npm run test:plan-switch        # 15 checks over the mid-period plan-switch credit rule
+npm run test:plan-switch        #  58 checks: the plan-switch credit rule, as SEQUENCES — and the webhook's own feeding of it, read from source
 npm run test:generation-terminal #  11 checks: a row is only closed once credits are settled
 npm run test:voiceover-budget   # 546 checks: the char budget is the exact inverse of the price
 npm run test:image-host         #  18 checks: the SSRF allowlist is a HOST rule, not a suffix
@@ -2878,12 +3053,12 @@ npm run test:alternates         #  37 checks: every public page canonical to its
 npm run test:schema             #  39 checks: no placeholder in the JSON-LD; sameAs holds only URLs that exist
 npm run test:sitemap            #  24 checks: the sitemap matches an open signup, and nothing links to /waitlist
 npm run test:landing-copy       #  13 checks: the definition sentence is in the SOURCE, not only in an animation
-npm run test:api-hygiene        #   6 checks: the upload throttle runs BEFORE the body is read
+npm run test:api-hygiene        #  20 checks: the upload throttle runs BEFORE the body is read; the billing portal is named by id and every locale it sends is one Stripe publishes
 npm run test:config-hygiene     #  19 checks: no dead CSP host, no X-Powered-By, and an EXPLICIT preload decision for every next/font family — not for one named Inter
 npm run test:protected-prefixes #  13 checks: PROTECTED_PREFIXES agrees with the (dashboard) directory
 npm run test:invariants-doc     #  every rule in check-invariants.ts has a section in docs/INVARIANTS.md
 npm run test:studio-pages       # 1875 checks: the nine public studio pages agree with the product — no typed credit figure, no example naming a file nobody built, no page for a studio that does not ship
-npm run test:one-dialect        #   20 checks: the marketing surface speaks ONE register — and the detector proves itself on a corpus BEFORE it is trusted
+npm run test:one-dialect        #  35 checks: ONE register across every namespace AND the Arabic that is not in messages/ar.json — the emails and both 404 pages — with the detector proving itself on a corpus BEFORE it is trusted
 npm run test:segment-pages      #  157 checks: a segment page's journey names only shipped studios, and quotes no price the product does not charge
 ```
 
@@ -2933,7 +3108,10 @@ many tags are on it. `test:built-document` uses a global regex for that reason.
 `test:plan-switch` runs **sequences**, not cases, and that is the point: the rule it
 guards had a version that passed every single-step check and still minted credits on the
 second lap of a down-up cycle. If you change `lib/credits/plan-switch.ts`, add the new
-attack as a sequence.
+attack as a sequence. Since 2026-09-12 it also reads the WEBHOOK's source, because three
+of the four money defects found that day were in what the caller hands the rule rather
+than in the arithmetic — a perfect function fed a wrong `alreadyGrantedThisPeriod` mints
+credits just as effectively.
 
 Needs the live database, so **not** a build gate — run these after applying 042, after
 touching either side of the logo rule, or after changing the beta-credit grant on either
@@ -2947,4 +3125,16 @@ product is technically wrong.
 npm run test:logo-parity   # one corpus through both the TS validator and the SQL guard
 npm run test:rate-limit    # 25 genuinely parallel calls against a cap of 5 -> exactly 5
 npm run test:beta-credits  # the number the waitlist PROMISES == the number the DB GRANTS
+npm run test:portal-config # the billing portal offers exactly the plans this product sells
 ```
+
+`test:portal-config` reads the LIVE Stripe account and needs `STRIPE_SECRET_KEY`,
+`STRIPE_PORTAL_CONFIGURATION_ID` and the five `STRIPE_*_PRICE_ID` in the
+environment; it exits 1 and says so rather than skipping, because a check that
+reports success when it could not run is the failure this file keeps recording.
+The portal configuration is a THIRD copy of the price list — checkout reads the
+environment, the webhook maps a price back to a plan through the same
+environment, and the configuration holds its own list on Stripe that no
+deployment touches. Rotate a price and the portal keeps offering the old id: the
+customer switches plan, Stripe bills the old price, and the webhook finds no plan
+for it, so the account silently keeps its previous tier.
