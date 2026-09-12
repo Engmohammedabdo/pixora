@@ -476,7 +476,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Read the plan from the PRICE, not from metadata. Stripe does not update
         // metadata when a subscription item changes, so a plan swap made in the
         // billing portal left the old planId here and granted the wrong tier.
-        const priceId = subscription.items?.data?.[0]?.price?.id;
+        //
+        // And read that price from STRIPE, not from this event's own payload.
+        // Webhook delivery is at-least-once and UNORDERED, and the billing portal
+        // makes two switches in one visit an ordinary thing to do: entry -> pro,
+        // then pro -> agency, thirty seconds apart. Delivered out of order, the
+        // agency event lands first and the pro event then reads its own stale price
+        // and writes plan_id='pro' over it — so Stripe bills agency forever while
+        // the app grants pro, and NOTHING corrects it, because the renewal branch
+        // below reads plan_id from the profile too. Re-reading collapses both events
+        // onto the subscription's current price: whichever runs first does the
+        // switch, the other finds previousPlan === planId and stops.
+        //
+        // A failed retrieve is deliberately not caught: the route answers 500, the
+        // event stays unprocessed, and Stripe redelivers. Falling back to the event
+        // payload would restore the defect silently, which is the shape this repo
+        // keeps recording.
+        const currentSubscription = await stripe.subscriptions.retrieve(subscription.id);
+        const priceId = currentSubscription.items?.data?.[0]?.price?.id;
         const planId = priceId
           ? Object.values(PLANS).find((p) => p.priceId === priceId)?.id
           : subscription.metadata?.planId;
@@ -551,40 +568,70 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           const newAllowance = getCreditsForPlan(planId);
           const balance = prevProfile.credits_balance || 0;
 
-          // When the current period began. Every path that actually PAYS for a month
-          // — checkout.session.completed above and the subscription_cycle branch of
-          // invoice.payment_succeeded below — sets credits_reset_date to 30 days out,
-          // so subtracting the same 30 days recovers the start. A missing date falls
-          // back to the same width, which errs toward counting MORE prior grants
-          // rather than fewer; that direction costs credits, it does not mint them.
+          // When the current period began, and how much of it is left.
+          //
+          // Every path that PAYS for a month — checkout.session.completed above and
+          // the subscription_cycle branch of invoice.payment_succeeded below — sets
+          // credits_reset_date to 30 days out. The DATABASE cron
+          // (reset_monthly_credits, migration 048) sets `NOW() + INTERVAL '1 month'`,
+          // which is 28-31 days. So the LEDGER LOOKBACK uses the wider 31 while the
+          // period WIDTH stays 30: counting a grant that belonged to the previous
+          // period costs an honest upgrader credits the next renewal restores;
+          // missing one mints them against a live Stripe account.
           const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
-          const periodEnd = prevProfile.credits_reset_date
+          const LEDGER_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
+          const resetAt = prevProfile.credits_reset_date
             ? new Date(prevProfile.credits_reset_date).getTime()
-            : Date.now() + PERIOD_MS;
-          const periodStart = new Date(periodEnd - PERIOD_MS).toISOString();
+            : null;
 
-          // How much plan allowance this period has already handed out. Both paid
-          // grants write type='subscription', and so does the grant below, so this
-          // sum IS the high-water mark of allowance issued this period. A clamp-down
-          // writes type='reset' precisely so it does not reduce that mark and hand
-          // the customer a second chance to collect.
-          const { data: priorGrants, error: grantsError } = await supabase
-            .from('credit_transactions')
-            .select('amount')
-            .eq('user_id', userId)
-            .eq('type', 'subscription')
-            .gte('created_at', periodStart);
+          // `credits_reset_date` is NULLABLE (001:12). The previous version invented
+          // `Date.now() + PERIOD_MS` for a missing one, which made periodStart equal
+          // to NOW — so the ledger window was EMPTY, alreadyGranted read 0, and the
+          // ceiling opened to a whole allowance. Its own comment claimed that
+          // fallback erred toward counting MORE grants; it erred the other way, and
+          // it was the one arm no test covered. An unknown period is not a full one.
+          let alreadyGranted: number;
+          let periodRemaining: number;
 
-          // Fail CLOSED. Getting this read wrong in the generous direction mints
-          // credits against a live Stripe account; getting it wrong in the mean
-          // direction costs an honest upgrader credits that the next renewal
-          // restores anyway. Only one of those is recoverable.
-          if (grantsError) {
-            console.error(`[webhook] subscription.updated: could not read prior grants for ${userId} — granting nothing on this switch: ${grantsError.message}`);
+          if (resetAt === null) {
+            console.error(`[webhook] subscription.updated: ${userId} has no credits_reset_date — granting nothing on this switch; the next renewal restores the tier allowance`);
+            alreadyGranted = newAllowance;
+            periodRemaining = 0;
+          } else {
+            const periodStart = new Date(resetAt - LEDGER_LOOKBACK_MS).toISOString();
+
+            // How much plan allowance this period has already handed out — from
+            // EVERY writer, not only this webhook. The paid grants write
+            // type='subscription'; the monthly cron writes type='reset' with a
+            // POSITIVE amount, and a read filtered to 'subscription' alone saw 0 for
+            // any period the cron paid for, opening the ceiling to a second full
+            // allowance. Negative rows are floored at 0 rather than subtracted: a
+            // clamp-down also writes 'reset', and letting it reduce this mark is
+            // exactly how the lap gets its second chance back.
+            const { data: priorGrants, error: grantsError } = await supabase
+              .from('credit_transactions')
+              .select('amount')
+              .eq('user_id', userId)
+              .in('type', ['subscription', 'reset'])
+              .gte('created_at', periodStart);
+
+            // Fail CLOSED. Getting this read wrong in the generous direction mints
+            // credits against a live Stripe account; getting it wrong in the mean
+            // direction costs an honest upgrader credits that the next renewal
+            // restores anyway. Only one of those is recoverable.
+            if (grantsError) {
+              console.error(`[webhook] subscription.updated: could not read prior grants for ${userId} — granting nothing on this switch: ${grantsError.message}`);
+            }
+            alreadyGranted = grantsError
+              ? newAllowance
+              : (priorGrants ?? []).reduce((sum, row) => sum + Math.max(0, row.amount || 0), 0);
+
+            // Stripe prorates the MONEY by time remaining, so the credits are
+            // prorated the same way — see lib/credits/plan-switch.ts. Without this,
+            // an upgrade in the last hour of the month costs a few cents and
+            // delivered the whole tier difference, every month, forever.
+            periodRemaining = (resetAt - Date.now()) / PERIOD_MS;
           }
-          const alreadyGranted = grantsError
-            ? newAllowance
-            : (priorGrants ?? []).reduce((sum, row) => sum + (row.amount || 0), 0);
 
           // The arithmetic lives in lib/credits/plan-switch.ts so it can be proved
           // against the attack SEQUENCES rather than argued about here — see
@@ -595,6 +642,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             previousAllowance,
             newAllowance,
             alreadyGrantedThisPeriod: alreadyGranted,
+            periodRemaining,
           });
 
           const isUpgrade = (PLANS[planId]?.price || 0) > (PLANS[previousPlan]?.price || 0);
@@ -605,9 +653,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // yet marked processed; a redelivery re-reads the profile, finds
           // `previousPlan === planId` and stops above. Splitting the two columns
           // across two writes would lose that property.
+          // `payment_failed` is deliberately NOT cleared here. It means "a charge
+          // failed and has not been recovered", and only a payment recovers it —
+          // invoice.payment_succeeded below, a fresh checkout, or downgradeToFree.
+          // Clearing it on a plan change let a delinquent customer switch tier in the
+          // portal and silently turn the cron guard (migration 032) back on for
+          // themselves; and once proration is invoiced immediately, the
+          // invoice.payment_failed for a switch that could NOT collect may be
+          // delivered before this event, so this write would have erased the very
+          // flag that switch had just raised.
           await mustSucceed(supabase
             .from('profiles')
-            .update({ plan_id: planId, credits_balance: newBalance, payment_failed: false })
+            .update({ plan_id: planId, credits_balance: newBalance })
             .eq('id', userId), 'subscription.updated: update profile');
 
           await mustSucceed(supabase.from('credit_transactions').insert({

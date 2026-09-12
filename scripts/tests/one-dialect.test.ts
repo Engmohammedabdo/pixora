@@ -9,9 +9,14 @@
  * A reader does not experience that as "supports many dialects". They experience one
  * writer who cannot hold a voice — and the competitor this was measured against
  * (crewzo.ai) sells a NAMED Khaleeji claim, so a half-Gulf page is contesting their
- * ground while losing our own. `docs/POSITIONING.md` §4 takes the decision: the
- * marketing surface speaks Egyptian-leaning, one register, and Riyadh is conceded
- * deliberately.
+ * ground while losing our own.
+ *
+ * `docs/POSITIONING.md` §4 first answered that with "Egyptian-leaning, one register".
+ * THE FOUNDER REVERSED IT THE SAME DAY: the register is clear PROFESSIONAL Arabic,
+ * and the ban list below was rebuilt from that decision rather than extended from
+ * the old one — which is why `كيف`, `متى` and `ليس` are the target here and were
+ * once the violation. If you are reading this file to learn the rule, read §4 as it
+ * stands today, not as this paragraph's first sentence describes it.
  *
  * ── WHAT THIS DOES **NOT** POLICE, AND WHY IT MATTERS ──────────────────────────
  *
@@ -21,10 +26,14 @@
  *    voice and GENERATING in five is the product working, not a contradiction. So
  *    this gate reads `messages/ar.json` and never `lib/`.
  *
- * 2. ONLY THE MARKETING NAMESPACES. `landing`, `studios`, `pricingPage` — the copy a
- *    stranger reads before they have an account. The app's own surfaces (`admin`,
- *    `billing`, studio forms, error strings) are out of scope: nobody is being sold
- *    to there, and a sweep of 863 keys is a different, riskier change.
+ * 2. ~~ONLY THE MARKETING NAMESPACES.~~ **No longer true, and this paragraph used to
+ *    say it was.** The scope widened to EVERY namespace in `messages/ar.json` on
+ *    2026-09-09 (see ROOTS below) and, on 2026-09-12, to the Arabic that does not
+ *    live in `messages/ar.json` at all: the transactional emails and both
+ *    not-found pages (SOURCE_FILES below). A review of the 2026-09-11 round found
+ *    that copy had been rewritten by hand and then left with NOTHING holding it —
+ *    the gate reported zero while structurally unable to read the files. Same
+ *    class as the credit detector that could never fire on Arabic.
  *
  * 3. MODERN STANDARD ARABIC IS NOT A VIOLATION. `نفسه`, `الآن`, and `ثانية` as a
  *    unit of TIME all survive here on purpose. MSA is the neutral baseline every
@@ -37,6 +46,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from '../lib/strip-comments';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ar = JSON.parse(readFileSync(join(ROOT, 'messages/ar.json'), 'utf8')) as Record<string, unknown>;
@@ -190,6 +200,39 @@ const ROOTS = Object.keys(ar);
 check('messages/ar.json has namespaces to scan', ROOTS.length >= 20, `${ROOTS.length}`);
 const all: Leaf[] = [];
 for (const root of ROOTS) leaves(ar[root], root, all);
+
+/**
+ * Arabic the customer reads that is NOT in `messages/ar.json`.
+ *
+ * `lib/email/templates.ts` builds the payment-failed, invite and password-reset
+ * messages as Arabic string literals in TypeScript; both `not-found.tsx` files do
+ * the same. So the 2026-09-11 register sweep rewrote them by hand and this gate —
+ * which reads one JSON file — went on reporting zero, structurally unable to see
+ * whether they had drifted back. Measured 2026-09-12: 36 Arabic lines across the
+ * three, 0 violations. Nothing was holding that.
+ *
+ * Comments are stripped FIRST, and that is not hygiene: this repo documents its own
+ * history by quoting the copy it replaced, so an unstripped scan would fail on a
+ * comment recording a defect that is fixed. `prompt-builder-sanitized` states the
+ * same rule for the same reason.
+ */
+const SOURCE_FILES = [
+  'lib/email/templates.ts',
+  'app/not-found.tsx',
+  'app/[locale]/not-found.tsx',
+];
+for (const rel of SOURCE_FILES) {
+  const src = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+  const arabicLines = src
+    .split(/\r?\n/)
+    .map((text, i) => ({ path: `${rel}:${i + 1}`, text }))
+    .filter((l) => new RegExp(AR).test(l.text));
+  // A file that was renamed, moved, or had its Arabic lifted into messages/ar.json
+  // must FAIL here rather than quietly contribute nothing — the rule
+  // mock-from-schema.test.ts states and this file already applies to the JSON walk.
+  check(`${rel} still carries Arabic for this gate to read`, arabicLines.length > 0, `${arabicLines.length} lines`);
+  all.push(...arabicLines);
+}
 // Named explicitly because these five carry the strings a customer reads at their
 // worst moment, and a walk that quietly stopped covering them would look clean.
 for (const must of ['landing', 'studios', 'pricingPage', 'studio', 'contact']) {
@@ -221,4 +264,4 @@ if (failures.length) {
   console.error('See docs/POSITIONING.md §4 — the marketing surface speaks ONE register.');
   process.exit(1);
 }
-console.log(`[one-dialect] ${passed} checks passed (${all.length} strings, ${Object.keys(FOREIGN_TOKENS).length} tokens)`);
+console.log(`[one-dialect] ${passed} checks passed (${all.length} strings from messages/ar.json + ${SOURCE_FILES.length} source files, ${Object.keys(FOREIGN_TOKENS).length} tokens)`);
