@@ -23,6 +23,17 @@
  * forever. So `periodRemaining` is now an input and every sequence below states WHEN
  * in the period each switch happens.
  *
+ * WHY THE HARNESS ALSO CARRIES A SETTLED FLAG, SINCE THE PORTAL
+ *
+ * Stripe applies a portal price change immediately and bills it SEPARATELY, and
+ * its own documentation says the update lands "regardless of whether payment on
+ * the new invoice succeeds". The portal configuration object exposes no
+ * `payment_behavior`, so pending updates cannot be bought from that side. An
+ * upgrade whose proration declines therefore reaches the webhook as an ordinary
+ * `active` subscription. `switchTo(plan, {settled:false})` is that case, and the
+ * rule answers it by buying no TIME: the plan moves, the credits wait for
+ * `invoice.payment_succeeded`, which is `settlePayment()` here.
+ *
  * WHY IT MODELS A LEDGER WITH ROW TYPES
  *
  * `alreadyGrantedThisPeriod` is not a number the webhook holds; it is a SUM over
@@ -67,7 +78,7 @@ function checkNear(label: string, actual: number, expected: number, tolerance: n
   }
 }
 
-type LedgerRow = { type: 'subscription' | 'reset' | 'purchase'; amount: number };
+type LedgerRow = { type: 'subscription' | 'reset' | 'purchase' | 'plan_change'; amount: number };
 
 /** One subscriber across a single billing period. */
 class Account {
@@ -90,7 +101,7 @@ class Account {
    */
   get grantedThisPeriod(): number {
     return this.ledger
-      .filter((r) => r.type === 'subscription' || r.type === 'reset')
+      .filter((r) => r.type === 'subscription' || r.type === 'reset' || r.type === 'plan_change')
       .reduce((sum, r) => sum + Math.max(0, r.amount), 0);
   }
 
@@ -129,20 +140,43 @@ class Account {
     return this;
   }
 
-  /** customer.subscription.updated carrying a real tier change. */
-  switchTo(plan: string): number {
+  /**
+   * customer.subscription.updated carrying a real tier change.
+   *
+   * `settled` is whether the proration invoice had been paid by the time the event
+   * was handled. Unsettled money buys no TIME — the plan still moves, so the
+   * customer gets the tier they are being billed for, and the credits wait.
+   */
+  switchTo(plan: string, opts: { settled?: boolean } = {}): number {
+    const settled = opts.settled !== false;
     const { newBalance, granted } = planSwitchBalance({
       balance: this.balance,
-      previousAllowance: getCreditsForPlan(this.plan),
       newAllowance: getCreditsForPlan(plan),
+      alreadyGrantedThisPeriod: this.grantedThisPeriod,
+      periodRemaining: settled ? this.remaining : 0,
+    });
+    this.balance = newBalance;
+    this.plan = plan;
+    this.ledger.push({ type: 'plan_change', amount: granted });
+    if (granted > 0) this.totalGranted += granted;
+    return granted;
+  }
+
+  /**
+   * invoice.payment_succeeded with billing_reason 'subscription_update' — the
+   * switch's money landing, possibly minutes after the switch itself. It applies
+   * the SAME rule, which is the whole reason the rule is stated on the ledger
+   * rather than on the previous plan.
+   */
+  settlePayment(): number {
+    const { newBalance, granted } = planSwitchBalance({
+      balance: this.balance,
+      newAllowance: getCreditsForPlan(this.plan),
       alreadyGrantedThisPeriod: this.grantedThisPeriod,
       periodRemaining: this.remaining,
     });
     this.balance = newBalance;
-    this.plan = plan;
-    // The webhook writes 'subscription' for a positive grant and 'reset' otherwise,
-    // and the sum above floors the negative — so a clamp-down cannot move the mark.
-    this.ledger.push({ type: granted > 0 ? 'subscription' : 'reset', amount: granted });
+    this.ledger.push({ type: 'plan_change', amount: granted });
     if (granted > 0) this.totalGranted += granted;
     return granted;
   }
@@ -282,6 +316,65 @@ class Account {
   );
 }
 
+// ---- ATTACK 9: the upgrade whose proration payment DECLINES. ---------------
+// Stripe applies the price change anyway and the subscription stays `active`
+// until smart retries give up about three weeks later, so `status` proves
+// nothing about the money. Confirmed against Stripe's documentation by the
+// 2026-09-12 review, and it was the only credit-granting path in the product
+// with no settled-money check.
+{
+  const a = new Account('free');
+  a.paidPeriod('entry');
+  const granted = a.switchTo('agency', { settled: false });
+  check('attack: an unpaid upgrade grants nothing', granted, 0);
+  check('attack: and leaves the balance exactly where it was', a.balance, getCreditsForPlan('entry'));
+  check('attack: while the plan still moves to what Stripe is billing', a.plan === 'agency' ? 1 : 0, 1);
+}
+
+// ---- HONEST 8: ...and the customer is made whole when the money lands. ------
+// The second handler recomputes the same rule. It has no memory of what the
+// switch intended, which is the point: the gap is stated on the ledger.
+{
+  const a = new Account('free');
+  a.paidPeriod('entry');
+  a.switchTo('agency', { settled: false });
+  const settled = a.settlePayment();
+  check('honest: the paid proration delivers the whole gap', settled, getCreditsForPlan('agency') - getCreditsForPlan('entry'));
+  check('honest: and lands on a full agency allowance', a.balance, getCreditsForPlan('agency'));
+}
+
+// ---- ATTACK 10: and settling TWICE must not pay twice. ---------------------
+// Stripe delivers at least once, and this route deliberately re-runs an event
+// whose row exists but is unfinished. Idempotence here is arithmetic, not a lock.
+{
+  const a = new Account('free');
+  a.paidPeriod('entry');
+  a.switchTo('agency', { settled: false });
+  a.settlePayment();
+  const again = a.settlePayment();
+  check('attack: a replayed settlement grants nothing', again, 0);
+  checkAtMost('attack: and the period never issues more than one agency allowance', a.totalGranted, getCreditsForPlan('agency'));
+}
+
+// ---- ATTACK 11: settlement arriving BEFORE the switch event. ---------------
+// Delivery is unordered. Whichever runs first must issue the credits, and the
+// other must then find nothing left — in either order.
+{
+  const forward = new Account('free');
+  forward.paidPeriod('entry');
+  forward.switchTo('agency');
+  forward.settlePayment();
+
+  const reversed = new Account('free');
+  reversed.paidPeriod('entry');
+  reversed.plan = 'agency';        // the invoice event ran first, plan already moved
+  reversed.settlePayment();
+  reversed.switchTo('agency');
+
+  check('attack: both delivery orders end on the same balance', reversed.balance, forward.balance);
+  check('attack: and grant the same total', reversed.totalGranted, forward.totalGranted);
+}
+
 // ---- HONEST 1: a plain mid-period upgrade must deliver the difference. ----
 {
   const a = new Account('free');
@@ -378,7 +471,6 @@ class Account {
   const newAllowance = getCreditsForPlan('agency');
   const { granted } = planSwitchBalance({
     balance: 0,
-    previousAllowance: getCreditsForPlan('starter'),
     newAllowance,
     // What the webhook substitutes when the ledger read errors.
     alreadyGrantedThisPeriod: newAllowance,
@@ -393,7 +485,6 @@ class Account {
 {
   const { granted } = planSwitchBalance({
     balance: 0,
-    previousAllowance: getCreditsForPlan('entry'),
     newAllowance: getCreditsForPlan('agency'),
     alreadyGrantedThisPeriod: getCreditsForPlan('agency'),
     periodRemaining: 0,
@@ -403,11 +494,10 @@ class Account {
 
 // ---- FAIL-CLOSED: a nonsense clock cannot buy more than one difference. -----
 {
-  const difference = getCreditsForPlan('agency') - getCreditsForPlan('entry');
+  const difference = getCreditsForPlan('agency');
   for (const [label, remaining] of [['a stale future date', 12], ['NaN', Number.NaN]] as [string, number][]) {
     const { granted } = planSwitchBalance({
       balance: 0,
-      previousAllowance: getCreditsForPlan('entry'),
       newAllowance: getCreditsForPlan('agency'),
       alreadyGrantedThisPeriod: 0,
       periodRemaining: remaining,
@@ -507,6 +597,50 @@ class Account {
     'the plan is resolved from a re-read subscription, not the event payload',
     /subscriptions\.retrieve\(/.test(branch) && /currentSubscription\.items/.test(branch),
     branch.slice(branch.indexOf('const priceId'), branch.indexOf('const priceId') + 200)
+  );
+
+  // ── THE MONEY MUST HAVE SETTLED BEFORE THE CREDITS ARE ISSUED ──────────────
+  //
+  // Stripe applies a portal price change whether or not the proration invoice is
+  // paid, and leaves the subscription `active` for about three weeks of retries,
+  // so `status` proves nothing. These are the three halves of the guard, each
+  // stated where it actually decides something.
+  src('the retrieve expands latest_invoice', /subscriptions\.retrieve\([\s\S]{0,120}?expand:\s*\[\s*'latest_invoice'\s*\]/.test(branch));
+  src('the branch decides whether the money settled', /const moneySettled\s*=/.test(branch));
+  src(
+    'settlement is read from the invoice, not from the subscription status',
+    /moneySettled\s*=[\s\S]{0,320}?latestInvoice\.status === 'paid'/.test(branch),
+    branch.slice(branch.indexOf('const moneySettled'), branch.indexOf('const moneySettled') + 320)
+  );
+  src(
+    'unsettled money buys no period time',
+    /periodRemaining\s*=\s*moneySettled\s*\?/.test(branch),
+    'stated on periodRemaining so the clamp DOWN still runs — a downgrade has no invoice to settle'
+  );
+  src(
+    'isLive is read from the re-read subscription, not the stale payload',
+    /const isLive\s*=\s*currentSubscription\.status/.test(branch),
+    branch.slice(branch.indexOf('const isLive'), branch.indexOf('const isLive') + 160)
+  );
+
+  // ...and the credits withheld must actually arrive when the payment lands, or
+  // the guard above is just money taken for goods never delivered.
+  const invoiceAt = webhook.indexOf("case 'invoice.payment_succeeded'");
+  const invoiceEnd = webhook.indexOf("case 'invoice.payment_failed'");
+  const invoiceBranch = invoiceAt !== -1 && invoiceEnd > invoiceAt ? webhook.slice(invoiceAt, invoiceEnd) : '';
+  src('the invoice branch is findable', invoiceBranch.length > 200, `${invoiceBranch.length} chars`);
+  src(
+    "a settled proration invoice ('subscription_update') is handled",
+    /billing_reason === 'subscription_update'/.test(invoiceBranch),
+    'without it an upgrade whose payment settles seconds later is paid for and never delivered'
+  );
+  src(
+    'that arm applies the same rule rather than a stored intent',
+    /billing_reason === 'subscription_update'[\s\S]{0,3000}?planSwitchBalance\(\{/.test(invoiceBranch)
+  );
+  src(
+    'the monthly reset is still gated on subscription_cycle',
+    /billing_reason !== 'subscription_cycle'\) break;/.test(invoiceBranch)
   );
 }
 

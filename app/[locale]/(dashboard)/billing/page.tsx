@@ -137,6 +137,10 @@ export default function BillingPage(): React.ReactElement {
         window.location.href = data.data.url;
       } else if (data.error === 'no_customer') {
         toast.error(t('noBillingHistory'));
+      } else if (data.error === 'portal_unavailable') {
+        // A configuration problem, not a hiccup. `portalError` says "try again",
+        // which is a lie here — no retry can succeed until the id is set.
+        toast.error(t('portalUnavailable'));
       } else {
         toast.error(t('portalError'));
       }
@@ -216,11 +220,29 @@ export default function BillingPage(): React.ReactElement {
                 </span>
               </div>
               {!isFreeAccount && <Progress value={creditPercentage} className="h-2.5" />}
-              {!isFreeAccount && profile?.credits_reset_date && (
+              {/*
+                A cancellation now REACHES this screen. Stripe's portal cancels at
+                period end and returns the customer straight back here, and until
+                migration 049 this line read the renewal date off `credits_reset_date`
+                and told them their plan renews — seconds after they had cancelled it.
+
+                `subscription_cancel_at` is the date STRIPE will act on. It is not
+                `credits_reset_date`, which the app computes as now + 30 days
+                (webhook: checkout and renewal both), and seven of twelve months are
+                not 30 days long. Quoting the wrong one would name a cancellation
+                date nothing is going to honour.
+              */}
+              {!isFreeAccount && profile?.subscription_cancel_at ? (
+                <p className="text-xs text-[var(--color-warning)]">
+                  {t('endsAt')} {format.dateTime(new Date(profile.subscription_cancel_at), { month: 'long', day: 'numeric' })}
+                  {' — '}
+                  {t('endsAtAfter')}
+                </p>
+              ) : !isFreeAccount && profile?.credits_reset_date ? (
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {t('renewsAt')} {format.dateTime(new Date(profile.credits_reset_date), { month: 'long', day: 'numeric' })}
                 </p>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>

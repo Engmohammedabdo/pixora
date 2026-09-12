@@ -13,6 +13,7 @@ export interface Database {
           purchased_credits: number;
           purchased_credits_expires_at: string | null;
           credits_reset_date: string | null;
+          subscription_cancel_at: string | null;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
           onboarding_completed: boolean;
@@ -36,6 +37,7 @@ export interface Database {
           purchased_credits?: number;
           purchased_credits_expires_at?: string | null;
           credits_reset_date?: string | null;
+          subscription_cancel_at?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           onboarding_completed?: boolean;
@@ -55,6 +57,7 @@ export interface Database {
           purchased_credits?: number;
           purchased_credits_expires_at?: string | null;
           credits_reset_date?: string | null;
+          subscription_cancel_at?: string | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           onboarding_completed?: boolean;
@@ -220,8 +223,10 @@ export interface Database {
           id: string;
           user_id: string;
           amount: number;
-          // 'referral' and 'admin_adjustment' allowed by migration 023.
-          type: 'subscription' | 'topup' | 'usage' | 'refund' | 'reset' | 'referral' | 'admin_adjustment';
+          // 'referral' and 'admin_adjustment' allowed by migration 023;
+          // 'plan_change' by migration 049, which also records why the type can no
+          // longer be chosen from the sign of the amount.
+          type: 'subscription' | 'topup' | 'usage' | 'refund' | 'reset' | 'referral' | 'admin_adjustment' | 'plan_change';
           description: string | null;
           generation_id: string | null;
           stripe_payment_intent_id: string | null;

@@ -44,6 +44,23 @@
  * has actually been charged for. The ceiling on credits already granted stays on
  * top of that: proration alone would still let a lap collect a slice per lap.
  *
+ * ── AND THE DIFFERENCE IS STATED ON THE LEDGER, NOT ON THE PREVIOUS PLAN ─────
+ *
+ * `previousAllowance` is gone. The gap being bought is
+ * `newAllowance - alreadyGrantedThisPeriod`, which in the ordinary case is exactly
+ * what `newAllowance - previousAllowance` was — a customer on Pro whose period has
+ * issued Pro's 600 gets the identical answer — and which is STRICTLY smaller
+ * whenever the ledger says more has been issued than the previous tier's headline
+ * allowance. That is precisely when being generous is wrong.
+ *
+ * The reason it had to change is not tightness, it is ORDER. Stripe applies a
+ * portal price change immediately and bills it separately, so the credits must be
+ * issued by whichever of the two events proves the money settled — and the invoice
+ * event does not know what plan the customer was on a moment ago. Stated on the
+ * ledger, the rule needs no such memory: both events compute the same number, and
+ * the first one to run moves `alreadyGrantedThisPeriod` so the second grants zero.
+ * Idempotence by arithmetic rather than by a lock.
+ *
  * `purchased_credits` is a separate pool (migration 031) and is deliberately not an
  * input here: a top-up the customer actually bought survives every switch.
  *
@@ -54,8 +71,6 @@
 export interface PlanSwitchInput {
   /** `profiles.credits_balance` before the switch. */
   balance: number;
-  /** Monthly allowance of the plan being left. */
-  previousAllowance: number;
   /** Monthly allowance of the plan being moved to. */
   newAllowance: number;
   /**
@@ -88,13 +103,38 @@ export interface PlanSwitchResult {
   newBalance: number;
   /** Signed delta for the ledger row. Negative on a clamp-down. */
   granted: number;
+  /**
+   * The difference the period had actually been paid for, before the ceiling and
+   * the clamp were applied. Returned rather than left to the caller because
+   * `granted` is cut by THREE independent things — proration, the already-granted
+   * ceiling, and the clamp to the new allowance — and the customer-facing line
+   * that explains the number must not guess which one did it. A caller that
+   * re-derived this from its own copy of the clock would be the "a rule stated
+   * twice drifts" failure, with the drift landing in the customer's history.
+   */
+  earned: number;
+  /** How much of the new tier's allowance this period had left to issue. */
+  headroom: number;
+  /**
+   * The whole gap this period still owed of the new tier, before time touched it.
+   * Returned for the same reason as `earned`: the sentence the customer reads
+   * quotes it ("58 of 175"), and a caller computing its own copy is the drift this
+   * project keeps paying for. Equal to `headroom` by construction; both names are
+   * kept because the two readings — "the ceiling" and "the gap being bought" —
+   * are what the wording downstream needs to tell apart.
+   */
+  difference: number;
 }
 
 export function planSwitchBalance(input: PlanSwitchInput): PlanSwitchResult {
-  const { balance, previousAllowance, newAllowance, alreadyGrantedThisPeriod, periodRemaining } = input;
+  const { balance, newAllowance, alreadyGrantedThisPeriod, periodRemaining } = input;
 
+  // One quantity, used twice: what this period still owes of the new tier. It is
+  // the ceiling AND the gap being bought — see the header for why stating it on
+  // the ledger rather than on the previous plan is what makes the rule
+  // order-independent.
   const headroom = Math.max(0, newAllowance - alreadyGrantedThisPeriod);
-  const difference = Math.max(0, newAllowance - previousAllowance);
+  const difference = headroom;
   // Clamped rather than trusted: a clock skew or a stale reset date must not be able
   // to hand out more than one period's difference, and a period already over must
   // hand out none. NaN fails this comparison and lands on 0, which is the safe end.
@@ -104,5 +144,5 @@ export function planSwitchBalance(input: PlanSwitchInput): PlanSwitchResult {
   const earned = Math.floor(difference * remaining);
   const newBalance = Math.min(balance + Math.min(earned, headroom), newAllowance);
 
-  return { newBalance, granted: newBalance - balance };
+  return { newBalance, granted: newBalance - balance, earned, headroom, difference };
 }

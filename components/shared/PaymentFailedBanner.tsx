@@ -43,7 +43,9 @@ export function PaymentFailedBanner(): React.ReactElement | null {
         window.location.href = data.data.url;
         return;
       }
-      toast.error(t('portalError'));
+      // Same distinction the billing page draws: `portalError` tells the customer
+      // to try again, and for a missing configuration no retry can ever work.
+      toast.error(t(data.error === 'portal_unavailable' ? 'portalUnavailable' : 'portalError'));
     } catch {
       toast.error(t('portalError'));
     } finally {

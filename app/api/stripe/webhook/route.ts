@@ -107,7 +107,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (previousPlan === 'free') {
       await mustSucceed(supabase
         .from('profiles')
-        .update({ stripe_subscription_id: null })
+        .update({ stripe_subscription_id: null, subscription_cancel_at: null })
         .eq('id', userId), `${reason}: clear subscription id`);
       console.info(`[webhook] ${reason}: ${userId} is already on free — no downgrade needed`);
       return;
@@ -122,6 +122,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         credits_balance: freeCredits,
         stripe_subscription_id: null,
         payment_failed: false,
+        // The cancellation has HAPPENED. Leaving the scheduled date behind would
+        // keep the billing card saying "ends on the 30th" forever, on an account
+        // that is already free.
+        subscription_cancel_at: null,
       })
       .eq('id', userId), `${reason}: downgrade profile`);
 
@@ -492,7 +496,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // event stays unprocessed, and Stripe redelivers. Falling back to the event
         // payload would restore the defect silently, which is the shape this repo
         // keeps recording.
-        const currentSubscription = await stripe.subscriptions.retrieve(subscription.id);
+        const currentSubscription = await stripe.subscriptions.retrieve(subscription.id, {
+          expand: ['latest_invoice'],
+        });
+
+        // WHEN STRIPE WILL CANCEL THIS SUBSCRIPTION, if the customer has asked it to.
+        //
+        // The portal cancels at period end, so `deleted` does not arrive for up to a
+        // month — and until 049 nothing stored the fact at all (`cancel_at_period_end`
+        // occurred ZERO times in this codebase). The screen Stripe returns the
+        // customer to is /[locale]/billing, which read plan_id and credits_reset_date
+        // and told them their plan RENEWS on that date, seconds after they cancelled it.
+        //
+        // Written from `currentSubscription`, never from the event payload, for the
+        // same reason the price is: delivery is unordered, and "cancel, then resume a
+        // minute later" is two events. Delivered out of order, a stale
+        // `cancel_at` would pin "your plan is ending" onto a customer who is still
+        // paying, with nothing to correct it. Null when no cancellation is scheduled,
+        // so resuming clears it by the same write.
+        //
+        // ABOVE the plan/status guard below, deliberately: a customer cancelling a
+        // past_due subscription, or one whose price is not in PLANS, is exactly the
+        // customer most likely to be cancelling, and the guard would skip them.
+        await mustSucceed(supabase
+          .from('profiles')
+          .update({
+            subscription_cancel_at: currentSubscription.cancel_at
+              ? new Date(currentSubscription.cancel_at * 1000).toISOString()
+              : null,
+          })
+          .eq('id', userId), 'subscription.updated: record cancellation date');
+
         const priceId = currentSubscription.items?.data?.[0]?.price?.id;
         const planId = priceId
           ? Object.values(PLANS).find((p) => p.priceId === priceId)?.id
@@ -501,7 +535,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Only act on a live subscription. `updated` also fires for payment-method
         // edits, trial changes and cancel-at-period-end — none of which should
         // hand out a month of credits.
-        const isLive = subscription.status === 'active' || subscription.status === 'trialing';
+        const isLive = currentSubscription.status === 'active' || currentSubscription.status === 'trialing';
+
+        // ═══ HAS THE MONEY FOR THIS SWITCH ACTUALLY SETTLED? ═══
+        //
+        // Stripe applies a portal price change IMMEDIATELY and emits this event with
+        // the subscription still `active`; the move to `past_due` is a LATER event,
+        // and `past_due` is deliberately not terminal above. Stripe's documentation
+        // says it in as many words: "By default, Stripe applies updates regardless of
+        // whether payment on the new invoice succeeds." The portal configuration
+        // object has no `payment_behavior`, so pending updates — Stripe's own
+        // recommended protection — cannot be bought from this side at all.
+        //
+        // Without this check an Entry customer could switch to Agency on day one, be
+        // granted 4,975 credits, have the ~$147 proration decline, and spend every
+        // one of them: nothing in the spend path reads `payment_failed`, and smart
+        // retries take about three weeks to reach `unpaid`, which is the first thing
+        // that downgrades them. `checkout.session.completed` has refused to grant
+        // without `payment_status === 'paid'` since the first money round; without
+        // this, the portal switch would be the only credit-granting path in the
+        // product with no settled-money check.
+        //
+        // Stated as "unsettled money buys no TIME" rather than as a skip, so the
+        // clamp DOWN still runs — a downgrade has no invoice to settle — and the
+        // rule stays single. When the payment does land, the
+        // `invoice.payment_succeeded` arm below applies the grant that was withheld.
+        const latestInvoice = currentSubscription.latest_invoice;
+        const moneySettled =
+          latestInvoice !== null &&
+          typeof latestInvoice === 'object' &&
+          (latestInvoice.status === 'paid' || (latestInvoice.amount_remaining ?? 0) === 0);
 
         if (planId && isLive) {
           const { data: prevProfile, error: prevError } = await supabase
@@ -564,7 +627,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           //
           // purchased_credits is a separate pool (031) and is never touched here, so
           // a top-up the customer actually bought survives every switch.
-          const previousAllowance = getCreditsForPlan(previousPlan);
           const newAllowance = getCreditsForPlan(planId);
           const balance = prevProfile.credits_balance || 0;
 
@@ -630,16 +692,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // prorated the same way — see lib/credits/plan-switch.ts. Without this,
             // an upgrade in the last hour of the month costs a few cents and
             // delivered the whole tier difference, every month, forever.
-            periodRemaining = (resetAt - Date.now()) / PERIOD_MS;
+            //
+            // And money that has not settled buys NO time. The clamp below still
+            // runs; only the upward grant waits for the invoice.
+            periodRemaining = moneySettled ? (resetAt - Date.now()) / PERIOD_MS : 0;
+            if (!moneySettled) {
+              console.warn(`[webhook] subscription.updated: ${userId} moved ${previousPlan} -> ${planId} but its invoice has not settled — plan applied, credits withheld until invoice.payment_succeeded`);
+            }
           }
 
           // The arithmetic lives in lib/credits/plan-switch.ts so it can be proved
           // against the attack SEQUENCES rather than argued about here — see
           // scripts/tests/plan-switch.test.ts. `granted` is negative on a clamp-down,
           // and the ledger row below records it as such.
-          const { newBalance, granted } = planSwitchBalance({
+          const { newBalance, granted, earned, headroom, difference } = planSwitchBalance({
             balance,
-            previousAllowance,
             newAllowance,
             alreadyGrantedThisPeriod: alreadyGranted,
             periodRemaining,
@@ -667,16 +734,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .update({ plan_id: planId, credits_balance: newBalance })
             .eq('id', userId), 'subscription.updated: update profile');
 
+          // WHY THE LEDGER TYPE COMES FROM THE EVENT AND NOT FROM THE SIGN.
+          //
+          // It used to be `granted > 0 ? 'subscription' : 'reset'`. That was defensible
+          // while every upgrade granted the whole difference. Once the grant is
+          // prorated by time, an upgrade bought in the last hour of the period grants
+          // ZERO — and a customer who had just PAID to upgrade got a row that
+          // TransactionTable.tsx renders as a red `destructive` badge reading
+          // "تجديد شهري" / "Monthly reset". A plan change is a plan change at any
+          // amount. `plan_change` is registered by migration 049 and has its own badge.
+          //
+          // And the SENTENCE has to name what actually happened. `granted` is cut by
+          // three independent things and the old string asserted one of them — it read
+          // "(difference between allowances)" over a number that was a prorated slice
+          // of it. Each cause now gets its own wording, chosen from the quantities
+          // planSwitchBalance RETURNS rather than from a second computation here.
+          const explanation = granted < 0
+            ? `balance adjusted by ${granted} to ${newBalance} (the new tier's allowance)`
+            : earned === 0 && headroom > 0
+              ? `no credits added — almost none of this billing period is left to prorate`
+              : headroom === 0
+                ? `no credits added — this period's allowance has already been issued`
+                : earned < difference
+                  ? `${granted} of ${difference} credits added, prorated for the part of the period that remains`
+                  : `${granted} credits added (the full difference between the allowances)`;
+
           await mustSucceed(supabase.from('credit_transactions').insert({
             user_id: userId,
             amount: granted,
-            // A plan change that grants nothing is bookkeeping, not a credit
-            // purchase — same shape downgradeToFree() writes, so the two read alike
-            // in the customer's history.
-            type: granted > 0 ? 'subscription' : 'reset',
-            description: granted > 0
-              ? `Plan changed ${previousPlan} -> ${planId} — ${granted} credits added (difference between allowances)`
-              : `Plan changed ${previousPlan} -> ${planId} — balance ${granted === 0 ? `kept at ${newBalance}` : `adjusted by ${granted} to ${newBalance} (new tier allowance)`}`,
+            type: 'plan_change',
+            description: `Plan changed ${previousPlan} -> ${planId} — ${explanation}`,
             // Purchased credits are a separate pool and a plan change does not touch
             // them, but the balance the customer is looking at includes them — the
             // ledger has to agree with that widget. The old row wrote the plan
@@ -758,6 +845,86 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // ═══ MONTHLY RENEWAL — CREDITS RESET ═══
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
+
+        // ── A PLAN SWITCH'S MONEY LANDING ──────────────────────────────────────
+        //
+        // `customer.subscription.updated` moves the plan the moment Stripe applies
+        // it, but withholds the credits until the proration invoice is settled (see
+        // that branch). This is the settlement. It recomputes the SAME rule rather
+        // than replaying a stored intent, which is why lib/credits/plan-switch.ts
+        // states the gap on `alreadyGrantedThisPeriod` instead of on the previous
+        // plan: whichever of the two events runs first issues the credits and moves
+        // that mark, and the other then computes a headroom of zero and grants
+        // nothing. Delivery order stops mattering, and no lock is needed.
+        if (invoice.billing_reason === 'subscription_update') {
+          const switchCustomer = typeof invoice.customer === 'string'
+            ? invoice.customer : invoice.customer?.id;
+          if (!switchCustomer) break;
+
+          const { data: switchProfile } = await supabase
+            .from('profiles')
+            .select('id, plan_id, credits_balance, purchased_credits, credits_reset_date')
+            .eq('stripe_customer_id', switchCustomer)
+            .single();
+          if (!switchProfile) break;
+
+          // The plan is read from the PROFILE here, not from the invoice line: the
+          // subscription.updated branch is what resolves a price to a plan, and it
+          // has either already run (so the profile is current) or will run and find
+          // the grant done. Granting for a plan this account is not on is the one
+          // outcome neither ordering can produce.
+          const settledPlan = switchProfile.plan_id || 'free';
+          if (settledPlan === 'free') break;
+
+          const settledAllowance = getCreditsForPlan(settledPlan);
+          const settledReset = switchProfile.credits_reset_date
+            ? new Date(switchProfile.credits_reset_date).getTime()
+            : null;
+          if (settledReset === null) {
+            console.error(`[webhook] proration ${invoice.id} settled for ${switchProfile.id} but the account has no credits_reset_date — granting nothing`);
+            break;
+          }
+
+          const { data: settledGrants, error: settledError } = await supabase
+            .from('credit_transactions')
+            .select('amount')
+            .eq('user_id', switchProfile.id)
+            .in('type', ['subscription', 'reset', 'plan_change'])
+            .gte('created_at', new Date(settledReset - 31 * 24 * 60 * 60 * 1000).toISOString());
+          if (settledError) {
+            console.error(`[webhook] proration ${invoice.id}: could not read prior grants for ${switchProfile.id} — granting nothing: ${settledError.message}`);
+            break;
+          }
+
+          const settled = planSwitchBalance({
+            balance: switchProfile.credits_balance || 0,
+            newAllowance: settledAllowance,
+            alreadyGrantedThisPeriod: (settledGrants ?? []).reduce((sum, row) => sum + Math.max(0, row.amount || 0), 0),
+            periodRemaining: (settledReset - Date.now()) / (30 * 24 * 60 * 60 * 1000),
+          });
+
+          if (settled.granted <= 0) {
+            console.info(`[webhook] proration ${invoice.id} settled for ${switchProfile.id} on ${settledPlan} — nothing left to grant`);
+            break;
+          }
+
+          await mustSucceed(supabase
+            .from('profiles')
+            .update({ credits_balance: settled.newBalance, payment_failed: false })
+            .eq('id', switchProfile.id), 'proration settled: update balance');
+
+          await mustSucceed(supabase.from('credit_transactions').insert({
+            user_id: switchProfile.id,
+            amount: settled.granted,
+            type: 'plan_change',
+            description: `Plan change paid — ${settled.granted} of ${settled.difference} credits added, prorated for the part of the period that remains`,
+            balance_after: settled.newBalance + (switchProfile.purchased_credits || 0),
+          }), 'proration settled: ledger entry');
+
+          console.info(`[webhook] proration ${invoice.id} settled: granted ${settled.granted} to ${switchProfile.id} on ${settledPlan}`);
+          break;
+        }
+
         if (invoice.billing_reason !== 'subscription_cycle') break;
 
         const customerId = typeof invoice.customer === 'string'

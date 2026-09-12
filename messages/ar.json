@@ -143,7 +143,8 @@
       "reset": "تجديد شهري",
       "referral": "مكافأة دعوة",
       "admin_adjustment": "تعديل إداري",
-      "onboarding": "مكافأة ترحيب"
+      "onboarding": "مكافأة ترحيب",
+      "plan_change": "تغيير الباقة"
     },
     "resolutionLabel": "دقة الصورة",
     "loadFailed": "تعذّر تحميل رصيدك",
@@ -715,7 +716,10 @@
     "billingAndReceipts": "الفواتير وطريقة الدفع",
     "noBillingHistory": "لا توجد عمليات دفع على حسابك بعد.",
     "freeAccountLine": "بدون اشتراك — لا يحصل حسابك على رصيد شهري.",
-    "entryPitch": "باقة البداية: {credits} كريدت كل شهر بـ{price} دولار — تكفي {campaigns} حملات مكتوبة كاملة بـ{posts} بوستات."
+    "entryPitch": "باقة البداية: {credits} كريدت كل شهر بـ{price} دولار — تكفي {campaigns} حملات مكتوبة كاملة بـ{posts} بوستات.",
+    "endsAt": "ينتهي اشتراكك في",
+    "endsAtAfter": "بعدها لا يحصل حسابك على رصيد شهري، ورصيدك المشترى يبقى كما هو",
+    "portalUnavailable": "إدارة الاشتراك غير متاحة الآن. تواصل معنا وسنتولّى الأمر."
   },
   "onboarding": {
     "stepOf": "خطوة {current} من {total}",

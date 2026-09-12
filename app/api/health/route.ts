@@ -45,6 +45,13 @@ export async function GET(): Promise<NextResponse> {
     'SUPABASE_SERVICE_ROLE_KEY',
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
+    // Without it /api/stripe/portal refuses every request with 503 rather than
+    // open whatever configuration the shared Stripe account happens to default
+    // to — correct, and invisible: the customer sees a generic "try again". This
+    // route reports only a coarse ok/degraded, so naming it here leaks nothing
+    // and turns a silent outage of upgrade/cancel/card-update into a red
+    // container.
+    'STRIPE_PORTAL_CONFIGURATION_ID',
     'ADMIN_JWT_SECRET',
     'ADMIN_USERNAME',
     'ADMIN_PASSWORD',

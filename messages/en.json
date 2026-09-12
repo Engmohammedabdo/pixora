@@ -143,7 +143,8 @@
       "reset": "Monthly reset",
       "referral": "Referral bonus",
       "admin_adjustment": "Admin adjustment",
-      "onboarding": "Welcome bonus"
+      "onboarding": "Welcome bonus",
+      "plan_change": "Plan change"
     },
     "resolutionLabel": "Image resolution",
     "loadFailed": "Couldn't load your balance",
@@ -715,7 +716,10 @@
     "billingAndReceipts": "Billing & receipts",
     "noBillingHistory": "No payments on your account yet.",
     "freeAccountLine": "No subscription — your account gets no monthly credits.",
-    "entryPitch": "Entry: {credits} credits every month for ${price} — enough for {campaigns} full written {posts}-post campaigns."
+    "entryPitch": "Entry: {credits} credits every month for ${price} — enough for {campaigns} full written {posts}-post campaigns.",
+    "endsAt": "Your subscription ends on",
+    "endsAtAfter": "after that your account has no monthly credits; credits you bought stay",
+    "portalUnavailable": "Subscription management is unavailable right now. Contact us and we will take care of it."
   },
   "onboarding": {
     "stepOf": "Step {current} of {total}",
